@@ -28,6 +28,7 @@ Run:  uvicorn app:app --host 0.0.0.0 --port 8000
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import re
@@ -54,6 +55,12 @@ QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 # Bump when preprocessing changes, so cached matrices invalidate themselves.
 PREPROC_VERSION = "v2"   # v2: added temporal range to embedding text
 
+# Tags are ~38% of all embedded text, and ~56% for facility rows whose
+# attr_desc is just "Name"/"Address". They are also the least reproducible part
+# of the catalog -- LLM-generated, and the generator was lost. This flag exists
+# to MEASURE that exposure, not as a normal operating mode.
+INCLUDE_TAGS = os.environ.get("EMBED_INCLUDE_TAGS", "1") not in ("0", "false", "False")
+
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 log.info("loading %s ...", MODEL_NAME)
@@ -62,6 +69,65 @@ DIM = MODEL.get_sentence_embedding_dimension()
 log.info("model ready, dim=%d", DIM)
 
 _corpus: dict[str, object] = {"matrix": None, "meta": None, "processed": None, "key": None}
+
+# --------------------------------------------------------------------------- #
+# provenance
+# --------------------------------------------------------------------------- #
+#
+# The cache key covers the CSV, the model NAME, and the preprocessing version.
+# It cannot see the things that silently change vectors underneath a stable
+# name: a different sentence-transformers or torch build, CPU vs GPU kernels,
+# a re-uploaded model revision, a different accelerator's float behaviour.
+#
+# Any of those produces a DIFFERENT VECTOR SPACE while every version string
+# still matches -- and the failure is silent, because search keeps returning
+# plausible-looking results that are quietly worse.
+#
+# So instead of trying to enumerate the causes, measure the effect: embed a
+# fixed canary sentence and fingerprint the vector. If the fingerprint moves,
+# the vector space moved, whatever the reason.
+
+CANARY = "poverty rate by county in the united states"
+
+
+def _torch_info() -> dict:
+    try:
+        import torch
+        return {
+            "torch": torch.__version__,
+            "device": "cuda" if torch.cuda.is_available() else "cpu",
+            "cuda": torch.version.cuda if torch.cuda.is_available() else None,
+        }
+    except Exception:
+        return {"torch": None, "device": "unknown", "cuda": None}
+
+
+def fingerprint() -> str:
+    """
+    Hash of the canary embedding, rounded before hashing.
+
+    The rounding is deliberate: tiny last-bit differences between runs on the
+    same setup are normal floating-point noise and must not look like drift,
+    while a real model or precision change moves values far more than 1e-5.
+    """
+    vec = MODEL.encode([CANARY], normalize_embeddings=True)[0]
+    quantized = ",".join(f"{v:.5f}" for v in vec)
+    return hashlib.sha256(quantized.encode()).hexdigest()[:16]
+
+
+def provenance() -> dict:
+    import sentence_transformers
+    info = {
+        "embed_model": MODEL_NAME,
+        "dimension": DIM,
+        "preproc_version": PREPROC_VERSION,
+        "include_tags": INCLUDE_TAGS,
+        "lemmatizer": _LEMMATIZER is not None,
+        "sentence_transformers": sentence_transformers.__version__,
+        **_torch_info(),
+        "canary_fingerprint": fingerprint(),
+    }
+    return info
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -119,7 +185,7 @@ def embedding_text(row: dict) -> str:
             parts.append(row[key].strip())
     if row.get("attr_orig"):
         parts.append(row["attr_orig"].replace("_", " ").strip())
-    if row.get("tags"):
+    if INCLUDE_TAGS and row.get("tags"):
         parts += [t.strip() for t in re.sub(r"[\[\]'\"]", "", row["tags"]).split(",") if t.strip()]
     if row.get("entity_type"):
         parts.append(row["entity_type"].strip())
@@ -162,6 +228,7 @@ def cache_key(payload: bytes) -> str:
     h.update(payload)
     h.update(MODEL_NAME.encode())
     h.update(PREPROC_VERSION.encode())
+    h.update(b"tags=1" if INCLUDE_TAGS else b"tags=0")
     return h.hexdigest()[:16]
 
 
@@ -183,10 +250,18 @@ class SearchRequest(BaseModel):
 # routes
 # --------------------------------------------------------------------------- #
 
+@app.get("/provenance")
+def provenance_endpoint():
+    """What produced the current vectors, and whether the cache still matches."""
+    return {**provenance(), "drift": _corpus.get("drift") is not None,
+            "drift_detail": _corpus.get("drift")}
+
+
 @app.get("/health")
 def health():
     return {
         "status": "ok",
+        "drift": _corpus.get("drift") is not None,
         "model": MODEL_NAME,
         "dimension": DIM,
         "corpus_loaded": _corpus["matrix"] is not None,
@@ -245,10 +320,44 @@ def build_corpus(force: bool = False):
     texts = [r["text"] for r in rows]
     processed = [clean(t) for t in texts]
 
+    manifest_path = CACHE_DIR / f"{key}.json"
+
     if npy.exists() and not force:
         matrix = np.load(npy)
         cached = True
         log.info("loaded %d cached embeddings from %s", len(matrix), npy.name)
+
+        # Drift check. Reusing a cached matrix built by a different vector space
+        # is the one failure that produces no error and no visible symptom --
+        # just quietly worse retrieval -- so it is checked on every load.
+        if manifest_path.exists():
+            try:
+                stored = json.loads(manifest_path.read_text())
+                current = provenance()
+                if stored.get("canary_fingerprint") != current["canary_fingerprint"]:
+                    log.error(
+                        "EMBEDDING DRIFT: cached vectors were built by a different "
+                        "vector space (fingerprint %s, now %s). Stored env: %s. "
+                        "Current: %s. Re-embed with POST /corpus?force=true, or these "
+                        "vectors and new query embeddings are not comparable.",
+                        stored.get("canary_fingerprint"), current["canary_fingerprint"],
+                        {k: stored.get(k) for k in ("torch", "device", "sentence_transformers")},
+                        {k: current.get(k) for k in ("torch", "device", "sentence_transformers")})
+                    _corpus["drift"] = {"stored": stored, "current": current}
+                else:
+                    _corpus["drift"] = None
+            except Exception as exc:
+                log.warning("could not verify cache provenance: %s", exc)
+        else:
+            # A cache written before provenance tracking existed. Backfill from
+            # the current environment so drift is detectable from here on. This
+            # assumes the current environment built it -- true for an in-place
+            # upgrade, and the only assumption available.
+            manifest_path.write_text(json.dumps(
+                {**provenance(), "rows": len(matrix), "cache_key": key,
+                 "backfilled": True}, indent=2))
+            log.info("backfilled provenance manifest for %s", npy.name)
+            _corpus["drift"] = None
     else:
         matrix, cached = None, False
 
@@ -261,8 +370,11 @@ def build_corpus(force: bool = False):
         log.info("embedding %d catalog rows (first run for this CSV+model)...", len(rows))
         matrix = embed(texts)
         np.save(npy, matrix)
+        manifest_path.write_text(json.dumps(
+            {**provenance(), "rows": len(rows), "cache_key": key}, indent=2))
         cached = False
-        log.info("wrote %s", npy.name)
+        _corpus["drift"] = None
+        log.info("wrote %s (+ manifest)", npy.name)
 
     _corpus.update(matrix=matrix, meta=rows, processed=processed, key=key)
     return {"rows": len(rows), "dimension": DIM, "cache_key": key, "from_cache": cached}

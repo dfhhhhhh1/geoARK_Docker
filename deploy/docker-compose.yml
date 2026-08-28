@@ -86,6 +86,7 @@ services:
       HF_HOME: /models/hf                       # persisted weights (volume below)
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}      # flip to 1 once the cache is warm
       EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-base-en-v1.5}
+      EMBED_INCLUDE_TAGS: ${EMBED_INCLUDE_TAGS:-1}
       EMBED_CACHE_DIR: /data/embeddings         # persisted corpus matrices
       OMP_NUM_THREADS: ${OMP_NUM_THREADS:-4}
     volumes:

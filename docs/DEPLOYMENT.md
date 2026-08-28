@@ -288,6 +288,9 @@ running; only `/api/get-data` needs it.
 
 ## 7. Sizing
 
+See [`etl/PROVENANCE.md`](../etl/PROVENANCE.md) for GPU, ARM, and low-RAM
+profiles, and for why switching hardware requires one `make reindex`.
+
 | Service | RAM | Disk | Notes |
 |---|---|---|---|
 | `ollama` + `gemma3:4b` | ~4 GB | ~3.3 GB | with `OLLAMA_KEEP_ALIVE=-1` it stays resident |

@@ -47,7 +47,7 @@ a permanent retrieval failure and quietly drags the headline number down.
 | Suite | Queries | What it isolates |
 |---|--:|---|
 | `single_concept` | 10 | Basic semantic search. If this drops, something is badly broken |
-| `facilities_via_tags` | 6 | Facility datasets whose `attr_desc` is just `"Name"` / `"Address"` — all meaning lives in `tags` and `dataset_clean`. Fails if embedding text drops either field |
+| `facilities_via_tags` | 6 | Facility datasets whose `attr_desc` is just `"Name"` / `"Address"`. Named for tags, but measured to pass on `dataset_clean` alone — see the tag ablation below |
 | `multi_concept` | 8 | **The point of the system.** Queries needing two or more distinct variables |
 | `geographic_level` | 3 | Does the extracted `geographic_level` actually affect results |
 | `paraphrase` | 5 | Everyday wording that appears nowhere in the catalog |
@@ -197,6 +197,36 @@ that it answered the question. Plans routinely pass while being semantically
 wrong — a `join` where `normalize` was needed, or one poverty percentage divided
 by another. Judging *correctness* needs expected-value assertions on the output,
 which is the next thing this harness should grow.
+
+## What the tag ablation showed
+
+Tags are 38% of all embedded text, and 56% for facility rows. They are also the
+least reproducible part of the catalog — LLM-generated, by a script
+(`attr_gen_copy.py`) that no longer exists anywhere in the repo. That looked
+like a serious exposure when adding new data, so it was measured directly with
+`EMBED_INCLUDE_TAGS=0` (the flag is part of the embedder's cache key, so the
+corpus genuinely re-embeds rather than reusing vectors):
+
+| | concept recall | query success | MRR |
+|---|--:|--:|--:|
+| tags in embedding text | 95.6% | 94.6% | 0.847 |
+| tags removed entirely | 95.6% | 94.6% | 0.847 |
+
+**Identical.** Not one of the 37 queries changed outcome, and spot probes using
+vocabulary appearing *only* in tags ("socioeconomic", "food insecure",
+"housing density", "electricity transmission") returned the same top result
+either way. BGE's embedding of `attr_desc` + `dataset_clean` already captures
+what the tags restate.
+
+Two conclusions, and the second matters as much as the first:
+
+1. Inconsistent tagging on newly added data is a **much smaller risk than it
+   looks**. Tag drift is not what will break retrieval.
+2. This suite **cannot detect a 38% change to the embedding text**. That is a
+   real limit on what its other numbers can tell you — treat it as a regression
+   guard, not a sensitive instrument.
+
+What *will* break the pipeline is covered by `etl/validate_catalog.py`.
 
 ## Trust the matcher, but test it
 

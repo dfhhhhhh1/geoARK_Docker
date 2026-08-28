@@ -200,6 +200,33 @@ by another while a correctly labelled total-population row sat in the candidate
 list. The next moves are a larger `PLAN_MODEL` and the deferred Phase 2
 reranker, in that order.
 
+## Is this ready for Phase 4?
+
+**Partly.** Phase 4 splits cleanly into work that is ready and work that is not,
+and the dividing line is whether it depends on plan quality.
+
+**Ready now** — independent of the planner being right:
+
+- Stream pipeline stages over SSE (retrieval is 0.03s; planning is 8s — the
+  latency is already there to hide).
+- Map the executed result. `/api/analyze` returns GeoJSON today and the Leaflet
+  component already exists; nothing is wired between them.
+- Export GeoJSON / CSV, and the plan itself as a reproducible artifact.
+- Query history, permalinks, auth.
+
+**Not ready** — these amplify a 62.5% success rate rather than fixing it:
+
+- Rendering the plan as an *editable* pipeline. Worth building, but polishing
+  the presentation of plans that are wrong a third of the time inverts the
+  order: raise plan quality first, then make it editable.
+- Wiring AutoML in as a plan op, which adds surface area to a planner that
+  cannot yet reliably choose between `join` and `normalize`.
+
+**The recommendation:** do the two highest-leverage planner items first — try a
+larger `PLAN_MODEL`, and build the deferred cross-encoder reranker — then take
+the whole "ready now" list. Both are small next to Phase 4's UI work, and both
+raise the ceiling everything else sits under.
+
 ## Phase 4 — The product around it (ongoing)
 
 - [ ] Stream pipeline stages over SSE; show variables in ~1 s.
@@ -211,6 +238,24 @@ reranker, in that order.
       variables" becomes an analysis step rather than a separate service.
 - [ ] Query history and shareable permalinks.
 - [ ] Basic auth in front of nginx.
+
+### Data operations (added after Phase 3)
+
+- [x] `etl/validate_catalog.py` — pre-flight gate for new or edited catalogs.
+      Catches duplicate `attr_label`, unknown `entity_type`, missing columns,
+      encoding damage, and baseline drift.
+- [x] Provenance fingerprinting in the embedder. A canary embedding is hashed
+      and stored beside every cached matrix, so a changed vector space is
+      detected rather than silent. `make provenance`.
+- [x] Hardware profiles: `make up-gpu` (NVIDIA overlay), `TORCH_INDEX_URL`
+      build arg, documented RAM tiers. See [`etl/PROVENANCE.md`](../etl/PROVENANCE.md).
+- [x] Measured the tag-reproducibility risk instead of assuming it: removing
+      **all** tags changes nothing on the eval suite, so tagger drift is not
+      what threatens the pipeline.
+- [ ] Load the facility shapefiles, so the other 47.6% of the catalog becomes
+      executable. Currently the largest single limit on `/api/analyze` coverage.
+- [ ] A tagging script with recorded provenance — deprioritized by the
+      measurement above.
 
 ---
 

@@ -97,3 +97,14 @@ Honest limits:
 
 Run `python3 eval/run.py` to reproduce any of these numbers — see
 [eval/README.md](eval/README.md).
+
+## Adding data, and running on other hardware
+
+```bash
+cd deploy && make validate-catalog CSV=path/to/new.csv && make load-reference && make reindex
+```
+
+[`etl/PROVENANCE.md`](etl/PROVENANCE.md) covers what breaks when data is added
+(duplicate `attr_label` and unknown `entity_type`, mostly), what does not
+(tagger drift — measured, not assumed), and how the embedder detects a changed
+vector space when you move between CPU and GPU. `make up-gpu` for NVIDIA hosts.

@@ -84,8 +84,12 @@ suites:
 
   # ---------------------------------------------------------------------
   # Facility datasets. Their attr_desc values are generic column names
-  # ("Name", "Address"), so the semantic content lives ONLY in tags and
-  # dataset_clean. These fail if the embedding text drops either field.
+  # ("Name", "Address"), so the meaning lives in tags and dataset_clean.
+  #
+  # CORRECTION: this suite was written claiming it fails if either field is
+  # dropped. Measured, that is false -- with tags removed entirely from the
+  # embedding text it still scores 100%, because dataset_clean ("Power Plants")
+  # carries enough on its own. It tests dataset_clean, not tags.
   # ---------------------------------------------------------------------
   - name: facilities_via_tags
     queries:

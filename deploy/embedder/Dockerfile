@@ -1,7 +1,13 @@
 FROM python:3.11-slim
 
-# CPU-only torch: ~800 MB instead of ~2.5 GB with the CUDA wheels. Drop the
-# --index-url line if the server has an NVIDIA GPU you want the embedder to use.
+# Torch build is selectable so the same Dockerfile serves CPU, CUDA and ARM
+# hosts. Defaults to the CPU-only wheels (~800 MB instead of ~2.5 GB); the GPU
+# overlay (docker-compose.gpu.yml) passes a CUDA index instead.
+#
+# Note: changing this changes the VECTOR SPACE. The embedder fingerprints a
+# canary embedding and will report drift against a cache built with a different
+# build -- see /provenance.
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONUNBUFFERED=1 \
     HF_HOME=/models/hf
@@ -9,9 +15,9 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 WORKDIR /app
 
 COPY requirements.txt .
+ARG TORCH_INDEX_URL
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --extra-index-url https://download.pytorch.org/whl/cpu \
-        -r requirements.txt
+    pip install --extra-index-url "${TORCH_INDEX_URL}" -r requirements.txt
 
 # WordNet at BUILD time: preprocessing needs it, and downloading corpora on
 # first request would defeat the point of an offline-capable image.

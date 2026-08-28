@@ -1,0 +1,42 @@
+# GPU overlay.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+#   (or: make up-gpu)
+#
+# Requires the NVIDIA Container Toolkit on the host. Verify before using:
+#   docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
+#
+# IMPORTANT: moving the embedder onto a GPU changes the vector space. The
+# canary fingerprint will not match a CPU-built cache, the embedder will log
+# EMBEDDING DRIFT on startup, and /health will report drift:true. That is
+# correct behaviour, not a bug -- re-embed once after switching:
+#   make reindex
+
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      # With VRAM to spare there is no reason to unload between requests, and
+      # two resident models enables the small-router / large-planner split.
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-2}
+
+  embedder:
+    build:
+      args:
+        # CUDA wheels instead of the CPU-only index. Larger image (~2.5 GB vs
+        # ~800 MB) but embedding the full catalog drops from minutes to seconds.
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu124
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
