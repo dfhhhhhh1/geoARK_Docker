@@ -40,6 +40,12 @@ services:
       PGDATABASE: ${POSTGRES_DB:-mygisdb}
       PGUSER: ${POSTGRES_USER:-geoark}
       PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      # Both api and embedder must read the SAME catalog file. The image bakes a
+      # copy in at build time; mounting the live file over it means editing the
+      # CSV takes effect on restart, without a rebuild, and without the two
+      # services drifting apart (which the API's row-count assert would reject).
+      - ../backend/geoark_attributes.csv:/app/geoark_attributes.csv:ro
     depends_on:
       # NOT service_healthy for the embedder: on a cold volume it spends
       # minutes downloading the model, and waitForEmbedder() in the API polls

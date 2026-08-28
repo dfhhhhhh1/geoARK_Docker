@@ -70,6 +70,10 @@ already has the model in memory.
   container never reaches for the network mid-request.
 - **`PREPROC_VERSION`** in `embedder/app.py` is part of the cache key. Bump it
   whenever preprocessing changes, or you will silently serve stale vectors.
+- **The catalog CSV is bind-mounted into both `api` and `embedder`**, so
+  editing `backend/geoark_attributes.csv` takes effect on `make down && make up`
+  with no rebuild. The embedder re-embeds automatically (its cache key includes
+  a hash of the file); the API asserts the row counts still agree.
 - **`make down` does not delete volumes.** `make clean` does, and will make the
   next start re-download everything. It asks first.
 
