@@ -1,4 +1,2 @@
 # Saved eval runs are local measurements, not source. Commit a baseline
-# deliberately (git add -f) when you want one tracked.
-*.json
-!baseline-*.json
+# deliberately (git add -f) when you want one tracked
