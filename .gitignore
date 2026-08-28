@@ -6,6 +6,7 @@ venv/
 .venv/
 myEnv/
 env/
+geospatial_database_data/
 
 # ---- secrets ----
 .env
