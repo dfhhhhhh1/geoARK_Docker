@@ -59,6 +59,7 @@ and the two app processes — [docs/DEPLOYMENT.md §7](docs/DEPLOYMENT.md) has t
 
 ## Documentation
 
+- **[docs/RUNBOOK.md](docs/RUNBOOK.md)** — standing this up on a new machine, start to finish
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the pieces fit, and what is still missing
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — Docker, model volumes, working over SSH
 - **[docs/AI-PIPELINE.md](docs/AI-PIPELINE.md)** — the NL → analysis-plan design
