@@ -55,6 +55,7 @@ and the two app processes — [docs/DEPLOYMENT.md §7](docs/DEPLOYMENT.md) has t
 | `ollama` | 11434 | Local LLM |
 | `db` | 5432 | PostGIS + pgvector |
 | `automl` | 8000 | AutoGluon (optional — `make automl`) |
+| `etl` | — | One-shot loader job (`make load-reference`) |
 
 ## Documentation
 
@@ -74,12 +75,25 @@ committed.
 
 ## Status
 
-Working: natural-language query decomposition, hybrid semantic + keyword search
-over the catalog, LLM result verification, PostGIS metadata lookup, map and
-report UI.
+**Search** (`POST /api/unified-search`) — query decomposition, hybrid BGE + BM25
+retrieval fused with RRF, over a 6,860-row variable catalog. Measured 97.8%
+concept recall / 97.3% query success on a 37-query suite, p50 3.2s.
 
-Not working yet: **generated analysis plans are not executed.** The planner
-emits a DAG and returns it; nothing runs it. The blocker is that
-`geoark_attributes.csv` has no `table_name` column, so a retrieved attribute
-cannot be resolved to a physical PostGIS table. See
-[docs/ARCHITECTURE.md §4](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md) Phase 3.
+**Analysis** (`POST /api/analyze`) — natural language to executed results. The
+model emits a typed plan over seven operations; a deterministic compiler turns
+it into parameterized PostGIS SQL and runs it read-only. 3,596 of 6,860 catalog
+attributes (52.4%) resolve to physical columns; the rest are facility datasets
+whose shapefiles are not loaded yet.
+
+Honest limits:
+
+- **Plan quality is the bottleneck, not the plumbing.** On the hardest eval
+  suite, 62.5% of queries yield a valid plan that executes and returns rows.
+  With `gemma3:4b` the plans are well-formed and grounded but often semantically
+  wrong. `PLAN_MODEL` routes planning to a larger model; that is the next thing
+  to try.
+- **`/api/analyze` needs `make load-reference` first**, or it returns 422.
+- The cross-encoder reranker and the MCP tool server are not built.
+
+Run `python3 eval/run.py` to reproduce any of these numbers — see
+[eval/README.md](eval/README.md).

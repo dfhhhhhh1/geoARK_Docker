@@ -77,6 +77,29 @@ already has the model in memory.
 - **`make down` does not delete volumes.** `make clean` does, and will make the
   next start re-download everything. It asks first.
 
+## Loading reference data (required for /api/analyze)
+
+Search works on the catalog alone, but the planner needs real tables. This
+builds `attribute_source` — the catalog→column mapping without which no plan can
+execute — plus county geometry and ~10.8M ACS values.
+
+Point `GEODATA_DIR` in `.env` at the source geodata (it lives outside the repo),
+then:
+
+```bash
+make load-reference
+```
+
+Takes a few minutes; it is idempotent (it truncates and reloads). Check the join
+rate without writing anything:
+
+```bash
+make load-reference-dry
+```
+
+`/api/health` reports `resolvable_attributes`; until this runs it is 0 and
+`/api/analyze` returns 422.
+
 ## Useful commands
 
 ```bash

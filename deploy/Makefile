@@ -2,7 +2,7 @@
 COMPOSE := docker compose
 DEV     := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 
-.PHONY: help up down dev build logs ps health models automl shell-api shell-embed shell-db reindex psql clean
+.PHONY: help up down dev build logs ps health models automl load-reference load-reference-dry shell-api shell-embed shell-db reindex psql clean
 
 help:            ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -53,6 +53,14 @@ psql:            ## Open a psql shell on the database
 
 shell-db:        ## Shell into the db container
 	$(COMPOSE) exec db bash
+
+load-reference:  ## Load county geometry, ACS values, and the catalog->column map
+	$(COMPOSE) --profile etl run --rm etl \
+	  python /app/etl/load_reference_data.py --acs-csv /data/fips_merged_ACS_data.csv
+
+load-reference-dry: ## Report the catalog join rate without writing
+	$(COMPOSE) --profile etl run --rm etl \
+	  python /app/etl/load_reference_data.py --acs-csv /data/fips_merged_ACS_data.csv --dry-run
 
 shell-api:       ## Shell into the API container
 	$(COMPOSE) exec api sh
