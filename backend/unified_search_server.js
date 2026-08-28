@@ -1200,9 +1200,36 @@ app.post("/api/analyze", async (req, res) => {
     const candidates = search.all_results || [];
     const resolved = await resolveAttributes(candidates.map(c => c.attr_id));
 
-    // Keep the decomposition's purpose grouping visible in the ordering, so
-    // normalization candidates are not all pushed off the end of the list.
-    const executable = candidates.filter(c => resolved.has(c.attr_id)).slice(0, top_k);
+    // Collapse feature tables to one candidate per dataset.
+    //
+    // count_features counts a DATASET's features per county; which column the
+    // retrieval happened to match is irrelevant. Without this, a query about
+    // tornado tracks offered the planner seven rows from the same table --
+    // "Yr", "Len", "Tz", "Pre 1996 Loss" -- which is noise, and none of it
+    // says "tornado". One row per dataset, described by the dataset name, is
+    // both what the op needs and what a reader would recognise.
+    const seenTable = new Set();
+    const executable = [];
+    for (const c of candidates) {
+      const src = resolved.get(c.attr_id);
+      if (!src) continue;
+      if (src.source_kind === "feature_table") {
+        if (seenTable.has(src.table_name)) continue;
+        seenTable.add(src.table_name);
+        executable.push({
+          ...c,
+          // Facility columns have no useful description (see PROVENANCE.md on
+          // the discarded gen_desc), so describe the dataset instead.
+          attr_desc: `${c.dataset_clean || src.table_name} (map features; count per county)`,
+          is_feature_table: true
+        });
+      } else {
+        executable.push(c);
+      }
+      if (executable.length >= top_k) break;
+    }
+
+    console.log(`   ${seenTable.size} facility dataset(s) among the candidates`);
 
     console.log(`   ${candidates.length} retrieved, ${executable.length} executable`);
 

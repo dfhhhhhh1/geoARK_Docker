@@ -27,7 +27,16 @@
 // model's text directly.
 const OPERATORS = { "<": "<", "<=": "<=", ">": ">", ">=": ">=", "=": "=", "!=": "<>" };
 const AGGREGATES = { mean: "AVG", sum: "SUM", count: "COUNT", min: "MIN", max: "MAX" };
+// Step ids are ours to constrain, and short by convention.
 const SAFE_ID = /^[A-Za-z][A-Za-z0-9_]{0,30}$/;
+
+// Database identifiers are NOT ours to constrain: the geospatial ETL derives
+// table names from source filenames, e.g.
+//   c862525677cf485a84b2ba86a78e277d_histtornadotracks   (50 chars)
+// A 31-char cap rejected legitimate tables as "unsafe". Postgres' own limit is
+// NAMEDATALEN-1 = 63, which is the right bound -- still a strict allow-list,
+// just not an arbitrarily tighter one than the database itself uses.
+const SAFE_DB_IDENT = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/;
 
 class CompileError extends Error {}
 
@@ -62,7 +71,7 @@ function compilePlan(plan, resolved) {
         } else if (src.source_kind === "table_column") {
           // Identifiers here come from attribute_source, a table only the ETL
           // writes -- never from the model. Still pattern-checked.
-          if (!SAFE_ID.test(src.table_name) || !SAFE_ID.test(src.value_column)) {
+          if (!SAFE_DB_IDENT.test(src.table_name) || !SAFE_DB_IDENT.test(src.value_column)) {
             throw new CompileError(`unsafe identifier in attribute_source for ${st.attr_id}`);
           }
           parts.push(
@@ -82,7 +91,7 @@ function compilePlan(plan, resolved) {
         }
         // Identifiers come from attribute_source (ETL-written, never model
         // output), and are still pattern-checked before interpolation.
-        if (!SAFE_ID.test(src.table_name) || !SAFE_ID.test(src.geom_column || "geom")) {
+        if (!SAFE_DB_IDENT.test(src.table_name) || !SAFE_DB_IDENT.test(src.geom_column || "geom")) {
           throw new CompileError(`unsafe identifier in attribute_source for ${st.attr_id}`);
         }
         const geom = src.geom_column || "geom";

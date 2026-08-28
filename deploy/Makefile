@@ -3,7 +3,7 @@ COMPOSE := docker compose
 GPU     := docker compose -f docker-compose.yml -f docker-compose.gpu.yml
 DEV     := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 
-.PHONY: help up up-gpu down dev build logs ps health provenance models automl load-geo load-reference load-reference-dry validate-catalog shell-api shell-embed shell-db reindex psql clean
+.PHONY: help up up-gpu down dev build logs ps health provenance models automl load-geo load-reference load-reference-dry relink-features validate-catalog shell-api shell-embed shell-db reindex psql clean
 
 help:            ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -68,6 +68,10 @@ shell-db:        ## Shell into the db container
 
 load-geo:        ## Load HSIP shapefiles/geodatabases into PostGIS (slow; needs GEODATA_DIR)
 	$(COMPOSE) --profile etl run --rm etl-geo
+
+relink-features: ## Re-link facility tables only (fast; run after load-geo)
+	$(COMPOSE) --profile etl run --rm etl \
+	  python /app/etl/load_reference_data.py --acs-csv /data/fips_merged_ACS_data.csv --features-only
 
 load-reference:  ## Load county geometry, ACS values, and the catalog->column map
 	$(COMPOSE) --profile etl run --rm etl \

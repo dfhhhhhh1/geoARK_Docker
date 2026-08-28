@@ -220,6 +220,28 @@ const plan = (...steps) => ({ intent: "t", output_type: "map", entity_type: "COU
     assert.ok(!/ST_Transform\(f\./.test(sql));
   });
 
+  await test("accepts a real ETL table name (50 chars)", () => {
+    // Regression: a 31-char cap rejected legitimate tables such as
+    // c862525677cf485a84b2ba86a78e277d_histtornadotracks.
+    const long = new Map([["T", { source_kind: "feature_table",
+      table_name: "c862525677cf485a84b2ba86a78e277d_histtornadotracks",
+      geom_column: "geom", srid: 4326 }]]);
+    const { sql } = compilePlan(plan(
+      { id: "s1", op: "count_features", attr_id: "T", inputs: [] },
+      { id: "s2", op: "output", inputs: ["s1"] },
+    ), long);
+    assert.match(sql, /c862525677cf485a84b2ba86a78e277d_histtornadotracks/);
+  });
+
+  await test("still refuses an over-length identifier (>63)", () => {
+    const tooLong = new Map([["T", { source_kind: "feature_table",
+      table_name: "a".repeat(64), geom_column: "geom", srid: 4326 }]]);
+    assert.throws(() => compilePlan(plan(
+      { id: "s1", op: "count_features", attr_id: "T", inputs: [] },
+      { id: "s2", op: "output", inputs: ["s1"] },
+    ), tooLong), CompileError);
+  });
+
   await test("refuses an unsafe table name from attribute_source", () => {
     const bad = new Map([["X", { source_kind: "feature_table",
       table_name: 'x"; DROP TABLE county_geom; --', geom_column: "geom" }]]);
@@ -227,6 +249,31 @@ const plan = (...steps) => ({ intent: "t", output_type: "map", entity_type: "COU
       { id: "s1", op: "count_features", attr_id: "X", inputs: [] },
       { id: "s2", op: "output", inputs: ["s1"] },
     ), bad), CompileError);
+  });
+
+  await test("count_features labels are dereferenced like load labels", async () => {
+    // Mirrors derefPlan in index.js: both ops carry a reference label. When
+    // count_features was omitted there, valid plans were rejected as citing an
+    // unknown attribute.
+    const { generatePlan } = require("./index");
+    const refs = { a1: "REFINERY", a2: "POP" };
+    const planJSON = JSON.stringify({
+      intent: "t", output_type: "map", entity_type: "COUNTY",
+      steps: [
+        { id: "s1", op: "count_features", attr_id: "a1", inputs: [] },
+        { id: "s2", op: "output", attr_id: "", inputs: ["s1"] },
+      ],
+    });
+    const res = await generatePlan({
+      query: "refineries",
+      candidates: [{ attr_id: "REFINERY", attr_desc: "Oil Refineries", search_purpose: "primary" },
+                   { attr_id: "POP", attr_desc: "Total population", search_purpose: "normalization" }],
+      callLLM: async () => planJSON,
+      resolve,
+      log: () => {},
+    });
+    assert.ok(res.ok, `expected a valid plan, got: ${JSON.stringify(res.errors)}`);
+    assert.strictEqual(res.plan.steps[0].attr_id, "REFINERY", "label was not dereferenced");
   });
 
   console.log(`\n${pass}/${pass + fail} passed`);

@@ -43,6 +43,7 @@ Rules:
 
 Operations:
   load         needs attr_id                       -> values for one attribute
+  count_features needs attr_id (a facility dataset) -> features per county
   filter_attr  needs operator and value, 1 input   -> keep matching rows
   normalize    2 inputs (numerator, denominator)   -> ratio, optional scale
   aggregate    needs function, 1 input             -> mean/sum/count/min/max
@@ -53,7 +54,12 @@ Operations:
 Every step MUST include both "inputs" and "attr_id".
   inputs  : [] for load; one step id for filter_attr, aggregate, rank, output;
             two for normalize and join.
-  attr_id : a label like "a3" for load; the empty string "" for every other op.
+  attr_id : a label like "a3" for load and count_features; "" for every other op.
+
+Facility datasets (refineries, shelters, tornado tracks, power plants) are
+collections of map features with no county totals. Use "count_features" to get
+a per-county count of them. Use "load" only for attributes that are already
+per-county values. The validator will tell you if you pick the wrong one.
 
 Worked example for "poverty rate per capita by county", where a3 is a poverty
 count and a8 is total population:
@@ -108,9 +114,12 @@ function buildRefs(results, limit = 25) {
     if (!items.length) continue;
     sections.push(`## ${HEADINGS[purpose]}`);
     for (const { label, r } of items) {
+      // Mark facility datasets explicitly: the op to use differs, and the
+      // model should not have to infer it from the wording.
+      const kind = r.is_feature_table ? " (use count_features)" : "";
       sections.push(
         `${label}: ${(r.attr_desc || "").replace(/\s+/g, " ").slice(0, 120)}` +
-        ` [${r.entity_type || "?"}${r.start_date ? " " + r.start_date : ""}]`);
+        `${kind} [${r.entity_type || "?"}${r.start_date ? " " + r.start_date : ""}]`);
     }
   }
   return { refs, text: sections.join("\n") };
@@ -123,8 +132,12 @@ function buildRefs(results, limit = 25) {
 function derefPlan(plan, refs) {
   const unknown = [];
   for (const st of plan.steps || []) {
-    // Non-load steps carry attr_id: "" by schema convention; skip them.
-    if (st.op !== "load" || !st.attr_id || !String(st.attr_id).trim()) continue;
+    // Both load and count_features carry a reference label; every other op
+    // carries attr_id: "" by schema convention. Missing count_features here
+    // left its label untranslated, so grounding rejected a perfectly valid
+    // "a1" as an unknown attribute.
+    if (!["load", "count_features"].includes(st.op)) continue;
+    if (!st.attr_id || !String(st.attr_id).trim()) continue;
     const key = String(st.attr_id).trim();
     if (refs.has(key)) st.attr_id = refs.get(key);
     else unknown.push(key);
@@ -132,12 +145,22 @@ function derefPlan(plan, refs) {
   return unknown;
 }
 
-/** Models sometimes decorate ids ("+step_3"). Normalize before validating. */
+/**
+ * Normalize step ids before validating.
+ *
+ * Two observed model habits:
+ *   - decorating ids ("+step_3")
+ *   - putting "" in the inputs array, copying the attr_id="" convention that
+ *     non-load steps use. An empty input is never meaningful, and leaving it
+ *     in produces a confusing 'input "" is not a step in this plan'.
+ */
 function normalizeIds(plan) {
   const fix = (v) => String(v).trim().replace(/^[^A-Za-z]+/, "");
   for (const st of plan.steps || []) {
     st.id = fix(st.id);
-    if (Array.isArray(st.inputs)) st.inputs = st.inputs.map(fix);
+    if (Array.isArray(st.inputs)) {
+      st.inputs = st.inputs.map(fix).filter(Boolean);
+    }
   }
 }
 

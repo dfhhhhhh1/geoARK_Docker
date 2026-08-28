@@ -64,10 +64,26 @@ CREATE TABLE IF NOT EXISTS attribute_source (
 CREATE INDEX IF NOT EXISTS idx_attr_source_dataset ON attribute_source (dataset_id);
 CREATE INDEX IF NOT EXISTS idx_attr_source_code    ON attribute_source (census_code);
 
+-- ---------------------------------------------------------------- migrations
+-- CREATE TABLE IF NOT EXISTS does nothing to a table that already exists, so a
+-- schema that gains columns needs explicit ALTERs. Without these, an
+-- established database silently keeps the old shape and the loader fails on
+-- INSERT with "column does not exist".
+ALTER TABLE attribute_source ADD COLUMN IF NOT EXISTS geom_column TEXT;
+ALTER TABLE attribute_source ADD COLUMN IF NOT EXISTS srid INTEGER;
+
+-- The source_kind CHECK constraint predates 'feature_table'. Drop and recreate
+-- so an existing database accepts facility rows.
+ALTER TABLE attribute_source DROP CONSTRAINT IF EXISTS attribute_source_source_kind_check;
+ALTER TABLE attribute_source ADD CONSTRAINT attribute_source_source_kind_check
+    CHECK (source_kind IN ('acs_long', 'table_column', 'feature_table'));
+
 -- Convenience view: everything the planner needs to emit SQL for one attribute.
-CREATE OR REPLACE VIEW resolvable_attributes AS
+DROP VIEW IF EXISTS resolvable_attributes;
+CREATE VIEW resolvable_attributes AS
 SELECT s.attr_id, s.dataset_id, s.description, s.entity_type,
        s.source_kind, s.table_name, s.value_column, s.census_code, s.geom_table,
+       s.geom_column, s.srid,
        v.kind AS acs_kind
 FROM attribute_source s
 LEFT JOIN acs_variables v ON v.census_code = s.census_code;

@@ -349,6 +349,10 @@ def main() -> int:
                          "committed etl/facility_table_map.csv)")
     ap.add_argument("--no-features", action="store_true",
                     help="skip linking facility feature tables")
+    ap.add_argument("--features-only", action="store_true",
+                    help="only (re)link facility feature tables. Use after a "
+                         "geospatial load: relinking should not require "
+                         "reloading 10.7M ACS values.")
     ap.add_argument("--dry-run", action="store_true",
                     help="report the catalog join rate without writing")
     args = ap.parse_args()
@@ -361,10 +365,18 @@ def main() -> int:
     conn.commit()
     print("  schema applied")
 
-    if not args.dry_run:
+    if not args.dry_run and not args.features_only:
         load_counties(conn, args.geojson)
         load_acs(conn, args.acs_csv)
-    build_attribute_source(conn, args.catalog, args.dry_run, args.acs_csv)
+    if not args.features_only:
+        build_attribute_source(conn, args.catalog, args.dry_run, args.acs_csv)
+
+    if args.features_only:
+        # Re-linking is idempotent: rows are keyed on attr_id with ON CONFLICT
+        # DO NOTHING, so this only ever adds tables that have since appeared.
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM attribute_source WHERE source_kind = 'feature_table'")
+        conn.commit()
 
     if args.attributes_csv and not args.dry_run and not args.no_features:
         link_feature_tables(conn, args.attributes_csv, args.catalog)

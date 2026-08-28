@@ -181,6 +181,9 @@ services:
       - ${GEODATA_DIR:-../../geospatial_database_data}:/data:ro
       - ../frontend/public:/app/frontend/public:ro
       - ../backend/geoark_attributes.csv:/app/backend/geoark_attributes.csv:ro
+      # Mount the scripts over the baked-in copy. Without this every edit needs
+      # an image rebuild, and it is easy to run a stale script without noticing.
+      - ../etl:/app/etl:ro
     depends_on:
       db:
         condition: service_healthy
@@ -203,6 +206,7 @@ services:
       GEODATA_ROOT: /data
     volumes:
       - ${GEODATA_DIR:-../../geospatial_database_data}:/data:ro
+      - ../etl:/app/etl:ro          # same reason as the etl service
     depends_on:
       db:
         condition: service_healthy
