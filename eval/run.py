@@ -115,6 +115,8 @@ def validate(suites: list[dict], csv_path: Path) -> int:
     print(f"validating assertions against {len(rows)} catalog rows\n")
     bad = 0
     for suite in suites:
+        if suite.get("mode", "concepts") != "concepts":
+            continue                      # known_item/absent carry no predicates
         for q in suite["queries"]:
             for name, pred in q["concepts"].items():
                 n = sum(1 for r in rows if row_matches(r, pred))
@@ -126,8 +128,10 @@ def validate(suites: list[dict], csv_path: Path) -> int:
     if bad:
         print(f"\n{RED}{bad} assertion(s) match nothing in the catalog.{OFF}")
     else:
-        print(f"  {GREEN}all {sum(len(q['concepts']) for s in suites for q in s['queries'])} "
-              f"assertions are satisfiable{OFF}")
+        n = sum(len(q["concepts"]) for s in suites
+                if s.get("mode", "concepts") == "concepts" for q in s["queries"])
+        print(f"  {GREEN}all {n} assertions are satisfiable{OFF}"
+              if n else f"  {DIM}no concept assertions in this file{OFF}")
     return bad
 
 
@@ -203,6 +207,48 @@ def score_query(q: dict, results: list[dict], top_k: int) -> dict:
     }
 
 
+def score_known_item(q: dict, results: list[dict], top_k: int) -> dict:
+    """
+    Rank of the ONE attribute this query should retrieve.
+
+    Unlike the concept assertions in queries.yaml, this cannot be satisfied by
+    "something vaguely related" -- so reordering the ranking moves the number,
+    which is exactly what a change to the embedding text does.
+    """
+    rank = None
+    for i, row in enumerate(results[:top_k], 1):
+        if "expect_attr_id" in q and row.get("attr_id") == q["expect_attr_id"]:
+            rank = i
+            break
+        if "expect_desc" in q and q["expect_desc"].lower() in (row.get("attr_desc") or "").lower():
+            rank = i
+            break
+    return {
+        "id": q["id"], "query": q["query"], "rank": rank,
+        "hit_1": rank == 1, "hit_5": bool(rank and rank <= 5),
+        "hit_20": bool(rank and rank <= 20),
+        "mrr": (1 / rank) if rank else 0.0,
+        "concepts": {}, "n_concepts": 1, "n_found": 1 if rank else 0,
+        "all_found": bool(rank), "n_results": len(results),
+    }
+
+
+def score_absent(q: dict, results: list[dict]) -> dict:
+    """
+    Nothing here is correct, so score the CONFIDENCE instead.
+
+    Semantic score is the comparable quantity across configurations (the fused
+    RRF score is a rank artifact and says nothing about similarity).
+    """
+    top = results[0].get("semantic_score") if results else None
+    return {
+        "id": q["id"], "query": q["query"],
+        "top_semantic": top, "n_results": len(results),
+        "top_desc": (results[0].get("attr_desc") or "")[:60] if results else "",
+        "concepts": {}, "n_concepts": 0, "n_found": 0, "all_found": True, "mrr": 0.0,
+    }
+
+
 def score_analyze(q: dict, payload: dict) -> dict:
     """
     For the planner, the questions are different: did it produce a VALID plan,
@@ -243,7 +289,8 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
     per_suite, latencies, errors = {}, [], []
     for suite in suites:
         rows = []
-        print(f"\n{BOLD}{suite['name']}{OFF}")
+        mode = suite.get("mode", "concepts")
+        print(f"\n{BOLD}{suite['name']}{OFF}{DIM}  [{mode}]{OFF}")
         for q in suite["queries"]:
             try:
                 results, secs = call_api(base, endpoint, q["query"], top_k,
@@ -263,6 +310,24 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
                 print(f"  {mark} {row['id']:26s} {row['rows']:>5} rows  {detail}"
                       f"{DIM}  ({secs:.1f}s){OFF}")
                 continue
+            if mode == "known_item":
+                row = score_known_item(q, results, top_k)
+                row["seconds"] = round(secs, 3)
+                rows.append(row)
+                r = row["rank"]
+                mark = (f"{GREEN}@{r:<3d}{OFF}" if r and r <= 5 else
+                        f"{YELLOW}@{r:<3d}{OFF}" if r else f"{RED}MISS{OFF}")
+                print(f"  {mark} {row['id']:26s} {DIM}{q.get('note','')[:48]}{OFF}")
+                continue
+            if mode == "absent":
+                row = score_absent(q, results)
+                row["seconds"] = round(secs, 3)
+                rows.append(row)
+                t = row["top_semantic"]
+                print(f"  {DIM}top_sem={OFF}{t if t is not None else '-':<7} "
+                      f"{row['id']:20s} {DIM}{row['top_desc']}{OFF}")
+                continue
+
             row = score_query(q, results, top_k)
             row["seconds"] = round(secs, 3)
             rows.append(row)
@@ -274,6 +339,32 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
             )
             print(f"  {mark} {row['id']:28s} {detail}{DIM}  ({secs:.2f}s){OFF}")
         per_suite[suite["name"]] = rows
+
+    modes = {s["name"]: s.get("mode", "concepts") for s in suites}
+    ki = [r for n, rows in per_suite.items() if modes.get(n) == "known_item" for r in rows]
+    ab = [r for n, rows in per_suite.items() if modes.get(n) == "absent" for r in rows]
+    if ki or ab:
+        out = {"endpoint": endpoint, "top_k": top_k, "errors": errors,
+               "detail": per_suite, "queries": len(ki) + len(ab)}
+        if ki:
+            out["known_item"] = {
+                "n": len(ki),
+                "recall_1": sum(r["hit_1"] for r in ki) / len(ki),
+                "recall_5": sum(r["hit_5"] for r in ki) / len(ki),
+                "recall_20": sum(r["hit_20"] for r in ki) / len(ki),
+                "mrr": statistics.mean(r["mrr"] for r in ki),
+                "mean_rank_when_found": statistics.mean(
+                    [r["rank"] for r in ki if r["rank"]]) if any(r["rank"] for r in ki) else None,
+            }
+        if ab:
+            scores = [r["top_semantic"] for r in ab if r["top_semantic"] is not None]
+            out["absent"] = {
+                "n": len(ab),
+                "mean_top_semantic": statistics.mean(scores) if scores else None,
+                "max_top_semantic": max(scores) if scores else None,
+            }
+        out["latency_p50"] = round(statistics.median(latencies), 3) if latencies else 0.0
+        return out
 
     allrows = [r for rows in per_suite.values() for r in rows]
     if endpoint == "analyze":
@@ -311,6 +402,27 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
 
 
 def report(res: dict) -> None:
+    if "known_item" in res or "absent" in res:
+        print(f"\n{BOLD}{'=' * 62}{OFF}")
+        if "known_item" in res:
+            k = res["known_item"]
+            print(f"{BOLD}  known-item retrieval  n={k['n']}{OFF}")
+            print(f"  recall@1   {k['recall_1']:6.1%}   the exact attribute ranked first")
+            print(f"  recall@5   {k['recall_5']:6.1%}")
+            print(f"  recall@20  {k['recall_20']:6.1%}")
+            print(f"  MRR        {k['mrr']:6.3f}")
+            if k["mean_rank_when_found"]:
+                print(f"  mean rank when found  {k['mean_rank_when_found']:.1f}")
+        if "absent" in res:
+            a = res["absent"]
+            print(f"\n{BOLD}  absent queries  n={a['n']}{OFF}")
+            print(f"  mean top semantic score  {a['mean_top_semantic']:.3f}"
+                  if a["mean_top_semantic"] is not None else "  (no scores)")
+            print(f"  max  top semantic score  {a['max_top_semantic']:.3f}"
+                  if a["max_top_semantic"] is not None else "")
+            print(f"  {DIM}compare against an answerable query (~0.7-0.8). Low separation")
+            print(f"  means the system cannot tell it has no answer.{OFF}")
+        return
     if res.get("endpoint") == "analyze":
         print(f"\n{BOLD}{'=' * 62}{OFF}")
         print(f"{BOLD}  analyze  n={res['queries']}{OFF}")

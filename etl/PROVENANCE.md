@@ -18,30 +18,31 @@ and it turns out not to be.
 
 ## What actually matters, measured
 
-### Tags: much less than they look
+### Tags: load-bearing, and worth regenerating properly
 
-Tags are **38% of all embedded text** (56% for facility rows whose `attr_desc`
-is just `"Name"`). Removing them **entirely** — `EMBED_INCLUDE_TAGS=0`, which is
-part of the embedder's cache key so the corpus genuinely re-embeds:
+**A previous version of this document said tags contribute nothing to
+retrieval. That was wrong** — the experiment behind it was invalid (the API was
+serving a stale vector cache), and the metric used could not have detected the
+effect anyway. Both failures are written up in
+[`eval/README.md`](../eval/README.md).
 
-| | concept recall | query success | MRR |
+Measured properly, with known-item retrieval — "return *this* attribute",
+scored by rank:
+
+| | tags on | tags off | Δ |
 |---|--:|--:|--:|
-| tags included | 95.6% | 94.6% | 0.847 |
-| tags removed | 95.6% | 94.6% | 0.847 |
+| recall@1 | **91.7%** | 50.0% | **−41.7pp** |
+| recall@5 | 100.0% | 83.3% | −16.7pp |
+| MRR | **0.944** | 0.622 | −0.322 |
 
-Identical. Not one of 37 eval queries changed outcome. Spot probes on
-vocabulary that appears *only* in tags — "socioeconomic", "food insecure",
-"housing density" — returned the same top result either way.
+Tags are 38% of all embedded text and 56% for facility rows. 392 rows have an
+`attr_desc` that is a bare column name (`"Name"`, `"Address"`), so tags plus
+`dataset_clean` are the only semantic signal those rows have. Tag vocabulary
+like "petrochemical", "biofuel", "fermentation", "pipeline infrastructure"
+appears nowhere else in the row.
 
-BGE already captures from `attr_desc` and `dataset_clean` what the tags restate.
-
-**Therefore:** inconsistent tagging across batches is a low risk. Do not block
-a dataset because its tags came from a different model. Record what generated
-them (below), and move on.
-
-**Caveat worth stating:** this also means the eval suite cannot detect a 38%
-change to the embedding text. Absence of a measured effect here is weaker
-evidence than it looks, and a richer suite might find one.
+**Therefore: re-tag new datasets deliberately, with the same model and prompt.**
+The generator is recoverable — see "Regenerating tags" below.
 
 ### Embedding drift: much more than it looks
 
@@ -129,11 +130,48 @@ python3 eval/run.py --save eval/after-load.json --compare eval/phase2-search.jso
 The suite is calibrated on the current catalog. A drop over ~3pp is worth
 investigating; below that is noise at 37 queries.
 
-## Re-tagging new data
+## Regenerating tags
 
-There is no tagging script in the repo, and given the measured result, writing
-one is **not urgent**. If you do add one, the reproducibility requirement is
-just: record what produced the tags, in the catalog or beside it.
+The generator was not lost — it lives outside the repo in
+`GeoARK_data/generate_attr/attr_gen copy.py` (a space, not an underscore, which
+is why an earlier search for `attr_gen_copy.py` found nothing).
+
+Recorded settings, from that script:
+
+| | |
+|---|---|
+| model | `gemma3:4b` via Ollama `/api/generate` |
+| format | `json` (constrained) |
+| temperature | 0.1 |
+| num_predict | 100 |
+| timeout | 45s |
+| output | `{"tags": [3-5 keywords], "gen_desc": "one sentence"}` |
+| fallback | `generate_fallback_tags()` derives tags from the column name when the LLM fails |
+| source | PostGIS `dataset_metadata`, one call per column |
+
+Two things about that pipeline are worth knowing:
+
+1. **`gen_desc` is generated and then discarded.** The prompt asks for a
+   one-sentence natural-language description of every column, and no downstream
+   artifact carries it — not `attributeNew.csv`, not `combined_tags.csv`, not
+   the committed catalog. For the 392 facility rows whose description is just
+   `"Name"`, that discarded sentence is exactly the signal they lack. Carrying
+   it through is likely the single cheapest retrieval improvement available.
+2. **A later run produced `tags` = the literal string `tags_str`** for all
+   6,382 rows (`Feb5Tags1B.csv`, `attributeTestFolder*.csv`). Those files are
+   broken; do not merge them. `attributeNew.csv` (2,305 rows) has real tags.
+
+When you re-run it, record the settings alongside the output:
+
+```yaml
+tagger:
+  model: gemma3:4b
+  prompt_version: attr_gen-2026-02
+  temperature: 0.1
+  format: json
+  generated: 2026-08-28
+  rows: 6860
+```
 
 ```yaml
 tagger:

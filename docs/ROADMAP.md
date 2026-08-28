@@ -249,13 +249,26 @@ raise the ceiling everything else sits under.
       detected rather than silent. `make provenance`.
 - [x] Hardware profiles: `make up-gpu` (NVIDIA overlay), `TORCH_INDEX_URL`
       build arg, documented RAM tiers. See [`etl/PROVENANCE.md`](../etl/PROVENANCE.md).
-- [x] Measured the tag-reproducibility risk instead of assuming it: removing
-      **all** tags changes nothing on the eval suite, so tagger drift is not
-      what threatens the pipeline.
+- [x] Measured the tag-reproducibility risk properly, after an initial wrong
+      answer. Tags are **load-bearing**: removing them costs 41.7pp of
+      known-item recall@1 (91.7% -> 50.0%). Tagger consistency matters; re-tag
+      new data with the recorded settings in [`etl/PROVENANCE.md`](../etl/PROVENANCE.md).
+- [x] `eval/known_item.yaml` — known-item and absent-query suites. The concept
+      suite cannot detect ranking changes (its assertions are satisfied by
+      hundreds of rows); this one scores the rank of one specific attribute.
+- [x] Fixed a real bug the above exposed: the API held its startup vector cache
+      forever with no staleness detection, so a re-embedded corpus was served
+      silently wrong. `/api/health` now reports `corpus_stale`;
+      `POST /api/reload-corpus` fixes it without a restart.
 - [ ] Load the facility shapefiles, so the other 47.6% of the catalog becomes
       executable. Currently the largest single limit on `/api/analyze` coverage.
-- [ ] A tagging script with recorded provenance — deprioritized by the
-      measurement above.
+- [ ] Carry `gen_desc` through the tagging pipeline. The generator already
+      produces a one-sentence description per column and every downstream
+      artifact discards it — likely the cheapest retrieval win available, since
+      392 facility rows have no real description at all.
+- [ ] Recover `table_name` from `GeoARK_data/combine_csv_tags/attributeNew.csv`.
+      It joins to all 2,305 facility rows at 100%, and it is what the merge step
+      dropped. This unlocks most of the unexecutable 47.6%.
 
 ---
 

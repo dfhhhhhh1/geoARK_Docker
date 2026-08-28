@@ -95,6 +95,7 @@ let embeddings = [];
 let processedVariablesText = [];
 let isEmbeddingsReady = false;
 let resolvableCount = null;   // attribute_source rows; null until first checked
+let corpusCacheKey = null;    // the embedder cache key these vectors came from
 
 // =============================================================================
 // Step 1: Query Decomposition (from enhanced_search_server.js)
@@ -1089,6 +1090,62 @@ app.post("/api/get-data", async (req, res) => {
 // =============================================================================
 
 /**
+ * Has the embedder's corpus changed since we cached it?
+ *
+ * The API pulls all 6,860 vectors once at startup and holds them for its whole
+ * life. If the embedder is rebuilt -- new model, changed preprocessing, edited
+ * catalog -- this process keeps serving the OLD vectors while the embedder
+ * embeds queries with the NEW model. Document and query vectors then live in
+ * different spaces and every result is quietly wrong.
+ *
+ * This cost real time: an entire tag-ablation experiment was measured against a
+ * stale cache and produced a confident, completely wrong conclusion, because
+ * `docker compose up -d api` does not recreate a container whose image is
+ * unchanged. Nothing anywhere reported the mismatch.
+ */
+async function checkCorpusFreshness() {
+  try {
+    const health = await fetchJSON(`${CONFIG.embedder.url}/health`, {}, 5000);
+    const current = health.cache_key;
+    if (current && corpusCacheKey && current !== corpusCacheKey) {
+      return { stale: true, held: corpusCacheKey, available: current };
+    }
+    return { stale: false, held: corpusCacheKey, available: current || corpusCacheKey };
+  } catch (err) {
+    return { stale: null, error: err.message, held: corpusCacheKey };
+  }
+}
+
+/**
+ * Refetch the corpus without restarting. Cheap enough to be the obvious fix
+ * once staleness is detected.
+ */
+async function reloadCorpus() {
+  const corpus = await fetchJSON(`${CONFIG.embedder.url}/corpus/vectors`, {}, 600000);
+  if (corpus.count !== variables.length) {
+    throw new Error(
+      `corpus/CSV row mismatch on reload: embedder has ${corpus.count}, this ` +
+      `process loaded ${variables.length}. Restart the API so both re-read the CSV.`);
+  }
+  embeddings = corpus.embeddings;
+  processedVariablesText = corpus.processed_texts;
+  corpusCacheKey = corpus.cache_key;
+  buildLexicalIndex(processedVariablesText);
+  return { rows: corpus.count, cache_key: corpus.cache_key };
+}
+
+app.post("/api/reload-corpus", async (req, res) => {
+  try {
+    const before = corpusCacheKey;
+    const result = await reloadCorpus();
+    console.log(`  Corpus reloaded: ${before} -> ${result.cache_key}`);
+    res.json({ reloaded: true, previous_cache_key: before, ...result });
+  } catch (err) {
+    res.status(500).json({ error: "reload failed", details: err.message });
+  }
+});
+
+/**
  * Resolve catalog attr_ids to their physical location.
  *
  * This is the grounding check. An attr_id absent from attribute_source cannot
@@ -1219,7 +1276,8 @@ app.post("/api/analyze", async (req, res) => {
   }
 });
 
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
+  const freshness = await checkCorpusFreshness();
   res.json({
     status: "ok",
     embeddings_ready: isEmbeddingsReady,
@@ -1230,7 +1288,13 @@ app.get("/api/health", (req, res) => {
     llm_model: CONFIG.llm.model,
     plan_model: CONFIG.llm.planModel,
     database: CONFIG.database.database,
-    resolvable_attributes: resolvableCount
+    resolvable_attributes: resolvableCount,
+    corpus_cache_key: corpusCacheKey,
+    // True when the embedder has re-embedded since this process started. The
+    // vectors held here are then from a different space than the query
+    // embeddings, and results are silently wrong until POST /api/reload-corpus.
+    corpus_stale: freshness.stale,
+    corpus_available_key: freshness.available
   });
 });
 
@@ -1272,6 +1336,7 @@ async function initializeEmbeddings() {
 
     embeddings = corpus.embeddings;
     processedVariablesText = corpus.processed_texts;
+    corpusCacheKey = corpus.cache_key;
 
     buildLexicalIndex(processedVariablesText);
 

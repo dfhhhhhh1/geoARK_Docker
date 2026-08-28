@@ -266,6 +266,8 @@ def health():
         "dimension": DIM,
         "corpus_loaded": _corpus["matrix"] is not None,
         "corpus_rows": 0 if _corpus["matrix"] is None else int(len(_corpus["matrix"])),
+        # Consumers cache these vectors; the key lets them detect a re-embed.
+        "cache_key": _corpus.get("key"),
     }
 
 

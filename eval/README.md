@@ -53,6 +53,18 @@ a permanent retrieval failure and quietly drags the headline number down.
 | `paraphrase` | 5 | Everyday wording that appears nowhere in the catalog |
 | `temporal` | 5 | Year-targeted queries. 3,894 rows carry a `start_date` that appears nowhere in their description, so these are unreachable unless the year is in the embedding text |
 
+A second file, `known_item.yaml`, holds two sharper suites:
+
+| Suite | Mode | What it measures |
+|---|---|---|
+| `known_item_tag_vocabulary` | `known_item` | Rank of one specific attribute, queried using vocabulary found **only** in its tags |
+| `known_item_described` | `known_item` | Control group: rows whose description already carries the meaning |
+| `absent` | `absent` | Queries for data the catalog does not contain. Scores top semantic similarity — the question is whether it is visibly lower than for an answerable query |
+
+```bash
+python3 eval/run.py --suite-file eval/known_item.yaml
+```
+
 ## Metrics
 
 | Metric | Meaning |
@@ -198,35 +210,74 @@ wrong — a `join` where `normalize` was needed, or one poverty percentage divid
 by another. Judging *correctness* needs expected-value assertions on the output,
 which is the next thing this harness should grow.
 
-## What the tag ablation showed
+## The tag ablation — and a wrong answer, corrected
 
-Tags are 38% of all embedded text, and 56% for facility rows. They are also the
-least reproducible part of the catalog — LLM-generated, by a script
-(`attr_gen_copy.py`) that no longer exists anywhere in the repo. That looked
-like a serious exposure when adding new data, so it was measured directly with
-`EMBED_INCLUDE_TAGS=0` (the flag is part of the embedder's cache key, so the
-corpus genuinely re-embeds rather than reusing vectors):
+**An earlier version of this file claimed tags contribute nothing to retrieval.
+That was wrong, for two separate reasons. Both are worth recording.**
 
-| | concept recall | query success | MRR |
+### Reason 1: the experiment never ran
+
+The API pulls all 6,860 vectors from the embedder once at startup and holds
+them for its whole life. Rebuilding the embedder with `EMBED_INCLUDE_TAGS=0`
+changed the embedder — but `docker compose up -d api` does **not** recreate a
+container whose image is unchanged, so the API kept serving the original
+tags-on vectors. Both arms of the "ablation" read the same cache. That is why
+the results were byte-identical, which should have been the tell.
+
+Nothing reported the mismatch. `/api/health` now exposes `corpus_stale`, and
+`POST /api/reload-corpus` fixes it without a restart.
+
+### Reason 2: the metric could not see it anyway
+
+Even run correctly, `queries.yaml` cannot detect this. Its assertions ask "is
+**any** top-20 result about poverty?" — and 221 of 6,860 rows match `/povert/`.
+Tags can reorder the entire ranking without moving that number, and MRR pins
+near 1.0 for the same reason.
+
+### What is actually true
+
+Measured properly, with the API force-recreated between arms:
+
+**Known-item retrieval** (`known_item.yaml`, 12 queries, "return *this*
+attribute" scored by rank):
+
+| | tags on | tags off | Δ |
 |---|--:|--:|--:|
-| tags in embedding text | 95.6% | 94.6% | 0.847 |
-| tags removed entirely | 95.6% | 94.6% | 0.847 |
+| recall@1 | **91.7%** | 50.0% | **−41.7pp** |
+| recall@5 | 100.0% | 83.3% | −16.7pp |
+| MRR | **0.944** | 0.622 | −0.322 |
+| mean rank when found | 1.2 | 3.7 | 3× worse |
 
-**Identical.** Not one of the 37 queries changed outcome, and spot probes using
-vocabulary appearing *only* in tags ("socioeconomic", "food insecure",
-"housing density", "electricity transmission") returned the same top result
-either way. BGE's embedding of `attr_desc` + `dataset_clean` already captures
-what the tags restate.
+**Concept suite** (`queries.yaml`, 37 queries):
 
-Two conclusions, and the second matters as much as the first:
+| | tags on | tags off | Δ |
+|---|--:|--:|--:|
+| concept recall | 95.6% | 95.6% | none |
+| query success | 94.6% | 94.6% | none |
 
-1. Inconsistent tagging on newly added data is a **much smaller risk than it
-   looks**. Tag drift is not what will break retrieval.
-2. This suite **cannot detect a 38% change to the embedding text**. That is a
-   real limit on what its other numbers can tell you — treat it as a regression
-   guard, not a sensitive instrument.
+**Tags matter a great deal.** They are load-bearing for precise retrieval —
+finding the *right* attribute rather than a topically adjacent one. The concept
+suite genuinely cannot see that, which is a fact about the suite, not about
+tags.
 
-What *will* break the pipeline is covered by `etl/validate_catalog.py`.
+This is why the facility datasets depend on them: 392 rows have an `attr_desc`
+that is a bare column name (`"Name"`, `"Address"`), so tags plus `dataset_clean`
+are their only semantic signal. Tag vocabulary like "petrochemical", "biofuel",
+"fermentation" and "pipeline infrastructure" appears nowhere else in the row.
+
+### Consequences for adding data
+
+Tag quality and consistency **do** matter. Re-tagging new datasets with the same
+model and prompt is worth doing properly — see
+[`etl/PROVENANCE.md`](../etl/PROVENANCE.md). Do not treat tagger drift as
+harmless.
+
+### Lesson for this harness
+
+A metric that does not move is not evidence of no effect until you have shown
+the metric *can* move. `known_item.yaml` exists to be that instrument, and it
+should be extended before any future claim that some component "does not
+matter".
 
 ## Trust the matcher, but test it
 
