@@ -1,4 +1,55 @@
+# ---- dependencies ----
 node_modules/
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+myEnv/
+env/
+
+# ---- secrets ----
 .env
-*.log
+.env.local
+.env.*.local
+!.env.example
+*.pem
+*.key
+
+# ---- build output ----
+dist/
+build/
+*.tsbuildinfo
+.vite/
+
+# ---- runtime junk ----
 nohup.out
+*.log
+geospatial_etl.log
+# temp scripts the old spawn('python3') path wrote at runtime
+temp_embedding_script.py
+temp_bge_embedding.py
+
+# ---- model + embedding caches (live in Docker volumes, never in git) ----
+models/
+data/embeddings/
+*.npy
+*.safetensors
+*.gguf
+*.bin
+
+# ---- large geodata: source lives outside this repo ----
+*.tif
+*.tiff
+*.shp
+*.dbf
+*.shx
+*.sbn
+*.sbx
+*.gdb/
+*.zip
+
+# ---- editors / OS ----
+.DS_Store
+.idea/
+.vscode/
+*.swp

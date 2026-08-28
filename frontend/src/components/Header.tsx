@@ -24,7 +24,7 @@ const Header: React.FC<HeaderProps> = ({ cartItemCount, cartItems, onRemoveFromC
                 <Globe className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-800">GeoSearch</h1>
+                <h1 className="text-xl font-bold text-slate-800">GeoARK</h1>
                 <p className="text-xs text-slate-500">Geospatial Data Platform</p>
               </div>
             </div>
