@@ -1,0 +1,28 @@
+# Development override — bind-mounts source so you can edit on the server
+# without rebuilding images.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Model volumes are inherited from the base file, so the embedder still starts
+# warm; only your own code is live-reloaded.
+
+services:
+  api:
+    build:
+      target: dev
+    command: ["npx", "nodemon", "unified_search_server.js"]
+    volumes:
+      - ../GeoARK/backend:/app
+      - /app/node_modules          # keep the image's node_modules
+    ports:
+      - "4000:4000"                # direct access, bypassing nginx
+
+  embedder:
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./embedder:/app
+      - hf_cache:/models/hf
+      - emb_cache:/data/embeddings
+      - ../GeoARK/backend/geoark_attributes.csv:/data/geoark_attributes.csv:ro
+    ports:
+      - "8000:8000"

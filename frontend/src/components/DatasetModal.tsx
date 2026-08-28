@@ -91,13 +91,21 @@ const DatasetModal: React.FC<DatasetModalProps> = ({
             {dataset.previewUrl && (
               <div className="bg-slate-50 rounded-lg p-4">
                 <h3 className="font-semibold text-slate-800 mb-3">Data Preview</h3>
-                <img 
-                  src={dataset.previewUrl} 
-                  alt={`${dataset.title} preview`}
-                  className="w-full h-48 object-cover rounded-lg border border-slate-200"
-                />
+                <table className="text-xs w-full">
+                  <tbody>
+                    {dataset.variables?.slice(0, 3).map((v, i) => (
+                      <tr key={i} className="border-b">
+                        <td className="py-1 font-medium">{v.label}</td>
+                        <td className="py-1 text-slate-600">
+                          {v.description?.slice(0, 60)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
+
 
             {/* Coverage Information */}
             <div className="grid md:grid-cols-2 gap-6">

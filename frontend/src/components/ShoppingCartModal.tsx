@@ -113,7 +113,11 @@ const ShoppingCartModal: React.FC<ShoppingCartModalProps> = ({
                 Continue Shopping
               </button>
               
-              <button className="flex-1 flex items-center justify-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg hover:from-green-700 hover:to-teal-700 transition-all font-medium shadow-lg hover:shadow-xl">
+              <button 
+                onClick={() => {
+                  const datasetIDs = cartItems.map(item => item.dataset.id).join(",");
+                  window.open(`/api/download?dataset_id=${datasetIDs}`, "_blank");}}
+                className="flex-1 flex items-center justify-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg hover:from-green-700 hover:to-teal-700 transition-all font-medium shadow-lg hover:shadow-xl">
                 <Download className="w-5 h-5" />
                 <span>Download All ({cartItems.length})</span>
               </button>

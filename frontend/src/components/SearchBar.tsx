@@ -17,6 +17,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => {
   };
 
   const exampleQueries = [
+    "air pollutants for pulmonary and cardiovascular diseases in the Midwest region",
     "population density in midwest cities",
     "river pollution measurements for 2023",
     "satellite imagery of deforestation",

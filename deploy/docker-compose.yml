@@ -1,0 +1,155 @@
+# GeoARK — reference deployment
+#
+# Additive: this does not touch GeoARK/docker-compose.yml. Run from ./deploy:
+#     cp .env.example .env
+#     docker compose up -d --build
+#     docker compose --profile setup run --rm model-init     # once, to warm volumes
+#
+# Design notes live in ../docs/DEPLOYMENT.md.
+
+name: geoark
+
+services:
+
+  # ---------------------------------------------------------------- web (SPA)
+  web:
+    build:
+      context: ../frontend
+      dockerfile: ../deploy/web.Dockerfile
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ------------------------------------------------------------- api (Node)
+  # No Python in this image. It talks to `embedder` and `ollama` over HTTP.
+  api:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      EMBEDDER_URL: http://embedder:8000
+      OLLAMA_URL: http://ollama:11434
+      LLM_MODEL: ${LLM_MODEL:-gemma3:4b}
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-mygisdb}
+      PGUSER: ${POSTGRES_USER:-geoark}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    depends_on:
+      # NOT service_healthy for the embedder: on a cold volume it spends
+      # minutes downloading the model, and waitForEmbedder() in the API polls
+      # for it anyway (up to 15 min). Gating here would just time compose out.
+      embedder:
+        condition: service_started
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+
+  # ------------------------------------------------- embedder (long-lived!)
+  # The whole point: the SentenceTransformer is constructed ONCE at process
+  # start, not once per query as the current spawn('python3', ...) does.
+  embedder:
+    build:
+      context: ./embedder
+      dockerfile: Dockerfile
+    environment:
+      HF_HOME: /models/hf                       # persisted weights (volume below)
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}      # flip to 1 once the cache is warm
+      EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-base-en-v1.5}
+      EMBED_CACHE_DIR: /data/embeddings         # persisted corpus matrices
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-4}
+    volumes:
+      - hf_cache:/models/hf                     # ~440 MB, downloaded once, ever
+      - emb_cache:/data/embeddings              # 4555 x 768 matrix, computed once
+      - ../backend/geoark_attributes.csv:/data/geoark_attributes.csv:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 180s                        # generous: first run downloads the model
+    restart: unless-stopped
+
+  # ------------------------------------------------------------- ollama (LLM)
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_KEEP_ALIVE: "-1"                   # never unload -> no per-request cold start
+      OLLAMA_MAX_LOADED_MODELS: "2"             # small router + large planner, both resident
+    volumes:
+      - ollama_models:/root/.ollama             # multi-GB weights, survive rebuilds
+    # Uncomment on a GPU host:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
+    restart: unless-stopped
+
+  # ------------------------------------------------------ db (PostGIS+vector)
+  db:
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mygisdb}
+      POSTGRES_USER: ${POSTGRES_USER:-geoark}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    shm_size: 1gb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-geoark} -d ${POSTGRES_DB:-mygisdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # ------------------------------------------------- automl (optional profile)
+  # AutoGluon is a multi-GB image, so it is off by default. Start it with
+  # `make automl`. The frontend's Report page degrades to a 502 without it.
+  automl:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/automl.Dockerfile
+    profiles: ["automl"]
+    environment:
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-4}
+    volumes:
+      - automl_models:/app/AutogluonModels
+    restart: unless-stopped
+
+  # -------------------------------------------------- model-init (run once)
+  # Warms ollama_models. Idempotent — re-running when warm is a no-op.
+  #   docker compose --profile setup run --rm model-init
+  model-init:
+    image: ollama/ollama:latest
+    profiles: ["setup"]
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "ollama pull ${LLM_MODEL:-gemma3:4b} &&
+       echo '--- models present ---' && ollama list"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      - ollama
+
+volumes:
+  hf_cache:       # embedding model weights
+  emb_cache:      # computed corpus embeddings
+  ollama_models:  # LLM weights
+  pgdata:         # PostGIS data
+  automl_models:  # trained AutoGluon predictors
