@@ -8,6 +8,7 @@ python3 eval/run.py                                    # against a running stack
 python3 eval/run.py --compare eval/baseline-search.json
 python3 eval/run.py --endpoint unified --no-llm-filter
 python3 eval/test_predicates.py                        # unit-test the matcher
+python3 eval/run.py --endpoint analyze --suite multi_concept   # the Phase 3 planner
 ```
 
 Needs `pyyaml` and a stack reachable at `http://localhost:8080` (`--base` to
@@ -170,6 +171,32 @@ Grow `multi_concept` and `paraphrase` first — they are where the headroom is,
 and they are the suites that discriminate between approaches. `single_concept`
 and `facilities_via_tags` are already saturated at 100% and mostly serve as
 regression guards now.
+
+## Measuring the planner
+
+`--endpoint analyze` scores different things, because concept-coverage
+assertions do not apply to a table of executed results. It asks: did a **valid
+plan** come out, did it **compile and run**, and did it **return any rows**.
+
+First baseline, `multi_concept` (the hardest suite, 8 queries):
+
+| | |
+|---|--:|
+| plan validity | 62.5% |
+| execution success | 62.5% |
+| non-empty results | 62.5% |
+| mean repairs | 0.62 |
+| latency p50 | 8.6s |
+
+The three failures are worth separating, since they have different fixes:
+two were "could not produce a valid plan" (planner-model capability) and one was
+"no executable attributes" (data coverage — only ACS county data is loaded).
+
+Validity is a low bar deliberately: it means the plan was grounded and ran, not
+that it answered the question. Plans routinely pass while being semantically
+wrong — a `join` where `normalize` was needed, or one poverty percentage divided
+by another. Judging *correctness* needs expected-value assertions on the output,
+which is the next thing this harness should grow.
 
 ## Trust the matcher, but test it
 

@@ -35,6 +35,11 @@ services:
       EMBEDDER_URL: http://embedder:8000
       OLLAMA_URL: http://ollama:11434
       LLM_MODEL: ${LLM_MODEL:-gemma3:4b}
+      # Planning is harder than decomposition. Where RAM allows, point this at
+      # a larger model (qwen3:14b) and leave LLM_MODEL small; it falls back to
+      # LLM_MODEL when unset. See docs/AI-PIPELINE.md.
+      PLAN_MODEL: ${PLAN_MODEL:-}
+      PLAN_MAX_REPAIRS: ${PLAN_MAX_REPAIRS:-2}
       # Retrieval tunables. Defaults are the values the eval suite was tuned on
       # (see eval/README.md); override in .env to run an ablation.
       RRF_K: ${RRF_K:-60}
@@ -153,6 +158,31 @@ services:
     volumes:
       - automl_models:/app/AutogluonModels
     restart: unless-stopped
+
+  # -------------------------------------------------------- etl (job, not a service)
+  # Loads county geometry, ACS values, and -- critically -- attribute_source,
+  # the catalog -> physical column mapping that makes generated plans
+  # executable at all. Run it with `make load-reference`.
+  etl:
+    build:
+      context: ../etl
+      dockerfile: ../deploy/etl.Dockerfile
+    profiles: ["etl"]
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-mygisdb}
+      PGUSER: ${POSTGRES_USER:-geoark}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      # Source geodata lives outside the repo (3.5 GB, gitignored). Point
+      # GEODATA_DIR at it; read-only, because ETL never writes to the source.
+      - ${GEODATA_DIR:-../../geospatial_database_data}:/data:ro
+      - ../frontend/public:/app/frontend/public:ro
+      - ../backend/geoark_attributes.csv:/app/backend/geoark_attributes.csv:ro
+    depends_on:
+      db:
+        condition: service_healthy
 
   # -------------------------------------------------- model-init (run once)
   # Warms ollama_models. Idempotent — re-running when warm is a no-op.

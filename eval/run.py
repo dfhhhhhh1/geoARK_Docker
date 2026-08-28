@@ -139,6 +139,22 @@ def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
              llm_filter: bool = False):
     """Return (results, seconds). Normalizes the two endpoints' response shapes."""
     started = time.perf_counter()
+    if endpoint == "analyze":
+        req = urllib.request.Request(
+            f"{base}/api/analyze",
+            data=json.dumps({"q": query, "top_k": top_k}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                payload = json.load(resp)
+        except urllib.error.HTTPError as exc:
+            # 422 means retrieval or planning failed -- a real outcome to
+            # measure, not a transport error, so it is recorded not raised.
+            payload = json.load(exc) if exc.headers.get("content-type", "").startswith("application/json") else {"error": str(exc)}
+        return payload, time.perf_counter() - started
+
     if endpoint == "search":
         url = f"{base}/api/search?" + urllib.parse.urlencode({"q": query})
         req = urllib.request.Request(url)
@@ -187,6 +203,42 @@ def score_query(q: dict, results: list[dict], top_k: int) -> dict:
     }
 
 
+def score_analyze(q: dict, payload: dict) -> dict:
+    """
+    For the planner, the questions are different: did it produce a VALID plan,
+    and did that plan RUN and return anything? Concept-coverage assertions do
+    not apply to a table of executed results.
+    """
+    planned = "plan" in payload and not payload.get("error")
+    executed = planned and payload.get("execution_error") is None and "row_count" in payload
+    rows = payload.get("row_count") or 0
+    return {
+        "id": q["id"],
+        "query": q["query"],
+        "planned": planned,
+        "executed": bool(executed),
+        "rows": rows,
+        "non_empty": bool(executed and rows > 0),
+        "repairs": payload.get("repairs"),
+        "ops": "->".join(s["op"] for s in payload.get("plan", {}).get("steps", [])) if planned else "",
+        "error": payload.get("error") or payload.get("execution_error"),
+        # kept so the shared reporter can consume these rows too
+        "concepts": {}, "n_concepts": 0, "n_found": 0, "all_found": bool(executed and rows > 0),
+        "mrr": 0.0,
+    }
+
+
+def report_analyze(rows: list[dict]) -> dict:
+    n = len(rows) or 1
+    return {
+        "queries": len(rows),
+        "plan_validity": sum(r["planned"] for r in rows) / n,
+        "execution_success": sum(r["executed"] for r in rows) / n,
+        "non_empty_rate": sum(r["non_empty"] for r in rows) / n,
+        "mean_repairs": statistics.mean([r["repairs"] or 0 for r in rows]) if rows else 0,
+    }
+
+
 def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
     per_suite, latencies, errors = {}, [], []
     for suite in suites:
@@ -201,6 +253,16 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
                 errors.append({"id": q["id"], "error": str(exc)})
                 continue
             latencies.append(secs)
+            if endpoint == "analyze":
+                row = score_analyze(q, results)
+                row["seconds"] = round(secs, 3)
+                rows.append(row)
+                mark = f"{GREEN}RUN {OFF}" if row["non_empty"] else (
+                       f"{YELLOW}PLAN{OFF}" if row["planned"] else f"{RED}FAIL{OFF}")
+                detail = row["ops"] or (row["error"] or "")[:52]
+                print(f"  {mark} {row['id']:26s} {row['rows']:>5} rows  {detail}"
+                      f"{DIM}  ({secs:.1f}s){OFF}")
+                continue
             row = score_query(q, results, top_k)
             row["seconds"] = round(secs, 3)
             rows.append(row)
@@ -214,6 +276,15 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
         per_suite[suite["name"]] = rows
 
     allrows = [r for rows in per_suite.values() for r in rows]
+    if endpoint == "analyze":
+        summary = report_analyze(allrows)
+        summary.update({
+            "endpoint": endpoint, "top_k": top_k, "errors": errors,
+            "latency_p50": round(statistics.median(latencies), 2) if latencies else 0.0,
+            "latency_p95": round(sorted(latencies)[int(len(latencies) * 0.95) - 1], 2) if latencies else 0.0,
+            "detail": per_suite,
+        })
+        return summary
     concepts_total = sum(r["n_concepts"] for r in allrows)
     concepts_found = sum(r["n_found"] for r in allrows)
     return {
@@ -240,6 +311,17 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
 
 
 def report(res: dict) -> None:
+    if res.get("endpoint") == "analyze":
+        print(f"\n{BOLD}{'=' * 62}{OFF}")
+        print(f"{BOLD}  analyze  n={res['queries']}{OFF}")
+        print(f"{BOLD}{'=' * 62}{OFF}")
+        print(f"  plan validity      {res['plan_validity']:6.1%}   (a valid plan was produced)")
+        print(f"  execution success  {res['execution_success']:6.1%}   (it compiled and ran)")
+        print(f"  non-empty results  {res['non_empty_rate']:6.1%}   (it returned at least one row)")
+        print(f"  mean repairs       {res['mean_repairs']:6.2f}")
+        print(f"  latency            p50 {res['latency_p50']:.1f}s   p95 {res['latency_p95']:.1f}s")
+        return
+
     print(f"\n{BOLD}{'=' * 62}{OFF}")
     flt = "  llm_filter=ON" if res.get("llm_filter") else ""
     print(f"{BOLD}  {res['endpoint']}  top_k={res['top_k']}  n={res['queries']}{flt}{OFF}")
@@ -287,8 +369,10 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--base", default="http://localhost:8080",
                     help="API base URL (default: nginx at :8080)")
-    ap.add_argument("--endpoint", choices=["search", "unified"], default="search",
-                    help="'search' = raw hybrid search; 'unified' = full pipeline with LLM")
+    ap.add_argument("--endpoint", choices=["search", "unified", "analyze"], default="search",
+                    help="'search' = raw hybrid search; 'unified' = + decomposition; "
+                         "'analyze' = the Phase 3 planner, which also reports plan "
+                         "validity and execution success")
     ap.add_argument("--suite", help="run only this suite")
     ap.add_argument("--suite-file", type=Path, default=DEFAULT_SUITE)
     ap.add_argument("--csv", type=Path, default=DEFAULT_CSV)

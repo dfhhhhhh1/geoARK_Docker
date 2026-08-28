@@ -150,29 +150,55 @@ for Phase 3.
 **Still to do:** cross-encoder reranker, and the pgvector migration — see the
 note below on why pgvector got *less* valuable, not more.
 
-## Phase 3 — A real agent (1–2 weeks)
+## Phase 3 — A real agent 🚧 in progress
 
 See [AI-PIPELINE.md §3](AI-PIPELINE.md#3-the-shape-to-move-to-a-constrained-tool-calling-agent).
 
-- [ ] Adopt Ollama **schema-constrained decoding** (`format: <JSON Schema>`)
+- [x] Adopt Ollama **schema-constrained decoding** (`format: <JSON Schema>`)
       everywhere, and delete every `match(/\{[\s\S]*\}/)`. *(Cheapest fix in the
       project; removes a whole class of 500s.)*
-- [ ] Define the plan DSL with Pydantic — nine ops, closed vocabulary.
-- [ ] **Link the two catalogs.** Add a `dataset_id → table_name` mapping so a
+- [x] Define the plan DSL — seven ops, closed vocabulary. In JSON Schema
+      (`backend/schemas.js`) rather than Pydantic, since the planner lives in
+      the Node service and the schema doubles as the decoding constraint.
+- [x] **Link the two catalogs.** Add a `dataset_id → table_name` mapping so a
       retrieved `attr_id` resolves to a real PostGIS column. Everything
       executable depends on this; nothing works without it.
-- [ ] Build the tool surface: `search_variables`, `describe_dataset`,
-      `column_stats`, `sample_rows`, `add_step`, `validate_plan`, `execute_plan`.
-- [ ] Enforce grounded identifiers in the validator — the model may only
+- [~] Tool surface: `validate_plan`, `execute_plan`, and grounded
+      `search_variables` exist as internal functions. They are **not** exposed
+      as model-callable tools yet — the planner emits a whole plan in one shot
+      rather than building it up through tool calls. `describe_dataset`,
+      `column_stats` and `sample_rows` are not written.
+- [x] Enforce grounded identifiers in the validator — the model may only
       reference identifiers a tool returned.
-- [ ] Add the validate → repair → retry loop, capped at 3 attempts.
-- [ ] Write the plan→SQL compiler for the nine ops.
+- [x] Add the validate → repair → retry loop, capped at 3 attempts.
+- [x] Write the plan→SQL compiler for the nine ops.
 - [ ] Wrap the tools as an **MCP server** so you can drive them from an MCP
       client while iterating.
-- [ ] Route small model (decompose/rerank) vs large model (plan/repair).
+- [x] Route small vs large model: `PLAN_MODEL` selects the planner
+      independently of `LLM_MODEL`. **Untested** — this host OOMs above ~6 GB,
+      so a larger planner could not be trialled here.
 
-**Done when:** `POST /api/analyze` takes a natural-language query and returns
-executed results — GeoJSON plus statistics — not just a plan.
+- [ ] Wrap the tools as an MCP server (not started).
+
+**`POST /api/analyze` works end to end** — natural language in, executed rows
+plus GeoJSON out. First measured baseline, on `multi_concept`, the hardest suite:
+
+| | |
+|---|--:|
+| plan validity | 62.5% |
+| execution success | 62.5% |
+| non-empty results | 62.5% |
+| mean repairs | 0.62 |
+| latency p50 | 8.6s |
+
+`python3 eval/run.py --endpoint analyze --suite multi_concept`
+
+**What limits it now is plan quality, not plumbing.** gemma3:4b produces
+well-formed, grounded, executable plans that are often semantically wrong — it
+picked `join` where `normalize` was needed, and divided one poverty percentage
+by another while a correctly labelled total-population row sat in the candidate
+list. The next moves are a larger `PLAN_MODEL` and the deferred Phase 2
+reranker, in that order.
 
 ## Phase 4 — The product around it (ongoing)
 

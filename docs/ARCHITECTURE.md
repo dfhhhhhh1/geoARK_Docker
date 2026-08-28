@@ -27,15 +27,20 @@ Natural-language query
   (local LLM)                  load_data → buffer → spatial_join → aggregate → output
         │
         ▼
-  Execution                    PostGIS / GeoPandas run the DAG   ← NOT IMPLEMENTED
+  Execution                    Deterministic compiler -> PostGIS SQL   ← Phase 3
         │
         ▼
   Map + report                 React/Leaflet renders results
 ```
 
-Everything above the "Execution" line exists. The DAG is generated and returned
-to the client, but **nothing executes it**. That is the single biggest gap
-between the demo and a working product.
+**This now runs end to end.** `POST /api/analyze` takes a question and returns
+executed rows plus GeoJSON. Phase 3 replaced the IR/DAG pair with a single typed
+plan over a closed set of seven operations, and a deterministic compiler that
+turns a validated plan into parameterized PostGIS SQL.
+
+The model never writes SQL, table names, or column names. It emits a plan
+referencing short attribute labels; code resolves those to real columns via
+`attribute_source` and compiles the query. See §5.
 
 ## 2. Components as deployed
 
@@ -108,19 +113,61 @@ catalog: `dataset_id, dataset_clean, attr_label, attr_orig, attr_desc, attr_id,
 start_date, end_date, entity_type, tags, spatial_rep, …`. This is what gets
 embedded for semantic search.
 
-The two catalogs are not linked. `dataset_metadata.table_name` and
-`geoark_attributes.dataset_id` use different identifier schemes, so a search hit
-in the CSV cannot be resolved to a physical PostGIS table.
+**The catalogs are now linked** (Phase 3). `etl/load_reference_data.py` builds
+`attribute_source`, which maps a catalog `attr_id` to the physical place its
+values live:
 
-The gap is visible in the code: `loadVariablesFromCSV()` reads
-`row.table_name || ''` — a column the CSV **does not have**, so it is empty for
-every row. **This is why the DAG cannot execute.** The planner has no reliable
-way to turn `attr_id = 6fbbd315_01_01_01` into `SELECT fips_code FROM some_table`.
+| table | rows | what |
+|---|--:|---|
+| `county_geom` | 3,233 | county polygons, joined on `fips` |
+| `acs_variables` | 3,980 | ACS code → description |
+| `acs_county_values` | 10,774,147 | long-format values |
+| `attribute_source` | 3,596 | **attr_id → physical column** |
 
-`deploy/db/init/01-extensions.sql` creates a `dataset_table_map` table as the
-place to fix this. Populating it is a Phase 3 prerequisite.
+The join works because ACS catalog rows carry the census code in `attr_orig`;
+3,582 of 4,523 distinct codes match the ACS extract directly. That makes
+**3,596 of 6,860 catalog attributes (52.4%) executable**.
 
-## 5. Known problems
+The values are long-format, not wide, because 3,982 ACS columns exceeds
+Postgres' 1,600-column ceiling — and a long table is what the compiler wants to
+join against anyway.
+
+The remaining 47.6% are facility datasets (shelters, refineries, volcanoes)
+whose shapefiles are not loaded yet. `/api/analyze` returns a 422 naming that
+cause rather than failing obscurely.
+
+## 5. The planner
+
+```
+question
+   -> decompose            (constrained; small model)
+   -> hybrid search        per concept, grouped primary/normalization/filter
+   -> keep executable      drop anything absent from attribute_source
+   -> plan                 (constrained to PLAN_SCHEMA; PLAN_MODEL)
+   -> validate             grounding + arity + DAG order + single output
+   -> repair               errors fed back to the model, up to PLAN_MAX_REPAIRS
+   -> compile              deterministic plan -> parameterized SQL
+   -> execute              READ ONLY transaction, statement_timeout
+```
+
+Seven operations: `load`, `filter_attr`, `normalize`, `aggregate`, `rank`,
+`join`, `output`. A closed vocabulary is both easier for a small model to use
+and what makes a deterministic compiler possible.
+
+**Safety.** No model-produced string reaches SQL. Census codes come from
+`attribute_source`; every literal is a bound parameter; operators and aggregate
+functions pass through closed allow-lists; step ids are pattern-checked before
+becoming CTE names; execution runs in a `READ ONLY` transaction with a statement
+timeout. `backend/planner/test_planner.js` covers this, including identifier and
+operator injection attempts.
+
+**Reference labels.** Candidates are shown to the model as `a1`, `a2`, … rather
+than raw ids like `04d18a18_08_01_352`. Asked to transcribe the real ids, a 4B
+model gave up and invented placeholders (`attr_14`), which grounding correctly
+rejected — so the request produced nothing. Code maps labels back, which is the
+only place that mapping can be trusted.
+
+## 6. Known problems
 
 ### Fixed in Phases 0–1
 
@@ -146,17 +193,25 @@ place to fix this. Populating it is a Phase 3 prerequisite.
 
 ### Still open
 
-1. **The generated DAG is never executed.** See §1. The single biggest gap
-   between the demo and a product.
+1. ~~The generated DAG is never executed.~~ Fixed in Phase 3: `POST /api/analyze`
+   compiles a validated plan to SQL and runs it. Measured on the hardest eval
+   suite: 62.5% of queries produce a valid plan that executes and returns rows.
 1b. **The LLM verification step is destructive.** Measured: −10pp concept
    recall, −12.5pp query success, +7.7s per request, while *raising* MRR. It
    judges relevance well but deletes instead of reordering. Now defaulted off;
    a cross-encoder should replace it — [AI-PIPELINE.md §4](AI-PIPELINE.md).
-2. **The two catalogs don't join.** See §4. Prerequisite for the above.
-3. **LLM output is parsed with a regex.** `llmResponse.match(/\{[\s\S]*\}/)`
-   plus `JSON.parse`. A small local model producing prose, a trailing comma, or
-   `<think>` tags fails the whole request. Ollama's schema-constrained decoding
-   fixes this — [AI-PIPELINE.md §3](AI-PIPELINE.md), Phase 3.
+2. ~~The two catalogs don't join.~~ Fixed in Phase 3 — see §4.
+3. ~~LLM output is parsed with a regex.~~ Fixed in Phase 3. Every LLM call now
+   uses Ollama's schema-constrained decoding (`format: <JSON Schema>`), so
+   invalid JSON is unrepresentable. There are zero `match(/\{[\s\S]*\}/)`
+   calls left in the live server.
+
+3b. **Plan quality is limited by the planner model.** Plans are well-formed,
+   grounded, and executable, but often semantically mediocre: given a correctly
+   labelled NORMALIZATION section containing "Estimate|Total|Total population",
+   gemma3:4b still divided one poverty percentage by another. `PLAN_MODEL`
+   routes planning to a larger model where RAM allows; untested here, since
+   this host OOMs above ~6 GB.
 4. ~~No tests, no evaluation set.~~ `eval/` measures concept recall, query
    success, MRR, and latency over 32 queries. Still small — a 1-query flip moves
    recall ~2.5pp — and there are no plan-execution metrics yet.

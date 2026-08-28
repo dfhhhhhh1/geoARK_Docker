@@ -55,7 +55,8 @@ one at the IR, one at the DAG. It cannot look at a column's actual values, or
 notice that a search returned nothing, or try a different phrasing. A person
 doing this analysis would iterate; the pipeline can't.
 
-**Nothing executes the DAG.** The response is a plan the user cannot run.
+~~**Nothing executes the DAG.**~~ Fixed in Phase 3: `POST /api/analyze` compiles
+a validated plan to parameterized PostGIS SQL and runs it.
 
 **The verification step subtracts value.** Measured: −10pp concept recall for
 +7.7s per query. See §4.3.

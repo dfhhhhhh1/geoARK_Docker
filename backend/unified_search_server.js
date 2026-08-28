@@ -22,6 +22,8 @@ const cors = require("cors");
 const csv = require("csv-parser");
 const fs = require("fs");
 const { Pool } = require("pg");
+const { DECOMPOSITION_SCHEMA, VERIFICATION_SCHEMA } = require("./schemas");
+const { generatePlan, executePlan } = require("./planner");
 
 console.log("  Starting Unified Geospatial Search Server...");
 
@@ -42,6 +44,14 @@ const CONFIG = {
   llm: {
     endpoint: `${OLLAMA_URL}/api/chat`,
     model: process.env.LLM_MODEL || "gemma3:4b",
+    // Planning is a harder task than decomposition and deserves a bigger model.
+    // Observed with gemma3:4b: plans are well-formed, grounded and executable,
+    // but semantically mediocre -- given a correctly labelled NORMALIZATION
+    // section containing "Estimate|Total|Total population" it still divided one
+    // poverty percentage by another. Point PLAN_MODEL at a larger model (e.g.
+    // qwen3:14b) where there is RAM for it; it defaults to LLM_MODEL so a
+    // single-model deployment still works.
+    planModel: process.env.PLAN_MODEL || process.env.LLM_MODEL || "gemma3:4b",
     temperature: Number(process.env.LLM_TEMPERATURE ?? 0.2),
     // A local LLM that has been OOM-killed accepts the connection and then
     // never answers. Without a deadline the request hangs until nginx gives
@@ -84,6 +94,7 @@ let variables = [];
 let embeddings = [];
 let processedVariablesText = [];
 let isEmbeddingsReady = false;
+let resolvableCount = null;   // attribute_source rows; null until first checked
 
 // =============================================================================
 // Step 1: Query Decomposition (from enhanced_search_server.js)
@@ -141,15 +152,22 @@ async function llmFetch(body) {
   }
 }
 
-async function callLLM(systemPrompt, userPrompt, temperature = 0.2) {
+/**
+ * @param schema  optional JSON Schema. When given, Ollama constrains sampling
+ *                to it, so the response is valid JSON matching the shape --
+ *                no fence-stripping, no regex extraction, no repair.
+ */
+async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = null,
+                       model = CONFIG.llm.model) {
   try {
-    console.log(`   Calling LLM (${CONFIG.llm.model})...`);
+    console.log(`   Calling LLM (${model})...`);
     
     const response = await llmFetch({
-      model: CONFIG.llm.model,
+      model,
       messages: [{ role: "user", content: systemPrompt }],
       temperature: temperature,
-      stream: false
+      stream: false,
+      ...(schema ? { format: schema } : {})
     });
     
     if (!response.ok) {
@@ -176,40 +194,28 @@ async function decomposeQuery(query) {
   
   try {
     const prompt = DECOMPOSITION_PROMPT.replace("{QUERY}", query);
-    const response = await callLLM(prompt, query);
-    
-    console.log(`   Raw LLM response length: ${response?.length || 0} chars`);
-    
+    // Constrained decoding: the response is guaranteed to parse and to match
+    // DECOMPOSITION_SCHEMA, so the old ladder of ```json fence-stripping and
+    // /\{[\s\S]*\}/ extraction is gone.
+    const response = await callLLM(prompt, query, CONFIG.llm.temperature,
+                                   DECOMPOSITION_SCHEMA);
+
     if (!response || response.length < 10) {
-      console.log(`   Empty or short response, using smart fallback`);
+      console.log(`   Empty response, using smart fallback`);
       return createSmartFallback(query);
     }
-    
-    // Parse JSON from response
+
     let result;
     try {
-      let jsonStr = response;
-      
-      // Try different extraction methods
-      if (response.includes("```json")) {
-        jsonStr = response.split("```json")[1].split("```")[0];
-      } else if (response.includes("```")) {
-        jsonStr = response.split("```")[1].split("```")[0];
-      } else {
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonStr = jsonMatch[0];
-        }
-      }
-      
-      result = JSON.parse(jsonStr.trim());
-      
-      // Validate the result has expected structure
-      if (!result.search_queries || !Array.isArray(result.search_queries)) {
-        console.log(`   Invalid structure, using smart fallback`);
+      result = JSON.parse(response);
+
+      // The schema guarantees shape, not usefulness: a model can still return
+      // an empty search_queries array.
+      if (!Array.isArray(result.search_queries) || result.search_queries.length === 0) {
+        console.log(`   No search queries produced, using smart fallback`);
         return createSmartFallback(query);
       }
-      
+
     } catch (parseError) {
       console.log(`   JSON parse failed: ${parseError.message}`);
       return createSmartFallback(query);
@@ -753,7 +759,7 @@ async function verifyResultsWithLLM(originalQuery, decomposition, allResults) {
     const responseRaw = await llmFetch({
       model: CONFIG.llm.model,
       messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-      format: "json",   // Ollama constrains output to valid JSON
+      format: VERIFICATION_SCHEMA,   // constrained to {reasoning, keep_ids}
       stream: false,
       options: { temperature: 0.1 }
     });
@@ -762,16 +768,16 @@ async function verifyResultsWithLLM(originalQuery, decomposition, allResults) {
     const data = await responseRaw.json();
     const content = data.message?.content || "";
 
-    // Parse JSON response
+    // VERIFICATION_SCHEMA constrains this response, so it parses or the model
+    // returned nothing at all. No extraction fallback needed.
     let parsed;
     try {
       parsed = JSON.parse(content);
     } catch (e) {
-      // Last ditch effort to find JSON in the string
-      const match = content.match(/\{[\s\S]*\}/);
-      if (match) parsed = JSON.parse(match[0]);
+      console.warn(`     Verification response did not parse: ${e.message}`);
+      parsed = null;
     }
-      
+
     const keepIds = parsed?.keep_ids || [];
     console.log(`    Reasoning: ${parsed?.reasoning || "None provided"}`);
     const reasoning = parsed?.reasoning || "No reasoning provided by LLM.";
@@ -1078,6 +1084,141 @@ app.post("/api/get-data", async (req, res) => {
 /**
  * GET /api/health
  */
+// =============================================================================
+// Step 5: Analysis — plan generation and execution
+// =============================================================================
+
+/**
+ * Resolve catalog attr_ids to their physical location.
+ *
+ * This is the grounding check. An attr_id absent from attribute_source cannot
+ * be executed, so a plan referencing one is rejected before any SQL is built.
+ */
+async function resolveAttributes(attrIds) {
+  const out = new Map();
+  if (!attrIds.length) return out;
+  const { rows } = await pool.query(
+    `SELECT attr_id, dataset_id, description, source_kind, table_name,
+            value_column, census_code, entity_type, geom_table
+       FROM attribute_source
+      WHERE attr_id = ANY($1)`,
+    [attrIds]
+  );
+  for (const r of rows) out.set(r.attr_id, r);
+  return out;
+}
+
+/**
+ * POST /api/analyze
+ *
+ * The Phase 3 endpoint: natural language in, executed results out.
+ *
+ * Body: { q, top_k?, execute?, entity_type? }
+ * Returns the retrieved candidates, the plan, the compiled SQL, and the rows.
+ */
+app.post("/api/analyze", async (req, res) => {
+  const started = Date.now();
+  try {
+    const { q: query, top_k = 25, execute = true } = req.body || {};
+    if (!query || !query.trim()) {
+      return res.status(400).json({ error: "body field 'q' is required" });
+    }
+    if (!isEmbeddingsReady) {
+      return res.status(503).json({ error: "search index not ready" });
+    }
+
+    console.log(`\n${"=".repeat(70)}\nANALYZE: "${query}"\n${"=".repeat(70)}`);
+
+    // 1. Retrieve candidates via the DECOMPOSED pipeline, not a single search.
+    //    This matters for planning specifically: "poverty normalized by
+    //    population" needs a population row in the candidate list, and a single
+    //    vector search returns twenty flavours of poverty and no denominator.
+    //    Observed directly -- with single-search candidates the planner divided
+    //    "100-149% of poverty level" by "at or above 150%", which is
+    //    well-formed, executable, and wrong.
+    const search = await unifiedSearch(query, {
+      useLLMFilter: false,            // measured in Phase 2: costs 10pp recall
+      topKPerConcept: Math.max(top_k, 20)
+    });
+    const candidates = search.all_results || [];
+    const resolved = await resolveAttributes(candidates.map(c => c.attr_id));
+
+    // Keep the decomposition's purpose grouping visible in the ordering, so
+    // normalization candidates are not all pushed off the end of the list.
+    const executable = candidates.filter(c => resolved.has(c.attr_id)).slice(0, top_k);
+
+    console.log(`   ${candidates.length} retrieved, ${executable.length} executable`);
+
+    if (executable.length === 0) {
+      return res.status(422).json({
+        error: "no executable attributes for this query",
+        detail: "Retrieval found matches, but none are mapped to a physical " +
+                "table yet. Only ACS county attributes are loaded; see " +
+                "etl/load_reference_data.py.",
+        retrieved: candidates.slice(0, 10),
+        ms: Date.now() - started
+      });
+    }
+
+    // 2. Plan, with validation and repair.
+    const planning = await generatePlan({
+      query,
+      candidates: executable,
+      // Bind the planner to PLAN_MODEL, leaving decomposition on the small one.
+      callLLM: (sys, usr, temp, schema) =>
+        callLLM(sys, usr, temp, schema, CONFIG.llm.planModel),
+      resolve: resolveAttributes,
+      log: (m) => console.log(m)
+    });
+
+    if (!planning.ok) {
+      return res.status(422).json({
+        error: "could not produce a valid plan",
+        validation_errors: planning.errors,
+        attempts: planning.attempts.length,
+        candidates: executable.slice(0, 10),
+        ms: Date.now() - started
+      });
+    }
+
+    const body = {
+      query,
+      decomposition: search.decomposition,
+      plan: planning.plan,
+      repairs: planning.repairs,
+      candidates: executable.slice(0, 10),
+      ms: Date.now() - started
+    };
+
+    // 3. Execute, unless the caller only wanted the plan.
+    if (execute) {
+      try {
+        const result = await executePlan(planning.plan, planning.resolved, pool);
+        body.sql = result.sql;
+        body.params = result.params;
+        body.row_count = result.row_count;
+        body.rows = result.rows;
+        body.geometry = result.geometry;
+        body.execution_ms = result.ms;
+      } catch (err) {
+        // A plan that validates can still fail at execution. Return the plan
+        // and the reason rather than swallowing both.
+        console.error("   Execution failed:", err.message);
+        body.execution_error = err.message;
+        res.status(500);
+      }
+    }
+
+    body.ms = Date.now() - started;
+    console.log(`   done in ${body.ms}ms (${body.row_count ?? 0} rows)`);
+    return res.json(body);
+
+  } catch (error) {
+    console.error("Analyze error:", error);
+    return res.status(500).json({ error: "analyze failed", details: error.message });
+  }
+});
+
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
@@ -1087,7 +1228,9 @@ app.get("/api/health", (req, res) => {
     embedding_model: CONFIG.embedder.model,
     embedder_url: CONFIG.embedder.url,
     llm_model: CONFIG.llm.model,
-    database: CONFIG.database.database
+    plan_model: CONFIG.llm.planModel,
+    database: CONFIG.database.database,
+    resolvable_attributes: resolvableCount
   });
 });
 
@@ -1132,6 +1275,18 @@ async function initializeEmbeddings() {
 
     buildLexicalIndex(processedVariablesText);
 
+    // How much of the catalog is actually executable. Surfaced on /api/health
+    // because "search works but nothing can run" is otherwise invisible.
+    try {
+      const { rows } = await pool.query("SELECT count(*)::int AS n FROM attribute_source");
+      resolvableCount = rows[0].n;
+      console.log(`  Executable attributes: ${resolvableCount} of ${variables.length}`);
+    } catch (err) {
+      resolvableCount = 0;
+      console.warn(`  attribute_source unavailable (${err.message}). ` +
+                   `/api/analyze will return 422 until etl/load_reference_data.py runs.`);
+    }
+
     console.log(`  ${embeddings.length} embeddings ready (${corpus.model}, cache ${corpus.cache_key})`);
     isEmbeddingsReady = true;
 
@@ -1158,11 +1313,12 @@ initializeEmbeddings().then(() => {
     console.log(`   POST /api/decompose-query  - Query decomposition only`);
     console.log(`   GET  /api/search           - Simple hybrid search`);
     console.log(`   POST /api/get-data         - Retrieve PostGIS data`);
+    console.log(`   POST /api/analyze          - NL -> plan -> executed results`);
     console.log(`   GET  /api/health           - Health check`);
     console.log(`\n  Configuration:`);
     console.log(`   Embedder:  ${CONFIG.embedder.url} (${CONFIG.embedder.model})`);
     console.log(`   Ollama:    ${CONFIG.llm.endpoint}`);
-    console.log(`   LLM Model: ${CONFIG.llm.model}`);
+    console.log(`   LLM Model: ${CONFIG.llm.model}  (planner: ${CONFIG.llm.planModel})`);
     console.log(`   Database:  ${CONFIG.database.user}@${CONFIG.database.host}:${CONFIG.database.port}/${CONFIG.database.database}`);
     console.log(`   Variables: ${variables.length}`);
     console.log(`   CSV Path: ${CONFIG.search.csvPath}`);
