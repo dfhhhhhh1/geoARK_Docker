@@ -35,6 +35,12 @@ services:
       EMBEDDER_URL: http://embedder:8000
       OLLAMA_URL: http://ollama:11434
       LLM_MODEL: ${LLM_MODEL:-gemma3:4b}
+      # Retrieval tunables. Defaults are the values the eval suite was tuned on
+      # (see eval/README.md); override in .env to run an ablation.
+      RRF_K: ${RRF_K:-60}
+      BM25_K1: ${BM25_K1:-1.2}
+      BM25_B: ${BM25_B:-0.75}
+      MOE_PENALTY: ${MOE_PENALTY:-0.5}
       PGHOST: db
       PGPORT: 5432
       PGDATABASE: ${POSTGRES_DB:-mygisdb}

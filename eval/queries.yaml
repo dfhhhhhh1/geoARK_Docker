@@ -1,0 +1,227 @@
+# GeoARK retrieval evaluation — assertion suite
+#
+# WHY ASSERTIONS AND NOT A LIST OF "CORRECT" attr_ids
+# ---------------------------------------------------
+# For a query like "poverty per capita by county" there is no single right
+# answer: the catalog has 221 poverty attributes and dozens of population ones,
+# and several combinations would satisfy a user. Hand-picking one attr_id as
+# ground truth would encode an arbitrary choice and make the metric mostly
+# noise.
+#
+# So each query instead declares the CONCEPTS its results must cover. A concept
+# is satisfied when at least one returned row matches its predicate. This
+# measures the thing the pipeline actually claims to do: decompose a query and
+# surface every part of it — including the normalization variable that a naive
+# single-vector search drops.
+#
+# Every predicate below was checked against geoark_attributes.csv, so each one
+# is known to be satisfiable. See eval/README.md.
+#
+# PREDICATE FIELDS (all optional; all listed must match for a row to count)
+#   desc     regex, case-insensitive, against attr_desc
+#   tags     regex, case-insensitive, against tags
+#   dataset  regex, case-insensitive, against dataset_clean
+#   entity   exact match against entity_type (COUNTY / STATE / TRACT / ...)
+#   any_of   list of predicates; row matches if ANY of them matches
+
+suites:
+
+  # ---------------------------------------------------------------------
+  # Single-concept lookups. If these fail, basic semantic search is broken.
+  # ---------------------------------------------------------------------
+  - name: single_concept
+    queries:
+      - id: poverty-rate
+        query: "poverty rate"
+        concepts:
+          poverty: {desc: "povert"}
+
+      - id: unemployment
+        query: "unemployment rate"
+        concepts:
+          unemployment: {desc: "unemploy"}
+
+      - id: median-income
+        query: "median household income"
+        concepts:
+          income: {desc: "median household income"}
+
+      - id: health-insurance
+        query: "people without health insurance"
+        concepts:
+          insurance: {desc: "health insurance|uninsured"}
+
+      - id: snap-benefits
+        query: "food stamps and SNAP benefits"
+        concepts:
+          snap: {desc: "SNAP|food stamp"}
+
+      - id: veterans
+        query: "veteran population characteristics"
+        concepts:
+          veterans: {desc: "veteran"}
+
+      - id: hospital-beds
+        query: "hospital bed capacity"
+        concepts:
+          hospital: {desc: "hospital"}
+
+      - id: housing-units
+        query: "total housing units"
+        concepts:
+          housing: {desc: "housing unit"}
+
+      - id: educational-attainment
+        query: "educational attainment bachelors degree"
+        concepts:
+          education: {desc: "degree|educat|school"}
+
+      - id: commuting
+        query: "commute time to work"
+        concepts:
+          commute: {desc: "commut|travel time|work"}
+
+  # ---------------------------------------------------------------------
+  # Facility datasets. Their attr_desc values are generic column names
+  # ("Name", "Address"), so the semantic content lives ONLY in tags and
+  # dataset_clean. These fail if the embedding text drops either field.
+  # ---------------------------------------------------------------------
+  - name: facilities_via_tags
+    queries:
+      - id: power-plants
+        query: "power plants"
+        concepts:
+          power: {any_of: [{dataset: "power plant"}, {tags: "power plant"}]}
+
+      - id: oil-refineries
+        query: "oil refineries"
+        concepts:
+          refinery: {any_of: [{dataset: "refiner"}, {tags: "refiner"}]}
+
+      - id: emergency-shelters
+        query: "emergency shelter locations"
+        concepts:
+          shelter: {any_of: [{dataset: "shelter"}, {tags: "shelter"}]}
+
+      - id: public-health-depts
+        query: "public health departments"
+        concepts:
+          health_dept: {any_of: [{dataset: "public health"}, {tags: "public health"}]}
+
+      - id: natural-gas
+        query: "natural gas infrastructure"
+        concepts:
+          gas: {any_of: [{dataset: "natural gas"}, {tags: "natural gas|gas"}]}
+
+      - id: volcanic-eruptions
+        query: "historical volcanic eruptions"
+        concepts:
+          volcano: {any_of: [{dataset: "volcan"}, {tags: "volcan"}]}
+
+  # ---------------------------------------------------------------------
+  # THE POINT OF THE WHOLE SYSTEM. Each of these needs TWO OR MORE distinct
+  # variables. A single-vector search reliably returns only the primary
+  # concept and silently drops the normalizer — decomposition is what should
+  # fix that, so this suite is the one that measures whether it works.
+  # ---------------------------------------------------------------------
+  - name: multi_concept
+    queries:
+      - id: poverty-per-capita
+        query: "poverty rates normalized by population for counties"
+        concepts:
+          poverty:    {desc: "povert"}
+          population: {desc: "populat"}
+
+      - id: uninsured-per-capita
+        query: "share of population without health insurance per capita"
+        concepts:
+          insurance:  {desc: "health insurance|uninsured"}
+          population: {desc: "populat"}
+
+      - id: income-vs-education
+        query: "compare median income against educational attainment"
+        concepts:
+          income:    {desc: "income"}
+          education: {desc: "degree|educat|school"}
+
+      - id: unemployment-and-snap
+        query: "unemployment and food stamp usage together"
+        concepts:
+          unemployment: {desc: "unemploy"}
+          snap:         {desc: "SNAP|food stamp"}
+
+      - id: elderly-and-housing
+        query: "elderly population and housing occupancy"
+        concepts:
+          elderly: {desc: "65|60 years|older|elder"}
+          housing: {desc: "housing|occupied"}
+
+      - id: veterans-disability-income
+        query: "veterans with disabilities and their income"
+        concepts:
+          veterans:   {desc: "veteran"}
+          disability: {desc: "disabilit"}
+
+      - id: race-and-poverty
+        query: "poverty broken down by race"
+        concepts:
+          poverty: {desc: "povert"}
+          race:    {desc: "race|Black|White|Hispanic|Asian"}
+
+      - id: children-food-insecurity
+        query: "children in food insecure households"
+        concepts:
+          children: {desc: "child|under 18|age 0-17"}
+          food:     {desc: "food|SNAP"}
+
+  # ---------------------------------------------------------------------
+  # Geographic-level filtering. The decomposer extracts a geographic_level;
+  # these check it actually influences what comes back.
+  # ---------------------------------------------------------------------
+  - name: geographic_level
+    queries:
+      - id: tract-level-snap
+        query: "SNAP benefits at the census tract level"
+        concepts:
+          snap_tract: {desc: "SNAP|food stamp", entity: TRACT}
+
+      - id: county-unemployment
+        query: "county level unemployment"
+        concepts:
+          unemp_county: {desc: "unemploy", entity: COUNTY}
+
+      - id: state-hospital-capacity
+        query: "hospital capacity by state"
+        concepts:
+          hosp_state: {desc: "hospital", entity: STATE}
+
+  # ---------------------------------------------------------------------
+  # Paraphrase robustness: everyday wording, none of which appears verbatim
+  # in the catalog. Pure semantic-matching test.
+  # ---------------------------------------------------------------------
+  - name: paraphrase
+    queries:
+      - id: poor-people
+        query: "areas where lots of people are poor"
+        concepts:
+          poverty: {desc: "povert|low income"}
+
+      - id: jobless
+        query: "places with many people out of work"
+        concepts:
+          unemployment: {desc: "unemploy|labor force"}
+
+      - id: no-doctor-coverage
+        query: "people who cannot afford medical coverage"
+        concepts:
+          insurance: {desc: "health insurance|uninsured|coverage"}
+
+      - id: old-people
+        query: "where do seniors live"
+        concepts:
+          elderly: {desc: "65|60 years|older"}
+
+      - id: rent-burden
+        query: "households struggling to pay rent"
+        concepts:
+          rent: {desc: "rent|gross rent|housing cost"}

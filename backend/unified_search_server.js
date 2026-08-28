@@ -56,8 +56,9 @@ const CONFIG = {
     password: process.env.PGPASSWORD || ""
   },
   search: {
-    semanticWeight: Number(process.env.SEMANTIC_WEIGHT ?? 0.7),
-    keywordWeight: Number(process.env.KEYWORD_WEIGHT ?? 0.3),
+    // Semantic and lexical rankings are fused with RRF (see rrfFuse), which
+    // needs no relative weighting -- so the old semanticWeight/keywordWeight
+    // knobs are gone. RRF_K, BM25_K1, BM25_B and MOE_PENALTY are the tunables.
     topK: Number(process.env.TOP_K ?? 10),
     csvPath: process.env.CSV_PATH || "geoark_attributes.csv"
   },
@@ -482,78 +483,195 @@ function cosineSimilarity(vecA, vecB) {
 /**
  * Simple keyword match score
  */
-function keywordMatchScore(query, text) {
-  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-  const textWords = text.toLowerCase().split(/\s+/);
-  
-  let matchCount = 0;
-  for (const qWord of queryWords) {
-    for (const tWord of textWords) {
-      if (tWord.includes(qWord) || qWord.includes(tWord)) {
-        matchCount++;
-        break;
-      }
-    }
-  }
-  
-  return queryWords.length > 0 ? matchCount / queryWords.length : 0;
+// -----------------------------------------------------------------------------
+// Lexical scoring: BM25
+// -----------------------------------------------------------------------------
+//
+// This replaces a substring-overlap counter that scored:
+//
+//     query "people who cannot afford medical coverage"
+//     row   "Households not receiving food stamps/SNAP"      -> 0.833
+//
+// It matched `tWord.includes(qWord) || qWord.includes(tWord)` against
+// UNFILTERED row tokens, so short stopword-ish tokens matched almost anything.
+// Nearly every row scored 0.6-0.85, which means the "keyword" term was not
+// ranking signal at all -- it was noise reshuffling the semantic ranking.
+//
+// BM25 fixes both halves: exact token matching, and IDF weighting so a rare
+// term like "refinery" counts for far more than "total".
+
+const STOPWORDS = new Set([
+  "the", "and", "for", "with", "that", "this", "are", "was", "were", "has",
+  "have", "had", "not", "but", "all", "any", "can", "who", "how", "what",
+  "where", "which", "there", "their", "them", "they", "from", "into", "than",
+  "then", "some", "such", "only", "own", "same", "very", "one", "many", "much",
+  "lot", "lots", "get", "got", "you", "your", "our", "its", "his", "her",
+  "people", "place", "places", "area", "areas", "show", "give", "find", "want",
+  "data", "dataset", "datasets", "variable", "variables", "level", "levels"
+]);
+
+function tokenize(text) {
+  return (text || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(t => t.length > 2 && !STOPWORDS.has(t));
 }
 
+// Standard BM25 constants: k1 controls term-frequency saturation, b controls
+// length normalization.
+const BM25_K1 = Number(process.env.BM25_K1 ?? 1.2);
+const BM25_B = Number(process.env.BM25_B ?? 0.75);
+
+let bm25 = null;   // { docs, df, idf, avgdl, N } — built once at startup
+
 /**
- * Perform hybrid search combining semantic and keyword matching
+ * Build the inverted-index statistics BM25 needs. O(corpus), done once.
  */
+function buildLexicalIndex(processedTexts) {
+  const docs = processedTexts.map(t => {
+    const tf = new Map();
+    const tokens = tokenize(t);
+    for (const tok of tokens) tf.set(tok, (tf.get(tok) || 0) + 1);
+    return { tf, len: tokens.length };
+  });
+
+  const df = new Map();
+  for (const d of docs) for (const tok of d.tf.keys()) df.set(tok, (df.get(tok) || 0) + 1);
+
+  const N = docs.length;
+  const idf = new Map();
+  for (const [tok, n] of df) {
+    // BM25 IDF with the +1 smoothing that keeps it non-negative for common terms.
+    idf.set(tok, Math.log(1 + (N - n + 0.5) / (n + 0.5)));
+  }
+
+  const avgdl = docs.reduce((a, d) => a + d.len, 0) / (N || 1);
+  bm25 = { docs, idf, avgdl, N };
+  console.log(`  Lexical index: ${N} docs, ${idf.size} terms, avg length ${avgdl.toFixed(1)}`);
+}
+
+function bm25Score(queryTokens, index) {
+  const doc = bm25.docs[index];
+  if (!doc || doc.len === 0) return 0;
+  let score = 0;
+  for (const tok of queryTokens) {
+    const f = doc.tf.get(tok);
+    if (!f) continue;
+    const idf = bm25.idf.get(tok) || 0;
+    score += idf * (f * (BM25_K1 + 1)) /
+             (f + BM25_K1 * (1 - BM25_B + BM25_B * doc.len / bm25.avgdl));
+  }
+  return score;
+}
+
+// -----------------------------------------------------------------------------
+// Margin-of-error demotion
+// -----------------------------------------------------------------------------
+//
+// ~900 catalog rows are ACS margin-of-error companions ("Margin of Error|Total
+// MOE|..."). They are legitimate data, but they are near-duplicates of the
+// estimate rows they accompany, so they crowd real answers out of the top 20.
+// Someone searching "poverty rate" wants the estimate, not its error bar.
+//
+// Demote rather than filter: they stay reachable, they just stop dominating.
+// Set MOE_PENALTY=1 to disable.
+const MOE_PENALTY = Number(process.env.MOE_PENALTY ?? 0.5);
+const MOE_RE = /margin of error|\bMOE\b/i;
+
+function isMarginOfError(v) {
+  return MOE_RE.test(v.attr_desc || "") || MOE_RE.test(v.tags || "");
+}
+
+// -----------------------------------------------------------------------------
+// Reciprocal Rank Fusion
+// -----------------------------------------------------------------------------
+//
+// The previous blend was `0.7 * cosine + 0.3 * keywordScore`, which compares a
+// bounded 0-1 similarity against an unbounded, differently-distributed lexical
+// score -- so the weights never meant what they looked like, and re-tuning them
+// on a new corpus was guesswork.
+//
+// RRF fuses RANKS instead of scores: score = sum over rankings of 1/(k + rank).
+// It needs no score normalization and no per-corpus tuning. k=60 is the value
+// from the original paper and is what most implementations use.
+const RRF_K = Number(process.env.RRF_K ?? 60);
+
+function rrfFuse(rankings) {
+  const fused = new Map();
+  for (const ranking of rankings) {
+    ranking.forEach((index, i) => {
+      fused.set(index, (fused.get(index) || 0) + 1 / (RRF_K + i + 1));
+    });
+  }
+  return fused;
+}
+
 async function performHybridSearch(query, topK = 20, searchPurpose = 'primary') {
   if (!isEmbeddingsReady) {
     throw new Error("Embeddings not ready");
   }
-  
+
   console.log(`   Hybrid search for: "${query}" (${searchPurpose})`);
-  
-  // Generate query embedding
+
   const queryEmbeddingResult = await generateEmbeddings([query], true);
   const queryEmbedding = queryEmbeddingResult.embeddings[0];
   const processedQuery = queryEmbeddingResult.processed_texts[0];
-  
-  // Calculate scores for all variables
-  const scores = embeddings.map((embedding, index) => {
-    const semanticScore = cosineSimilarity(queryEmbedding, embedding);
-    const keywordScore = keywordMatchScore(processedQuery, processedVariablesText[index]);
-    
-    const hybridScore = 
-      CONFIG.search.semanticWeight * semanticScore + 
-      CONFIG.search.keywordWeight * keywordScore;
-    
+  const queryTokens = tokenize(processedQuery);
+
+  // Score every row on both axes independently. They are never added together;
+  // each produces its own ranking, and the ranks are what get fused.
+  const semantic = new Array(embeddings.length);
+  const lexical = new Array(embeddings.length);
+  for (let i = 0; i < embeddings.length; i++) {
+    semantic[i] = cosineSimilarity(queryEmbedding, embeddings[i]);
+    lexical[i] = bm25 ? bm25Score(queryTokens, i) : 0;
+  }
+
+  // Fusing full rankings would let a row ranked 4000th by BM25 contribute
+  // noise. Only the plausible head of each list takes part, which is also what
+  // makes this cheap.
+  const CANDIDATE_DEPTH = Math.max(topK * 5, 100);
+  const byScore = (arr) =>
+    Array.from(arr.keys())
+      .sort((a, b) => arr[b] - arr[a])
+      .slice(0, CANDIDATE_DEPTH);
+
+  const semanticRanking = byScore(semantic);
+  const lexicalRanking = queryTokens.length ? byScore(lexical) : [];
+
+  const fused = rrfFuse(lexicalRanking.length ? [semanticRanking, lexicalRanking]
+                                              : [semanticRanking]);
+
+  const ranked = Array.from(fused.entries())
+    .map(([index, score]) => ({
+      index,
+      fused_score: score * (isMarginOfError(variables[index]) ? MOE_PENALTY : 1)
+    }))
+    .sort((a, b) => b.fused_score - a.fused_score)
+    .slice(0, topK);
+
+  const topResults = ranked.map(({ index, fused_score }) => {
+    const v = variables[index];
     return {
-      variable: variables[index],
-      semantic_score: semanticScore,
-      keyword_score: keywordScore,
-      hybrid_score: hybridScore,
+      dataset_id: v.dataset_id,
+      table_name: v.table_name,
+      attr_id: v.attr_id,
+      attr_orig: v.attr_orig,
+      dataset_clean: v.dataset_clean,
+      attr_desc: v.attr_desc,
+      tags: v.tags,
+      entity_type: v.entity_type,
+      spatial_rep: v.spatial_rep,
+      source_folder: v.source_folder,
+      semantic_score: Math.round(semantic[index] * 1000) / 1000,
+      keyword_score: Math.round(lexical[index] * 1000) / 1000,   // BM25, unbounded
+      hybrid_score: Math.round(fused_score * 100000) / 100000,   // RRF, ~0-0.033
       search_purpose: searchPurpose
     };
   });
-  
-  // Sort by hybrid score and take top K
-  scores.sort((a, b) => b.hybrid_score - a.hybrid_score);
-  
-  const topResults = scores.slice(0, topK).map(item => ({
-    dataset_id: item.variable.dataset_id,
-    table_name: item.variable.table_name,
-    attr_id: item.variable.attr_id,
-    attr_orig: item.variable.attr_orig,
-    dataset_clean: item.variable.dataset_clean,
-    attr_desc: item.variable.attr_desc,
-    tags: item.variable.tags,
-    entity_type: item.variable.entity_type,
-    spatial_rep: item.variable.spatial_rep,
-    source_folder: item.variable.source_folder,
-    semantic_score: Math.round(item.semantic_score * 1000) / 1000,
-    keyword_score: Math.round(item.keyword_score * 1000) / 1000,
-    hybrid_score: Math.round(item.hybrid_score * 1000) / 1000,
-    search_purpose: item.search_purpose
-  }));
-  
-  console.log(`   Found ${topResults.length} results (top score: ${topResults[0]?.hybrid_score.toFixed(3) || 'N/A'})`);
-  
+
+  console.log(`   Found ${topResults.length} results (top RRF: ${topResults[0]?.hybrid_score ?? 'N/A'})`);
+
   return topResults;
 }
 
@@ -965,6 +1083,8 @@ async function initializeEmbeddings() {
     embeddings = corpus.embeddings;
     processedVariablesText = corpus.processed_texts;
 
+    buildLexicalIndex(processedVariablesText);
+
     console.log(`  ${embeddings.length} embeddings ready (${corpus.model}, cache ${corpus.cache_key})`);
     isEmbeddingsReady = true;
 
@@ -1023,6 +1143,9 @@ module.exports = {
   loadVariablesFromCSV,
   generateEmbeddings,
   waitForEmbedder,
+  buildLexicalIndex,
+  bm25Score,
+  tokenize,
   
   // Configuration and state
   CONFIG,

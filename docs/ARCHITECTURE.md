@@ -148,15 +148,21 @@ place to fix this. Populating it is a Phase 3 prerequisite.
 
 1. **The generated DAG is never executed.** See §1. The single biggest gap
    between the demo and a product.
+1b. **The LLM verification step is destructive.** On a sample query it cut 18
+   retrieved results down to 3. It is doing a reranker's job with a generation
+   call — [AI-PIPELINE.md §4](AI-PIPELINE.md) proposes a cross-encoder instead.
 2. **The two catalogs don't join.** See §4. Prerequisite for the above.
 3. **LLM output is parsed with a regex.** `llmResponse.match(/\{[\s\S]*\}/)`
    plus `JSON.parse`. A small local model producing prose, a trailing comma, or
    `<think>` tags fails the whole request. Ollama's schema-constrained decoding
    fixes this — [AI-PIPELINE.md §3](AI-PIPELINE.md), Phase 3.
-4. **No tests, no evaluation set.** There is no way to tell whether a prompt
-   change improves retrieval. Phase 2.
-5. **Hybrid scoring blends incomparable scales.** `0.7 × cosine + 0.3 ×
-   token-overlap-count`; the weights don't mean what they look like. Phase 2.
+4. ~~No tests, no evaluation set.~~ `eval/` measures concept recall, query
+   success, MRR, and latency over 32 queries. Still small — a 1-query flip moves
+   recall ~2.5pp — and there are no plan-execution metrics yet.
+5. ~~Hybrid scoring blends incomparable scales.~~ Replaced with BM25 + Reciprocal
+   Rank Fusion in Phase 2. The old lexical scorer turned out to be worse than
+   "incomparable" — it was near-constant noise. Measured: +7.5pp concept recall,
+   +9.4pp query success, 4× faster. See [`eval/README.md`](../eval/README.md).
 6. **18 pre-existing TypeScript errors** in `MapVisualization.tsx`,
    `ReportPage.tsx`, and `App.tsx` (unused vars, possible-null, implicit any).
    `npm run build` is `vite build`, which does not typecheck, so they do not

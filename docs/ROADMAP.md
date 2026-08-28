@@ -87,20 +87,44 @@ mismatch guard fires correctly; the frontend builds; both compose files validate
 **Not yet verified:** a real `docker compose up` — no Docker daemon was
 available on the machine this was built on. Run `make up` on the server.
 
-## Phase 2 — Retrieval you can measure (3–4 days)
+## Phase 2 — Retrieval you can measure 🚧 in progress
 
-- [ ] Write `eval/queries.yaml` — 50 real queries with expected `attr_id`s.
-      Do this **first**; it is the instrument for everything after.
-- [ ] `eval/run.py` reporting Recall@20, MRR, plan validity, latency.
+- [x] Write `eval/queries.yaml`. **Not** 50 queries with expected `attr_id`s —
+      that design doesn't survive contact with this catalog (221 poverty
+      attributes; no single one is "correct"). Instead 32 queries × 40
+      *concept assertions*, each verified satisfiable against the CSV.
+      See [`eval/README.md`](../eval/README.md).
+- [x] `eval/run.py` reporting concept recall, query success, MRR, and latency,
+      with `--save` / `--compare` for before-and-after diffs and `--fail-under`
+      for CI later.
 - [ ] Move the catalog into pgvector (`attribute_embeddings`, HNSW + GIN index).
-- [ ] Replace weighted score blending with Reciprocal Rank Fusion.
+- [x] Replace weighted score blending with Reciprocal Rank Fusion.
+- [x] **Replace the lexical scorer with BM25.** Not originally planned — the
+      eval exposed that `keywordMatchScore` was near-constant noise (0.833 on
+      unrelated rows) because it substring-matched against unfiltered tokens.
+- [x] **Demote margin-of-error rows** (`MOE_PENALTY`, default 0.5). Also not
+      planned; ~900 near-duplicate ACS MOE rows were flooding the top 20.
 - [ ] Add the `bge-reranker-base` cross-encoder over the top 50, and **delete**
       the LLM verification step it replaces.
-- [ ] Enrich embedded text with `entity_type`, temporal range, and dataset name.
-- [ ] Cache query embeddings by content hash.
+- [~] Enrich embedded text. `entity_type`, `dataset_clean`, `attr_orig` and
+      tags are already included; the temporal range is not yet.
+- [x] Cache query embeddings by content hash — already done in Phase 1 via the
+      embedder's `lru_cache`.
 
-**Done when:** you can run `python eval/run.py` and see retrieval quality as a
-number, and that number is better than the Phase 0 baseline.
+**Measured so far** (`--endpoint search`, 32 queries):
+
+| | baseline | now | Δ |
+|---|--:|--:|--:|
+| concept recall | 87.5% | **95.0%** | +7.5pp |
+| query success | 84.4% | **93.8%** | +9.4pp |
+| MRR | 0.773 | **0.822** | +0.049 |
+| latency p50 | 0.04s | **0.01s** | 4× faster |
+
+`multi_concept` 62.5% → 87.5%; `paraphrase` 60% → 80%. Three queries flipped to
+passing, none regressed.
+
+**Still to do:** pgvector migration, cross-encoder reranker, temporal range in
+the embedding text.
 
 ## Phase 3 — A real agent (1–2 weeks)
 

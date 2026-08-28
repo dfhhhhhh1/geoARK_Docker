@@ -179,13 +179,23 @@ Concretely: a small Python MCP server wrapping `PostGISSearcher` from
    better and ~50× cheaper than the current "ask the LLM to verify results"
    step, which is a whole generation call doing a reranker's job.
 
+   **Now with evidence:** on *"unemployment and food stamp usage together"* the
+   verification step reduced 18 retrieved results to 3. It is not just expensive,
+   it is destructive. The decomposition ahead of it was correct — it split the
+   query into unemployment and food-stamp concepts — and then the verifier threw
+   most of the retrieved rows away.
+
 4. **Embed richer text.** Right now the embedded string is
    `label + description + tags`, lowercased. Add `entity_type` ("county-level"),
    the temporal range in words ("2015 to 2020"), and the parent dataset name.
    Users query with those attributes constantly.
 
-5. **Cache query embeddings.** Same query text → same vector. A dict keyed by
-   `sha256(text)` makes repeat searches free.
+5. ~~**Cache query embeddings.**~~ Done in Phase 1 (`lru_cache` in the embedder).
+
+6. **Demote margin-of-error rows.** Done in Phase 2. ~900 of 6,860 catalog rows
+   are ACS MOE companions that near-duplicate the estimates they accompany;
+   demoting them (not filtering — they stay reachable) was worth +2.5pp concept
+   recall on its own.
 
 ## 5. Making it feel fast
 
