@@ -9,6 +9,7 @@ ranking changes can be judged by a number instead of by vibes.
     python3 eval/run.py --save baseline.json          # record a baseline
     python3 eval/run.py --compare baseline.json       # diff against it
     python3 eval/run.py --endpoint unified            # full pipeline, not raw search
+    python3 eval/run.py --endpoint unified --llm-filter  # + the LLM verifier
     python3 eval/run.py --suite multi_concept         # one suite only
     python3 eval/run.py --validate-only               # check assertions, no API calls
 
@@ -135,7 +136,7 @@ def validate(suites: list[dict], csv_path: Path) -> int:
 # --------------------------------------------------------------------------- #
 
 def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
-             llm_filter: bool = True):
+             llm_filter: bool = False):
     """Return (results, seconds). Normalizes the two endpoints' response shapes."""
     started = time.perf_counter()
     if endpoint == "search":
@@ -186,7 +187,7 @@ def score_query(q: dict, results: list[dict], top_k: int) -> dict:
     }
 
 
-def run(suites, base, endpoint, top_k, timeout, llm_filter=True) -> dict:
+def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
     per_suite, latencies, errors = {}, [], []
     for suite in suites:
         rows = []
@@ -240,7 +241,7 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=True) -> dict:
 
 def report(res: dict) -> None:
     print(f"\n{BOLD}{'=' * 62}{OFF}")
-    flt = "" if res.get("llm_filter", True) else "  llm_filter=OFF"
+    flt = "  llm_filter=ON" if res.get("llm_filter") else ""
     print(f"{BOLD}  {res['endpoint']}  top_k={res['top_k']}  n={res['queries']}{flt}{OFF}")
     print(f"{BOLD}{'=' * 62}{OFF}")
     print(f"  concept recall  {res['concept_recall']:6.1%}   (found / required)")
@@ -297,9 +298,12 @@ def main() -> int:
     ap.add_argument("--compare", type=Path, help="diff against a saved run")
     ap.add_argument("--validate-only", action="store_true")
     ap.add_argument("--skip-validate", action="store_true")
-    ap.add_argument("--no-llm-filter", action="store_true",
-                    help="unified endpoint only: skip the LLM verification step, "
-                         "to measure what it costs and what it discards")
+    # Default OFF, mirroring the API's own default, so a plain run measures
+    # what production actually does. Opt in to measure the verifier's cost.
+    ap.add_argument("--llm-filter", action="store_true",
+                    help="unified endpoint only: enable the LLM verification "
+                         "step (default off, as in the API). Measured cost: "
+                         "-10pp concept recall, +7.7s/query")
     ap.add_argument("--fail-under", type=float,
                     help="exit 1 if concept recall is below this (0-1)")
     args = ap.parse_args()
@@ -314,7 +318,7 @@ def main() -> int:
         return 0
 
     res = run(suites, args.base.rstrip("/"), args.endpoint, args.top_k,
-              args.timeout, llm_filter=not args.no_llm_filter)
+              args.timeout, llm_filter=args.llm_filter)
     report(res)
 
     if args.compare:

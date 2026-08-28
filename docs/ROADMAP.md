@@ -87,7 +87,7 @@ mismatch guard fires correctly; the frontend builds; both compose files validate
 **Not yet verified:** a real `docker compose up` — no Docker daemon was
 available on the machine this was built on. Run `make up` on the server.
 
-## Phase 2 — Retrieval you can measure 🚧 in progress
+## Phase 2 — Retrieval you can measure ✅ done (reranker deferred)
 
 - [x] Write `eval/queries.yaml`. **Not** 50 queries with expected `attr_id`s —
       that design doesn't survive contact with this catalog (221 poverty
@@ -134,13 +134,18 @@ available on the machine this was built on. Run `make up` on the server.
 `multi_concept` 62.5% → 87.5%; `paraphrase` 60% → 80%. Three queries flipped to
 passing, none regressed.
 
-**End-to-end, same 32 queries:**
+**Final, 37 queries across six suites.** The middle row is the production
+default:
 
 | | recall | success | MRR | p50 |
 |---|--:|--:|--:|--:|
-| retrieval only | 95.0% | 93.8% | 0.822 | 0.01s |
-| + decomposition, verify OFF | **97.5%** | **96.9%** | 0.726 | 3.42s |
-| + decomposition, verify ON | 87.5% | 84.4% | 0.874 | 11.10s |
+| retrieval only | 95.6% | 94.6% | 0.847 | 0.03s |
+| **+ decomposition, verify off** | **97.8%** | **97.3%** | 0.786 | 3.22s |
+| + decomposition, verify on | 91.1% | 89.2% | **0.907** | 10.38s |
+
+Started at 87.5% recall / 84.4% success. Five of six suites now sit at 100%;
+`multi_concept` (93.8% / 87.5%) is the remaining weakness and the right target
+for Phase 3.
 
 **Still to do:** cross-encoder reranker, and the pgvector migration — see the
 note below on why pgvector got *less* valuable, not more.

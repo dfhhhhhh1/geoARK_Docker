@@ -42,7 +42,11 @@ const CONFIG = {
   llm: {
     endpoint: `${OLLAMA_URL}/api/chat`,
     model: process.env.LLM_MODEL || "gemma3:4b",
-    temperature: Number(process.env.LLM_TEMPERATURE ?? 0.2)
+    temperature: Number(process.env.LLM_TEMPERATURE ?? 0.2),
+    // A local LLM that has been OOM-killed accepts the connection and then
+    // never answers. Without a deadline the request hangs until nginx gives
+    // up at 300s -- observed wedging an evaluation run for 20+ minutes.
+    timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? 90000)
   },
   embedder: {
     url: EMBEDDER_URL,
@@ -110,21 +114,42 @@ Rules:
 /**
  * Call the local LLM for query decomposition
  */
+/**
+ * POST to the LLM with a hard deadline. Ollama accepts connections even when
+ * its model runner is dead, so "no response" is a real and silent failure mode.
+ */
+async function llmFetch(body) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CONFIG.llm.timeoutMs);
+  try {
+    return await fetch(CONFIG.llm.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(
+        `LLM did not respond within ${CONFIG.llm.timeoutMs}ms. An OOM-killed ` +
+        `model runner still accepts connections but never answers -- check ` +
+        `the ollama container's State.OOMKilled, and docs/DEPLOYMENT.md #7.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callLLM(systemPrompt, userPrompt, temperature = 0.2) {
   try {
     console.log(`   Calling LLM (${CONFIG.llm.model})...`);
     
-    const response = await fetch(CONFIG.llm.endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: CONFIG.llm.model,
-        messages: [
-          { role: "user", content: systemPrompt }
-        ],
-        temperature: temperature,
-        stream: false
-      })
+    const response = await llmFetch({
+      model: CONFIG.llm.model,
+      messages: [{ role: "user", content: systemPrompt }],
+      temperature: temperature,
+      stream: false
     });
     
     if (!response.ok) {
@@ -725,16 +750,12 @@ async function verifyResultsWithLLM(originalQuery, decomposition, allResults) {
   `;
 
   try {
-    const responseRaw = await fetch(CONFIG.llm.endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: CONFIG.llm.model,
-        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-        format: "json", // <--- Forces the model to output valid JSON
-        stream: false,
-        options: { temperature: 0.1 }
-      })
+    const responseRaw = await llmFetch({
+      model: CONFIG.llm.model,
+      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+      format: "json",   // Ollama constrains output to valid JSON
+      stream: false,
+      options: { temperature: 0.1 }
     });
     
     

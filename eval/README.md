@@ -61,7 +61,26 @@ a permanent retrieval failure and quietly drags the headline number down.
 | **MRR** | Mean of 1/rank of each concept's first match. Moves when good results rank *higher*, which recall alone cannot see |
 | **latency** | p50 / p95 wall clock |
 
-## Results so far
+## Where Phase 2 landed
+
+37 queries, six suites. **`unified` with the verifier off is the production
+default**, and it is the best configuration on every axis except MRR:
+
+| config | recall | success | MRR | p50 |
+|---|--:|--:|--:|--:|
+| `search` — retrieval only | 95.6% | 94.6% | 0.847 | 0.03s |
+| **`unified` — decompose, verify off** | **97.8%** | **97.3%** | 0.786 | 3.22s |
+| `unified` — decompose, verify on | 91.1% | 89.2% | **0.907** | 10.38s |
+
+Five of six suites are at 100%. The remaining weakness is `multi_concept`
+(93.8% recall / 87.5% success) — queries needing two distinct variables, which
+is the hardest thing the system does and the right place to aim next.
+
+The MRR column is the argument for the reranker in one number: the verifier is
+the only configuration that ranks better, and it buys that with 6.7pp of recall
+and 7 seconds.
+
+## How it got there
 
 `--endpoint search` (raw hybrid retrieval, no LLM), 32 queries:
 
