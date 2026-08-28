@@ -155,4 +155,24 @@ const PLAN_SCHEMA = {
   additionalProperties: false
 };
 
-module.exports = { DECOMPOSITION_SCHEMA, VERIFICATION_SCHEMA, PLAN_SCHEMA };
+/**
+ * Narrow PLAN_SCHEMA to the operations a given query can actually use.
+ *
+ * Every op in the enum is a choice the model has to reason about, and a small
+ * model's accuracy degrades with the size of that space. Adding count_features
+ * for facility data dropped plan validity from 62.5% to 12.5% -- including on
+ * ACS-only queries where the op is irrelevant and simply cannot apply.
+ *
+ * So show only what applies: count_features appears only when a facility
+ * dataset is actually among the candidates.
+ */
+function planSchemaFor({ hasFeatureTables = false } = {}) {
+  const schema = JSON.parse(JSON.stringify(PLAN_SCHEMA));
+  const ops = schema.properties.steps.items.properties.op;
+  if (!hasFeatureTables) {
+    ops.enum = ops.enum.filter(op => op !== "count_features");
+  }
+  return schema;
+}
+
+module.exports = { DECOMPOSITION_SCHEMA, VERIFICATION_SCHEMA, PLAN_SCHEMA, planSchemaFor };

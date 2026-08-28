@@ -14,7 +14,7 @@
  *      than 500ing the request.
  */
 
-const { PLAN_SCHEMA } = require("../schemas");
+const { PLAN_SCHEMA, planSchemaFor } = require("../schemas");
 const { validatePlan } = require("./validate");
 const { compilePlan, CompileError } = require("./compile");
 
@@ -175,13 +175,24 @@ async function generatePlan({ query, candidates, callLLM, resolve, log = console
 
   const { refs, text: attrText } = buildRefs(candidates);
 
+  // Only offer count_features when a facility dataset is actually on the table.
+  // Op-set size costs a small model accuracy even on ops it cannot use.
+  const hasFeatureTables = candidates.some(c => c.is_feature_table);
+  const schema = planSchemaFor({ hasFeatureTables });
+  const systemPrompt = hasFeatureTables
+    ? PLAN_SYSTEM_PROMPT
+    : PLAN_SYSTEM_PROMPT
+        .replace(/\n  count_features needs attr_id \(a facility dataset\) -> features per county/, "")
+        .replace(/\nFacility datasets \(refineries[\s\S]*?wrong one\.\n/, "\n")
+        .replace(/ and count_features;/, ";");
+
   for (let attempt = 0; attempt <= MAX_REPAIRS; attempt++) {
     const userPrompt =
       `QUESTION: ${query}\n\n` +
       `AVAILABLE ATTRIBUTES (use these labels as attr_id):\n${attrText}\n` +
       repairContext;
 
-    const raw = await callLLM(PLAN_SYSTEM_PROMPT, userPrompt, 0.1, PLAN_SCHEMA);
+    const raw = await callLLM(systemPrompt, userPrompt, 0.1, schema);
     if (!raw) {
       attempts.push({ attempt, errors: ["LLM returned nothing"] });
       continue;

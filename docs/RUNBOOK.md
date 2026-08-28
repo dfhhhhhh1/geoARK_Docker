@@ -31,6 +31,26 @@ OLLAMA_MAX_LOADED_MODELS=2
 OMP_NUM_THREADS=16
 ```
 
+**Tuned for an RTX 4080 Super / 32 GB / i9-14900:**
+
+```bash
+POSTGRES_PASSWORD=change_me
+GEODATA_DIR=/srv/geoark_data
+LLM_MODEL=gemma3:4b
+PLAN_MODEL=qwen3:14b
+OLLAMA_KEEP_ALIVE=-1
+OLLAMA_MAX_LOADED_MODELS=2
+OMP_NUM_THREADS=16
+```
+
+16 GB of VRAM holds `qwen3:14b` (~9 GB at q4) and `gemma3:4b` (~3.3 GB)
+resident together, so the small router and the large planner both stay warm.
+`KEEP_ALIVE=-1` is right here — the 8 GB constraint that forced `30m` does not
+apply. `OMP_NUM_THREADS=16` leaves headroom on the 14900's 24 cores.
+
+Use `make up-gpu`, then `make reindex` once: moving the embedder to CUDA changes
+the vector space, and the drift check will say so.
+
 `PLAN_MODEL` is the single highest-leverage setting. Planning is where quality is
 lost; `LLM_MODEL` stays small for decomposition. See §5.
 
@@ -136,7 +156,27 @@ python3 eval/run.py --endpoint analyze --suite multi_concept --compare eval/phas
 ```
 
 This has **never been tested** — the development machine could not hold a model
-that size. It is the most valuable single experiment available.
+that size. It is the most valuable single experiment available, and there is now
+a specific reason to expect it to matter.
+
+### Why the planner number moved, and what it predicts
+
+| configuration | ops available | plan validity |
+|---|--:|--:|
+| ACS only, `gemma3:4b` | 7 | 62.5% |
+| + facility data, 8 ops always offered | 8 | 12.5% |
+| + facility data, ops narrowed per query | 7 or 8 | 25.0% |
+
+Tripling executable coverage (52.4% → 76.3%) **halved** plan validity. The task
+got harder — more candidate types, a new op, a bigger decision space — and a 4B
+model degraded sharply. Narrowing the op set per query recovered half of that
+loss, which is itself evidence that decision-space size is what hurts.
+
+That is a clean hypothesis for the 4080 to test: **if the bottleneck is model
+capacity, a 14B planner should recover the 62.5% and go past it. If it does
+not, the problem is the prompt or the tool surface, and no amount of GPU will
+fix it.** Either answer is worth having, and it decides whether Phase 4 is
+sensible to start.
 
 ## 6. Routine operations
 

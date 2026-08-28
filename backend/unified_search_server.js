@@ -1193,9 +1193,18 @@ app.post("/api/analyze", async (req, res) => {
     //    Observed directly -- with single-search candidates the planner divided
     //    "100-149% of poverty level" by "at or above 150%", which is
     //    well-formed, executable, and wrong.
+    // Retrieve well beyond top_k, because two filters run after this and both
+    // can empty a purpose group:
+    //   - unresolvable attributes are dropped (they cannot be planned against)
+    //   - facility datasets are excluded from normalization and capped
+    // At a budget of 20 this left ZERO normalization candidates for "poverty
+    // normalized by population" -- the exact query shape the pipeline exists
+    // for -- because facility columns ("Objectid", "Feattype") had taken the
+    // slots. Retrieval is ~30ms, so over-fetching is close to free.
+    const RETRIEVAL_BUDGET = Number(process.env.ANALYZE_RETRIEVAL_BUDGET ?? 60);
     const search = await unifiedSearch(query, {
       useLLMFilter: false,            // measured in Phase 2: costs 10pp recall
-      topKPerConcept: Math.max(top_k, 20)
+      topKPerConcept: Math.max(top_k, RETRIEVAL_BUDGET)
     });
     const candidates = search.all_results || [];
     const resolved = await resolveAttributes(candidates.map(c => c.attr_id));
@@ -1208,28 +1217,65 @@ app.post("/api/analyze", async (req, res) => {
     // "Yr", "Len", "Tz", "Pre 1996 Loss" -- which is noise, and none of it
     // says "tornado". One row per dataset, described by the dataset name, is
     // both what the op needs and what a reader would recognise.
+    // Facility datasets need two guards, both learned the hard way. Without
+    // them, adding facility coverage dropped plan validity from 62.5% to 12.5%.
+    //
+    //  1. A DENOMINATOR IS NEVER A FACILITY COUNT. "poverty normalized by
+    //     population" was being offered Hospitals, Child Care Centers and Local
+    //     Law Enforcement as normalization candidates, which crowded the actual
+    //     population attribute out of the list entirely. Normalizing by a count
+    //     of hospitals is essentially never what anyone means.
+    //  2. THEY MUST NOT CROWD OUT VALUE SERIES. 83 facility datasets against a
+    //     top_k of 20 will happily fill the whole list.
+    const MAX_FEATURE_CANDIDATES = Number(process.env.MAX_FEATURE_CANDIDATES ?? 6);
     const seenTable = new Set();
-    const executable = [];
+    const valueSeries = [];
+    const featureRows = [];
+
     for (const c of candidates) {
       const src = resolved.get(c.attr_id);
       if (!src) continue;
-      if (src.source_kind === "feature_table") {
-        if (seenTable.has(src.table_name)) continue;
-        seenTable.add(src.table_name);
-        executable.push({
-          ...c,
-          // Facility columns have no useful description (see PROVENANCE.md on
-          // the discarded gen_desc), so describe the dataset instead.
-          attr_desc: `${c.dataset_clean || src.table_name} (map features; count per county)`,
-          is_feature_table: true
-        });
-      } else {
-        executable.push(c);
+      if (src.source_kind !== "feature_table") {
+        valueSeries.push(c);
+        continue;
       }
-      if (executable.length >= top_k) break;
+      if (c.search_purpose === "normalization") continue;      // guard 1
+      if (seenTable.has(src.table_name)) continue;             // one per dataset
+      if (featureRows.length >= MAX_FEATURE_CANDIDATES) continue;  // guard 2
+      seenTable.add(src.table_name);
+      featureRows.push({
+        ...c,
+        // Facility columns have no useful description (see PROVENANCE.md on the
+        // discarded gen_desc), so describe the dataset instead.
+        attr_desc: `${c.dataset_clean || src.table_name} (map features; count per county)`,
+        is_feature_table: true
+      });
     }
 
-    console.log(`   ${seenTable.size} facility dataset(s) among the candidates`);
+    // Quota per purpose, not a flat rank cut.
+    //
+    // Taking the top N value series overall looks reasonable and is wrong: the
+    // primary concept always out-ranks the denominator, so a flat cut deletes
+    // every normalization candidate and the planner is left unable to build a
+    // rate at all. Observed directly -- the normalization section came back
+    // empty for "poverty normalized by population", which is the one query
+    // shape this whole pipeline exists to serve.
+    const QUOTA = { primary: 10, normalization: 6, filter: 2, related: 2 };
+    const takenByPurpose = { primary: 0, normalization: 0, filter: 0, related: 0 };
+    const picked = [];
+    for (const c of valueSeries) {
+      const purpose = QUOTA[c.search_purpose] !== undefined ? c.search_purpose : "related";
+      if (takenByPurpose[purpose] >= QUOTA[purpose]) continue;
+      takenByPurpose[purpose]++;
+      picked.push(c);
+    }
+
+    const executable = [...picked, ...featureRows].slice(0, top_k);
+
+    console.log(`   candidates by purpose: ${JSON.stringify(takenByPurpose)}, ` +
+                `${featureRows.length} facility`);
+
+
 
     console.log(`   ${candidates.length} retrieved, ${executable.length} executable`);
 
