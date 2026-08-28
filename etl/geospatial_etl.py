@@ -745,17 +745,17 @@ def main():
     """
     Main entry point for the ETL pipeline.
     """
-    # Database configuration
+    # Environment-driven, so this runs in the compose `etl` job against the
+    # `db` service instead of a hardcoded localhost with a literal password.
     DB_CONFIG = {
-        'host': '0.0.0.0',
-        'port': '5432',
-        'database': 'mygisdb',
-        'user': 'geoark',
-        'password': 'password'
+        'host': os.environ.get('PGHOST', 'localhost'),
+        'port': os.environ.get('PGPORT', '5432'),
+        'database': os.environ.get('PGDATABASE', 'mygisdb'),
+        'user': os.environ.get('PGUSER', 'geoark'),
+        'password': os.environ.get('PGPASSWORD', ''),
     }
-    
-    # Root directory containing geospatial data
-    ROOT_DIRECTORY = './'
+
+    ROOT_DIRECTORY = os.environ.get('GEODATA_ROOT', './')
     
     # Validate configuration
     if not Path(ROOT_DIRECTORY).exists():

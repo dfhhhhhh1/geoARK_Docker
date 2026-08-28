@@ -46,13 +46,20 @@ CREATE TABLE IF NOT EXISTS attribute_source (
     attr_id      TEXT PRIMARY KEY,
     dataset_id   TEXT NOT NULL,
     description  TEXT,
-    source_kind  TEXT NOT NULL CHECK (source_kind IN ('acs_long', 'table_column')),
+    -- acs_long      values live in acs_county_values, keyed by (fips, census_code)
+    -- table_column   a plain column on a table that already has a fips key
+    -- feature_table  a PostGIS feature collection (points/polygons) with NO fips.
+    --                Facility datasets are this: they only become a (fips, value)
+    --                series through a spatial aggregation against county_geom.
+    source_kind  TEXT NOT NULL CHECK (source_kind IN ('acs_long', 'table_column', 'feature_table')),
     table_name   TEXT NOT NULL,
     value_column TEXT,
     census_code  TEXT,
     entity_type  TEXT,
     join_column  TEXT NOT NULL DEFAULT 'fips',
-    geom_table   TEXT
+    geom_table   TEXT,
+    geom_column  TEXT,          -- feature_table only: the geometry column to aggregate on
+    srid         INTEGER        -- feature_table only: source SRID, for ST_Transform
 );
 CREATE INDEX IF NOT EXISTS idx_attr_source_dataset ON attribute_source (dataset_id);
 CREATE INDEX IF NOT EXISTS idx_attr_source_code    ON attribute_source (census_code);

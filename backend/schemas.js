@@ -109,6 +109,7 @@ const PLAN_SCHEMA = {
             type: "string",
             enum: [
               "load",          // pull one attribute's values by attr_id
+              "count_features",// count a facility dataset's features per county
               "filter_attr",   // keep rows matching a numeric comparison
               "normalize",     // numerator / denominator * scale
               "aggregate",     // mean | sum | count | min | max, optional group_by
@@ -119,8 +120,8 @@ const PLAN_SCHEMA = {
           },
           attr_id: {
             type: "string",
-            description: 'Reference label of the attribute to load, e.g. "a3". ' +
-                         'Required for op=load. Use the empty string "" for every other op.'
+            description: 'Reference label of the attribute, e.g. "a3". Required for ' +
+                         'op=load and op=count_features. Use "" for every other op.'
           },
           inputs: {
             type: "array",

@@ -35,6 +35,10 @@ csv.field_size_limit(10**9)
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_GEOJSON = ROOT / "frontend" / "public" / "counties.geojson"
 DEFAULT_CATALOG = ROOT / "backend" / "geoark_attributes.csv"
+# The recovered facility mapping, extracted from GeoARK_data/combine_csv_tags/
+# attributeNew.csv and committed so the pipeline does not depend on a directory
+# outside the repo. See PROVENANCE.md.
+DEFAULT_FEATURE_MAP = Path(__file__).resolve().parent / "facility_table_map.csv"
 
 
 def connect(args):
@@ -254,6 +258,81 @@ def build_attribute_source(conn, catalog_csv: Path, dry_run: bool,
     return stats
 
 
+def link_feature_tables(conn, attributes_csv: Path, catalog_csv: Path) -> dict:
+    """
+    Recover the catalog -> PostGIS table mapping for facility datasets.
+
+    `merge_geospatial_attrs.py` drops "extra" columns when merging into the
+    catalog schema, and `table_name` was collateral damage -- the target schema
+    came from an ACS-only catalog that never had one. Without it a facility
+    attribute cannot be resolved to anything physical.
+
+    It is fully recoverable: attributeNew.csv keys on the same attr_label and
+    carries table_name for all 2,305 facility rows.
+
+    These are registered as source_kind='feature_table', NOT 'table_column'.
+    They are point/polygon collections with no county key, so they only become a
+    (fips, value) series through the planner's count_features op.
+    """
+    import csv as _csv
+    _csv.field_size_limit(10**9)
+
+    attrs = {(_r.get("attr_label") or "").strip(): _r
+             for _r in _csv.DictReader(attributes_csv.open(encoding="utf-8", errors="replace"))}
+    catalog = list(_csv.DictReader(catalog_csv.open(encoding="utf-8")))
+
+    # Only map onto tables that actually exist -- a mapping to a table the
+    # geospatial ETL never created would fail at execution instead of here.
+    with conn.cursor() as cur:
+        cur.execute("""SELECT table_name FROM information_schema.tables
+                        WHERE table_schema = 'public'""")
+        present = {r[0] for r in cur.fetchall()}
+        cur.execute("""SELECT f_table_name, f_geometry_column, srid
+                         FROM geometry_columns WHERE f_table_schema = 'public'""")
+        geom_of = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
+
+    rows, missing_table, no_mapping = [], set(), 0
+    for r in catalog:
+        label = (r.get("attr_label") or "").strip()
+        if not label or r.get("dataset_clean") in ("ACS_combined", ""):
+            continue
+        src = attrs.get(label)
+        table = (src or {}).get("table_name", "").strip()
+        if not table:
+            no_mapping += 1
+            continue
+        if table not in present:
+            missing_table.add(table)
+            continue
+        geom_col, srid = geom_of.get(table, ("geom", 4326))
+        rows.append((label, r.get("dataset_id", ""), r.get("attr_desc", ""),
+                     "feature_table", table, r.get("attr_orig", ""), None,
+                     r.get("entity_type", ""), "fips", "county_geom", geom_col, srid))
+
+    with conn.cursor() as cur:
+        cur.executemany(
+            """INSERT INTO attribute_source
+               (attr_id, dataset_id, description, source_kind, table_name,
+                value_column, census_code, entity_type, join_column, geom_table,
+                geom_column, srid)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (attr_id) DO NOTHING""", rows)
+    conn.commit()
+
+    stats = {"linked": len(rows), "no_mapping": no_mapping,
+             "tables_not_loaded": len(missing_table)}
+    print(f"  features: {len(rows):,} facility attributes linked to PostGIS tables")
+    if missing_table:
+        print(f"  features: {len(missing_table)} referenced table(s) are not in the "
+              f"database yet -- run the geospatial ETL (make load-geo) first")
+        for t in sorted(missing_table)[:4]:
+            print(f"              {t[:64]}")
+    if no_mapping:
+        print(f"  features: {no_mapping} facility attribute(s) had no table_name in "
+              f"{attributes_csv.name}")
+    return stats
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default=os.environ.get("PGHOST", "localhost"))
@@ -265,6 +344,11 @@ def main() -> int:
     ap.add_argument("--geojson", type=Path, default=DEFAULT_GEOJSON)
     ap.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     ap.add_argument("--schema", type=Path, default=Path(__file__).parent / "schema_reference.sql")
+    ap.add_argument("--attributes-csv", type=Path, default=DEFAULT_FEATURE_MAP,
+                    help="facility attr_label -> table_name map (default: the "
+                         "committed etl/facility_table_map.csv)")
+    ap.add_argument("--no-features", action="store_true",
+                    help="skip linking facility feature tables")
     ap.add_argument("--dry-run", action="store_true",
                     help="report the catalog join rate without writing")
     args = ap.parse_args()
@@ -281,6 +365,18 @@ def main() -> int:
         load_counties(conn, args.geojson)
         load_acs(conn, args.acs_csv)
     build_attribute_source(conn, args.catalog, args.dry_run, args.acs_csv)
+
+    if args.attributes_csv and not args.dry_run and not args.no_features:
+        link_feature_tables(conn, args.attributes_csv, args.catalog)
+        with conn.cursor() as cur:
+            cur.execute("""SELECT source_kind, count(*) FROM attribute_source
+                            GROUP BY source_kind ORDER BY 2 DESC""")
+            print("\n  attribute_source by kind:")
+            total = 0
+            for kind, n in cur.fetchall():
+                print(f"     {n:6d}  {kind}")
+                total += n
+            print(f"     {total:6d}  TOTAL executable")
 
     conn.close()
     print("done")

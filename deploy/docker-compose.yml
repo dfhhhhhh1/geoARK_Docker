@@ -185,6 +185,28 @@ services:
       db:
         condition: service_healthy
 
+  # ------------------------------------------ geospatial ETL (job, not a service)
+  # Loads the HSIP shapefiles and geodatabases into PostGIS. This is the gate
+  # for the other ~47% of the catalog: those attributes cannot resolve to a
+  # physical table until their source data exists. Run with `make load-geo`.
+  etl-geo:
+    build:
+      context: ../etl
+      dockerfile: ../deploy/etl-gdal.Dockerfile
+    profiles: ["etl"]
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-mygisdb}
+      PGUSER: ${POSTGRES_USER:-geoark}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      GEODATA_ROOT: /data
+    volumes:
+      - ${GEODATA_DIR:-../../geospatial_database_data}:/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
   # -------------------------------------------------- model-init (run once)
   # Warms ollama_models. Idempotent — re-running when warm is a no-op.
   #   docker compose --profile setup run --rm model-init

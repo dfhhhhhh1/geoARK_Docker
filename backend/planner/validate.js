@@ -23,6 +23,10 @@
 
 const OPS = {
   load: { needs: ["attr_id"], inputs: 0 },
+  // Facility datasets are point/polygon features with no fips key. This op is
+  // the bridge that turns them into the (fips, value) series everything else
+  // composes over: count features per county.
+  count_features: { needs: ["attr_id"], inputs: 0 },
   filter_attr: { needs: ["operator", "value"], inputs: 1 },
   normalize: { needs: [], inputs: 2 },
   aggregate: { needs: ["function"], inputs: 1 },
@@ -93,14 +97,34 @@ async function validatePlan(plan, resolve) {
   }
 
   // --- GROUNDING: every attr_id must resolve to a physical column -----------
-  const attrIds = steps.filter(s => s.op === "load" && s.attr_id).map(s => s.attr_id);
+  const attrIds = steps
+    .filter(s => (s.op === "load" || s.op === "count_features") && s.attr_id)
+    .map(s => s.attr_id);
   const resolved = attrIds.length ? await resolve(attrIds) : new Map();
   for (const st of steps) {
-    if (st.op !== "load" || !st.attr_id) continue;
+    if (!["load", "count_features"].includes(st.op) || !st.attr_id) continue;
     if (!resolved.has(st.attr_id)) {
       errors.push(
         `step "${st.id}": attr_id "${st.attr_id}" is not a known attribute. ` +
         `Use only attr_id values returned by search_variables.`);
+    }
+  }
+
+  // An op must match the shape of its source. Loading a feature table as if it
+  // were a value series would silently produce nothing.
+  for (const st of steps) {
+    const src = st.attr_id ? resolved.get(st.attr_id) : null;
+    if (!src) continue;
+    if (st.op === "load" && src.source_kind === "feature_table") {
+      errors.push(
+        `step "${st.id}": "${st.attr_id}" is a facility dataset (point/polygon ` +
+        `features with no county key). Use op "count_features" to count them per ` +
+        `county, not "load".`);
+    }
+    if (st.op === "count_features" && src.source_kind !== "feature_table") {
+      errors.push(
+        `step "${st.id}": "${st.attr_id}" is already a per-county value series. ` +
+        `Use op "load", not "count_features".`);
     }
   }
 

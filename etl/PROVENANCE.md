@@ -82,6 +82,53 @@ on first load, marked `"backfilled": true`. That assumes the current
 environment built them — true for an in-place upgrade, and the only assumption
 available.
 
+## The recovered facility mapping
+
+`merge_geospatial_attrs.py` merges tagged attributes into the catalog schema
+and, at line 121, *"Extra columns (like dataset_name) are dropped."* The target
+schema came from an ACS-only catalog that never had a `table_name`, so
+**`table_name` was dropped as collateral** — and without it a facility attribute
+cannot be resolved to anything physical.
+
+It is fully recoverable. `GeoARK_data/combine_csv_tags/attributeNew.csv` keys on
+the same `attr_label` and carries `table_name` for **all 2,305 facility rows, a
+100% join**. That mapping is extracted into
+[`facility_table_map.csv`](facility_table_map.csv) and committed, so rebuilding
+does not depend on a directory outside the repo.
+
+### Facility data is a different shape
+
+These are **not** `(fips, value)` series. They are point and polygon collections
+with a `geom` column and no county key at all. They only become a per-county
+series through a spatial aggregation, which is what the planner's
+`count_features` op does:
+
+```sql
+SELECT c.fips, COUNT(f.*) AS value
+FROM county_geom c
+LEFT JOIN <facility_table> f ON ST_Intersects(c.geom, ST_Transform(f.geom, 4326))
+GROUP BY c.fips
+```
+
+`LEFT JOIN` on purpose: a county with zero refineries should return 0, not
+disappear. The result composes with everything else, so "oil refineries per
+100,000 people" is `count_features` → `normalize`.
+
+They are registered as `source_kind='feature_table'`, and the validator rejects
+`load` on one (and `count_features` on a value series) with a message saying
+which op to use instead.
+
+### Order matters
+
+```bash
+make load-geo         # shapefiles/GDBs -> PostGIS   (slow: 85 sources, 3.5 GB)
+make load-reference   # catalog -> physical columns, incl. facility tables
+```
+
+`load-reference` only maps attributes onto tables that **actually exist**, so
+running it before `load-geo` silently links nothing and tells you which tables
+are missing.
+
 ## Adding a dataset
 
 ### 1. Validate before loading

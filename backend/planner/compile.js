@@ -74,6 +74,38 @@ function compilePlan(plan, resolved) {
         break;
       }
 
+      case "count_features": {
+        const src = resolved.get(st.attr_id);
+        if (!src) throw new CompileError(`unresolved attr_id ${st.attr_id}`);
+        if (src.source_kind !== "feature_table") {
+          throw new CompileError(`${st.attr_id} is not a feature table`);
+        }
+        // Identifiers come from attribute_source (ETL-written, never model
+        // output), and are still pattern-checked before interpolation.
+        if (!SAFE_ID.test(src.table_name) || !SAFE_ID.test(src.geom_column || "geom")) {
+          throw new CompileError(`unsafe identifier in attribute_source for ${st.attr_id}`);
+        }
+        const geom = src.geom_column || "geom";
+        const srid = Number(src.srid) || 4326;
+
+        // Never wrap the FACILITY geometry in ST_Transform. Doing so makes the
+        // predicate non-sargable and the table's GIST index unusable, turning
+        // this into a sequential scan over every feature -- measured at minutes
+        // per query. Transform the county side instead: it is 3,233 rows, and
+        // the facility index stays usable. When the SRIDs already match (they
+        // do for every table the ETL loads), emit neither.
+        const countyGeom = srid === 4326 ? "c.geom" : `ST_Transform(c.geom, ${srid})`;
+
+        // LEFT JOIN so counties with zero features yield 0 rather than
+        // vanishing -- "no refineries here" is an answer, not a missing row.
+        parts.push(
+          `${name} AS (SELECT c.fips, COUNT(f.*)::double precision AS value ` +
+          `FROM county_geom c LEFT JOIN ${src.table_name} f ` +
+          `ON ST_Intersects(${countyGeom}, f.${geom}) ` +
+          `GROUP BY c.fips)`);
+        break;
+      }
+
       case "filter_attr": {
         const op = OPERATORS[st.operator];
         if (!op) throw new CompileError(`unsupported operator ${st.operator}`);

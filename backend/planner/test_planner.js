@@ -13,6 +13,8 @@ const { compilePlan, CompileError } = require("./compile");
 const SOURCES = new Map([
   ["POV", { source_kind: "acs_long", census_code: "S1701_C03_001E" }],
   ["POP", { source_kind: "acs_long", census_code: "B01003_001E" }],
+  ["REFINERY", { source_kind: "feature_table", table_name: "oil_refineries",
+                 geom_column: "geom" }],
 ]);
 const resolve = async (ids) => new Map(ids.filter(i => SOURCES.has(i)).map(i => [i, SOURCES.get(i)]));
 
@@ -162,6 +164,69 @@ const plan = (...steps) => ({ intent: "t", output_type: "map", entity_type: "COU
       { id: "s3", op: "output", inputs: ["s2"] },
     ), SOURCES);
     assert.ok(params.includes(1000), `expected clamp to 1000, got ${params}`);
+  });
+
+  // ------------------------------------------------- feature tables
+  await test("rejects load on a feature table", async () => {
+    const r = await validatePlan(plan(
+      { id: "s1", op: "load", attr_id: "REFINERY", inputs: [] },
+      { id: "s2", op: "output", inputs: ["s1"] },
+    ), resolve);
+    assert.ok(!r.ok);
+    assert.match(r.errors.join(" "), /Use op "count_features"/);
+  });
+
+  await test("rejects count_features on a value series", async () => {
+    const r = await validatePlan(plan(
+      { id: "s1", op: "count_features", attr_id: "POV", inputs: [] },
+      { id: "s2", op: "output", inputs: ["s1"] },
+    ), resolve);
+    assert.ok(!r.ok);
+    assert.match(r.errors.join(" "), /Use op "load"/);
+  });
+
+  await test("compiles count_features to a spatial aggregation", () => {
+    const { sql } = compilePlan(plan(
+      { id: "s1", op: "count_features", attr_id: "REFINERY", inputs: [] },
+      { id: "s2", op: "output", inputs: ["s1"] },
+    ), SOURCES);
+    // The facility geometry must NOT be wrapped in ST_Transform: that would
+    // make the predicate non-sargable and disable its GIST index.
+    assert.match(sql, /ST_Intersects\(c\.geom, f\.geom\)/);
+    assert.ok(!/ST_Transform\(f\./.test(sql), "facility geom must not be transformed");
+    assert.match(sql, /LEFT JOIN oil_refineries/);   // zero-count counties survive
+    assert.match(sql, /COUNT\(f\.\*\)/);
+  });
+
+  await test("facility counts compose with normalize (per-capita)", () => {
+    const { sql, params } = compilePlan(plan(
+      { id: "s1", op: "count_features", attr_id: "REFINERY", inputs: [] },
+      { id: "s2", op: "load", attr_id: "POP", inputs: [] },
+      { id: "s3", op: "normalize", inputs: ["s1", "s2"], scale: 100000 },
+      { id: "s4", op: "output", inputs: ["s3"] },
+    ), SOURCES);
+    assert.match(sql, /NULLIF\(d\.value, 0\)/);
+    assert.ok(params.includes(100000));
+  });
+
+  await test("transforms the county side when SRIDs differ", () => {
+    const proj = new Map([["P", { source_kind: "feature_table", table_name: "p_tbl",
+                                  geom_column: "geom", srid: 3857 }]]);
+    const { sql } = compilePlan(plan(
+      { id: "s1", op: "count_features", attr_id: "P", inputs: [] },
+      { id: "s2", op: "output", inputs: ["s1"] },
+    ), proj);
+    assert.match(sql, /ST_Transform\(c\.geom, 3857\)/);
+    assert.ok(!/ST_Transform\(f\./.test(sql));
+  });
+
+  await test("refuses an unsafe table name from attribute_source", () => {
+    const bad = new Map([["X", { source_kind: "feature_table",
+      table_name: 'x"; DROP TABLE county_geom; --', geom_column: "geom" }]]);
+    assert.throws(() => compilePlan(plan(
+      { id: "s1", op: "count_features", attr_id: "X", inputs: [] },
+      { id: "s2", op: "output", inputs: ["s1"] },
+    ), bad), CompileError);
   });
 
   console.log(`\n${pass}/${pass + fail} passed`);
