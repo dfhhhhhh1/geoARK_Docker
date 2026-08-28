@@ -6,6 +6,8 @@ swap, or a ranking change made GeoARK better or worse. Now there is a number.
 ```bash
 python3 eval/run.py                                    # against a running stack
 python3 eval/run.py --compare eval/baseline-search.json
+python3 eval/run.py --endpoint unified --no-llm-filter
+python3 eval/test_predicates.py                        # unit-test the matcher
 ```
 
 Needs `pyyaml` and a stack reachable at `http://localhost:8080` (`--base` to
@@ -48,6 +50,7 @@ a permanent retrieval failure and quietly drags the headline number down.
 | `multi_concept` | 8 | **The point of the system.** Queries needing two or more distinct variables |
 | `geographic_level` | 3 | Does the extracted `geographic_level` actually affect results |
 | `paraphrase` | 5 | Everyday wording that appears nowhere in the catalog |
+| `temporal` | 5 | Year-targeted queries. 3,894 rows carry a `start_date` that appears nowhere in their description, so these are unreachable unless the year is in the embedding text |
 
 ## Metrics
 
@@ -81,6 +84,35 @@ Ablation, holding everything else fixed:
 | RRF + BM25, no MOE demotion | 92.5% | 90.6% |
 
 So RRF+BM25 carries ~5pp and MOE demotion ~2.5pp.
+
+### The LLM verification step makes retrieval worse
+
+The most consequential thing the harness found. Same 32 queries, three configs:
+
+| | concept recall | query success | MRR | p50 |
+|---|--:|--:|--:|--:|
+| `search` — retrieval only | 95.0% | 93.8% | 0.822 | 0.01s |
+| `unified` — decompose + **LLM verify ON** | 87.5% | 84.4% | **0.874** | 11.10s |
+| `unified` — decompose + **LLM verify OFF** | **97.5%** | **96.9%** | 0.726 | 3.42s |
+
+Two separate conclusions, which is exactly why the flag exists:
+
+1. **Query decomposition works.** It lifts recall 95.0% → 97.5% and success
+   93.8% → 96.9% over raw retrieval, and it is what makes the `paraphrase`
+   suite go to 100% — rewriting "places with many people out of work" into
+   "unemployment rate" is real value. It costs ~3.4s.
+2. **The LLM verification step is destructive.** Turning it on costs **10pp of
+   concept recall**, **12.5pp of query success**, and **~7.7s per request**. On
+   one sampled query it reduced 18 retrieved rows to 3.
+
+But note it *raises* MRR (0.726 → 0.874). That is the diagnosis: the model
+judges relevance well and then uses that judgement to **delete** rather than to
+**reorder**. It is doing a reranker's job with a generation call, and the
+destructive half is not worth the ranking half.
+
+So `use_llm_filter` now defaults to **false**. Restoring the ranking benefit
+without the recall loss is what the cross-encoder reranker is for
+([../docs/AI-PIPELINE.md](../docs/AI-PIPELINE.md) §4.3).
 
 ### What the baseline run diagnosed
 
@@ -119,6 +151,14 @@ Grow `multi_concept` and `paraphrase` first — they are where the headroom is,
 and they are the suites that discriminate between approaches. `single_concept`
 and `facilities_via_tags` are already saturated at 100% and mostly serve as
 regression guards now.
+
+## Trust the matcher, but test it
+
+`test_predicates.py` exists because a bug in `row_matches` corrupts every number
+the harness reports, invisibly. It has already caught one: `any_of` returned
+early and ignored its sibling fields, so
+`{desc: "povert", any_of: [{start: "2015"}]}` silently degraded into "any row
+from 2015". Run it after touching the matcher.
 
 ## Known gaps
 

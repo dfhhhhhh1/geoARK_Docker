@@ -99,8 +99,18 @@ services:
   ollama:
     image: ollama/ollama:latest
     environment:
-      OLLAMA_KEEP_ALIVE: "-1"                   # never unload -> no per-request cold start
-      OLLAMA_MAX_LOADED_MODELS: "2"             # small router + large planner, both resident
+      # Trade-off, and it bites on small hosts. KEEP_ALIVE=-1 pins the model in
+      # RAM so there is no per-request cold start -- but gemma3:4b then holds
+      # ~5.5 GB indefinitely. On a machine with 8 GB given to Docker that is
+      # most of the budget, and a sustained run can OOM the model runner.
+      #
+      # On <16 GB: set OLLAMA_KEEP_ALIVE=30m in .env so idle memory is
+      # reclaimed, at the cost of a ~10s reload on the next cold request.
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+      # 1, not 2. Two resident models is for the Phase 3 small-router +
+      # large-planner split, which does not exist yet; until then it just
+      # invites the second model to be loaded and never freed.
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
     volumes:
       - ollama_models:/root/.ollama             # multi-GB weights, survive rebuilds
     # Uncomment on a GPU host:

@@ -98,14 +98,25 @@ available on the machine this was built on. Run `make up` on the server.
       with `--save` / `--compare` for before-and-after diffs and `--fail-under`
       for CI later.
 - [ ] Move the catalog into pgvector (`attribute_embeddings`, HNSW + GIN index).
+      **Reassess before doing this.** Three of the four reasons I gave for it
+      have evaporated: search latency is already 0.01s (not a bottleneck),
+      startup is already seconds, and the BM25 index now in Node is a better
+      lexical matcher for this corpus than Postgres FTS would be. The one real
+      remaining benefit is a stateless API. That pairs naturally with the
+      Phase 3 `dataset_table_map` work, where the API needs the database
+      anyway — so defer it there rather than doing it for its own sake.
 - [x] Replace weighted score blending with Reciprocal Rank Fusion.
 - [x] **Replace the lexical scorer with BM25.** Not originally planned — the
       eval exposed that `keywordMatchScore` was near-constant noise (0.833 on
       unrelated rows) because it substring-matched against unfiltered tokens.
 - [x] **Demote margin-of-error rows** (`MOE_PENALTY`, default 0.5). Also not
       planned; ~900 near-duplicate ACS MOE rows were flooding the top 20.
-- [ ] Add the `bge-reranker-base` cross-encoder over the top 50, and **delete**
-      the LLM verification step it replaces.
+- [x] **Disabled the LLM verification step** (`use_llm_filter` now defaults to
+      false). Measured: it cost 10pp concept recall and 7.7s/query while
+      raising MRR — it ranks well but deletes instead of reordering.
+- [ ] Add the `bge-reranker-base` cross-encoder to recover that ranking gain
+      (MRR 0.726 → 0.874) without the recall loss. **Now the highest-value
+      remaining item**, and the numbers say exactly what it has to beat.
 - [~] Enrich embedded text. `entity_type`, `dataset_clean`, `attr_orig` and
       tags are already included; the temporal range is not yet.
 - [x] Cache query embeddings by content hash — already done in Phase 1 via the
@@ -123,8 +134,16 @@ available on the machine this was built on. Run `make up` on the server.
 `multi_concept` 62.5% → 87.5%; `paraphrase` 60% → 80%. Three queries flipped to
 passing, none regressed.
 
-**Still to do:** pgvector migration, cross-encoder reranker, temporal range in
-the embedding text.
+**End-to-end, same 32 queries:**
+
+| | recall | success | MRR | p50 |
+|---|--:|--:|--:|--:|
+| retrieval only | 95.0% | 93.8% | 0.822 | 0.01s |
+| + decomposition, verify OFF | **97.5%** | **96.9%** | 0.726 | 3.42s |
+| + decomposition, verify ON | 87.5% | 84.4% | 0.874 | 11.10s |
+
+**Still to do:** cross-encoder reranker, and the pgvector migration — see the
+note below on why pgvector got *less* valuable, not more.
 
 ## Phase 3 — A real agent (1–2 weeks)
 

@@ -21,6 +21,7 @@
 #   desc     regex, case-insensitive, against attr_desc
 #   tags     regex, case-insensitive, against tags
 #   dataset  regex, case-insensitive, against dataset_clean
+#   start    regex against start_date        end   regex against end_date
 #   entity   exact match against entity_type (COUNTY / STATE / TRACT / ...)
 #   any_of   list of predicates; row matches if ANY of them matches
 
@@ -225,3 +226,36 @@ suites:
         query: "households struggling to pay rent"
         concepts:
           rent: {desc: "rent|gross rent|housing cost"}
+
+  # ---------------------------------------------------------------------
+  # Temporal targeting. 3,894 rows carry a start_date that appears NOWHERE
+  # in their description, so before the year was added to the embedding text
+  # these were unreachable by year. Kept as a separate suite so the headline
+  # number stays comparable with earlier runs.
+  # ---------------------------------------------------------------------
+  - name: temporal
+    queries:
+      - id: poverty-2015
+        query: "poverty rate in 2015"
+        concepts:
+          poverty_2015: {desc: "povert", any_of: [{start: "2015"}, {end: "2015"}]}
+
+      - id: unemployment-2017
+        query: "unemployment during 2017"
+        concepts:
+          unemp_2017: {desc: "unemploy", any_of: [{start: "2017"}, {end: "2017"}]}
+
+      - id: acs-2018
+        query: "2018 american community survey estimates"
+        concepts:
+          acs_2018: {start: "2018"}
+
+      - id: income-2013-2017
+        query: "median income covering 2013 to 2017"
+        concepts:
+          income_range: {desc: "income", start: "2013"}
+
+      - id: recent-2020
+        query: "2020 data"
+        concepts:
+          y2020: {any_of: [{start: "2020"}, {end: "2020"}]}

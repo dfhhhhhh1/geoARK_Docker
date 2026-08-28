@@ -57,6 +57,9 @@ doing this analysis would iterate; the pipeline can't.
 
 **Nothing executes the DAG.** The response is a plan the user cannot run.
 
+**The verification step subtracts value.** Measured: −10pp concept recall for
++7.7s per query. See §4.3.
+
 **Progress is invisible.** A query runs three sequential LLM calls at 5–20 s
 each on a local model. The UI shows a spinner for a minute.
 
@@ -179,11 +182,21 @@ Concretely: a small Python MCP server wrapping `PostGISSearcher` from
    better and ~50× cheaper than the current "ask the LLM to verify results"
    step, which is a whole generation call doing a reranker's job.
 
-   **Now with evidence:** on *"unemployment and food stamp usage together"* the
-   verification step reduced 18 retrieved results to 3. It is not just expensive,
-   it is destructive. The decomposition ahead of it was correct — it split the
-   query into unemployment and food-stamp concepts — and then the verifier threw
-   most of the retrieved rows away.
+   **Now measured, over 32 eval queries:**
+
+   | | recall | success | MRR | p50 |
+   |---|--:|--:|--:|--:|
+   | decompose, verify OFF | **97.5%** | **96.9%** | 0.726 | 3.42s |
+   | decompose, verify ON | 87.5% | 84.4% | **0.874** | 11.10s |
+
+   The verifier costs **10pp of concept recall** and **~7.7s per request** — but
+   *raises* MRR. That is the whole diagnosis in one table: the model judges
+   relevance well, then uses that judgement to **delete** instead of to
+   **reorder**. On one sampled query it cut 18 retrieved rows to 3.
+
+   A cross-encoder keeps the ranking gain and drops the recall loss, because
+   reranking cannot remove anything. `use_llm_filter` now defaults to false
+   until that lands.
 
 4. **Embed richer text.** Right now the embedded string is
    `label + description + tags`, lowercased. Add `entity_type` ("county-level"),

@@ -67,13 +67,19 @@ def row_matches(row: dict, pred: dict) -> bool:
     with OR. Field names map onto what the API returns, which for historical
     reasons is not identical to the CSV's column names.
     """
-    if "any_of" in pred:
-        return any(row_matches(row, p) for p in pred["any_of"])
+    # any_of is one clause among the others, not a short-circuit. Returning
+    # here would make {desc: "povert", any_of: [{start: "2015"}]} ignore `desc`
+    # entirely and match any 2015 row -- a far more lenient assertion than
+    # written, which would quietly inflate the score.
+    if "any_of" in pred and not any(row_matches(row, p) for p in pred["any_of"]):
+        return False
 
     checks = (
         ("desc", row.get("attr_desc") or ""),
         ("tags", row.get("tags") or ""),
         ("dataset", row.get("dataset_clean") or ""),
+        ("start", row.get("start_date") or ""),
+        ("end", row.get("end_date") or ""),
     )
     for key, haystack in checks:
         if key in pred and not re.search(pred[key], haystack, re.I):

@@ -307,7 +307,7 @@ function App() {
         },
         body: JSON.stringify({
           q: query,
-          use_llm_filter: true,
+          use_llm_filter: false,
           top_k: 20,
         }),
       });

@@ -337,7 +337,15 @@ function createEmbeddingText(row) {
   
   // Include entity type
   if (row.entity_type) parts.push(row.entity_type.trim());
-  
+
+  // Include the temporal range in words. Users routinely ask for "2015" or
+  // "recent" data, and without this the years are invisible to both the
+  // embedding and BM25.
+  const start = (row.start_date || '').trim();
+  const end = (row.end_date || '').trim();
+  if (start && end && start !== end) parts.push(`${start} to ${end}`);
+  else if (start) parts.push(start);
+
   return parts.join(' ').toLowerCase();
 }
 
@@ -631,13 +639,20 @@ async function performHybridSearch(query, topK = 20, searchPurpose = 'primary') 
   // noise. Only the plausible head of each list takes part, which is also what
   // makes this cheap.
   const CANDIDATE_DEPTH = Math.max(topK * 5, 100);
-  const byScore = (arr) =>
+
+  // `minScore` matters for the lexical list. BM25 is 0 for any row sharing no
+  // query term, and most rows do share none -- so without this filter the tail
+  // of the candidate slice would be zero-scoring rows receiving RRF credit as
+  // though they were lexical matches, which is exactly the kind of noise this
+  // change set out to remove.
+  const byScore = (arr, minScore = -Infinity) =>
     Array.from(arr.keys())
+      .filter(i => arr[i] > minScore)
       .sort((a, b) => arr[b] - arr[a])
       .slice(0, CANDIDATE_DEPTH);
 
   const semanticRanking = byScore(semantic);
-  const lexicalRanking = queryTokens.length ? byScore(lexical) : [];
+  const lexicalRanking = queryTokens.length ? byScore(lexical, 0) : [];
 
   const fused = rrfFuse(lexicalRanking.length ? [semanticRanking, lexicalRanking]
                                               : [semanticRanking]);
@@ -663,6 +678,10 @@ async function performHybridSearch(query, topK = 20, searchPurpose = 'primary') 
       entity_type: v.entity_type,
       spatial_rep: v.spatial_rep,
       source_folder: v.source_folder,
+      // These were loaded from the CSV but never returned, so neither the UI
+      // nor any consumer could see a variable's time coverage.
+      start_date: v.start_date,
+      end_date: v.end_date,
       semantic_score: Math.round(semantic[index] * 1000) / 1000,
       keyword_score: Math.round(lexical[index] * 1000) / 1000,   // BM25, unbounded
       hybrid_score: Math.round(fused_score * 100000) / 100000,   // RRF, ~0-0.033
@@ -943,7 +962,14 @@ app.post("/api/unified-search", async (req, res) => {
       return res.status(503).json({ error: "Embeddings not ready" });
     }
     
-    const { q: query, use_llm_filter = true, top_k = 10 } = req.body;
+    // use_llm_filter now defaults to FALSE. Measured over 32 eval queries,
+    // enabling it costs 10pp of concept recall (97.5% -> 87.5%) and 12.5pp of
+    // query success, and adds ~7.7s per request. It does improve MRR
+    // (0.726 -> 0.874), which is the tell: it ranks well but deletes far too
+    // much -- on one sample query it cut 18 retrieved rows to 3. That is a
+    // reranker's job, and a cross-encoder should replace it (docs/AI-PIPELINE.md
+    // section 4). Until then, opt in explicitly if you want the ranking.
+    const { q: query, use_llm_filter = false, top_k = 10 } = req.body;
     
     if (!query || query.trim().length === 0) {
       return res.status(400).json({ error: "Query 'q' is required" });

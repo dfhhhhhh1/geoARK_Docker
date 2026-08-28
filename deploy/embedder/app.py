@@ -52,7 +52,7 @@ CSV_PATH = Path(os.environ.get("CATALOG_CSV", "/data/geoark_attributes.csv"))
 QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 
 # Bump when preprocessing changes, so cached matrices invalidate themselves.
-PREPROC_VERSION = "v1"
+PREPROC_VERSION = "v2"   # v2: added temporal range to embedding text
 
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -123,6 +123,15 @@ def embedding_text(row: dict) -> str:
         parts += [t.strip() for t in re.sub(r"[\[\]'\"]", "", row["tags"]).split(",") if t.strip()]
     if row.get("entity_type"):
         parts.append(row["entity_type"].strip())
+
+    # Temporal range in words -- users ask for "2015" or "recent" data, and
+    # without this the years are invisible to both the embedding and BM25.
+    start, end = (row.get("start_date") or "").strip(), (row.get("end_date") or "").strip()
+    if start and end and start != end:
+        parts.append(f"{start} to {end}")
+    elif start:
+        parts.append(start)
+
     return " ".join(parts).lower()
 
 

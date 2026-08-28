@@ -296,6 +296,14 @@ running; only `/api/get-data` needs it.
 | `db` (PostGIS) | ~1 GB | 3.5 GB+ | the HSIP source data is 3.5 GB before import |
 | `api` + `web` | ~0.3 GB | ~0.3 GB | |
 
-Comfortable floor: **16 GB RAM, 60 GB disk**. If the server has an NVIDIA GPU,
+Comfortable floor: **16 GB RAM, 60 GB disk**. This is not advisory — it was
+measured. On a host giving Docker 7.65 GB, `ollama` with `gemma3:4b` and
+`OLLAMA_KEEP_ALIVE=-1` sits at **5.5 GB (72% of the budget)**, and a sustained
+32-query evaluation run produced an OOM kill of the model runner.
+
+If you have under ~16 GB, set `OLLAMA_KEEP_ALIVE=30m` in `.env`. Idle memory is
+then reclaimed, at the cost of a ~10 s model reload on the next cold request.
+`OLLAMA_MAX_LOADED_MODELS` now defaults to 1 for the same reason; raise it only
+when the Phase 3 router/planner split actually needs two resident models. If the server has an NVIDIA GPU,
 add `gpus: all` to the `ollama` service and use the CUDA base for `embedder`;
 CPU is adequate for the embedder either way at 4.5k rows.

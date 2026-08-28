@@ -173,7 +173,7 @@ function ReportPage() {
   const handleUnifiedSearch = useCallback(async (q: string) => {
     if (!q.trim()) return; setIsSearching(true); setSearchError(''); setSearchResponse(null);
     try {
-      const r = await fetch('/api/unified-search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: q.trim(), use_llm_filter: true, top_k: 20 }) });
+      const r = await fetch('/api/unified-search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: q.trim(), use_llm_filter: false, top_k: 20 }) });
       if (!r.ok) throw new Error(`Server error: ${r.status}`);
       setSearchResponse(await r.json());
     } catch (e: any) { setSearchError(e.message || 'Search failed'); } finally { setIsSearching(false); }

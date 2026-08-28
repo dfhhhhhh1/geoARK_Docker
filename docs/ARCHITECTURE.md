@@ -148,9 +148,10 @@ place to fix this. Populating it is a Phase 3 prerequisite.
 
 1. **The generated DAG is never executed.** See §1. The single biggest gap
    between the demo and a product.
-1b. **The LLM verification step is destructive.** On a sample query it cut 18
-   retrieved results down to 3. It is doing a reranker's job with a generation
-   call — [AI-PIPELINE.md §4](AI-PIPELINE.md) proposes a cross-encoder instead.
+1b. **The LLM verification step is destructive.** Measured: −10pp concept
+   recall, −12.5pp query success, +7.7s per request, while *raising* MRR. It
+   judges relevance well but deletes instead of reordering. Now defaulted off;
+   a cross-encoder should replace it — [AI-PIPELINE.md §4](AI-PIPELINE.md).
 2. **The two catalogs don't join.** See §4. Prerequisite for the above.
 3. **LLM output is parsed with a regex.** `llmResponse.match(/\{[\s\S]*\}/)`
    plus `JSON.parse`. A small local model producing prose, a trailing comma, or
