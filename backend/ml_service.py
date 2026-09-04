@@ -1,5 +1,5 @@
 """
-ml_service.py — FastAPI AutoML Microservice (AutoGluon)
+ml_service.py: FastAPI AutoML Microservice (AutoGluon)
 =======================================================
 
 Exposes a single endpoint:
@@ -182,7 +182,7 @@ async def train_automl(
         y_pred_series = predictor.predict(test_df)
 
         if problem_type == "regression":
-            # Numeric — direct scatter
+            # Numeric, direct scatter
             sample_idx = (
                 test_df.sample(n=min(50, len(test_df)), random_state=42).index
             )
@@ -191,7 +191,7 @@ async def train_automl(
                 "predicted": [_safe_float(y_pred_series.iloc[i]) for i in range(len(sample_idx))],
             }
         else:
-            # Classification — encode labels as integers for the scatter
+            # Classification, encode labels as integers for the scatter
             from sklearn.preprocessing import LabelEncoder
             le = LabelEncoder()
             all_labels = pd.concat([y_true, y_pred_series]).astype(str)
@@ -252,8 +252,8 @@ if __name__ == "__main__":
     print("=" * 60)
     print("  GeoArk AutoML Service")
     print("=" * 60)
-    print("  POST /automl/train   — Train models on CSV")
-    print("  GET  /health         — Health check")
+    print("  POST /automl/train: Train models on CSV")
+    print("  GET  /health: Health check")
     print("=" * 60)
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

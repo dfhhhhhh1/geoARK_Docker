@@ -1,0 +1,116 @@
+# Known-item and absent-query suites.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# queries.yaml asks "is ANY top-20 result about poverty?". With 221 poverty rows
+# in the catalog that is nearly unfalsifiable: tags can reorder the entire
+# ranking and the metric never moves. MRR is equally blunt there, because the
+# top hit satisfies the loose regex either way.
+#
+# That is why the tag ablation showed a dead heat. It was a limitation of the
+# instrument, not a finding about tags.
+#
+# These suites are sharper in two different directions:
+#
+#   known_item  ask for ONE specific attribute and score the RANK it comes back
+#               at. Reordering is the whole measurement.
+#   absent      ask for data the catalog does not contain. There is no right
+#               answer to return, so the question is whether the top score is
+#               visibly lower than for a query that IS answerable.
+#
+# Many known_item cases below deliberately use vocabulary that appears ONLY in
+# the tags column ("petrochemical", "biofuel", "fermentation", "pipeline
+# infrastructure"). Those rows have attr_desc values like "Name" and "Address",
+# so tags and dataset_clean are the only semantic signal they have.
+
+suites:
+
+  # ---------------------------------------------------------------------
+  # Retrieve one specific attribute. Scored by the rank of expect_attr_id.
+  # ---------------------------------------------------------------------
+  - name: known_item_tag_vocabulary
+    mode: known_item
+    queries:
+      - id: ki-petrochemical
+        query: "petrochemical production facility name"
+        expect_attr_id: cc51c539_01_01_03      # Oil Refineries / Name
+        note: "'petrochemical' appears only in tags"
+
+      - id: ki-biofuel
+        query: "biofuel fermentation plant"
+        expect_attr_id: b5ef0aa5_01_01_03      # Ethanol Plants / Name
+        note: "'biofuel' and 'fermentation' appear only in tags"
+
+      - id: ki-pipeline-infra
+        query: "pipeline infrastructure compressor facility"
+        expect_attr_id: c5461429_01_01_03      # Natural Gas Compressor Stations / Name
+        note: "'pipeline infrastructure' appears only in tags"
+
+      - id: ki-emergency-housing
+        query: "emergency housing assistance location city"
+        expect_attr_id: 923b9809_01_01_06      # Shelter System / City
+        note: "'housing assistance', 'emergency housing' appear only in tags"
+
+      - id: ki-metal-recovery
+        query: "metal ore mining site name"
+        expect_attr_id: 879179b7_01_01_04      # Ferrous Metal Mines / Site Name
+        note: "'mining site', 'metal recovery' appear only in tags"
+
+      - id: ki-health-agency
+        query: "health agency department name"
+        expect_attr_id: 29a5673e_01_01_03      # Public Health Departments / Name
+        note: "'health agencies' appears only in tags"
+
+      - id: ki-tunnel-transport
+        query: "transportation tunnel infrastructure name"
+        expect_attr_id: 5ee3690a_01_01_03      # Road Tunnels / Name
+        note: "'transportation', 'infrastructure' appear only in tags"
+
+      - id: ki-energy-generation
+        query: "energy generation station name"
+        expect_attr_id: 454f652e_01_01_03      # Power Plants / Name
+        note: "'energy generation' appears only in tags"
+
+  # ---------------------------------------------------------------------
+  # Same idea, but for rows whose description already carries the meaning.
+  # A control group: tags should matter LESS here.
+  # ---------------------------------------------------------------------
+  - name: known_item_described
+    mode: known_item
+    queries:
+      - id: ki-gini
+        query: "income inequality gini index"
+        expect_desc: "Gini"
+
+      - id: ki-persistent-poverty
+        query: "counties with persistent poverty designation"
+        expect_desc: "Persistent-poverty"
+
+      - id: ki-child-poverty-2015
+        query: "child poverty rate in 2015"
+        expect_desc: "Child poverty rate 2015"
+
+      - id: ki-median-income-2017
+        query: "median household income 2017 inflation adjusted"
+        expect_desc: "Median household income 2017"
+
+  # ---------------------------------------------------------------------
+  # Data the catalog does not contain. There is no correct result, so the
+  # measurement is whether top scores are visibly lower than for answerable
+  # queries. A system with no separation will confidently return nonsense.
+  # ---------------------------------------------------------------------
+  - name: absent
+    mode: absent
+    queries:
+      - id: ab-mars
+        query: "crater diameters on the surface of Mars"
+      - id: ab-shark
+        query: "shark attack incidents along the Australian coast"
+      - id: ab-bitcoin
+        query: "bitcoin mining hash rate difficulty adjustment"
+      - id: ab-football
+        query: "premier league football match attendance figures"
+      - id: ab-recipe
+        query: "sourdough bread fermentation starter recipes"
+      - id: ab-latin
+        query: "declension tables for classical Latin nouns"

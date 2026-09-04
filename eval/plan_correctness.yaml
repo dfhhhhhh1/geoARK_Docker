@@ -1,0 +1,140 @@
+# Plan correctness probe.
+#
+# WHY THIS EXISTS
+#
+# eval/run.py --endpoint analyze reports plan_validity, which is one line:
+#
+#     planned = "plan" in payload and not payload.get("error")
+#
+# That measures WELL-FORMEDNESS, never CORRECTNESS. Measured 2026-08-31: with
+# PLAN_MODEL=qwen3:14b the planner scored 100% plan validity while answering
+# "list the top 10 counties by median household income" with the op sequence
+# load->load->normalize->output and the intent "Calculate the percentage of
+# population in poverty per county". Structurally perfect, completely wrong,
+# and every existing metric called it a success.
+#
+# This suite is the analogue of known_item.yaml for planning: each query has an
+# op that the question unambiguously demands, so op selection becomes visible.
+#
+# expect_op   the op the question requires. Its ABSENCE is a real failure.
+# forbid_op   optional. An op that would be clearly wrong for this question.
+#
+# Deliberately NOT asserted here: whether the chosen attributes are the right
+# ones. That needs its own instrument. The probe records the descriptions it
+# picked so a human can eyeball them -- see the "attrs" field in the output.
+
+queries:
+  - id: rank-top-income
+    query: "list the top 10 counties with the highest median household income"
+    expect_op: rank
+
+  - id: rank-bottom-uninsured
+    query: "the 5 counties with the lowest rate of health insurance coverage"
+    expect_op: rank
+
+  - id: normalize-poverty
+    query: "poverty rate normalized by total population for counties"
+    expect_op: normalize
+
+  - id: count-hospitals
+    query: "how many hospitals are in each county"
+    expect_op: count_features
+    forbid_op: normalize
+
+  - id: join-income-education
+    query: "compare median income against educational attainment"
+    expect_op: join
+    forbid_op: normalize
+
+  - id: aggregate-mean-income
+    query: "what is the average median household income across all counties"
+    expect_op: aggregate
+
+  - id: filter-high-income
+    query: "counties where median household income is above 75000"
+    expect_op: filter_attr
+
+  - id: plain-load-population
+    query: "show total population by county"
+    expect_op: load
+    forbid_op: normalize
+
+  # --- geospatial ops, added 2026-08-31 -------------------------------------
+  # The op surface went from 8 to 12 here. This project has already measured
+  # that op-set size costs a small model accuracy (62.5% -> 12.5% when
+  # count_features was added unconditionally), so these exist as much to catch
+  # a regression in the ORIGINAL eight as to check the new four.
+
+  - id: area-state-restriction
+    query: "median household income for counties in Missouri"
+    expect_op: filter_area
+
+  - id: area-region-restriction
+    query: "unemployment rate for counties in the Midwest"
+    expect_op: filter_area
+
+  # A region NOTHING in the code knows about. The point of this one is that no
+  # list anywhere contains "New England": the gate recognises the shape of a
+  # place restriction, the enum guarantees each emitted name is a real state,
+  # and the model supplies the geography. It returned 0 rows with no error until
+  # 2026-09-01, because filter_area was never offered for phrases off the list.
+  - id: area-unknown-region
+    query: "median household income for counties in New England"
+    expect_op: filter_area
+
+  # Named boundaries, from the TIGER layers in place_geom. Until those were
+  # loaded, county_geom was the only administrative geometry and none of these
+  # could be expressed at all.
+  - id: place-city
+    query: "median household income for counties in the Springfield, Missouri area"
+    expect_op: filter_place
+    forbid_op: filter_attr
+
+  - id: place-metro
+    query: "poverty rate for counties in the Chicago metro area"
+    expect_op: filter_place
+
+  - id: place-zip
+    query: "median household income for counties in ZIP code 63101"
+    expect_op: filter_place
+
+  - id: proximity-count
+    query: "hospitals within 10 miles of electric power transmission lines"
+    expect_op: count_near
+    forbid_op: normalize
+
+  - id: distance-to-nearest
+    query: "how far is each county from the nearest hospital"
+    expect_op: nearest_distance
+    forbid_op: count_features
+
+  - id: density-per-area
+    query: "population density per square mile"
+    expect_op: per_area
+
+  # select_features returns a different SHAPE of result -- the locations
+  # themselves rather than a per-county number -- so the pairing that matters is
+  # "asks where" vs "asks how many". Both directions are checked: the counting
+  # question above (count-hospitals) must NOT reach for select_features.
+  - id: locations-in-state
+    query: "where are the hospitals in Missouri"
+    expect_op: select_features
+    forbid_op: count_features
+
+  - id: locations-in-city
+    query: "show me the locations of fire stations in Springfield, Missouri"
+    expect_op: select_features
+
+  # Attribute filters. The op is the same as the unfiltered question -- what
+  # changes is whether the plan narrows the layer. op_appropriateness cannot see
+  # that on its own, so the filtered/unfiltered PAIR is the instrument: both
+  # must pick the right op, and a human reading the probe output should see
+  # attribute_filters present on one and absent on the other.
+  - id: filtered-count
+    query: "how many critical access hospitals are in each county"
+    expect_op: count_features
+    forbid_op: select_features
+
+  - id: filtered-locations
+    query: "where are the open critical access hospitals in Missouri"
+    expect_op: select_features

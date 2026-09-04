@@ -1,0 +1,100 @@
+{
+  "label": "macbook-gemma4b-cpu",
+  "environment": {
+    "collected_at": "2026-08-28T14:55:21+00:00",
+    "host": {
+      "platform": "macOS-26.5.1-x86_64-i386-64bit",
+      "machine": "x86_64",
+      "cpu_count": 18
+    },
+    "api_health": {
+      "status": "ok",
+      "embeddings_ready": true,
+      "variable_count": 6860,
+      "embedding_count": 6860,
+      "embedding_model": "BAAI/bge-base-en-v1.5",
+      "embedder_url": "http://embedder:8000",
+      "llm_model": "gemma3:4b",
+      "plan_model": "gemma3:4b",
+      "database": "mygisdb",
+      "resolvable_attributes": 5232,
+      "corpus_cache_key": "3f809cace7983270",
+      "corpus_stale": false,
+      "corpus_available_key": "3f809cace7983270"
+    },
+    "git_commit": "1cd00bd",
+    "git_branch": "data-ops-provenance-and-hardware",
+    "git_dirty": true,
+    "gpu": null,
+    "ollama_models": "NAME         ID              SIZE      MODIFIED     \ngemma3:4b    a2af6cc3eb7f    3.3 GB    12 hours ago",
+    "embedder_provenance": {
+      "embed_model": "BAAI/bge-base-en-v1.5",
+      "dimension": 768,
+      "preproc_version": "v2",
+      "include_tags": true,
+      "lemmatizer": true,
+      "sentence_transformers": "3.3.1",
+      "torch": "2.13.0+cpu",
+      "device": "cpu",
+      "cuda": null,
+      "canary_fingerprint": "c91329880b11c169",
+      "drift": false,
+      "drift_detail": null
+    }
+  },
+  "results": {
+    "retrieval": {
+      "concept_recall": 0.9555555555555556,
+      "query_success": 0.9459459459459459,
+      "mrr": 0.8470016456084567,
+      "latency_p50": 0.012,
+      "latency_p95": 0.015,
+      "per_suite": {
+        "single_concept": {
+          "concept_recall": 1.0,
+          "query_success": 1.0
+        },
+        "facilities_via_tags": {
+          "concept_recall": 1.0,
+          "query_success": 1.0
+        },
+        "multi_concept": {
+          "concept_recall": 0.9375,
+          "query_success": 0.875
+        },
+        "geographic_level": {
+          "concept_recall": 1.0,
+          "query_success": 1.0
+        },
+        "paraphrase": {
+          "concept_recall": 0.8,
+          "query_success": 0.8
+        },
+        "temporal": {
+          "concept_recall": 1.0,
+          "query_success": 1.0
+        }
+      }
+    },
+    "known_item": {
+      "n": 12,
+      "recall_1": 0.9166666666666666,
+      "recall_5": 1.0,
+      "recall_20": 1.0,
+      "mrr": 0.9444444444444444,
+      "mean_rank_when_found": 1.1666666666666667
+    },
+    "absent": {
+      "n": 6,
+      "mean_top_semantic": 0.5051666666666667,
+      "max_top_semantic": 0.547
+    },
+    "planner": {
+      "plan_validity": 0.25,
+      "execution_success": 0.25,
+      "non_empty_rate": 0.125,
+      "mean_repairs": 0.25,
+      "latency_p50": 9.95
+    }
+  }
+}

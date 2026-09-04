@@ -1,8 +1,9 @@
 # GeoARK deployment helpers. Run from ./deploy on the server.
 COMPOSE := docker compose
+GPU     := docker compose -f docker-compose.yml -f docker-compose.gpu.yml
 DEV     := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 
-.PHONY: help up down dev build logs ps health models automl load-reference load-reference-dry shell-api shell-embed shell-db reindex psql clean
+.PHONY: help up up-gpu down dev build logs ps health provenance models automl boundaries boundaries-dry inspect ingest load-geo load-reference load-reference-dry relink relink-features validate-catalog shell-api shell-embed shell-db reindex psql clean
 
 help:            ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -13,6 +14,17 @@ up:              ## Build and start everything
 
 down:            ## Stop everything (volumes survive — models are NOT re-downloaded)
 	$(COMPOSE) down
+
+up-gpu:          ## Build and start with NVIDIA GPU acceleration (then: make reindex)
+	$(GPU) up -d --build
+
+provenance:      ## What produced the current vectors, and whether the cache drifted
+	@$(COMPOSE) exec -T embedder python -c \
+	  "import urllib.request,json;print(json.dumps(json.load(urllib.request.urlopen('http://localhost:8000/provenance')),indent=1))"
+
+validate-catalog: ## Check a new catalog CSV before loading it (CSV=path/to.csv)
+	@test -n "$(CSV)" || { echo "usage: make validate-catalog CSV=path/to/new.csv"; exit 2; }
+	python3 ../etl/validate_catalog.py --new "$(CSV)"
 
 dev:             ## Start with source bind-mounted and live reload
 	$(DEV) up
@@ -53,6 +65,37 @@ psql:            ## Open a psql shell on the database
 
 shell-db:        ## Shell into the db container
 	$(COMPOSE) exec db bash
+
+load-geo:        ## Load HSIP shapefiles/geodatabases into PostGIS (slow; needs GEODATA_DIR)
+	$(COMPOSE) --profile etl run --rm etl-geo
+
+relink-features: ## Re-link facility tables only (fast; run after load-geo)
+	$(COMPOSE) --profile etl run --rm etl \
+	  python /app/etl/load_reference_data.py --acs-csv /data/fips_merged_ACS_data.csv --features-only
+
+boundaries:      ## Load TIGER named boundaries (places, ZIPs, metros) into place_geom
+	$(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
+	  /app/etl/load_boundaries.py --source-dir /incoming --commit
+
+boundaries-dry:  ## Report what load_boundaries would load, writing nothing
+	$(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
+	  /app/etl/load_boundaries.py --source-dir /incoming
+
+inspect:         ## Inspect a dataset without loading it. FILE=... NAME="..."
+	$(COMPOSE) --profile etl run --rm etl-geo \
+	  python3 /app/etl/ingest.py --file "$(FILE)" --name "$(NAME)" $(ARGS)
+
+ingest:          ## Load a dataset end to end. FILE=... NAME="..." [ENTITY=COUNTY]
+	$(COMPOSE) --profile etl run --rm etl-geo \
+	  python3 /app/etl/ingest.py --file "$(FILE)" --name "$(NAME)" \
+	    --entity-type "$(or $(ENTITY),COUNTY)" --commit $(ARGS)
+	$(MAKE) relink
+	$(MAKE) reindex
+	@echo "  Restart the API to pick up the new corpus:  make up"
+
+relink:          ## Rebuild attribute_source only (no re-import of the 10.8M ACS rows)
+	$(COMPOSE) --profile etl run --rm etl \
+	  python /app/etl/load_reference_data.py --acs-csv /data/fips_merged_ACS_data.csv --relink-only
 
 load-reference:  ## Load county geometry, ACS values, and the catalog->column map
 	$(COMPOSE) --profile etl run --rm etl \

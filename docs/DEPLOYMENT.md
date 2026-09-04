@@ -19,7 +19,7 @@ Before Phase 1, every container start:
 3. and then **reloaded the model again on every single search query**, because
    `generateEmbeddings()` spawned a fresh `python3` process per call.
 
-Separately, Ollama's LLM weights (2–9 GB) live wherever Ollama happens to be
+Separately, Ollama's LLM weights (2-9 GB) live wherever Ollama happens to be
 installed and are not part of the deployment at all.
 
 The fix has three independent parts, and you need all three:
@@ -30,19 +30,19 @@ The fix has three independent parts, and you need all three:
 | **B. Keep the model in memory** | reloading per query | replace the per-call subprocess with a long-lived embedding service |
 | **C. Persist computed embeddings** | re-embedding the corpus | write the 6,860 × 768 matrix to disk, keyed by a content hash |
 
-Volumes are part A, and they are the right answer for it — but on their own they
+Volumes are part A, and they are the right answer for it, but on their own they
 only take startup from ~4 minutes to ~3 minutes, because parts B and C are where
 the time actually goes. All three are now implemented:
 
-- **A** — `hf_cache` and `ollama_models` named volumes.
-- **B** — `deploy/embedder/app.py`, a FastAPI service that constructs the
+- **A**, `hf_cache` and `ollama_models` named volumes.
+- **B**, `deploy/embedder/app.py`, a FastAPI service that constructs the
   `SentenceTransformer` once at process start. The API calls it over HTTP.
-- **C** — the corpus matrix is cached to the `emb_cache` volume, keyed by
+- **C**: the corpus matrix is cached to the `emb_cache` volume, keyed by
   `sha256(csv + model + preprocessing_version)` so it self-invalidates.
 
-## 2. Where model weights should live — the options
+## 2. Where model weights should live: the options
 
-### Option A — named volume for the Hugging Face cache *(recommended for the embedder)*
+### Option A, named volume for the Hugging Face cache *(recommended for the embedder)*
 
 ```yaml
 services:
@@ -61,7 +61,7 @@ set `HF_HUB_OFFLINE=1` so a network blip can't stall startup with a hub call.
 
 **Use this.** It is the lowest-friction option and matches what you proposed.
 
-### Option B — bake the model into the image
+### Option B, bake the model into the image
 
 ```dockerfile
 RUN python -c "from sentence_transformers import SentenceTransformer; \
@@ -75,7 +75,7 @@ rebuild + re-push.
 Worth it for the *embedding* model if you ever need reproducible images or want
 to deploy to a second machine. Not worth it for multi-GB LLMs.
 
-### Option C — a dedicated model-server container *(recommended for the LLM)*
+### Option C: a dedicated model-server container *(recommended for the LLM)*
 
 Ollama already is this. Run it as a compose service with its own volume:
 
@@ -94,12 +94,12 @@ restart the API twenty times while iterating without touching the LLM.
 
 For embeddings the equivalent is Hugging Face's
 `ghcr.io/huggingface/text-embeddings-inference:cpu-1.5`, which serves BGE over
-HTTP with no Python of your own. That is the eventual right answer — it is
+HTTP with no Python of your own. That is the eventual right answer: it is
 faster than sentence-transformers and there is no code to maintain. Start with
 the small FastAPI sidecar in `deploy/embedder/` (it preserves your lemmatization
 and the BGE query prefix), and swap in TEI once the interface is stable.
 
-### Option D — a shared host directory, bind-mounted read-only
+### Option D: a shared host directory, bind-mounted read-only
 
 ```yaml
     volumes:
@@ -121,19 +121,19 @@ copy of the weights shared across projects.
   if you need reproducible images.
 - **Computed corpus embeddings** → not a model at all; see §3.
 
-## 3. Persisting the computed embeddings (part C — the big win)
+## 3. Persisting the computed embeddings (part C: the big win)
 
 Even with warm model weights, the backend re-encodes 6,860 rows at every boot.
 It should not. Two levels:
 
-### Level 1 — cache to disk *(done)*
+### Level 1, cache to disk *(done)*
 
 Implemented in `deploy/embedder/app.py`. Key the cache on `sha256(csv_bytes + model_name + preprocessing_version)`. On
 start, if `/data/embeddings/<hash>.npy` exists, `np.load` it; otherwise encode
 and write it. Mount `/data` as a volume. Startup drops from minutes to under a
 second, and the cache invalidates itself automatically when the catalog changes.
 
-### Level 2 — move embeddings into Postgres with pgvector *(Phase 2)*
+### Level 2, move embeddings into Postgres with pgvector *(Phase 2)*
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -157,7 +157,7 @@ CREATE INDEX ON attribute_embeddings USING gin  (tsv);
 
 Now search is one SQL query instead of 6,860 JavaScript cosine loops, the
 backend holds no state, it starts instantly, and you get keyword search from
-the same index — replacing the hand-rolled 0.7/0.3 score blend with a proper
+the same index, replacing the hand-rolled 0.7/0.3 score blend with a proper
 fusion. This is the target; Level 1 is the stepping stone you can ship today.
 
 The stock `postgis/postgis` image does not include pgvector, so `deploy/db/Dockerfile`
@@ -200,7 +200,7 @@ Four changes from the original two-service compose, each of which matters:
    of ~4 s.
 3. **Ollama and Postgres are services**, addressed by DNS name (`http://ollama:11434`,
    `db:5432`) rather than `127.0.0.1`.
-4. **Every heavy artifact sits on a named volume** — weights, HF cache, computed
+4. **Every heavy artifact sits on a named volume**, weights, HF cache, computed
    embeddings, database.
 
 ### Running it
@@ -224,7 +224,7 @@ cd deploy && docker compose ps && curl -s localhost:8080/api/health | jq
 ## 5. Working over SSH
 
 The stack binds only `web` to a host port. Don't expose 4000/11434/5432
-publicly — tunnel them when you need to poke at them:
+publicly, tunnel them when you need to poke at them:
 
 ```bash
 ssh -N -L 8080:localhost:8080 -L 11434:localhost:11434 -L 5432:localhost:5432 you@server
@@ -233,7 +233,7 @@ ssh -N -L 8080:localhost:8080 -L 11434:localhost:11434 -L 5432:localhost:5432 yo
 Then `http://localhost:8080` in your local browser hits the deployed app.
 
 For iterating on the server without waiting on rebuilds, mount the source and
-run the dev command — a compose override is the clean way:
+run the dev command: a compose override is the clean way:
 
 ```bash
 cd deploy && docker compose -f docker-compose.yml -f docker-compose.dev.yml up
@@ -254,7 +254,7 @@ Add BuildKit cache mounts so pip and npm don't re-download on every rebuild:
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 ```
 
-And keep a `.dockerignore` — right now there isn't one, so `COPY . .` ships
+And keep a `.dockerignore`, right now there isn't one, so `COPY . .` ships
 `node_modules/`, `.env`, and `nohup.out` into every image, and any change to any
 of them busts the cache.
 
@@ -283,10 +283,13 @@ The API defaults to `http://localhost:8000` for the embedder and
 server proxies `/api` and `/automl` (see `frontend/vite.config.ts`), so the same
 relative URLs work in dev and in Docker.
 
-PostGIS is optional locally — the API logs `PostGIS connection failed` and keeps
+PostGIS is optional locally: the API logs `PostGIS connection failed` and keeps
 running; only `/api/get-data` needs it.
 
 ## 7. Sizing
+
+See [`etl/PROVENANCE.md`](../etl/PROVENANCE.md) for GPU, ARM, and low-RAM
+profiles, and for why switching hardware requires one `make reindex`.
 
 | Service | RAM | Disk | Notes |
 |---|---|---|---|
@@ -296,7 +299,7 @@ running; only `/api/get-data` needs it.
 | `db` (PostGIS) | ~1 GB | 3.5 GB+ | the HSIP source data is 3.5 GB before import |
 | `api` + `web` | ~0.3 GB | ~0.3 GB | |
 
-Comfortable floor: **16 GB RAM, 60 GB disk**. This is not advisory — it was
+Comfortable floor: **16 GB RAM, 60 GB disk**. This is not advisory: it was
 measured. On a host giving Docker 7.65 GB, `ollama` with `gemma3:4b` and
 `OLLAMA_KEEP_ALIVE=-1` sits at **5.5 GB (72% of the budget)**, and a sustained
 32-query evaluation run produced an OOM kill of the model runner.

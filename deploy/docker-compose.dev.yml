@@ -1,4 +1,4 @@
-# Development override — bind-mounts source so you can edit on the server
+# Development override, bind-mounts source so you can edit on the server
 # without rebuilding images.
 #
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up

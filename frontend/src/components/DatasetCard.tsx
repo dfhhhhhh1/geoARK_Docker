@@ -1,29 +1,22 @@
 import React from 'react';
-import { 
-  ShoppingCart, 
-  Eye, 
-  Clock, 
-  Database, 
-  MapPin, 
-  CheckCircle,
+import { Link } from 'react-router-dom';
+import {
+  Eye,
+  Clock,
+  Database,
+  MapPin,
   BarChart3,
+  Sparkles,
   Star
 } from 'lucide-react';
 import { Dataset } from '../types';
 
 interface DatasetCardProps {
   dataset: Dataset;
-  onAddToCart: (dataset: Dataset) => void;
   onSelect: (dataset: Dataset) => void;
-  isInCart: boolean;
 }
 
-const DatasetCard: React.FC<DatasetCardProps> = ({ 
-  dataset, 
-  onAddToCart, 
-  onSelect, 
-  isInCart 
-}) => {
+const DatasetCard: React.FC<DatasetCardProps> = ({ dataset, onSelect }) => {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-all duration-200 hover:border-slate-300">
       {/* Header */}
@@ -75,22 +68,17 @@ const DatasetCard: React.FC<DatasetCardProps> = ({
           )}
         </div>
         
-        {/* Preview Thumbnail or Variable Count */}
+        {/* Variable count. There used to be an <img src={dataset.previewUrl}>
+            here, pointing at /api/preview/{id} -- an endpoint the backend has
+            never implemented, so every card rendered a broken image. */}
         <div className="ml-4 flex-shrink-0">
-          {dataset.previewUrl ? (
-            <img 
-              src={dataset.previewUrl} 
-              alt={`${dataset.title} preview`}
-              className="w-20 h-20 rounded-lg object-cover border border-slate-200"
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center">
-              <BarChart3 className="w-8 h-8 text-slate-400 mb-1" />
-              <span className="text-xs text-slate-500 font-medium">
-                {dataset.variables?.length || dataset.fields.length} vars
-              </span>
-            </div>
-          )}
+          <div className="w-20 h-20 rounded-lg border border-slate-200 bg-slate-50
+                          flex flex-col items-center justify-center">
+            <BarChart3 className="w-8 h-8 text-slate-400 mb-1" />
+            <span className="text-xs text-slate-500 font-medium">
+              {dataset.variables?.length || dataset.fields.length} vars
+            </span>
+          </div>
         </div>
       </div>
 
@@ -172,11 +160,15 @@ const DatasetCard: React.FC<DatasetCardProps> = ({
       {/* Footer */}
       <div className="flex items-center justify-between pt-4 border-t border-slate-100">
         <div className="flex items-center space-x-4 text-sm text-slate-500">
-          <span className="font-medium">{dataset.fileSize}</span>
-          <span>•</span>
-          <span>{dataset.lastUpdated}</span>
+          <span>{dataset.coverage.geographic} level</span>
+          {dataset.variables?.length ? (
+            <>
+              <span>•</span>
+              <span>{dataset.variables.length} variables</span>
+            </>
+          ) : null}
         </div>
-        
+
         <div className="flex items-center space-x-2">
           <button
             onClick={() => onSelect(dataset)}
@@ -185,28 +177,19 @@ const DatasetCard: React.FC<DatasetCardProps> = ({
             <Eye className="w-4 h-4" />
             <span>Details</span>
           </button>
-          
-          <button
-            onClick={() => onAddToCart(dataset)}
-            disabled={isInCart}
-            className={`flex items-center space-x-1 px-4 py-1.5 rounded-lg transition-all text-sm font-medium ${
-              isInCart
-                ? 'bg-green-100 text-green-700 cursor-default'
-                : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md'
-            }`}
+
+          {/* Replaces "Add to Cart", whose checkout opened /api/download and
+              got a 404. Browsing the catalog is only useful if it leads
+              somewhere, and the analysis page is the thing that answers a
+              question, so this hands the dataset over as a starting point. */}
+          <Link
+            to={`/analysis?q=${encodeURIComponent(dataset.source || dataset.title)}`}
+            className="flex items-center space-x-1 px-4 py-1.5 rounded-lg text-sm font-medium
+                       bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md transition-all"
           >
-            {isInCart ? (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                <span>In Cart</span>
-              </>
-            ) : (
-              <>
-                <ShoppingCart className="w-4 h-4" />
-                <span>Add to Cart</span>
-              </>
-            )}
-          </button>
+            <Sparkles className="w-4 h-4" />
+            <span>Use in analysis</span>
+          </Link>
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@
     "start": "node unified_search_server.js",
     "dev": "nodemon unified_search_server.js",
     "check": "node --check unified_search_server.js && node --check enhanced_search_server.js",
-    "test": "echo \"no tests yet - see docs/ROADMAP.md Phase 2\" && exit 0"
+    "test": "node planner/test_planner.js && node test_suggestions.js && node test_access.js"
   },
   "keywords": [
     "geospatial",

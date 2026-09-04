@@ -29,11 +29,6 @@ interface ColumnStats {
   median: number; stdDev: number; min: number; max: number; p25: number; p75: number;
 }
 
-interface CategoricalStats {
-  column: string; uniqueCount: number;
-  topValues: Array<{ value: string; count: number }>; missing: number;
-}
-
 interface RegressionResult {
   slope: number; intercept: number; rSquared: number; predictions: number[];
   xColumn: string; yColumn: string;
@@ -211,13 +206,6 @@ function ReportPage() {
     return { column: col, count: nums.length, missing: csvData.rows.length - vals.length, sum, avg, median: med, stdDev: Math.sqrt(vr), min: Math.min(...nums), max: Math.max(...nums), p25: sorted[Math.floor(sorted.length * .25)], p75: sorted[Math.floor(sorted.length * .75)] };
   };
 
-  const calcCatStats = (col: string): CategoricalStats | null => {
-    if (!csvData) return null;
-    const vals = csvData.rows.map(r => r[col]).filter(v => v !== null && v !== undefined && v !== '');
-    const g = _.groupBy(vals, v => String(v));
-    return { column: col, uniqueCount: Object.keys(g).length, topValues: _.orderBy(Object.entries(g).map(([v, i]) => ({ value: v, count: i.length })), 'count', 'desc').slice(0, 20), missing: csvData.rows.length - vals.length };
-  };
-
   const calcCorr = (c1: string, c2: string): number | null => {
     if (!csvData) return null;
     const ps = csvData.rows.map(r => [Number(r[c1]), Number(r[c2])]).filter(([a, b]) => !isNaN(a) && !isNaN(b));
@@ -245,7 +233,6 @@ function ReportPage() {
 
   /* --- memoised stats --- */
   const numStats = useMemo(() => selectedNumericColumns.map(c => calcStats(c)).filter(Boolean) as ColumnStats[], [csvData, selectedNumericColumns]);
-  const catStats = useMemo(() => selectedCategoricalColumns.map(c => calcCatStats(c)).filter(Boolean) as CategoricalStats[], [csvData, selectedCategoricalColumns]);
   const corrs = useMemo(() => {
     const out: { col1: string; col2: string; correlation: number }[] = [];
     if (selectedNumericColumns.length >= 2) for (let i = 0; i < selectedNumericColumns.length; i++) for (let j = i + 1; j < selectedNumericColumns.length; j++) { const c = calcCorr(selectedNumericColumns[i], selectedNumericColumns[j]); if (c !== null) out.push({ col1: selectedNumericColumns[i], col2: selectedNumericColumns[j], correlation: c }); }
@@ -358,7 +345,7 @@ function ReportPage() {
         </div>
 
         {/* ================================================================
-            TAB — CSV Analysis
+            TAB: CSV Analysis
             ================================================================ */}
         {activeTab === 'data' && (<div className="space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -411,7 +398,7 @@ function ReportPage() {
         </div>)}
 
         {/* ================================================================
-            TAB — Unified Search
+            TAB: Unified Search
             ================================================================ */}
         {activeTab === 'search' && (<div className="space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -461,7 +448,7 @@ function ReportPage() {
         </div>)}
 
         {/* ================================================================
-            TAB — ML & Insights
+            TAB: ML & Insights
             ================================================================ */}
         {activeTab === 'ml' && (<div className="space-y-6">
           {!csvData && <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center"><Brain className="w-16 h-16 text-gray-300 mx-auto mb-4" /><h3 className="text-lg font-semibold text-gray-700 mb-2">Upload Data First</h3><p className="text-gray-400 text-sm mb-4">Switch to CSV Analysis tab first.</p><button onClick={() => setActiveTab('data')} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Go to CSV Upload</button></div>}
@@ -469,10 +456,10 @@ function ReportPage() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <SecHead title="K-Means Clustering" k="clustering" icon={<Brain className="w-5 h-5 text-violet-600" />} />
               {exp.clustering && <div className="mt-2 space-y-4">
-                <p className="text-sm text-gray-500">Cluster data on selected numeric columns (Z-score normalised).</p>
+                <p className="text-sm text-gray-500">Cluster data on selected numeric columns (Z-score normalized).</p>
                 <div className="flex flex-wrap items-end gap-4">
                   <div><label className="block text-xs font-medium text-gray-600 mb-1">K</label><select value={clusterCount} onChange={e => setClusterCount(Number(e.target.value))} className="p-2 border border-gray-300 rounded-lg text-sm">{[2,3,4,5,6,7,8].map(k => <option key={k} value={k}>{k}</option>)}</select></div>
-                  <div className="text-xs text-gray-500">Using: {selectedNumericColumns.join(', ') || '—'}</div>
+                  <div className="text-xs text-gray-500">Using: {selectedNumericColumns.join(', ') || ', '}</div>
                   <button onClick={runClustering} disabled={selectedNumericColumns.length < 2} className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed">Run</button>
                 </div>
                 {clusterResults && clScatter && <div><h4 className="text-sm font-semibold text-gray-700 mb-2">Clusters ({selectedNumericColumns[0]} vs {selectedNumericColumns[1]})</h4><Scatter data={clScatter} options={{ responsive: true, plugins: { legend: { position: 'top' } }, scales: { x: { title: { display: true, text: selectedNumericColumns[0] } }, y: { title: { display: true, text: selectedNumericColumns[1] } } } }} /></div>}
@@ -482,8 +469,8 @@ function ReportPage() {
               <SecHead title="Linear Regression" k="regression" icon={<TrendingUp className="w-5 h-5 text-red-600" />} />
               {exp.regression && <div className="mt-2 space-y-4">
                 <div className="flex flex-wrap items-end gap-4">
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">X</label><select value={regressionX} onChange={e => setRegressionX(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm"><option value="">—</option>{columnTypes.numeric.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Y</label><select value={regressionY} onChange={e => setRegressionY(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm"><option value="">—</option>{columnTypes.numeric.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">X</label><select value={regressionX} onChange={e => setRegressionX(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm"><option value="">, </option>{columnTypes.numeric.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Y</label><select value={regressionY} onChange={e => setRegressionY(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm"><option value="">, </option>{columnTypes.numeric.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                   <button onClick={runRegression} disabled={!regressionX || !regressionY} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">Run</button>
                 </div>
                 {regressionResult && <div className="space-y-4">
@@ -500,14 +487,14 @@ function ReportPage() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <SecHead title="Outlier Detection" k="anomalies" icon={<AlertCircle className="w-5 h-5 text-amber-600" />} />
               {exp.anomalies && selectedNumericColumns.length > 0 && <div className="mt-2 space-y-3"><p className="text-sm text-gray-500">Z-score &gt; 2.5 outliers.</p>
-                {selectedNumericColumns.map(col => { const st = calcStats(col); if (!st || st.stdDev === 0) return null; const ol = csvData.rows.map((r, i) => ({ i, v: Number(r[col]), z: Math.abs((Number(r[col]) - st.avg) / st.stdDev) })).filter(o => !isNaN(o.z) && o.z > 2.5).sort((a, b) => b.z - a.z).slice(0, 10); if (!ol.length) return null; return <div key={col} className="bg-amber-50 rounded-lg p-3"><div className="text-sm font-medium text-amber-800 mb-1">{col} — {ol.length} outlier(s)</div><div className="space-y-1 text-xs">{ol.map((o, j) => <div key={j} className="flex justify-between text-amber-700"><span>Row {o.i + 1}: {o.v.toFixed(2)}</span><span className="font-mono">z={o.z.toFixed(2)}</span></div>)}</div></div>; })}
+                {selectedNumericColumns.map(col => { const st = calcStats(col); if (!st || st.stdDev === 0) return null; const ol = csvData.rows.map((r, i) => ({ i, v: Number(r[col]), z: Math.abs((Number(r[col]) - st.avg) / st.stdDev) })).filter(o => !isNaN(o.z) && o.z > 2.5).sort((a, b) => b.z - a.z).slice(0, 10); if (!ol.length) return null; return <div key={col} className="bg-amber-50 rounded-lg p-3"><div className="text-sm font-medium text-amber-800 mb-1">{col}, {ol.length} outlier(s)</div><div className="space-y-1 text-xs">{ol.map((o, j) => <div key={j} className="flex justify-between text-amber-700"><span>Row {o.i + 1}: {o.v.toFixed(2)}</span><span className="font-mono">z={o.z.toFixed(2)}</span></div>)}</div></div>; })}
               </div>}
             </div>
           </>)}
         </div>)}
 
         {/* ================================================================
-            TAB — AutoML  (NEW)
+            TAB: AutoML  (NEW)
             ================================================================ */}
         {activeTab === 'automl' && (<div className="space-y-6">
           {!csvData && (
@@ -528,7 +515,7 @@ function ReportPage() {
                 <div className="flex-1 min-w-[200px]">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Target Column</label>
                   <select value={automlTarget} onChange={e => setAutomlTarget(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-300 outline-none">
-                    <option value="">— select target —</option>
+                    <option value="">, select target, </option>
                     {csvData.headers.map(h => <option key={h} value={h}>{h}</option>)}
                   </select>
                 </div>
@@ -574,22 +561,22 @@ function ReportPage() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <SecHead title="Model Leaderboard" k="automlLeaderboard" icon={<Trophy className="w-5 h-5 text-amber-500" />} />
                 {exp.automlLeaderboard && <div className="mt-3 space-y-4">
-                  {amlLbChart && <Bar data={amlLbChart} options={{ indexAxis: 'y' as const, responsive: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `Score: ${ctx.parsed.x.toFixed(4)}` } } }, scales: { x: { title: { display: true, text: `|${automlResult.evalMetric}|` }, beginAtZero: true } } }} />}
+                  {amlLbChart && <Bar data={amlLbChart} options={{ indexAxis: 'y' as const, responsive: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `Score: ${(ctx.parsed.x ?? 0).toFixed(4)}` } } }, scales: { x: { title: { display: true, text: `|${automlResult.evalMetric}|` }, beginAtZero: true } } }} />}
                   <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-gray-200"><th className="text-left py-2 px-3 text-gray-600 font-medium">#</th><th className="text-left py-2 px-3 text-gray-600 font-medium">Model</th><th className="text-right py-2 px-3 text-gray-600 font-medium">Score</th><th className="text-right py-2 px-3 text-gray-600 font-medium">Fit (s)</th><th className="text-right py-2 px-3 text-gray-600 font-medium">Pred (s)</th></tr></thead>
-                  <tbody>{automlResult.leaderboard.map((e, i) => <tr key={e.model} className={`border-b border-gray-100 hover:bg-gray-50 ${i === 0 ? 'bg-amber-50/50' : ''}`}><td className="py-2 px-3 text-gray-500">{i + 1}</td><td className="py-2 px-3 font-medium text-gray-800 flex items-center gap-1.5">{i === 0 && <Trophy className="w-3.5 h-3.5 text-amber-500" />}{e.model}</td><td className="text-right py-2 px-3 font-mono">{e.score_val?.toFixed(4) ?? '—'}</td><td className="text-right py-2 px-3 text-gray-500">{e.fit_time?.toFixed(1) ?? '—'}</td><td className="text-right py-2 px-3 text-gray-500">{e.pred_time_val?.toFixed(3) ?? '—'}</td></tr>)}</tbody></table></div>
+                  <tbody>{automlResult.leaderboard.map((e, i) => <tr key={e.model} className={`border-b border-gray-100 hover:bg-gray-50 ${i === 0 ? 'bg-amber-50/50' : ''}`}><td className="py-2 px-3 text-gray-500">{i + 1}</td><td className="py-2 px-3 font-medium text-gray-800 flex items-center gap-1.5">{i === 0 && <Trophy className="w-3.5 h-3.5 text-amber-500" />}{e.model}</td><td className="text-right py-2 px-3 font-mono">{e.score_val?.toFixed(4) ?? '-'}</td><td className="text-right py-2 px-3 text-gray-500">{e.fit_time?.toFixed(1) ?? '-'}</td><td className="text-right py-2 px-3 text-gray-500">{e.pred_time_val?.toFixed(3) ?? '-'}</td></tr>)}</tbody></table></div>
                 </div>}
               </div>
 
               {/* Feature Importance */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <SecHead title="Feature Importance" k="automlImportance" icon={<BarChart3 className="w-5 h-5 text-emerald-600" />} />
-                {exp.automlImportance && <div className="mt-3">{amlImpChart ? <Bar data={amlImpChart} options={{ indexAxis: 'y' as const, responsive: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `Importance: ${ctx.parsed.x.toFixed(4)}` } } }, scales: { x: { title: { display: true, text: 'Permutation Importance' }, beginAtZero: true } } }} /> : <p className="text-sm text-gray-400">No importance data available.</p>}</div>}
+                {exp.automlImportance && <div className="mt-3">{amlImpChart ? <Bar data={amlImpChart} options={{ indexAxis: 'y' as const, responsive: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `Importance: ${(ctx.parsed.x ?? 0).toFixed(4)}` } } }, scales: { x: { title: { display: true, text: 'Permutation Importance' }, beginAtZero: true } } }} /> : <p className="text-sm text-gray-400">No importance data available.</p>}</div>}
               </div>
 
               {/* Actual vs Predicted */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <SecHead title="Actual vs Predicted" k="automlScatter" icon={<Activity className="w-5 h-5 text-violet-600" />} />
-                {exp.automlScatter && <div className="mt-3">{amlScatterChart ? <div><p className="text-sm text-gray-500 mb-3">50-point sample from the test set. Dashed red line = perfect prediction.</p><Scatter data={amlScatterChart as any} options={{ responsive: true, plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => `Actual: ${ctx.parsed.x.toFixed(2)}, Pred: ${ctx.parsed.y.toFixed(2)}` } } }, scales: { x: { title: { display: true, text: 'Actual' } }, y: { title: { display: true, text: 'Predicted' } } } }} /></div> : <p className="text-sm text-gray-400">No scatter data.</p>}</div>}
+                {exp.automlScatter && <div className="mt-3">{amlScatterChart ? <div><p className="text-sm text-gray-500 mb-3">50-point sample from the test set. Dashed red line = perfect prediction.</p><Scatter data={amlScatterChart as any} options={{ responsive: true, plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => `Actual: ${(ctx.parsed.x ?? 0).toFixed(2)}, Pred: ${(ctx.parsed.y ?? 0).toFixed(2)}` } } }, scales: { x: { title: { display: true, text: 'Actual' } }, y: { title: { display: true, text: 'Predicted' } } } }} /></div> : <p className="text-sm text-gray-400">No scatter data.</p>}</div>}
               </div>
             </>)}
 

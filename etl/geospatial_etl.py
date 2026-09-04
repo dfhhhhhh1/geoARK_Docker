@@ -438,7 +438,11 @@ class GeospatialETL:
                 dstSRS='EPSG:4326',  # Reproject to WGS84
                 layerName=table_name,
                 skipFailures=True,
-                layerCreationOptions=['GEOMETRY_NAME=geom', 'OVERWRITE=YES'],
+                layerCreationOptions=['GEOMETRY_NAME=geom', 'OVERWRITE=YES',
+                                      # DBF width/precision -> NUMERIC(w,p) makes
+                                      # over-wide values abort the whole COPY with
+                                      # 'numeric field overflow'. Use unconstrained.
+                                      'PRECISION=NO'],
                 options=['-nlt', 'PROMOTE_TO_MULTI']  # Promote all geometries to MULTI type
             )
             
@@ -490,6 +494,13 @@ class GeospatialETL:
         Args:
             gdb_path: Path to .gdb directory
         """
+        # NOTE: table names come from the geodatabase's own stem, which for a
+        # nested gdb is an opaque hash
+        # (a17b1857dd754695a02aa51b3248225c_ferrousmetalmines). Tempting as it
+        # is to substitute the wrapper's human name, DO NOT: 29 of the 83
+        # tables in etl/facility_table_map.csv are recorded under these hash
+        # names, and renaming would silently break that mapping.
+        label = gdb_path.stem
         logger.info(f"Processing FileGDB: {gdb_path.name}")
         
         try:
@@ -505,7 +516,7 @@ class GeospatialETL:
             for i in range(layer_count):
                 layer = data_source.GetLayer(i)
                 layer_name = layer.GetName()
-                table_name = self.sanitize_table_name(f"{gdb_path.stem}_{layer_name}")
+                table_name = self.sanitize_table_name(f"{label}_{layer_name}")
                 
                 # Check if already imported
                 if self.table_exists(table_name):
@@ -551,7 +562,11 @@ class GeospatialETL:
                         layerName=table_name,
                         skipFailures=True,
                         layers=[layer_name],
-                        layerCreationOptions=['GEOMETRY_NAME=geom', 'OVERWRITE=YES'],
+                        layerCreationOptions=['GEOMETRY_NAME=geom', 'OVERWRITE=YES',
+                                      # DBF width/precision -> NUMERIC(w,p) makes
+                                      # over-wide values abort the whole COPY with
+                                      # 'numeric field overflow'. Use unconstrained.
+                                      'PRECISION=NO'],
                         options=['-nlt', 'PROMOTE_TO_MULTI']  # Promote all geometries to MULTI type
                     )
                     
@@ -575,7 +590,7 @@ class GeospatialETL:
                     
                     # Store metadata
                     metadata = {
-                        'dataset_name': f"{gdb_path.stem}_{layer_name}",
+                        'dataset_name': f"{label}_{layer_name}",
                         'table_name': table_name,
                         'source_path': str(gdb_path / layer_name),
                         'geometry_type': geom_type,
@@ -703,9 +718,27 @@ class GeospatialETL:
             self.import_shapefile(shp_file)
         
         # Third pass: import FileGDBs
-        for gdb_dir in self.root_directory.rglob("*.gdb"):
-            if gdb_dir.is_dir():
-                self.import_filegdb(gdb_dir)
+        # Some downloads wrap the real geodatabase inside an outer directory
+        # that is also named *.gdb -- e.g.
+        #   Fairgrounds.gdb/efc8ed9f0a734efeba33ccb6622739c9.gdb/
+        # The wrapper is not a valid FileGDB, so pointing GDAL at it fails with
+        # "not recognized as a supported file format". Every one of the 11 .gdb
+        # sources in the HSIP set is shaped this way. rglob finds both levels,
+        # so skip any directory that merely contains another .gdb.
+        seen: set = set()
+        for gdb_dir in sorted(self.root_directory.rglob("*.gdb")):
+            if not gdb_dir.is_dir():
+                continue
+            nested = [d for d in gdb_dir.iterdir()
+                      if d.is_dir() and d.suffix == ".gdb"]
+            if nested:
+                logger.info(f"{gdb_dir.name} wraps a nested geodatabase; "
+                            f"descending into {nested[0].name}")
+                continue          # rglob will reach the inner one on its own
+            if gdb_dir in seen:
+                continue
+            seen.add(gdb_dir)
+            self.import_filegdb(gdb_dir)
         
         # Fourth pass: import CSVs
         for csv_file in self.root_directory.rglob("*.csv"):
@@ -745,17 +778,17 @@ def main():
     """
     Main entry point for the ETL pipeline.
     """
-    # Database configuration
+    # Environment-driven, so this runs in the compose `etl` job against the
+    # `db` service instead of a hardcoded localhost with a literal password.
     DB_CONFIG = {
-        'host': '0.0.0.0',
-        'port': '5432',
-        'database': 'mygisdb',
-        'user': 'geoark',
-        'password': 'password'
+        'host': os.environ.get('PGHOST', 'localhost'),
+        'port': os.environ.get('PGPORT', '5432'),
+        'database': os.environ.get('PGDATABASE', 'mygisdb'),
+        'user': os.environ.get('PGUSER', 'geoark'),
+        'password': os.environ.get('PGPASSWORD', ''),
     }
-    
-    # Root directory containing geospatial data
-    ROOT_DIRECTORY = './'
+
+    ROOT_DIRECTORY = os.environ.get('GEODATA_ROOT', './')
     
     # Validate configuration
     if not Path(ROOT_DIRECTORY).exists():

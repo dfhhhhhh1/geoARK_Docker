@@ -1,4 +1,4 @@
-# GeoARK — reference deployment
+# GeoARK, reference deployment
 #
 # Additive: this does not touch GeoARK/docker-compose.yml. Run from ./deploy:
 #     cp .env.example .env
@@ -40,6 +40,25 @@ services:
       # LLM_MODEL when unset. See docs/AI-PIPELINE.md.
       PLAN_MODEL: ${PLAN_MODEL:-}
       PLAN_MAX_REPAIRS: ${PLAN_MAX_REPAIRS:-2}
+      # --- access control -------------------------------------------------
+      # Unset means NO AUTH: every endpoint open, including the LLM. That is
+      # correct for localhost and wrong for anything reachable; the server logs
+      # a warning at startup when it is unset.
+      ACCESS_CODE: ${ACCESS_CODE:-}
+      # Sessions are signed with this. Unset means a random key per start, so
+      # everyone is signed out on restart -- fine, but set it in production.
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      # Analysis is ~19s of a GPU that does one at a time, so its bucket is
+      # deliberately far smaller than retrieval's.
+      RATE_ANALYZE_BURST: ${RATE_ANALYZE_BURST:-5}
+      RATE_ANALYZE_PER_MIN: ${RATE_ANALYZE_PER_MIN:-6}
+      RATE_SEARCH_BURST: ${RATE_SEARCH_BURST:-30}
+      RATE_SEARCH_PER_MIN: ${RATE_SEARCH_PER_MIN:-60}
+      # Concurrency 1 matches the hardware: two resident models already occupy
+      # 15.8 of 16.4 GB, so there is no room to generate twice at once.
+      ANALYZE_CONCURRENCY: ${ANALYZE_CONCURRENCY:-1}
+      ANALYZE_QUEUE_DEPTH: ${ANALYZE_QUEUE_DEPTH:-20}
       # Retrieval tunables. Defaults are the values the eval suite was tuned on
       # (see eval/README.md); override in .env to run an ablation.
       RRF_K: ${RRF_K:-60}
@@ -86,6 +105,7 @@ services:
       HF_HOME: /models/hf                       # persisted weights (volume below)
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}      # flip to 1 once the cache is warm
       EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-base-en-v1.5}
+      EMBED_INCLUDE_TAGS: ${EMBED_INCLUDE_TAGS:-1}
       EMBED_CACHE_DIR: /data/embeddings         # persisted corpus matrices
       OMP_NUM_THREADS: ${OMP_NUM_THREADS:-4}
     volumes:
@@ -180,12 +200,51 @@ services:
       - ${GEODATA_DIR:-../../geospatial_database_data}:/data:ro
       - ../frontend/public:/app/frontend/public:ro
       - ../backend/geoark_attributes.csv:/app/backend/geoark_attributes.csv:ro
+      # Mount the scripts over the baked-in copy. Without this every edit needs
+      # an image rebuild, and it is easy to run a stale script without noticing.
+      - ../etl:/app/etl:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ------------------------------------------ geospatial ETL (job, not a service)
+  # Loads the HSIP shapefiles and geodatabases into PostGIS. This is the gate
+  # for the other ~47% of the catalog: those attributes cannot resolve to a
+  # physical table until their source data exists. Run with `make load-geo`.
+  etl-geo:
+    build:
+      context: ../etl
+      dockerfile: ../deploy/etl-gdal.Dockerfile
+    profiles: ["etl"]
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-mygisdb}
+      PGUSER: ${POSTGRES_USER:-geoark}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      GEODATA_ROOT: /data
+      # ingest.py tags new columns with the same model the existing catalog was
+      # tagged with. A different tagger produces a catalog that is internally
+      # inconsistent in a way retrieval cannot report.
+      OLLAMA_URL: http://ollama:11434
+      TAG_MODEL: ${TAG_MODEL:-gemma3:4b}
+      CATALOG_CSV: /app/backend/geoark_attributes.csv
+      FEATURE_MAP_CSV: /app/etl/facility_table_map.csv
+    volumes:
+      - ${GEODATA_DIR:-../../geospatial_database_data}:/data:ro
+      # Somewhere to drop a file for ingest, separate from the read-only HSIP
+      # source so an admin upload can never overwrite it.
+      - ${INGEST_DIR:-./incoming}:/incoming:ro
+      # NOT read-only: ingest.py appends catalog rows here. It takes a
+      # timestamped backup before every write.
+      - ../backend/geoark_attributes.csv:/app/backend/geoark_attributes.csv
+      - ../etl:/app/etl                # ingest appends to facility_table_map.csv
     depends_on:
       db:
         condition: service_healthy
 
   # -------------------------------------------------- model-init (run once)
-  # Warms ollama_models. Idempotent — re-running when warm is a no-op.
+  # Warms ollama_models. Idempotent, re-running when warm is a no-op.
   #   docker compose --profile setup run --rm model-init
   model-init:
     image: ollama/ollama:latest

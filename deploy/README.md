@@ -1,4 +1,4 @@
-# `deploy/` — reference deployment
+# `deploy/`, reference deployment
 
 The single definition of how GeoARK is built and run. Fixes the "models reload
 on every start" problem. Design rationale is in
@@ -38,7 +38,7 @@ make models
 ```
 
 Every start after that is warm. `make down && make up` does **not** re-download
-anything — that is the whole point of the named volumes.
+anything: that is the whole point of the named volumes.
 
 Once the caches are warm, set `HF_HUB_OFFLINE=1` in `.env` so the embedder can
 never block on a call to huggingface.co.
@@ -54,7 +54,7 @@ web ──/automl/─► automl                    optional profile
 
 The API no longer spawns Python. At startup it waits for the embedder, pulls the
 whole corpus (vectors + preprocessed text + metadata) in one call, and asserts
-the row count matches the CSV it loaded — a misalignment there would return
+the row count matches the CSV it loaded: a misalignment there would return
 wrong results for every query, so it fails loudly instead.
 
 Per-query, `generateEmbeddings()` is one HTTP round trip to a process that
@@ -64,7 +64,7 @@ already has the model in memory.
 
 - **The embedder owns preprocessing.** `embedding_text()` in
   `embedder/app.py` must stay in lockstep with `createEmbeddingText()` in
-  `backend/unified_search_server.js` — the Node side scores keyword overlap
+  `backend/unified_search_server.js`: the Node side scores keyword overlap
   against text the embedder produced. If you change one, change both.
 - **NLTK WordNet is downloaded at image build time**, not at runtime, so the
   container never reaches for the network mid-request.
@@ -80,8 +80,8 @@ already has the model in memory.
 ## Loading reference data (required for /api/analyze)
 
 Search works on the catalog alone, but the planner needs real tables. This
-builds `attribute_source` — the catalog→column mapping without which no plan can
-execute — plus county geometry and ~10.8M ACS values.
+builds `attribute_source`: the catalog→column mapping without which no plan can
+execute, plus county geometry and ~10.8M ACS values.
 
 Point `GEODATA_DIR` in `.env` at the source geodata (it lives outside the repo),
 then:
