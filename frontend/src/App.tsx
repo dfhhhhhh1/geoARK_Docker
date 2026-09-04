@@ -1,21 +1,19 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Header from './components/Header';
 import SearchBar from './components/SearchBar';
 import SearchResults from './components/SearchResults';
-import MapVisualization from './components/MapVisualization';
 import DatasetModal from './components/DatasetModal';
-import { Dataset, CartItem, BackendSearchResult, UnifiedSearchResponse } from './types';
+import { Dataset, UnifiedSearchResponse } from './types';
 import ReportPage from './components/ReportPage';
+import AnalysisPage from './components/AnalysisPage';
+import LoginGate from './components/LoginGate';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 function MainGeospatialPage({
   searchQuery,
   searchResults,
-  selectedDataset,
   isLoading,
   handleSearch,
-  addToCart,
-  isInCart,
   setSelectedDataset,
   unifiedResponse,
 }: any) {
@@ -88,8 +86,9 @@ function MainGeospatialPage({
 
         {/* Main Content Area*/}
         {searchResults.length > 0 && (
-          <div className="grid lg:grid-cols-2 gap-8 mb-8">
-            {/* Search Results */}
+          <div className="mb-8">
+            {/* Single column now. The right-hand pane held a map that placed
+                every dataset at a hashed, invented coordinate. */}
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-semibold text-slate-800">
@@ -105,17 +104,10 @@ function MainGeospatialPage({
                 </span>
               </div>
               
-              <SearchResults 
+              <SearchResults
                 results={searchResults}
-                onAddToCart={addToCart}
                 onSelectDataset={setSelectedDataset}
-                isInCart={isInCart}
               />
-            </div>
-
-            {/* Map Visualization */}
-            <div className="lg:sticky lg:top-8 h-fit">
-              <MapVisualization datasets={searchResults} />
             </div>
           </div>
         )}
@@ -170,25 +162,12 @@ function MainGeospatialPage({
   );
 }
 
-function MapPage({ datasets }: { datasets: Dataset[] }) {
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <h2 className="text-3xl font-bold text-slate-800 mb-6 text-center">
-        Interactive Map Explorer
-      </h2>
-      <div className="lg:sticky lg:top-8 h-fit">
-        <MapVisualization datasets={datasets} />
-      </div>
-    </div>
-  );
-}
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Dataset[]>([]);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [unifiedResponse, setUnifiedResponse] = useState<UnifiedSearchResponse | null>(null);
 
   // Transform unified search response to Dataset format for backward compatibility
@@ -217,8 +196,7 @@ function App() {
       
       const uniqueTags = [...new Set(allTags.filter((tag: string) => tag && tag.length > 0))];
       const allFields = results.map(r => r.attr_desc);
-      const mockCoordinates = generateMockCoordinates(firstResult.entity_type, datasetId);
-      
+
       const coverage = {
         geographic: firstResult.entity_type === 'STATE' ? 'State' : 
                    firstResult.entity_type === 'COUNTY' ? 'County' : 
@@ -228,24 +206,19 @@ function App() {
 
       // Determine best score from hybrid_score
       const bestScore = Math.max(...results.map(r => r.hybrid_score));
-      
-      // Determine purpose badges
-      const purposes = [...new Set(results.map(r => r.search_purpose))];
 
       return {
         id: datasetId,
-        title: `${firstResult.dataset_clean} — ${firstResult.entity_type.toLowerCase()} level`,
+        title: `${firstResult.dataset_clean}, ${firstResult.entity_type.toLowerCase()} level`,
         description: `Contains ${results.length} variable${results.length > 1 ? 's' : ''}: ${results.map(r => r.attr_desc).slice(0, 3).join('; ')}${results.length > 3 ? ` (+${results.length - 3} more)` : ''}`,
         source: firstResult.dataset_clean || 'Geographic Data Repository',
         fields: allFields,
         tags: uniqueTags,
-        fileSize: estimateFileSize(results.length, firstResult.entity_type),
+        // No fileSize, coordinates, boundingBox, downloadUrl or previewUrl:
+        // every one of those was invented here or pointed at an endpoint that
+        // does not exist. See the note on the Dataset type.
         lastUpdated: 'Recent',
         coverage,
-        coordinates: mockCoordinates.center,
-        boundingBox: mockCoordinates.boundingBox,
-        downloadUrl: `/api/download/${datasetId}`,
-        previewUrl: `/api/preview/${datasetId}`,
         variables: results.map(r => ({
           id: r.attr_id,
           label: r.attr_orig,
@@ -258,41 +231,6 @@ function App() {
     }).sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
   };
 
-  const generateMockCoordinates = (entityType: string, datasetId: string) => {
-    const missouriBounds = {
-      north: 40.61364,
-      south: 35.995683,
-      east: -89.098968,
-      west: -95.774704
-    };
-
-    const hash = datasetId.split('').reduce((a, b) => {
-      a = ((a << 5) - a) + b.charCodeAt(0);
-      return a & a;
-    }, 0);
-    
-    const latOffset = (Math.abs(hash) % 1000) / 1000;
-    const lngOffset = (Math.abs(hash >> 16) % 1000) / 1000;
-    
-    const lat = missouriBounds.south + (missouriBounds.north - missouriBounds.south) * latOffset;
-    const lng = missouriBounds.west + (missouriBounds.east - missouriBounds.west) * lngOffset;
-
-    return {
-      center: { lat, lng },
-      boundingBox: entityType === 'STATE' ? missouriBounds : {
-        north: Math.min(lat + 0.5, missouriBounds.north),
-        south: Math.max(lat - 0.5, missouriBounds.south),
-        east: Math.min(lng + 0.5, missouriBounds.east),
-        west: Math.max(lng - 0.5, missouriBounds.west)
-      }
-    };
-  };
-
-  const estimateFileSize = (variableCount: number, entityType: string) => {
-    const baseSize = entityType === 'STATE' ? 1 : entityType === 'COUNTY' ? 10 : 5;
-    const totalSize = baseSize * variableCount;
-    return totalSize > 1024 ? `${(totalSize / 1024).toFixed(1)} GB` : `${totalSize} MB`;
-  };
 
   // NEW: Use unified search endpoint (POST /api/unified-search)
   const handleSearch = async (query: string) => {
@@ -330,22 +268,11 @@ function App() {
     }
   };
 
-  const addToCart = (dataset: Dataset) => {
-    const existingItem = cartItems.find(item => item.dataset.id === dataset.id);
-    if (!existingItem) {
-      setCartItems(prev => [...prev, { dataset, quantity: 1, addedAt: new Date() }]);
-    }
-  };
 
-  const removeFromCart = (datasetId: string) => {
-    setCartItems(prev => prev.filter(item => item.dataset.id !== datasetId));
-  };
 
-  const isInCart = (datasetId: string) => {
-    return cartItems.some(item => item.dataset.id === datasetId);
-  };
 
   return (
+    <LoginGate>
     <BrowserRouter>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         
@@ -356,55 +283,50 @@ function App() {
         </div>
 
         <div className="relative z-10">
-          
-          <Header 
-            cartItemCount={cartItems.length} 
-            cartItems={cartItems}
-            onRemoveFromCart={removeFromCart}
-          />
-          
-          <Routes>
-            <Route path="/" element={<Navigate replace to="/data-search" />} />
 
-            <Route 
-              path="/data-search" 
+          <Header />
+
+          <Routes>
+            {/* Analysis is the front door: it is the thing that answers a
+                question. Browsing the catalog is how you find out what can be
+                asked about. */}
+            <Route path="/" element={<Navigate replace to="/analysis" />} />
+
+            <Route path="/analysis" element={<AnalysisPage />} />
+
+            <Route
+              path="/data-search"
               element={
                 <MainGeospatialPage
                   searchQuery={searchQuery}
                   searchResults={searchResults}
-                  selectedDataset={selectedDataset}
                   isLoading={isLoading}
                   handleSearch={handleSearch}
-                  addToCart={addToCart}
-                  isInCart={isInCart}
                   setSelectedDataset={setSelectedDataset}
                   unifiedResponse={unifiedResponse}
                 />
-              } 
-            />
-            <Route 
-              path="/map-explorer" 
-              element={<MapPage datasets={searchResults} />} 
+              }
             />
 
-            <Route 
-              path="/csv-report" 
-              element={<ReportPage />} 
-            />
+            <Route path="/csv-report" element={<ReportPage />} />
+
+            {/* /map-explorer is deliberately absent: it plotted datasets at
+                coordinates derived from a hash of their id. Anything still
+                linking to it lands on the analysis page rather than a blank. */}
+            <Route path="*" element={<Navigate replace to="/analysis" />} />
           </Routes>
-          
+
           {selectedDataset && (
-            <DatasetModal 
+            <DatasetModal
               dataset={selectedDataset}
               onClose={() => setSelectedDataset(null)}
-              onAddToCart={addToCart}
-              isInCart={isInCart(selectedDataset.id)}
             />
           )}
 
         </div>
       </div>
     </BrowserRouter>
+    </LoginGate>
   );
 }
 

@@ -1,7 +1,7 @@
 # Runbook: standing GeoARK up on a new machine
 
 From a fresh clone to a working `/api/analyze`. Written for a machine with more
-resources than the one this was developed on — notes call out where extra RAM or
+resources than the one this was developed on, notes call out where extra RAM or
 a GPU changes what you should do.
 
 ---
@@ -14,7 +14,7 @@ a GPU changes what you should do.
 | Disk | ~60 GB (3.5 GB source geodata, ~9 GB Postgres, ~4 GB LLM, ~2 GB images) |
 | RAM | 16 GB comfortable. Under that, see the `OLLAMA_KEEP_ALIVE` note in step 3 |
 | GPU (optional) | NVIDIA + Container Toolkit unlocks `make up-gpu` and a larger planner |
-| **The source geodata** | **Not in the repo.** ~3.5 GB, copied separately — see step 2 |
+| **The source geodata** | **Not in the repo.** ~3.5 GB, copied separately, see step 2 |
 
 ## 1. Clone and configure
 
@@ -45,7 +45,7 @@ OMP_NUM_THREADS=16
 
 16 GB of VRAM holds `qwen3:14b` (~9 GB at q4) and `gemma3:4b` (~3.3 GB)
 resident together, so the small router and the large planner both stay warm.
-`KEEP_ALIVE=-1` is right here — the 8 GB constraint that forced `30m` does not
+`KEEP_ALIVE=-1` is right here: the 8 GB constraint that forced `30m` does not
 apply. `OMP_NUM_THREADS=16` leaves headroom on the 14900's 24 cores.
 
 Use `make up-gpu`, then `make reindex` once: moving the embedder to CUDA changes
@@ -69,7 +69,7 @@ rsync -av --progress ~/Documents/2026Fall/geoARK/geospatial_database_data/ user@
 
 Then set `GEODATA_DIR=/srv/geoark_data` in `deploy/.env`.
 
-Without this, `make up` still works and search still works — only `/api/analyze`
+Without this, `make up` still works and search still works, only `/api/analyze`
 is limited, because nothing resolves to a physical table.
 
 ## 3. Start the stack
@@ -79,7 +79,7 @@ cd deploy && make up && make models
 ```
 
 On an NVIDIA host use `make up-gpu` instead of `make up`, then `make reindex`
-once — moving the embedder to a GPU changes the vector space, and the drift
+once, moving the embedder to a GPU changes the vector space, and the drift
 check will tell you so.
 
 Under 16 GB RAM, add `OLLAMA_KEEP_ALIVE=30m` to `.env`. Measured on an 8 GB
@@ -90,13 +90,13 @@ model runner.
 make health
 ```
 
-## 4. Load the data — order matters
+## 4. Load the data, order matters
 
 ```bash
 make load-geo
 ```
 
-Shapefiles and geodatabases into PostGIS. **Slow** — 85 sources, ~70 minutes on
+Shapefiles and geodatabases into PostGIS. **Slow**, 85 sources, ~70 minutes on
 a 12-core laptop; much faster with more cores and a better disk. Idempotent, so
 it skips tables that already exist and is safe to re-run.
 
@@ -104,7 +104,7 @@ it skips tables that already exist and is safe to re-run.
 make load-reference
 ```
 
-County geometry, ~10.8 M ACS values, and `attribute_source` — the mapping from a
+County geometry, ~10.8 M ACS values, and `attribute_source`: the mapping from a
 catalog attribute to the physical column holding its values. Takes a few minutes.
 
 Reversing these leaves facility attributes unlinked, because `load-reference`
@@ -121,11 +121,40 @@ Check what you got:
 curl -s localhost:8080/api/health | jq '.resolvable_attributes, .corpus_stale'
 ```
 
-Reference numbers from the development machine: **5,232 of 6,860 attributes
-(76.3%)** — 3,596 ACS plus 1,636 facility, across 61 of 83 facility tables. The
-22 missing tables are imports that failed before the nested-geodatabase and
-`PRECISION=NO` fixes existed; re-running `make load-geo` on a clean database
-should recover most of them.
+Reference numbers: **4,893 of 6,860 attributes (71.3%)**, 3,257 ACS plus 1,636
+facility, across 61 of 83 facility tables.
+
+This read 5,232 until 2026-09-01. The ACS half was derived from `acs_variables`,
+the codes the source CSV *declares*, and 339 of those attributes pointed at
+codes with no row in `acs_county_values`. They compiled, ran, and returned
+nothing. Resolvability now means "has values". To rebuild the mapping after a
+change like that, without re-importing the 10.8M ACS rows:
+
+```bash
+docker compose --profile etl run --rm etl python /app/etl/load_reference_data.py \
+  --acs-csv /data/fips_merged_ACS_data.csv --relink-only
+```
+
+### The 22 missing facility tables are a SOURCE DATA gap, not an ETL failure
+
+This page previously said they were imports that failed before the
+nested-geodatabase and `PRECISION=NO` fixes, and that re-running `make load-geo`
+on a clean database should recover most of them. That is wrong, and acting on it
+costs ~70 minutes for no change. Checked 2026-08-31:
+
+- `geospatial_database_data.zip` contains **101 layers, ending alphabetically at
+  `Oil_and_Natural_Gas_Wells`**. The extracted directory contains the same 101.
+- All 22 missing datasets sort after that point: Petroleum Ports, Power Plants,
+  Prison Boundaries, Private/Public Schools, Public Transit, Rail Company, Road
+  Tunnels, Solid Waste Landfills, Urgent Care, Veterans Health, Uranium, plus
+  DOE Petroleum Reserves and Generating Units.
+- No prefix-matching table exists in the database under any other name, so this
+  is not a naming mismatch either.
+
+The archive was truncated at the source. Recovering these needs a fresh copy of
+the HSIP data; nothing on the machine can produce them. Until then, queries about
+roads, rail, schools, power plants, prisons or transit have no data to hit, and
+the planner will correctly say so.
 
 ## 5. Try it
 
@@ -141,23 +170,43 @@ ssh -N -L 8080:localhost:8080 you@newmachine
 
 ### The thing to actually test on a bigger machine
 
-Plan quality is the current ceiling, and it is a model-capacity problem. With
-`gemma3:4b`, plans are well-formed, grounded and executable but often
-semantically wrong — 62.5% of hard queries produce a valid executing plan.
+Set `PLAN_MODEL=qwen3:14b` in `.env`, then, note `up -d api` alone will NOT
+pick this up, the container's image is unchanged:
 
 ```bash
-docker compose exec ollama ollama pull qwen3:14b
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --force-recreate api
 ```
 
-Set `PLAN_MODEL=qwen3:14b` in `.env`, `docker compose up -d api`, then measure:
+Measure with **both** instruments. The second is the one that means anything:
 
 ```bash
-python3 eval/run.py --endpoint analyze --suite multi_concept --compare eval/phase3-analyze.json
+python3 eval/run.py --endpoint analyze --suite multi_concept --compare eval/adaptive-ops.json
+python3 eval/plan_probe.py --compare eval/plan-D-callllm-fixed.json
 ```
 
-This has **never been tested** — the development machine could not hold a model
-that size. It is the most valuable single experiment available, and there is now
-a specific reason to expect it to matter.
+**Compare against `adaptive-ops.json`, not `phase3-analyze.json`.** This page
+said `phase3-analyze.json` for a while and that was wrong: it is the obsolete
+ACS-only 62.5% baseline from before facility coverage existed. The three stored
+analyze runs map onto the table below, `after-guards.json` is the 12.5% row,
+`adaptive-ops.json` the 25.0% row.
+
+### What happened when it was finally run (2026-08-31, RTX 4080 Super)
+
+The framing above, "plan quality is a model-capacity problem", did not
+survive contact with the hardware. `qwen3:14b` took plan validity from 25% to
+100%, which looked like a decisive confirmation and was not one: the planner
+was not reading the question at all. `callLLM` accepted a `userPrompt` and
+never sent it, so both arms were reciting the prompt's worked examples, and the
+A/B measured which model copies an in-context example more faithfully.
+
+See the correction in CLAUDE.md. Two lessons worth keeping:
+
+- **`plan_validity` cannot see this class of failure** and never could. Use
+  `eval/plan_probe.py`; `op_diversity` was 0.12: one op sequence across eight
+  different questions, while plan validity read 87.5%.
+- **The capacity question is open again.** It has still not been tested on a
+  planner that can actually see the question, because the bug predates every
+  measurement in this file.
 
 ### Why the planner number moved, and what it predicts
 
@@ -168,7 +217,7 @@ a specific reason to expect it to matter.
 | + facility data, ops narrowed per query | 7 or 8 | 25.0% |
 
 Tripling executable coverage (52.4% → 76.3%) **halved** plan validity. The task
-got harder — more candidate types, a new op, a bigger decision space — and a 4B
+got harder, more candidate types, a new op, a bigger decision space, and a 4B
 model degraded sharply. Narrowing the op set per query recovered half of that
 loss, which is itself evidence that decision-space size is what hurts.
 
@@ -177,6 +226,78 @@ capacity, a 14B planner should recover the 62.5% and go past it. If it does
 not, the problem is the prompt or the tool surface, and no amount of GPU will
 fix it.** Either answer is worth having, and it decides whether Phase 4 is
 sensible to start.
+
+## 5a. Adding data
+
+Drop a file in `deploy/incoming/`, then:
+
+```bash
+make inspect FILE=/incoming/hydrants.geojson NAME="Fire Hydrants"   # writes nothing
+make ingest  FILE=/incoming/hydrants.geojson NAME="Fire Hydrants"
+```
+
+`inspect` reports the driver, layer, geometry type, CRS, feature count and which
+columns become searchable attributes. `ingest` loads via ogr2ogr reprojected to
+4326, builds the GIST index, **ANALYZEs** (without which `reltuples` stays -1 and
+the layer reads as empty to anything checking coverage), tags every column, and
+appends to both catalog CSVs with a backup, then relinks and re-embeds.
+
+Vector only: `.shp .geojson .gpkg .gdb .kml`, and CSVs with lat/lon. Rasters are
+refused with the reason. `--layer` selects one layer from a multi-layer source.
+
+**It stops if the tagger is unreachable.** Tags are worth 41.7pp of known-item
+recall, and a dataset loaded without them is present but measurably hard to
+find, with nothing visible to say why. `--no-tags` exists and states the cost.
+
+### Named boundaries
+
+TIGER geodatabases are different: they are boundaries to filter BY, not datasets
+to search. They go in `place_geom`, not the catalog.
+
+```bash
+make boundaries-dry     # what it would load
+make boundaries         # 70,012 places, ZCTAs, metros and urban areas
+```
+
+That enables `filter_place`, so "counties in the Chicago metro area" and
+"counties in ZIP code 63101" become answerable. TIGER `.gdb` archives unzip to a
+folder containing a folder of the same name; the loader handles that, but a bare
+`ogrinfo` on the outer one fails with "unable to open".
+
+## 5b. Before anyone else can reach it
+
+Three things gate exposure beyond localhost. All are off by default, because
+defaulting them on breaks the eval harness and a broken dev loop is how people
+end up disabling security permanently.
+
+```bash
+ACCESS_CODE=some-long-code       # comma-separated for several
+SESSION_SECRET=$(openssl rand -hex 32)
+```
+
+- **Auth.** With `ACCESS_CODE` set, every API route except `/api/health`,
+  `/api/session`, `/api/login` and `/api/logout` requires a session cookie.
+  The cookie is HttpOnly + SameSite=strict and signed with HMAC-SHA256;
+  `document.cookie` cannot read it. A cookie rather than a bearer token because
+  `/api/analyze/stream` is an `EventSource`, and EventSource cannot set headers:
+  a token in the querystring would land in nginx logs and browser history.
+  Without `SESSION_SECRET` a random key is generated per start, so a restart
+  signs everyone out.
+- **Rate limits**, per session when signed in and per IP otherwise. Two tiers:
+  retrieval is ~30 ms of CPU, an analysis is ~19 s of a GPU that does one at a
+  time. Login has its own bucket so the code cannot be brute-forced.
+- **A queue.** Analyses run one at a time and the stream emits a `queued` event
+  with your position, so a 76 s wait reads as "4th in line" instead of a hang.
+  A client that navigates away is dropped before its job starts. When more than
+  `ANALYZE_QUEUE_DEPTH` are waiting, new requests get 503 with `Retry-After`.
+
+Check it took effect:
+
+```bash
+curl -s localhost:8080/api/health | jq '.auth_required, .queue'
+```
+
+`make up` prints the state at startup, including a warning when auth is off.
 
 ## 6. Routine operations
 
@@ -190,6 +311,7 @@ sensible to start.
 | SQL shell | `make psql` |
 | Retrieval regression check | `python3 eval/run.py --compare eval/phase2-search.json` |
 | Ranking-sensitive check | `python3 eval/run.py --suite-file eval/known_item.yaml` |
+| **Planner correctness check** | `python3 eval/plan_probe.py --compare eval/plan-E-geospatial-ops.json` |
 | Stop (volumes survive) | `make down` |
 
 `make clean` deletes volumes and re-downloads everything. It asks first.
@@ -203,7 +325,7 @@ sensible to start.
   makes every subsequent row insert log the same "relation does not exist".
   Count distinct messages, not lines.
 - **`/api/analyze` returns 422** when retrieval finds nothing executable. That
-  is a coverage answer, not a crash — the message names the cause.
+  is a coverage answer, not a crash: the message names the cause.
 - **The API caches vectors at startup.** If you rebuild the embedder, check
   `corpus_stale` on `/api/health` and `POST /api/reload-corpus`. `docker compose
   up -d api` will NOT recreate a container whose image is unchanged.

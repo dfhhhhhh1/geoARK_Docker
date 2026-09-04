@@ -48,7 +48,7 @@ MODEL_NAME = os.environ.get("EMBED_MODEL", "BAAI/bge-base-en-v1.5")
 CACHE_DIR = Path(os.environ.get("EMBED_CACHE_DIR", "/data/embeddings"))
 CSV_PATH = Path(os.environ.get("CATALOG_CSV", "/data/geoark_attributes.csv"))
 
-# BGE wants this prefix on the query side only. Keeps parity with the behaviour
+# BGE wants this prefix on the query side only. Keeps parity with the behavior
 # in unified_search_server.js.
 QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 
@@ -77,7 +77,7 @@ _corpus: dict[str, object] = {"matrix": None, "meta": None, "processed": None, "
 # The cache key covers the CSV, the model NAME, and the preprocessing version.
 # It cannot see the things that silently change vectors underneath a stable
 # name: a different sentence-transformers or torch build, CPU vs GPU kernels,
-# a re-uploaded model revision, a different accelerator's float behaviour.
+# a re-uploaded model revision, a different accelerator's float behavior.
 #
 # Any of those produces a DIFFERENT VECTOR SPACE while every version string
 # still matches -- and the failure is silent, because search keeps returning

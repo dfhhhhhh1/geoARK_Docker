@@ -3,7 +3,7 @@
  *
  * Ollama accepts a JSON Schema as the `format` field and constrains token
  * sampling to it, which makes invalid output *unrepresentable* rather than
- * merely discouraged. That replaces the previous approach — asking politely for
+ * merely discouraged. That replaces the previous approach, asking politely for
  * JSON in the prompt, then digging it back out with
  * `response.match(/\{[\s\S]*\}/)` and hoping.
  *
@@ -18,6 +18,8 @@
  */
 
 // Query decomposition: split a question into searchable concepts.
+const { AREA_NAMES } = require("./states");
+
 const DECOMPOSITION_SCHEMA = {
   type: "object",
   properties: {
@@ -110,7 +112,13 @@ const PLAN_SCHEMA = {
             enum: [
               "load",          // pull one attribute's values by attr_id
               "count_features",// count a facility dataset's features per county
+              "count_near",    // count features within N miles of another dataset
+              "nearest_distance", // miles from each county to the nearest feature
+              "select_features",  // the individual locations themselves, mapped
               "filter_attr",   // keep rows matching a numeric comparison
+              "filter_area",   // keep only counties in named states or regions
+              "filter_place",  // keep only counties inside a named city/ZIP/metro
+              "per_area",      // value per square mile of county land area
               "normalize",     // numerator / denominator * scale
               "aggregate",     // mean | sum | count | min | max, optional group_by
               "rank",          // order and take the top/bottom n
@@ -136,7 +144,68 @@ const PLAN_SCHEMA = {
           group_by: { type: "string", enum: ["state", "none"] },
           direction: { type: "string", enum: ["asc", "desc"] },
           limit: { type: "integer" },
-          scale: { type: "number", description: "Multiplier for normalize, e.g. 100 for a percentage" }
+          scale: { type: "number", description: "Multiplier for normalize, e.g. 100 for a percentage" },
+          // The second dataset in a proximity question: for "hospitals within
+          // 10 miles of transmission lines", attr_id is hospitals and
+          // near_attr_id is transmission lines. Both are reference labels.
+          near_attr_id: {
+            type: "string",
+            description: 'Reference label of the dataset to measure proximity TO, ' +
+                         'e.g. "a5". Required for op=count_near.'
+          },
+          miles: { type: "number", description: "Radius in miles for op=count_near" },
+          // Enumerated so the decoder cannot invent a place that has no FIPS
+          // code. Regions expand to their member states in the compiler.
+          states: {
+            type: "array",
+            items: { type: "string", enum: AREA_NAMES },
+            description: "States and/or regions to keep, for op=filter_area " +
+                         "and (optionally) op=select_features"
+          },
+          // What KIND of named boundary, for op=filter_place. Enumerated
+          // because place_geom holds exactly these four and asking for a fifth
+          // would silently match nothing.
+          place_kind: {
+            type: "string",
+            enum: ["place", "zcta", "cbsa", "urban"],
+            description: 'place = city/town, zcta = ZIP code, cbsa = metro area, ' +
+                         'urban = urbanized area. Required for op=filter_place.'
+          },
+          // Free text: 32,642 place names cannot go in an enum, and a ZIP is a
+          // number. Validated by shape against place_kind instead.
+          place_name: {
+            type: "string",
+            description: 'The boundary name, e.g. "Springfield" or "63101". ' +
+                         'Required for op=filter_place. Set "states" too when the ' +
+                         'question names one: 22 places are called Springfield.'
+          },
+          // Free text, not an enum: there is no city boundary layer to
+          // enumerate from, so this is matched against the layer's own `city`
+          // column when it has one.
+          city: {
+            type: "string",
+            description: "Restrict op=select_features to one city by name, e.g. " +
+                         '"Springfield". Leave out unless the question names a city.'
+          },
+          // Which ones, as opposed to where. Values are not enumerated in the
+          // schema because they differ per dataset -- the candidate list names
+          // the ones each layer actually holds, and the validator checks
+          // against those.
+          attribute_filters: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                column: { type: "string", enum: ["type", "status", "owner"] },
+                value: { type: "string" }
+              },
+              required: ["column", "value"],
+              additionalProperties: false
+            },
+            description: "Keep only features whose column has this value, e.g. " +
+                         '[{"column":"type","value":"CRITICAL ACCESS"}]. Use only ' +
+                         "the values listed for that dataset in AVAILABLE ATTRIBUTES."
+          }
         },
         // "inputs" is required on purpose: constrained decoding lets a model
         // omit optional fields, and a 4B model omits this one every time --
@@ -163,15 +232,51 @@ const PLAN_SCHEMA = {
  * for facility data dropped plan validity from 62.5% to 12.5% -- including on
  * ACS-only queries where the op is irrelevant and simply cannot apply.
  *
- * So show only what applies: count_features appears only when a facility
- * dataset is actually among the candidates.
+ * So show only what applies. This matters more now than it did with eight ops:
+ * the geospatial additions take the full surface to twelve, and offering all of
+ * them unconditionally would repeat the 12.5% mistake at a larger scale.
+ *
+ *   count_features    needs one facility dataset among the candidates
+ *   nearest_distance  same
+ *   count_near        needs TWO -- it measures one against the other, so with a
+ *                     single facility dataset the op is unusable by construction
+ *   filter_area       needs the question to actually name a place
  */
-function planSchemaFor({ hasFeatureTables = false } = {}) {
+function planSchemaFor({ hasFeatureTables = false, featureTableCount = 0,
+                         mentionsArea = false, wantsLocations = false,
+                         hasFilterableValues = false,
+                         hasPlaceBoundaries = false } = {}) {
   const schema = JSON.parse(JSON.stringify(PLAN_SCHEMA));
   const ops = schema.properties.steps.items.properties.op;
-  if (!hasFeatureTables) {
-    ops.enum = ops.enum.filter(op => op !== "count_features");
+  const drop = new Set();
+
+  // Same narrowing rule applied to a FIELD rather than an op. Offered
+  // unconditionally, attribute_filters was added to datasets that have none:
+  // "fire stations in Springfield, Missouri" came back with a `status` filter
+  // on a layer with no status column, failed validation, and -- at temperature
+  // 0.1 -- the repair loop re-emitted the identical plan all three attempts.
+  // A field the model cannot use correctly is a field it should not be shown.
+  if (!hasFilterableValues) {
+    delete schema.properties.steps.items.properties.attribute_filters;
   }
+
+  if (!hasFeatureTables) {
+    drop.add("count_features");
+    drop.add("nearest_distance");
+    drop.add("select_features");
+  }
+  if (featureTableCount < 2) drop.add("count_near");
+  if (!mentionsArea) drop.add("filter_area");
+  // Needs both a place in the question AND boundaries loaded. An install
+  // without place_geom would otherwise be offered an op that can only fail.
+  if (!mentionsArea || !hasPlaceBoundaries) drop.add("filter_place");
+  // select_features returns a different SHAPE of answer -- individual locations
+  // rather than a per-county number. Offering it to "how many hospitals per
+  // county" invites the wrong one, so it appears only when the question is
+  // actually asking where things are.
+  if (!wantsLocations) drop.add("select_features");
+
+  ops.enum = ops.enum.filter(op => !drop.has(op));
   return schema;
 }
 

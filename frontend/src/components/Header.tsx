@@ -1,99 +1,78 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ShoppingCart, Globe, User, BarChart2, Map } from 'lucide-react';
-import ShoppingCartModal from './ShoppingCartModal';
-import { CartItem } from '../types';
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { Globe, Sparkles, Search, BarChart2 } from 'lucide-react';
 
-interface HeaderProps {
-  cartItemCount: number;
-  cartItems: CartItem[];
-  onRemoveFromCart: (datasetId: string) => void;
-}
+/**
+ * Site navigation.
+ *
+ * Ordered by what the product actually is: Analysis is the front door, because
+ * it is the thing that answers a question. Catalog search is a way of finding
+ * out what data exists, and the CSV tool is a separate utility that happens to
+ * live here.
+ *
+ * The data cart is gone. Its checkout opened /api/download, which the backend
+ * has never implemented, so the whole flow ended in a 404 after asking people
+ * to collect things. Map Explorer is gone for a worse reason: it plotted
+ * datasets at coordinates derived from a hash of their id, inside a hardcoded
+ * Missouri bounding box. Those positions were invented, and shown next to real
+ * ones.
+ */
+const NAV = [
+  { to: '/analysis', label: 'Analysis', icon: Sparkles,
+    hint: 'Ask a question, get a map' },
+  { to: '/data-search', label: 'Browse data', icon: Search,
+    hint: 'What is in the catalog' },
+  { to: '/csv-report', label: 'CSV tools', icon: BarChart2,
+    hint: 'Analyze your own file' },
+];
 
-const Header: React.FC<HeaderProps> = ({ cartItemCount, cartItems, onRemoveFromCart }) => {
-  const [isCartOpen, setIsCartOpen] = useState(false);
+const Header: React.FC = () => {
+  const { pathname } = useLocation();
 
   return (
-    <>
-      <header className="bg-white shadow-sm border-b border-slate-200">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg flex items-center justify-center">
-                <Globe className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-800">GeoARK</h1>
-                <p className="text-xs text-slate-500">Geospatial Data Platform</p>
-              </div>
+    <header className="bg-white shadow-sm border-b border-slate-200">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          <Link to="/analysis" className="flex items-center space-x-3 group">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg
+                            flex items-center justify-center">
+              <Globe className="w-6 h-6 text-white" />
             </div>
-
-            {/* Navigation */}
-            <nav className="hidden md:flex items-center space-x-8">
-            <Link 
-                to="/data-search" 
-                className="text-slate-600 hover:text-slate-800 transition-colors font-medium"
-              >
-                Data Search
-              </Link>
-              
-              <Link 
-                to="/map-explorer" 
-                className="flex items-center space-x-2 text-slate-600 hover:text-blue-600 transition-colors font-medium"
-              >
-                <Map className="w-4 h-4" />
-                <span>Map Explorer</span>
-              </Link>
-              {/* 3. Add the new link to the CSV Report Page */}
-              <Link 
-                to="/csv-report" 
-                className="flex items-center space-x-2 text-slate-600 hover:text-blue-600 transition-colors font-medium"
-              >
-                <BarChart2 className="w-4 h-4" />
-                <span>CSV Report Tool</span>
-              </Link>
-              <a href="#" className="text-slate-600 hover:text-slate-800 transition-colors">Tools</a>
-              <a href="#" className="text-slate-600 hover:text-slate-800 transition-colors">Help</a>
-            </nav>
-
-            {/* User Actions */}
-            <div className="flex items-center space-x-4">
-              {/* Shopping Cart */}
-              <button
-                onClick={() => setIsCartOpen(true)}
-                className="relative p-2 text-slate-600 hover:text-slate-800 transition-colors group"
-              >
-                <ShoppingCart className="w-6 h-6" />
-                {cartItemCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
-                    {cartItemCount}
-                  </span>
-                )}
-                <span className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full bg-slate-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                  Data Cart ({cartItemCount})
-                </span>
-              </button>
-
-              {/* User Profile */}
-              <button className="flex items-center space-x-2 p-2 text-slate-600 hover:text-slate-800 transition-colors">
-                <User className="w-5 h-5" />
-                <span className="hidden sm:inline text-sm">Account</span>
-              </button>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800 group-hover:text-blue-700
+                             transition-colors">
+                GeoARK
+              </h1>
+              <p className="text-xs text-slate-500">Geospatial Data Platform</p>
             </div>
-          </div>
+          </Link>
+
+          <nav className="flex items-center gap-1">
+            {NAV.map(({ to, label, icon: Icon, hint }) => {
+              const active = pathname === to;
+              return (
+                <Link
+                  key={to}
+                  to={to}
+                  title={hint}
+                  aria-current={active ? 'page' : undefined}
+                  className={
+                    'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ' +
+                    'transition-colors ' +
+                    (active
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50')
+                  }
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{label}</span>
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-      </header>
-
-      {/* Shopping Cart Modal */}
-      {isCartOpen && (
-        <ShoppingCartModal
-          cartItems={cartItems}
-          onClose={() => setIsCartOpen(false)}
-          onRemoveFromCart={onRemoveFromCart}
-        />
-      )}
-    </>
+      </div>
+    </header>
   );
 };
 

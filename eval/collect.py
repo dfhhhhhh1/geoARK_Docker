@@ -4,7 +4,7 @@ Collect a portable results bundle from a running stack.
 
 Solves the "I ran it on the other machine, now what?" problem: everything needed
 to judge a configuration lands in ONE directory you can commit, zip, or paste
-back — the numbers, and the environment that produced them.
+back: the numbers, and the environment that produced them.
 
 Recording the environment is the point. A number without the model, hardware,
 and coverage that produced it cannot be compared against anything.
@@ -146,12 +146,12 @@ def print_assessment(bundle: dict) -> None:
     print(f"{BOLD}{'=' * 68}{OFF}")
     for label, val, thr, status, why in rows:
         shown = "     -" if val is None else f"{val:6.1%}"
-        colour = GRN if status == "pass" else (YEL if status == "not measured" else RED)
-        print(f"  {colour}{status:12s}{OFF} {label:22s} {shown}  (need {thr:.0%})")
+        color = GRN if status == "pass" else (YEL if status == "not measured" else RED)
+        print(f"  {color}{status:12s}{OFF} {label:22s} {shown}  (need {thr:.0%})")
         print(f"  {DIM}{'':12s} {why}{OFF}")
-    verdict = (f"{GRN}READY{OFF} — the planner is reliable enough that UI work on top of it pays off"
+    verdict = (f"{GRN}READY{OFF}: the planner is reliable enough that UI work on top of it pays off"
                if ready else
-               f"{YEL}NOT YET{OFF} — raise the failing metric before building UI on top of it")
+               f"{YEL}NOT YET{OFF}, raise the failing metric before building UI on top of it")
     print(f"\n  verdict: {verdict}")
 
 
@@ -164,14 +164,14 @@ def compare(a: Path, b: Path) -> None:
             print(f"  {label:22s} {DIM}not comparable{OFF}")
             continue
         d = vb - va
-        colour = GRN if d > 0.001 else (RED if d < -0.001 else DIM)
-        print(f"  {label:22s} {va:6.1%} -> {vb:6.1%}   {colour}{d:+.1%}{OFF}")
+        color = GRN if d > 0.001 else (RED if d < -0.001 else DIM)
+        print(f"  {label:22s} {va:6.1%} -> {vb:6.1%}   {color}{d:+.1%}{OFF}")
     for label, path in (("planner latency p50", "planner.latency_p50"),
                         ("retrieval latency p50", "retrieval.latency_p50")):
         va, vb = dig(ba["results"], path), dig(bb["results"], path)
         if va and vb:
-            colour = GRN if vb < va else RED
-            print(f"  {label:22s} {va:6.2f}s -> {vb:6.2f}s   {colour}{vb-va:+.2f}s{OFF}")
+            color = GRN if vb < va else RED
+            print(f"  {label:22s} {va:6.2f}s -> {vb:6.2f}s   {color}{vb-va:+.2f}s{OFF}")
     print(f"\n{DIM}  A: {ba['environment'].get('gpu') or 'no GPU'} | "
           f"plan_model={dig(ba, 'environment.api_health.plan_model')}{OFF}")
     print(f"{DIM}  B: {bb['environment'].get('gpu') or 'no GPU'} | "
@@ -203,7 +203,7 @@ def main() -> int:
     if "error" in env["api_health"]:
         print(f"{RED}cannot reach {args.base}: {env['api_health']['error']}{OFF}")
         return 2
-    print(f"  api ok — {env['api_health'].get('resolvable_attributes')} resolvable attributes, "
+    print(f"  api ok, {env['api_health'].get('resolvable_attributes')} resolvable attributes, "
           f"plan_model={env['api_health'].get('plan_model')}")
     if env.get("gpu"):
         print(f"  gpu: {env['gpu']}")
@@ -226,7 +226,7 @@ def main() -> int:
         results["absent"] = r.get("absent")
 
     if not args.quick:
-        print(f"\n{BOLD}planner (slow — one LLM call per query){OFF}")
+        print(f"\n{BOLD}planner (slow: one LLM call per query){OFF}")
         r = run_suite(["--base", args.base, "--endpoint", "analyze",
                        "--suite", "multi_concept"], d / "planner.json")
         if r:

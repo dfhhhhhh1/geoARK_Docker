@@ -4,7 +4,7 @@
 
 GeoARK lets a user type a question like *"show me poverty rates normalized by
 population for counties near Superfund sites"* and get back the relevant
-variables, an analysis plan, and a map/report — without writing SQL or PostGIS
+variables, an analysis plan, and a map/report, without writing SQL or PostGIS
 by hand.
 
 Everything runs on local infrastructure. No query text or dataset content
@@ -21,7 +21,7 @@ Server (Docker, the normal path):
 cd deploy && cp .env.example .env && make up && make models
 ```
 
-Then open `http://localhost:8080` — or tunnel it from your laptop:
+Then open `http://localhost:8080`, or tunnel it from your laptop:
 
 ```bash
 ssh -N -L 8080:localhost:8080 you@server
@@ -32,7 +32,7 @@ after that is warm because both live on Docker volumes. See
 [deploy/README.md](deploy/README.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 Local development without Docker needs Ollama, Postgres/PostGIS, the embedder,
-and the two app processes — [docs/DEPLOYMENT.md §7](docs/DEPLOYMENT.md) has the steps.
+and the two app processes, [docs/DEPLOYMENT.md §7](docs/DEPLOYMENT.md) has the steps.
 
 ## Layout
 
@@ -41,7 +41,7 @@ and the two app processes — [docs/DEPLOYMENT.md §7](docs/DEPLOYMENT.md) has t
 | [`backend/`](backend) | Node/Express API. `unified_search_server.js` is the entrypoint |
 | [`frontend/`](frontend) | React 19 + Vite + Tailwind SPA, served by nginx in production |
 | [`deploy/`](deploy) | The single source of truth for how this is built and run |
-| [`etl/`](etl) | `geospatial_etl.py` — shapefile/GDB/CSV → PostGIS ingestion |
+| [`etl/`](etl) | `geospatial_etl.py`, shapefile/GDB/CSV → PostGIS ingestion |
 | [`docs/`](docs) | Architecture, deployment, AI pipeline design, roadmap |
 | [`backend/legacy/`](backend/legacy) | Superseded servers kept for reference only |
 
@@ -54,17 +54,17 @@ and the two app processes — [docs/DEPLOYMENT.md §7](docs/DEPLOYMENT.md) has t
 | `embedder` | 8000 | FastAPI. Holds the BGE model in memory; owns the catalog matrix |
 | `ollama` | 11434 | Local LLM |
 | `db` | 5432 | PostGIS + pgvector |
-| `automl` | 8000 | AutoGluon (optional — `make automl`) |
-| `etl` | — | One-shot loader job (`make load-reference`) |
+| `automl` | 8000 | AutoGluon (optional, `make automl`) |
+| `etl` |, | One-shot loader job (`make load-reference`) |
 
 ## Documentation
 
-- **[docs/RUNBOOK.md](docs/RUNBOOK.md)** — standing this up on a new machine, start to finish
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the pieces fit, and what is still missing
-- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — Docker, model volumes, working over SSH
-- **[docs/AI-PIPELINE.md](docs/AI-PIPELINE.md)** — the NL → analysis-plan design
-- **[docs/ROADMAP.md](docs/ROADMAP.md)** — phased plan; Phases 0 and 1 are done
-- **[docs/ENHANCED_SEARCH.md](docs/ENHANCED_SEARCH.md)** — multi-agent search design notes
+- **[docs/RUNBOOK.md](docs/RUNBOOK.md)**, standing this up on a new machine, start to finish
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**, how the pieces fit, and what is still missing
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: Docker, model volumes, working over SSH
+- **[docs/AI-PIPELINE.md](docs/AI-PIPELINE.md)**: the NL → analysis-plan design
+- **[docs/ROADMAP.md](docs/ROADMAP.md)**, phased plan; Phases 0 and 1 are done
+- **[docs/ENHANCED_SEARCH.md](docs/ENHANCED_SEARCH.md)**, multi-agent search design notes
 
 ## Data
 
@@ -76,11 +76,11 @@ committed.
 
 ## Status
 
-**Search** (`POST /api/unified-search`) — query decomposition, hybrid BGE + BM25
+**Search** (`POST /api/unified-search`), query decomposition, hybrid BGE + BM25
 retrieval fused with RRF, over a 6,860-row variable catalog. Measured 97.8%
 concept recall / 97.3% query success on a 37-query suite, p50 3.2s.
 
-**Analysis** (`POST /api/analyze`) — natural language to executed results. The
+**Analysis** (`POST /api/analyze`), natural language to executed results. The
 model emits a typed plan over seven operations; a deterministic compiler turns
 it into parameterized PostGIS SQL and runs it read-only. 3,596 of 6,860 catalog
 attributes (52.4%) resolve to physical columns; the rest are facility datasets
@@ -96,7 +96,7 @@ Honest limits:
 - **`/api/analyze` needs `make load-reference` first**, or it returns 422.
 - The cross-encoder reranker and the MCP tool server are not built.
 
-Run `python3 eval/run.py` to reproduce any of these numbers — see
+Run `python3 eval/run.py` to reproduce any of these numbers, see
 [eval/README.md](eval/README.md).
 
 ## Adding data, and running on other hardware
@@ -112,4 +112,4 @@ hosts.
 
 **Tags are load-bearing.** Removing them costs 41.7pp of known-item recall@1,
 so re-tag new datasets with the same model and prompt. 392 facility rows have
-an `attr_desc` that is just `"Name"` or `"Address"` — tags are all they have.
+an `attr_desc` that is just `"Name"` or `"Address"`, tags are all they have.

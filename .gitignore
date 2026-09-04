@@ -54,3 +54,4 @@ data/embeddings/
 .idea/
 .vscode/
 *.swp
+deploy/incoming/

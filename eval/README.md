@@ -1,4 +1,4 @@
-# `eval/` — retrieval evaluation
+# `eval/`, retrieval evaluation
 
 Before this existed there was no way to tell whether a prompt tweak, a model
 swap, or a ranking change made GeoARK better or worse. Now there is a number.
@@ -33,7 +33,7 @@ satisfied when at least one returned row matches its predicate:
     population: {desc: "populat"}
 ```
 
-That measures what the pipeline actually claims to do — decompose a query and
+That measures what the pipeline actually claims to do, decompose a query and
 surface *every* part of it, including the normalization variable a single-vector
 search reliably drops.
 
@@ -47,7 +47,7 @@ a permanent retrieval failure and quietly drags the headline number down.
 | Suite | Queries | What it isolates |
 |---|--:|---|
 | `single_concept` | 10 | Basic semantic search. If this drops, something is badly broken |
-| `facilities_via_tags` | 6 | Facility datasets whose `attr_desc` is just `"Name"` / `"Address"`. Named for tags, but measured to pass on `dataset_clean` alone — see the tag ablation below |
+| `facilities_via_tags` | 6 | Facility datasets whose `attr_desc` is just `"Name"` / `"Address"`. Named for tags, but measured to pass on `dataset_clean` alone, see the tag ablation below |
 | `multi_concept` | 8 | **The point of the system.** Queries needing two or more distinct variables |
 | `geographic_level` | 3 | Does the extracted `geographic_level` actually affect results |
 | `paraphrase` | 5 | Everyday wording that appears nowhere in the catalog |
@@ -59,7 +59,7 @@ A second file, `known_item.yaml`, holds two sharper suites:
 |---|---|---|
 | `known_item_tag_vocabulary` | `known_item` | Rank of one specific attribute, queried using vocabulary found **only** in its tags |
 | `known_item_described` | `known_item` | Control group: rows whose description already carries the meaning |
-| `absent` | `absent` | Queries for data the catalog does not contain. Scores top semantic similarity — the question is whether it is visibly lower than for an answerable query |
+| `absent` | `absent` | Queries for data the catalog does not contain. Scores top semantic similarity: the question is whether it is visibly lower than for an answerable query |
 
 ```bash
 python3 eval/run.py --suite-file eval/known_item.yaml
@@ -81,12 +81,12 @@ default**, and it is the best configuration on every axis except MRR:
 
 | config | recall | success | MRR | p50 |
 |---|--:|--:|--:|--:|
-| `search` — retrieval only | 95.6% | 94.6% | 0.847 | 0.03s |
-| **`unified` — decompose, verify off** | **97.8%** | **97.3%** | 0.786 | 3.22s |
-| `unified` — decompose, verify on | 91.1% | 89.2% | **0.907** | 10.38s |
+| `search`, retrieval only | 95.6% | 94.6% | 0.847 | 0.03s |
+| **`unified`, decompose, verify off** | **97.8%** | **97.3%** | 0.786 | 3.22s |
+| `unified`, decompose, verify on | 91.1% | 89.2% | **0.907** | 10.38s |
 
 Five of six suites are at 100%. The remaining weakness is `multi_concept`
-(93.8% recall / 87.5% success) — queries needing two distinct variables, which
+(93.8% recall / 87.5% success), queries needing two distinct variables, which
 is the hardest thing the system does and the right place to aim next.
 
 The MRR column is the argument for the reranker in one number: the verifier is
@@ -123,15 +123,15 @@ The most consequential thing the harness found. Same 32 queries, three configs:
 
 | | concept recall | query success | MRR | p50 |
 |---|--:|--:|--:|--:|
-| `search` — retrieval only | 95.0% | 93.8% | 0.822 | 0.01s |
-| `unified` — decompose + **LLM verify ON** | 87.5% | 84.4% | **0.874** | 11.10s |
-| `unified` — decompose + **LLM verify OFF** | **97.5%** | **96.9%** | 0.726 | 3.42s |
+| `search`, retrieval only | 95.0% | 93.8% | 0.822 | 0.01s |
+| `unified`, decompose + **LLM verify ON** | 87.5% | 84.4% | **0.874** | 11.10s |
+| `unified`, decompose + **LLM verify OFF** | **97.5%** | **96.9%** | 0.726 | 3.42s |
 
 Two separate conclusions, which is exactly why the flag exists:
 
 1. **Query decomposition works.** It lifts recall 95.0% → 97.5% and success
    93.8% → 96.9% over raw retrieval, and it is what makes the `paraphrase`
-   suite go to 100% — rewriting "places with many people out of work" into
+   suite go to 100%, rewriting "places with many people out of work" into
    "unemployment rate" is real value. It costs ~3.4s.
 2. **The LLM verification step is destructive.** Turning it on costs **10pp of
    concept recall**, **12.5pp of query success**, and **~7.7s per request**. On
@@ -179,7 +179,7 @@ Add to `queries.yaml`, then **always** run `--validate-only` first. Predicate
 fields: `desc`, `tags`, `dataset` (regex, case-insensitive), `entity` (exact),
 and `any_of` (list of predicates, OR).
 
-Grow `multi_concept` and `paraphrase` first — they are where the headroom is,
+Grow `multi_concept` and `paraphrase` first: they are where the headroom is,
 and they are the suites that discriminate between approaches. `single_concept`
 and `facilities_via_tags` are already saturated at 100% and mostly serve as
 regression guards now.
@@ -202,15 +202,15 @@ First baseline, `multi_concept` (the hardest suite, 8 queries):
 
 The three failures are worth separating, since they have different fixes:
 two were "could not produce a valid plan" (planner-model capability) and one was
-"no executable attributes" (data coverage — only ACS county data is loaded).
+"no executable attributes" (data coverage, only ACS county data is loaded).
 
 Validity is a low bar deliberately: it means the plan was grounded and ran, not
 that it answered the question. Plans routinely pass while being semantically
-wrong — a `join` where `normalize` was needed, or one poverty percentage divided
+wrong: a `join` where `normalize` was needed, or one poverty percentage divided
 by another. Judging *correctness* needs expected-value assertions on the output,
 which is the next thing this harness should grow.
 
-## The tag ablation — and a wrong answer, corrected
+## The tag ablation, and a wrong answer, corrected
 
 **An earlier version of this file claimed tags contribute nothing to retrieval.
 That was wrong, for two separate reasons. Both are worth recording.**
@@ -219,7 +219,7 @@ That was wrong, for two separate reasons. Both are worth recording.**
 
 The API pulls all 6,860 vectors from the embedder once at startup and holds
 them for its whole life. Rebuilding the embedder with `EMBED_INCLUDE_TAGS=0`
-changed the embedder — but `docker compose up -d api` does **not** recreate a
+changed the embedder, but `docker compose up -d api` does **not** recreate a
 container whose image is unchanged, so the API kept serving the original
 tags-on vectors. Both arms of the "ablation" read the same cache. That is why
 the results were byte-identical, which should have been the tell.
@@ -230,7 +230,7 @@ Nothing reported the mismatch. `/api/health` now exposes `corpus_stale`, and
 ### Reason 2: the metric could not see it anyway
 
 Even run correctly, `queries.yaml` cannot detect this. Its assertions ask "is
-**any** top-20 result about poverty?" — and 221 of 6,860 rows match `/povert/`.
+**any** top-20 result about poverty?", and 221 of 6,860 rows match `/povert/`.
 Tags can reorder the entire ranking without moving that number, and MRR pins
 near 1.0 for the same reason.
 
@@ -255,7 +255,7 @@ attribute" scored by rank):
 | concept recall | 95.6% | 95.6% | none |
 | query success | 94.6% | 94.6% | none |
 
-**Tags matter a great deal.** They are load-bearing for precise retrieval —
+**Tags matter a great deal.** They are load-bearing for precise retrieval,
 finding the *right* attribute rather than a topically adjacent one. The concept
 suite genuinely cannot see that, which is a fact about the suite, not about
 tags.
@@ -268,7 +268,7 @@ are their only semantic signal. Tag vocabulary like "petrochemical", "biofuel",
 ### Consequences for adding data
 
 Tag quality and consistency **do** matter. Re-tagging new datasets with the same
-model and prompt is worth doing properly — see
+model and prompt is worth doing properly, see
 [`etl/PROVENANCE.md`](../etl/PROVENANCE.md). Do not treat tagger drift as
 harmless.
 

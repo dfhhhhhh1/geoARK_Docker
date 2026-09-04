@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes what GeoARK actually does today, as built — not the
+This document describes what GeoARK actually does today, as built: not the
 intended design. Where the two differ, that is called out.
 
 ---
@@ -77,7 +77,7 @@ consolidation reduced that to one. What remains:
 |---|---|
 | **`backend/unified_search_server.js`** | **The entrypoint.** Decompose → per-concept hybrid search (BGE semantic, weighted 0.7, + keyword, 0.3) → LLM verification → PostGIS lookup. Endpoints: `POST /api/unified-search`, `POST /api/decompose-query`, `POST /api/get-data`, `GET /api/search`, `GET /api/health` |
 | `backend/enhanced_search_server.js` | Module (not an entrypoint) exporting PostGIS tools: `search-metadata`, `search-columns`, `table-sample`, `column-statistics`, `spatial-query`, `join-tables`. Foundation for the Phase 3 tool surface |
-| `backend/geospatial_search_enhanced.py` | **LangGraph agent** — `PostGISSearcher`, `QueryDecomposer`, `GeospatialSearchAgent`, six `@tool` functions. The closest thing to a real tool-calling agent and the right base for Phase 3 |
+| `backend/geospatial_search_enhanced.py` | **LangGraph agent**, `PostGISSearcher`, `QueryDecomposer`, `GeospatialSearchAgent`, six `@tool` functions. The closest thing to a real tool-calling agent and the right base for Phase 3 |
 | `backend/ml_service.py` | FastAPI + AutoGluon (`POST /automl/train`). Optional `automl` compose profile |
 | `deploy/embedder/app.py` | Loads the BGE model once, owns the catalog matrix, caches it to a volume |
 | `backend/legacy/geospatial_server.js` | Generation-1 IR→DAG pipeline. Not wired up; kept because its prompts seed Phase 3 |
@@ -129,7 +129,7 @@ The join works because ACS catalog rows carry the census code in `attr_orig`;
 **3,596 of 6,860 catalog attributes (52.4%) executable**.
 
 The values are long-format, not wide, because 3,982 ACS columns exceeds
-Postgres' 1,600-column ceiling — and a long table is what the compiler wants to
+Postgres' 1,600-column ceiling, and a long table is what the compiler wants to
 join against anyway.
 
 The remaining 47.6% are facility datasets (shelters, refineries, volcanoes)
@@ -164,12 +164,12 @@ operator injection attempts.
 **Reference labels.** Candidates are shown to the model as `a1`, `a2`, … rather
 than raw ids like `04d18a18_08_01_352`. Asked to transcribe the real ids, a 4B
 model gave up and invented placeholders (`attr_14`), which grounding correctly
-rejected — so the request produced nothing. Code maps labels back, which is the
+rejected, so the request produced nothing. Code maps labels back, which is the
 only place that mapping can be trusted.
 
 ## 6. Known problems
 
-### Fixed in Phases 0–1
+### Fixed in Phases 0-1
 
 1. ~~The embedding model is loaded from scratch on every call.~~ The `embedder`
    service now holds it in memory; the API calls it over HTTP. Search went from
@@ -184,8 +184,8 @@ only place that mapping can be trusted.
 5. ~~Python is baked into the Node image.~~ The `api` image is `node:20-slim`.
 6. ~~No `.dockerignore`.~~ Added for both `backend/` and `frontend/`.
 7. ~~Hardcoded credentials.~~ All config is environment-driven. The Google API
-   key in `frontend/.env` was deleted (it was never committed — verified against
-   the full git history — but should still be rotated, as it sat in plaintext on
+   key in `frontend/.env` was deleted (it was never committed, verified against
+   the full git history, but should still be rotated, as it sat in plaintext on
    disk and in the Docker build context).
 8. ~~`pg` missing from `package.json`.~~ It was required by
    `unified_search_server.js` but never declared, so the server could only run
@@ -199,8 +199,8 @@ only place that mapping can be trusted.
 1b. **The LLM verification step is destructive.** Measured: −10pp concept
    recall, −12.5pp query success, +7.7s per request, while *raising* MRR. It
    judges relevance well but deletes instead of reordering. Now defaulted off;
-   a cross-encoder should replace it — [AI-PIPELINE.md §4](AI-PIPELINE.md).
-2. ~~The two catalogs don't join.~~ Fixed in Phase 3 — see §4.
+   a cross-encoder should replace it, [AI-PIPELINE.md §4](AI-PIPELINE.md).
+2. ~~The two catalogs don't join.~~ Fixed in Phase 3, see §4.
 3. ~~LLM output is parsed with a regex.~~ Fixed in Phase 3. Every LLM call now
    uses Ollama's schema-constrained decoding (`format: <JSON Schema>`), so
    invalid JSON is unrepresentable. There are zero `match(/\{[\s\S]*\}/)`
@@ -213,15 +213,15 @@ only place that mapping can be trusted.
    routes planning to a larger model where RAM allows; untested here, since
    this host OOMs above ~6 GB.
 4. ~~No tests, no evaluation set.~~ `eval/` measures concept recall, query
-   success, MRR, and latency over 32 queries. Still small — a 1-query flip moves
-   recall ~2.5pp — and there are no plan-execution metrics yet.
+   success, MRR, and latency over 32 queries. Still small: a 1-query flip moves
+   recall ~2.5pp, and there are no plan-execution metrics yet.
 5. ~~Hybrid scoring blends incomparable scales.~~ Replaced with BM25 + Reciprocal
    Rank Fusion in Phase 2. The old lexical scorer turned out to be worse than
-   "incomparable" — it was near-constant noise. Measured: +7.5pp concept recall,
+   "incomparable": it was near-constant noise. Measured: +7.5pp concept recall,
    +9.4pp query success, 4× faster. See [`eval/README.md`](../eval/README.md).
 6. **18 pre-existing TypeScript errors** in `MapVisualization.tsx`,
    `ReportPage.tsx`, and `App.tsx` (unused vars, possible-null, implicit any).
    `npm run build` is `vite build`, which does not typecheck, so they do not
-   block the image — but `npx tsc --noEmit -p tsconfig.app.json` reports them.
+   block the image, but `npx tsc --noEmit -p tsconfig.app.json` reports them.
 7. **The frontend bundle is 754 kB** (240 kB gzipped) in one chunk. Leaflet,
    Chart.js, and d3 all load on first paint.

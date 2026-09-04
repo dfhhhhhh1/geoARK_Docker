@@ -9,7 +9,7 @@
 # IMPORTANT: moving the embedder onto a GPU changes the vector space. The
 # canary fingerprint will not match a CPU-built cache, the embedder will log
 # EMBEDDING DRIFT on startup, and /health will report drift:true. That is
-# correct behaviour, not a bug -- re-embed once after switching:
+# correct behavior, not a bug -- re-embed once after switching:
 #   make reindex
 
 services:

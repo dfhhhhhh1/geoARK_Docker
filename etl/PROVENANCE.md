@@ -21,12 +21,12 @@ and it turns out not to be.
 ### Tags: load-bearing, and worth regenerating properly
 
 **A previous version of this document said tags contribute nothing to
-retrieval. That was wrong** — the experiment behind it was invalid (the API was
+retrieval. That was wrong**: the experiment behind it was invalid (the API was
 serving a stale vector cache), and the metric used could not have detected the
 effect anyway. Both failures are written up in
 [`eval/README.md`](../eval/README.md).
 
-Measured properly, with known-item retrieval — "return *this* attribute",
+Measured properly, with known-item retrieval, "return *this* attribute",
 scored by rank:
 
 | | tags on | tags off | Δ |
@@ -42,13 +42,13 @@ like "petrochemical", "biofuel", "fermentation", "pipeline infrastructure"
 appears nowhere else in the row.
 
 **Therefore: re-tag new datasets deliberately, with the same model and prompt.**
-The generator is recoverable — see "Regenerating tags" below.
+The generator is recoverable, see "Regenerating tags" below.
 
 ### Embedding drift: much more than it looks
 
 The real hazard is the **vector space changing underneath a stable version
 string**. A different torch build, CPU vs GPU kernels, a re-uploaded model
-revision, a different accelerator's float behaviour — any of these produces
+revision, a different accelerator's float behavior, any of these produces
 different vectors while `EMBED_MODEL` still reads `BAAI/bge-base-en-v1.5`.
 
 The failure is silent. Search keeps returning plausible results that are quietly
@@ -79,7 +79,7 @@ On a mismatch the embedder logs `EMBEDDING DRIFT` naming both environments, and
 
 Caches written before this existed are backfilled from the current environment
 on first load, marked `"backfilled": true`. That assumes the current
-environment built them — true for an in-place upgrade, and the only assumption
+environment built them, true for an in-place upgrade, and the only assumption
 available.
 
 ## The recovered facility mapping
@@ -87,7 +87,7 @@ available.
 `merge_geospatial_attrs.py` merges tagged attributes into the catalog schema
 and, at line 121, *"Extra columns (like dataset_name) are dropped."* The target
 schema came from an ACS-only catalog that never had a `table_name`, so
-**`table_name` was dropped as collateral** — and without it a facility attribute
+**`table_name` was dropped as collateral**, and without it a facility attribute
 cannot be resolved to anything physical.
 
 It is fully recoverable. `GeoARK_data/combine_csv_tags/attributeNew.csv` keys on
@@ -141,13 +141,13 @@ Checks what actually breaks, in rough order of severity:
 
 | Check | Why |
 |---|---|
-| duplicate `attr_label` | **error** — `attribute_source` is keyed on it, so later rows silently shadow earlier ones |
-| unknown `entity_type` | **error** — the decomposer's `geographic_level` enum is closed |
-| missing required columns | **error** — every read is `row.get(x) or ""`, so a missing column is silently empty everywhere |
-| mojibake in `attr_desc` | **error** — the file is not UTF-8 |
-| missing `attr_orig` | warning — searchable but never executable; `/api/analyze` skips it |
-| tag format drift | warning — measured as harmless |
-| attributes removed vs baseline | warning — saved plans referencing them stop resolving |
+| duplicate `attr_label` | **error**, `attribute_source` is keyed on it, so later rows silently shadow earlier ones |
+| unknown `entity_type` | **error**: the decomposer's `geographic_level` enum is closed |
+| missing required columns | **error**: every read is `row.get(x) or ""`, so a missing column is silently empty everywhere |
+| mojibake in `attr_desc` | **error**: the file is not UTF-8 |
+| missing `attr_orig` | warning, searchable but never executable; `/api/analyze` skips it |
+| tag format drift | warning, measured as harmless |
+| attributes removed vs baseline | warning, saved plans referencing them stop resolving |
 
 Run against the committed catalog it reports one real defect: an empty
 separator row at line 4556 with a blank `attr_label`.
@@ -158,7 +158,7 @@ separator row at line 4556 with a blank `attr_label`.
 make load-reference
 ```
 
-Rebuilds `attribute_source`. Watch the reported resolution rate — a new dataset
+Rebuilds `attribute_source`. Watch the reported resolution rate: a new dataset
 that resolves at 0% is searchable but unplannable, which is a legitimate state
 but should be a decision, not a surprise.
 
@@ -179,7 +179,7 @@ investigating; below that is noise at 37 queries.
 
 ## Regenerating tags
 
-The generator was not lost — it lives outside the repo in
+The generator was not lost: it lives outside the repo in
 `GeoARK_data/generate_attr/attr_gen copy.py` (a space, not an underscore, which
 is why an earlier search for `attr_gen_copy.py` found nothing).
 
@@ -200,7 +200,7 @@ Two things about that pipeline are worth knowing:
 
 1. **`gen_desc` is generated and then discarded.** The prompt asks for a
    one-sentence natural-language description of every column, and no downstream
-   artifact carries it — not `attributeNew.csv`, not `combined_tags.csv`, not
+   artifact carries it: not `attributeNew.csv`, not `combined_tags.csv`, not
    the committed catalog. For the 392 facility rows whose description is just
    `"Name"`, that discarded sentence is exactly the signal they lack. Carrying
    it through is likely the single cheapest retrieval improvement available.

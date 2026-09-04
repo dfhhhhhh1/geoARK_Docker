@@ -1,0 +1,202 @@
+{
+  "queries": 8,
+  "plan_validity": 0.875,
+  "op_appropriateness": 0.25,
+  "forbidden_op_rate": 0.25,
+  "op_diversity": 0.125,
+  "distinct_op_sequences": [
+    "load->load->normalize->output"
+  ],
+  "latency_mean": 38.4,
+  "detail": [
+    {
+      "id": "rank-top-income",
+      "query": "list the top 10 counties with the highest median household income",
+      "planned": true,
+      "intent": "Poverty count divided by population, by county",
+      "ops": "load->load->normalize->output",
+      "expect_op": "rank",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_158",
+          "purpose": "primary",
+          "desc": "Estimate|Households not receiving food stamps/SNAP|Households|HOUSEHOLD INCOME IN THE PAST 12 MONTHS"
+        },
+        {
+          "attr_id": "04d18a18_01_01_250",
+          "purpose": "primary",
+          "desc": "Percent Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median"
+        }
+      ],
+      "error": null,
+      "seconds": 14.2
+    },
+    {
+      "id": "rank-bottom-uninsured",
+      "query": "the 5 counties with the lowest rate of health insurance coverage",
+      "planned": true,
+      "intent": "Calculate the percentage of urban population in each city",
+      "ops": "load->load->normalize->output",
+      "expect_op": "rank",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_388",
+          "purpose": "primary",
+          "desc": "Estimate!!HEALTH INSURANCE COVERAGE!!Civilian noninstitutionalized population!!With health insurance"
+        },
+        {
+          "attr_id": "04d18a18_03_01_116",
+          "purpose": "primary",
+          "desc": "Estimate!!Public Coverage!!COVERAGE ALONE!!Public health insurance alone!!Medicaid/means tested cove"
+        }
+      ],
+      "error": null,
+      "seconds": 19.8
+    },
+    {
+      "id": "normalize-poverty",
+      "query": "poverty rate normalized by total population for counties",
+      "planned": true,
+      "intent": "Calculate the ratio of attribute a3 to a8, normalized as a percentage",
+      "ops": "load->load->normalize->output",
+      "expect_op": "normalize",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_02_01_446",
+          "purpose": "primary",
+          "desc": "Estimate!!Percent Nonveterans!!POVERTY STATUS IN THE PAST 12 MONTHS!!Civilian population 18 years an"
+        },
+        {
+          "attr_id": "04d18a18_09_01_377",
+          "purpose": "normalization",
+          "desc": "Estimate|ANCESTRY|Total population"
+        }
+      ],
+      "error": null,
+      "seconds": 35.6
+    },
+    {
+      "id": "count-hospitals",
+      "query": "how many hospitals are in each county",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "expect_op": "count_features",
+      "expect_op_present": false,
+      "forbid_op": "normalize",
+      "forbid_op_present": false,
+      "attrs": [],
+      "error": "could not produce a valid plan",
+      "seconds": 65.0
+    },
+    {
+      "id": "join-income-education",
+      "query": "compare median income against educational attainment",
+      "planned": true,
+      "intent": "Calculate the percentage of renewable energy usage per capita by state",
+      "ops": "load->load->normalize->output",
+      "expect_op": "join",
+      "expect_op_present": false,
+      "forbid_op": "normalize",
+      "forbid_op_present": true,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_150",
+          "purpose": "primary",
+          "desc": "Estimate|Total|Households|HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2018 INFLATION-ADJUSTED DOLLARS"
+        },
+        {
+          "attr_id": "04d18a18_07_01_154",
+          "purpose": "primary",
+          "desc": "Estimate|Households receiving food stamps/SNAP|Households|HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN"
+        }
+      ],
+      "error": null,
+      "seconds": 27.2
+    },
+    {
+      "id": "aggregate-mean-income",
+      "query": "what is the average median household income across all counties",
+      "planned": true,
+      "intent": "Average income divided by number of households, by city",
+      "ops": "load->load->normalize->output",
+      "expect_op": "aggregate",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_150",
+          "purpose": "primary",
+          "desc": "Estimate|Total|Households|HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2018 INFLATION-ADJUSTED DOLLARS"
+        },
+        {
+          "attr_id": "04d18a18_07_01_152",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2018 INFLATION-ADJUSTED DOLLA"
+        }
+      ],
+      "error": null,
+      "seconds": 70.8
+    },
+    {
+      "id": "filter-high-income",
+      "query": "counties where median household income is above 75000",
+      "planned": true,
+      "intent": "Poverty count divided by population, by county",
+      "ops": "load->load->normalize->output",
+      "expect_op": "filter_attr",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_158",
+          "purpose": "primary",
+          "desc": "Estimate|Households not receiving food stamps/SNAP|Households|HOUSEHOLD INCOME IN THE PAST 12 MONTHS"
+        },
+        {
+          "attr_id": "04d18a18_01_01_250",
+          "purpose": "primary",
+          "desc": "Percent Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median"
+        }
+      ],
+      "error": null,
+      "seconds": 43.6
+    },
+    {
+      "id": "plain-load-population",
+      "query": "show total population by county",
+      "planned": true,
+      "intent": "Determine the percentage of urban area within each administrative region",
+      "ops": "load->load->normalize->output",
+      "expect_op": "load",
+      "expect_op_present": true,
+      "forbid_op": "normalize",
+      "forbid_op_present": true,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_09_01_400",
+          "purpose": "primary",
+          "desc": "Estimate|ANCESTRY|Total population|English"
+        },
+        {
+          "attr_id": "04d18a18_01_01_352",
+          "purpose": null,
+          "desc": "?"
+        }
+      ],
+      "error": null,
+      "seconds": 30.7
+    }
+  ]
+}

@@ -1,3 +1,17 @@
+/**
+ * A catalog entry as the search UI shows it.
+ *
+ * fileSize, coordinates and boundingBox are optional because nothing produces
+ * them. They used to be filled by generateMockCoordinates() and
+ * estimateFileSize() in App.tsx, which derived plausible-looking values from a
+ * hash of the dataset id, and the UI presented those as facts. Invented
+ * positions rendered on a map beside real ones is worse than showing nothing,
+ * so the generators are gone and these stay optional for whenever a real source
+ * exists.
+ *
+ * downloadUrl and previewUrl are likewise optional: they pointed at
+ * /api/download and /api/preview, neither of which the backend implements.
+ */
 export interface Dataset {
   id: string;
   title: string;
@@ -5,23 +19,23 @@ export interface Dataset {
   source: string;
   fields: string[];
   tags: string[];
-  fileSize: string;
+  fileSize?: string;
   lastUpdated: string;
   coverage: {
     geographic: string;
     temporal: string;
   };
-  coordinates: {
+  coordinates?: {
     lat: number;
     lng: number;
   };
-  boundingBox: {
+  boundingBox?: {
     north: number;
     south: number;
     east: number;
     west: number;
   };
-  downloadUrl: string;
+  downloadUrl?: string;
   previewUrl?: string;
   // New fields from backend API
   variables?: Variable[];
@@ -130,4 +144,184 @@ export interface UnifiedSearchResponse {
   all_results: UnifiedSearchResultItem[];
   llm_reasoning?: string | null;
   stats: UnifiedSearchStats;
+}
+
+// ============================================================
+// Analysis (POST /api/analyze, GET /api/analyze/stream)
+// ============================================================
+
+/** One step of an executable plan. Fields beyond id/op/inputs are op-specific. */
+export type PlanOp =
+  | 'load' | 'count_features' | 'count_near' | 'nearest_distance'
+  | 'select_features'
+  | 'filter_attr' | 'filter_area' | 'filter_place' | 'per_area'
+  | 'normalize' | 'aggregate' | 'rank' | 'join' | 'output';
+
+/**
+ * A single mapped location. Properties vary by layer -- only about half carry
+ * `name`, 41% carry `city` -- so every field is optional by construction.
+ */
+export interface MappedFeature {
+  type: 'Feature';
+  geometry: GeoJSON.Geometry;
+  properties: Record<string, string | null>;
+}
+
+export interface PlanStep {
+  id: string;
+  op: PlanOp;
+  attr_id: string;
+  inputs: string[];
+  scale?: number;
+  operator?: string;
+  value?: number;
+  function?: string;
+  direction?: 'asc' | 'desc';
+  limit?: number;
+  group_by?: string;
+  /** count_near: the dataset proximity is measured TO. */
+  near_attr_id?: string;
+  /** count_near: radius in miles. */
+  miles?: number;
+  /** filter_area, and optionally select_features: state and/or region names. */
+  states?: string[];
+  /** select_features: one city name, matched against the layer's own column. */
+  city?: string;
+  /** filter_place: which kind of named boundary, and its name. */
+  place_kind?: 'place' | 'zcta' | 'cbsa' | 'urban';
+  place_name?: string;
+  /** select_features / count_features: narrow a layer by its own attributes. */
+  attribute_filters?: Array<{ column: string; value: string }>;
+}
+
+/**
+ * Where a result came from and what produced it. Assembled server-side, because
+ * the browser cannot know which model planned the query or which physical
+ * column an attr_id resolved to.
+ */
+export interface AttributeOrigin {
+  attr_id: string;
+  description: string | null;
+  dataset: string | null;
+  original_name: string | null;
+  source_kind: string | null;
+  table_name: string | null;
+  /** Null for feature datasets: they are read for geometry, not a column. */
+  value_column: string | null;
+  geometry_column: string | null;
+  census_code: string | null;
+  entity_type: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  srid: number | null;
+}
+
+export interface AnalysisProvenance {
+  generated_at: string;
+  query: string;
+  intent: string;
+  models: { decomposition: string; planner: string; embedding: string };
+  retrieval: {
+    corpus_cache_key: string | null;
+    catalog_rows: number;
+    retrieved: number;
+    executable: number;
+    plan_repairs: number;
+  };
+  database: string | null;
+  attribute_origins: AttributeOrigin[];
+  units_note: string;
+}
+
+export interface AnalysisPlan {
+  intent: string;
+  output_type: 'map' | 'table' | 'chart' | 'statistics';
+  entity_type: 'COUNTY' | 'STATE';
+  steps: PlanStep[];
+}
+
+export interface AnalysisRow {
+  fips: string;
+  name: string | null;
+  state_fp: string | null;
+  value: number | null;
+}
+
+export interface AnalysisResponse {
+  query: string;
+  decomposition: UnifiedSearchDecomposition;
+  plan: AnalysisPlan;
+  repairs: number;
+  candidates: UnifiedSearchResultItem[];
+  sql?: string;
+  params?: (string | number)[];
+  row_count?: number;
+  rows?: AnalysisRow[];
+  /** Only present when include_geometry is requested; the UI joins locally instead. */
+  geometry?: Array<{ fips: string; geometry: GeoJSON.Geometry }>;
+  execution_ms?: number;
+  execution_error?: string;
+  provenance?: AnalysisProvenance;
+  /**
+   * Which shape of answer came back. 'values' is the per-county series the
+   * choropleth draws; 'features' is individual locations with their own
+   * geometry. They are mutually exclusive -- a plan is one or the other.
+   */
+  output_mode?: 'values' | 'features';
+  features?: MappedFeature[];
+  ambiguity?: CityAmbiguity;
+  ms: number;
+}
+
+/**
+ * Stages emitted by GET /api/analyze/stream, in the order they occur.
+ * `plan_invalid` may repeat -- the planner retries with the validation errors.
+ */
+/** A follow-up the stack can definitely answer, built from resolved candidates. */
+export interface Suggestion {
+  query: string;
+  why: string;
+  kind: 'value' | 'feature';
+}
+
+/** A result that spans more places than the question probably meant. */
+export interface CityAmbiguity {
+  city: string;
+  state_count: number;
+  /** `state` is the postal code the layer stores; `state_name` is what the planner takes. */
+  states: Array<{ state: string; state_name: string | null; count: number }>;
+}
+
+/** What came back when an analysis could not be produced. */
+export interface AnalysisFailure {
+  error: string;
+  detail?: string;
+  suggestions?: Suggestion[];
+  /** Catalog entries with no underlying table -- a loading gap, not a bad question. */
+  unavailable_datasets?: string[];
+}
+
+export type AnalysisStage =
+  | 'idle' | 'queued' | 'started' | 'decomposed' | 'retrieved'
+  | 'planning' | 'plan_invalid' | 'plan_valid' | 'executing'
+  | 'plan_adjusted' | 'done' | 'failed';
+
+export interface AnalysisEvent {
+  stage: AnalysisStage;
+  query?: string;
+  decomposition?: UnifiedSearchDecomposition;
+  retrieved?: number;
+  executable?: number;
+  facility?: number;
+  by_purpose?: Record<string, number>;
+  attempt?: number;
+  of?: number;
+  intent?: string;
+  ops?: string[];
+  errors?: string[];
+  /** queued: place in line, and how many are waiting. */
+  position?: number;
+  total?: number;
+  /** plan_adjusted: what was corrected deterministically. */
+  detail?: string;
 }

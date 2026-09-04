@@ -10,7 +10,7 @@ which has better retrieval (query decomposition + hybrid search) but **no IR/DAG
 generation**.
 
 Kept because the IR and DAG system prompts (the `generateIRFromQuery` and
-`generateDAGFromIR` functions) are the starting point for the Phase 3 planner —
+`generateDAGFromIR` functions) are the starting point for the Phase 3 planner,
 see [../../docs/AI-PIPELINE.md](../../docs/AI-PIPELINE.md). When that planner is
 built as a typed, schema-constrained DSL, delete this file.
 

@@ -203,13 +203,26 @@ def build_attribute_source(conn, catalog_csv: Path, dry_run: bool,
     catalog = list(csv.DictReader(catalog_csv.open(encoding="utf-8")))
 
     with conn.cursor() as cur:
-        cur.execute("SELECT census_code FROM acs_variables")
+        # Codes that actually HAVE VALUES, not codes that are merely declared.
+        #
+        # This used to read acs_variables, which is the list of codes the source
+        # CSV describes. 383 of those 3,980 have no row in acs_county_values at
+        # all, and 339 catalog attributes pointed at them. Each one landed in
+        # attribute_source as "resolvable", so a plan over it compiled, ran, and
+        # returned zero rows: valid, executable, and empty. A `join` with one
+        # empty side returns nothing at all, which is how it surfaced.
+        #
+        # attribute_source means "this attribute can be answered". Declaring a
+        # code is not the same as having data for it.
+        cur.execute("SELECT DISTINCT census_code FROM acs_county_values")
         known = {r[0] for r in cur.fetchall()}
     if not known and acs_csv:
         # Nothing loaded yet (a --dry-run before the first real load). Fall back
-        # to the CSV header so the reported rate is still the true one.
+        # to the CSV header. Note this is the DECLARED set, so a dry run reports
+        # an upper bound; the real load will be lower by however many codes turn
+        # out to carry no values.
         known = acs_codes_from_header(acs_csv)
-        print("  link: acs_variables empty; using the CSV header for the estimate")
+        print("  link: no ACS values loaded; estimating from the CSV header")
 
     resolved, unresolved = [], []
     for r in catalog:
@@ -349,6 +362,10 @@ def main() -> int:
                          "committed etl/facility_table_map.csv)")
     ap.add_argument("--no-features", action="store_true",
                     help="skip linking facility feature tables")
+    ap.add_argument("--relink-only", action="store_true",
+                    help="rebuild attribute_source from the already-loaded data, "
+                         "without re-importing counties or the 10.8M ACS values. "
+                         "Use after a change to what counts as resolvable.")
     ap.add_argument("--features-only", action="store_true",
                     help="only (re)link facility feature tables. Use after a "
                          "geospatial load: relinking should not require "
@@ -365,7 +382,11 @@ def main() -> int:
     conn.commit()
     print("  schema applied")
 
-    if not args.dry_run and not args.features_only:
+    # --relink-only rebuilds the catalog-to-column mapping from data that is
+    # already in the database. --features-only goes further and rebuilds only
+    # the facility half.
+    skip_bulk_load = args.features_only or args.relink_only
+    if not args.dry_run and not skip_bulk_load:
         load_counties(conn, args.geojson)
         load_acs(conn, args.acs_csv)
     if not args.features_only:

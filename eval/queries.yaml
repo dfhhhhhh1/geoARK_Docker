@@ -1,4 +1,4 @@
-# GeoARK retrieval evaluation — assertion suite
+# GeoARK retrieval evaluation, assertion suite
 #
 # WHY ASSERTIONS AND NOT A LIST OF "CORRECT" attr_ids
 # ---------------------------------------------------
@@ -11,7 +11,7 @@
 # So each query instead declares the CONCEPTS its results must cover. A concept
 # is satisfied when at least one returned row matches its predicate. This
 # measures the thing the pipeline actually claims to do: decompose a query and
-# surface every part of it — including the normalization variable that a naive
+# surface every part of it, including the normalization variable that a naive
 # single-vector search drops.
 #
 # Every predicate below was checked against geoark_attributes.csv, so each one
@@ -126,7 +126,7 @@ suites:
   # ---------------------------------------------------------------------
   # THE POINT OF THE WHOLE SYSTEM. Each of these needs TWO OR MORE distinct
   # variables. A single-vector search reliably returns only the primary
-  # concept and silently drops the normalizer — decomposition is what should
+  # concept and silently drops the normalizer, decomposition is what should
   # fix that, so this suite is the one that measures whether it works.
   # ---------------------------------------------------------------------
   - name: multi_concept

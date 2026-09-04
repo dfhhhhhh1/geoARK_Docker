@@ -16,6 +16,37 @@ CREATE TABLE IF NOT EXISTS county_geom (
 CREATE INDEX IF NOT EXISTS idx_county_geom_gist ON county_geom USING gist (geom);
 CREATE INDEX IF NOT EXISTS idx_county_geom_state ON county_geom (state_fp);
 
+-- ------------------------------------------------------ named place geometry
+--
+-- Administrative boundaries other than counties: cities and towns, ZCTAs,
+-- metros, urban areas. Until these existed, county_geom was the ONLY
+-- administrative geometry, which meant a city restriction could not be spatial
+-- at all -- "hospitals in Springfield" had to match a `city` COLUMN that only
+-- 41% of facility layers even have, and that matched every Springfield in the
+-- country.
+--
+-- Deliberately ONE table keyed on (kind, geoid) rather than a table per layer.
+-- Every one of these is "a named polygon you might restrict an answer to", the
+-- lookup is always name -> geometry, and a single GIST index serves all of
+-- them. A table per layer would mean a compiler branch per layer.
+--
+-- These are NOT catalog attributes. Nobody asks "how many Census Tracts are in
+-- each county"; they say "in Springfield". Loading them as searchable
+-- attributes would add thousands of meaningless rows to the corpus.
+CREATE TABLE IF NOT EXISTS place_geom (
+    kind      TEXT NOT NULL,      -- place | zcta | cbsa | urban
+    geoid     TEXT NOT NULL,
+    name      TEXT,
+    state_fp  CHAR(2),
+    aland     BIGINT,
+    geom      geometry(MultiPolygon, 4326),
+    PRIMARY KEY (kind, geoid)
+);
+CREATE INDEX IF NOT EXISTS idx_place_geom_gist ON place_geom USING gist (geom);
+-- Lookup is by lowercased name, so the index has to be too.
+CREATE INDEX IF NOT EXISTS idx_place_geom_name ON place_geom (kind, lower(name));
+CREATE INDEX IF NOT EXISTS idx_place_geom_state ON place_geom (state_fp);
+
 -- ------------------------------------------------------------ ACS variables
 CREATE TABLE IF NOT EXISTS acs_variables (
     census_code TEXT PRIMARY KEY,

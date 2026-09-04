@@ -24,12 +24,64 @@ const fs = require("fs");
 const { Pool } = require("pg");
 const { DECOMPOSITION_SCHEMA, VERIFICATION_SCHEMA } = require("./schemas");
 const { generatePlan, executePlan } = require("./planner");
+const {
+  buildSuggestions, unavailableDatasets, cityAmbiguity, shortLabel,
+} = require("./suggestions");
 
 console.log("  Starting Unified Geospatial Search Server...");
 
+const auth = require("./auth");
+const { createLimiter, rateLimit } = require("./ratelimit");
+const { createQueue, QueueFullError } = require("./queue");
+
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// nginx is the only thing in front of this, and it sets X-Forwarded-For.
+// Without this, req.ip is the proxy's address and every anonymous client shares
+// a single rate-limit bucket.
+app.set("trust proxy", 1);
+
+// Same-origin in normal operation (nginx serves the SPA and proxies /api), so
+// credentials are not sent cross-origin. CORS_ORIGIN exists for running the
+// Vite dev server against a container; without it, no cross-origin request may
+// carry the session cookie.
+const corsOrigin = process.env.CORS_ORIGIN;
+app.use(cors(corsOrigin
+  ? { origin: corsOrigin.split(",").map(s => s.trim()), credentials: true }
+  : {}));
+// Bounded: the analyze body is a short question, and an unbounded parser is a
+// free memory-exhaustion primitive on an unauthenticated endpoint.
+app.use(express.json({ limit: "256kb" }));
+
+// --- rate limits -------------------------------------------------------------
+// Two tiers, because the costs differ by three orders of magnitude: retrieval is
+// ~30ms of CPU, an analysis is ~19s of a GPU that can only do one at a time.
+const analyzeLimiter = createLimiter({
+  name: "analyze",
+  capacity: Number(process.env.RATE_ANALYZE_BURST ?? 5),
+  perMinute: Number(process.env.RATE_ANALYZE_PER_MIN ?? 6),
+});
+const searchLimiter = createLimiter({
+  name: "search",
+  capacity: Number(process.env.RATE_SEARCH_BURST ?? 30),
+  perMinute: Number(process.env.RATE_SEARCH_PER_MIN ?? 60),
+});
+const loginLimiter = createLimiter({
+  name: "login",
+  capacity: Number(process.env.RATE_LOGIN_BURST ?? 5),
+  perMinute: Number(process.env.RATE_LOGIN_PER_MIN ?? 5),
+});
+
+const limitAnalyze = rateLimit(analyzeLimiter, auth.identify);
+const limitSearch = rateLimit(searchLimiter, auth.identify);
+const limitLogin = rateLimit(loginLimiter, auth.identify);
+
+// --- work queue --------------------------------------------------------------
+const analysisQueue = createQueue({
+  name: "analyze",
+  concurrency: Number(process.env.ANALYZE_CONCURRENCY ?? 1),
+  maxDepth: Number(process.env.ANALYZE_QUEUE_DEPTH ?? 20),
+});
 
 // =============================================================================
 // Configuration
@@ -163,9 +215,31 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
   try {
     console.log(`   Calling LLM (${model})...`);
     
+    // BOTH messages must be sent. This previously read
+    //     messages: [{ role: "user", content: systemPrompt }]
+    // which silently discarded userPrompt -- the second parameter was accepted
+    // and never referenced.
+    //
+    // Decomposition survived that because it interpolates the query into its
+    // FIRST argument (DECOMPOSITION_PROMPT.replace("{QUERY}", query)), so the
+    // dropped argument was redundant there. Planning did not: generatePlan puts
+    // the question and the whole AVAILABLE ATTRIBUTES list in userPrompt, so
+    // the planner never saw either one. It was working from the system prompt
+    // alone -- rules and worked examples -- which is why it emitted the example
+    // labels (a3, a8, a5) verbatim. Those always dereference to SOME candidate,
+    // so grounding passed and every plan validated on the first attempt while
+    // being unrelated to the question: "how many hospitals are in each county"
+    // planned a count over Oil And Natural Gas Wells.
+    //
+    // Measured before the fix (eval/plan_probe.py, PLAN_MODEL=qwen3:14b):
+    // op appropriateness 50.0%, and 8 of 8 intents describing something the
+    // user had not asked about.
     const response = await llmFetch({
       model,
-      messages: [{ role: "user", content: systemPrompt }],
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...(userPrompt ? [{ role: "user", content: userPrompt }] : []),
+      ],
       temperature: temperature,
       stream: false,
       ...(schema ? { format: schema } : {})
@@ -562,7 +636,7 @@ function tokenize(text) {
 const BM25_K1 = Number(process.env.BM25_K1 ?? 1.2);
 const BM25_B = Number(process.env.BM25_B ?? 0.75);
 
-let bm25 = null;   // { docs, df, idf, avgdl, N } — built once at startup
+let bm25 = null;   // { docs, df, idf, avgdl, N }, built once at startup
 
 /**
  * Build the inverted-index statistics BM25 needs. O(corpus), done once.
@@ -923,68 +997,53 @@ async function unifiedSearch(query, options = {}) {
 }
 
 // =============================================================================
-// PostGIS Data Retrieval (from geospatial_server.js base)
+// API Endpoints
 // =============================================================================
 
 /**
- * Get actual data from PostGIS using search results
+ * GET /api/session, whether this instance needs a code, and whether we have one.
+ * Unauthenticated by necessity: the UI calls it to decide whether to show a
+ * login screen at all.
  */
-async function getDataFromResults(searchResults, options = {}) {
-  const { limit = 10, fipsFilter = null } = options;
-  
-  const data = [];
-  
-  // Group results by table
-  const byTable = new Map();
-  for (const result of searchResults) {
-    if (!result.table_name || !result.attr_orig) continue;
-    
-    if (!byTable.has(result.table_name)) {
-      byTable.set(result.table_name, []);
-    }
-    byTable.get(result.table_name).push(result.attr_orig);
-  }
-  
-  // Query each table
-  for (const [tableName, columns] of byTable) {
-    try {
-      const colList = columns.map(c => `"${c}"`).join(', ');
-      let query = `SELECT ${colList} FROM "${tableName}"`;
-      const params = [];
-      
-      if (fipsFilter) {
-        query += ` WHERE fips = $1 OR geoid = $1`;
-        params.push(fipsFilter);
-      }
-      
-      query += ` LIMIT ${limit}`;
-      
-      const result = await pool.query(query, params);
-      
-      data.push({
-        table_name: tableName,
-        columns: columns,
-        rows: result.rows,
-        row_count: result.rowCount
-      });
-      
-    } catch (e) {
-      console.error(`Failed to query ${tableName}: ${e.message}`);
-    }
-  }
-  
-  return data;
-}
+app.get("/api/session", (req, res) => {
+  const claims = auth.verifyToken(auth.readCookie(req, auth.COOKIE_NAME));
+  res.json({
+    auth_required: auth.AUTH_ENABLED,
+    signed_in: Boolean(claims) || !auth.AUTH_ENABLED,
+    expires_at: claims?.exp ?? null,
+  });
+});
 
-// =============================================================================
-// API Endpoints
-// =============================================================================
+/** POST /api/login, exchange an access code for a session cookie. */
+app.post("/api/login", limitLogin, (req, res) => {
+  if (!auth.AUTH_ENABLED) {
+    return res.json({ signed_in: true, auth_required: false });
+  }
+  const { code } = req.body || {};
+  if (!auth.checkCode(code)) {
+    // Deliberately vague, and rate limited above: distinguishing "no such code"
+    // from "wrong code" would turn this into an oracle.
+    return res.status(401).json({ error: "invalid access code" });
+  }
+  // The subject is a fingerprint of the code, never the code itself -- it ends
+  // up in a cookie the client can read the length of, and in rate-limit keys.
+  const subject = require("crypto").createHash("sha256")
+    .update(String(code)).digest("hex").slice(0, 16);
+  auth.setSessionCookie(req, res, auth.issueToken(subject));
+  res.json({ signed_in: true, auth_required: true });
+});
+
+/** POST /api/logout */
+app.post("/api/logout", (req, res) => {
+  auth.clearSessionCookie(res);
+  res.json({ signed_in: false, auth_required: auth.AUTH_ENABLED });
+});
 
 /**
  * POST /api/unified-search
  * Main unified search endpoint
  */
-app.post("/api/unified-search", async (req, res) => {
+app.post("/api/unified-search", auth.requireAuth, limitSearch, async (req, res) => {
   try {
     if (!isEmbeddingsReady) {
       return res.status(503).json({ error: "Embeddings not ready" });
@@ -1020,7 +1079,7 @@ app.post("/api/unified-search", async (req, res) => {
  * POST /api/decompose-query
  * Just decompose a query (for testing)
  */
-app.post("/api/decompose-query", async (req, res) => {
+app.post("/api/decompose-query", auth.requireAuth, limitSearch, async (req, res) => {
   try {
     const { q: query } = req.body;
     
@@ -1041,7 +1100,7 @@ app.post("/api/decompose-query", async (req, res) => {
  * GET /api/search
  * Simple hybrid search (backward compatible)
  */
-app.get("/api/search", async (req, res) => {
+app.get("/api/search", auth.requireAuth, limitSearch, async (req, res) => {
   try {
     if (!isEmbeddingsReady) {
       return res.status(503).json({ error: "Embeddings not ready" });
@@ -1062,31 +1121,10 @@ app.get("/api/search", async (req, res) => {
 });
 
 /**
- * POST /api/get-data
- * Retrieve actual data from PostGIS
- */
-app.post("/api/get-data", async (req, res) => {
-  try {
-    const { results, limit = 10, fips = null } = req.body;
-    
-    if (!results || !Array.isArray(results)) {
-      return res.status(400).json({ error: "Results array required" });
-    }
-    
-    const data = await getDataFromResults(results, { limit, fipsFilter: fips });
-    res.json(data);
-    
-  } catch (error) {
-    console.error("Get data error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
  * GET /api/health
  */
 // =============================================================================
-// Step 5: Analysis — plan generation and execution
+// Step 5: Analysis, plan generation and execution
 // =============================================================================
 
 /**
@@ -1134,7 +1172,7 @@ async function reloadCorpus() {
   return { rows: corpus.count, cache_key: corpus.cache_key };
 }
 
-app.post("/api/reload-corpus", async (req, res) => {
+app.post("/api/reload-corpus", auth.requireAuth, limitAnalyze, async (req, res) => {
   try {
     const before = corpusCacheKey;
     const result = await reloadCorpus();
@@ -1151,17 +1189,201 @@ app.post("/api/reload-corpus", async (req, res) => {
  * This is the grounding check. An attr_id absent from attribute_source cannot
  * be executed, so a plan referencing one is rejected before any SQL is built.
  */
+/**
+ * Label columns a feature layer may carry. Coverage across the 69 layers,
+ * measured: county/state 54%, name 49%, status 43%, city 41%, type 38%,
+ * address 35%. Nothing is universal, so anything selecting them has to ask
+ * which exist rather than assume.
+ *
+ * `city` earns its place here because there is no city boundary layer in the
+ * database -- county_geom is the only administrative geometry -- so "hospitals
+ * in Springfield" can only be answered from the layer's own attributes.
+ */
+const FEATURE_LABEL_COLUMNS =
+  ["name", "city", "state", "county", "address", "type", "status", "zip", "owner"];
+
+/**
+ * Columns worth enumerating the values of.
+ *
+ * Deliberately not all of FEATURE_LABEL_COLUMNS: `name` and `address` are
+ * near-unique, `city` and `zip` run to thousands. Enumerating those would be a
+ * large query returning something no model could use. These three are the
+ * categorical ones -- hospital `type` is CRITICAL ACCESS / GENERAL ACUTE CARE /
+ * PSYCHIATRIC, `status` is OPEN / CLOSED.
+ */
+const FILTERABLE_COLUMNS = ["type", "status", "owner"];
+
+/** Above this many distinct values a column is not a filter, it is free text. */
+const MAX_FILTER_VALUES = 25;
+
+/**
+ * The values each filterable column actually holds, per layer.
+ *
+ * THIS IS WHAT MAKES ATTRIBUTE FILTERS GROUNDED. Without it the planner would
+ * be guessing strings -- "Critical Access", "critical_access", "CriticalAccess"
+ * -- and every near-miss returns zero rows while looking like a valid answer.
+ * Offering the real values turns the filter into a choice from a list, which is
+ * the same discipline attr_ids already follow.
+ *
+ * Lazy and cached per table: computed only for layers that actually reach the
+ * planner, and only once. The first request touching a large layer pays a
+ * GROUP BY over it; every later one pays nothing.
+ */
+const filterValuesCache = new Map();
+async function featureFilterValues(tableName, availableColumns) {
+  if (filterValuesCache.has(tableName)) return filterValuesCache.get(tableName);
+
+  const cols = FILTERABLE_COLUMNS.filter(c => (availableColumns || []).includes(c));
+  if (!cols.length) {
+    filterValuesCache.set(tableName, {});
+    return {};
+  }
+  // Identifiers come from information_schema and a fixed allow-list, never from
+  // the model, and are pattern-checked before interpolation regardless.
+  if (!/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(tableName)) return {};
+
+  const sql = cols
+    .map(c => `SELECT '${c}' AS col, ${c}::text AS val, count(*)::int AS n ` +
+              `FROM ${tableName} WHERE ${c} IS NOT NULL AND ${c}::text <> '' GROUP BY 2`)
+    .join(" UNION ALL ");
+
+  let out = {};
+  try {
+    const { rows } = await pool.query(sql);
+    const grouped = new Map();
+    for (const r of rows) {
+      if (!grouped.has(r.col)) grouped.set(r.col, []);
+      grouped.get(r.col).push({ value: r.val, count: r.n });
+    }
+    for (const [col, vals] of grouped) {
+      // A column with hundreds of values is free text, not a category.
+      if (vals.length > MAX_FILTER_VALUES) continue;
+      out[col] = vals.sort((a, b) => b.count - a.count).map(v => v.value);
+    }
+  } catch (err) {
+    // A layer with an odd column type should degrade to "no filters offered",
+    // never take down the request.
+    console.warn(`   filter values unavailable for ${tableName}: ${err.message}`);
+    out = {};
+  }
+
+  filterValuesCache.set(tableName, out);
+  return out;
+}
+
+// One information_schema query, cached: the layers do not change at runtime.
+let featureColumnsCache = null;
+async function featureLabelColumns() {
+  if (featureColumnsCache) return featureColumnsCache;
+  const { rows } = await pool.query(
+    `SELECT table_name, array_agg(column_name::text) AS cols
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND column_name = ANY($1)
+      GROUP BY table_name`,
+    [FEATURE_LABEL_COLUMNS]
+  );
+  featureColumnsCache = new Map(rows.map(r => [r.table_name, r.cols]));
+  return featureColumnsCache;
+}
+
+/**
+ * A sample of things this database can definitely answer, for when retrieval
+ * came back with nothing usable at all.
+ *
+ * At that point there are no resolved candidates to build suggestions from, so
+ * the alternative would be hardcoding example questions -- which goes stale the
+ * moment the loaded data changes, and would confidently offer queries about
+ * datasets that are not present. This reads what IS in attribute_source
+ * instead, so the offer is true by construction.
+ *
+ * Cached: the loaded layers do not change at runtime.
+ */
+let answerableSampleCache = null;
+async function answerableSample() {
+  if (answerableSampleCache) return answerableSampleCache;
+  const byId = new Map(variables.map(v => [v.attr_id, v]));
+
+  const { rows } = await pool.query(
+    `(SELECT DISTINCT ON (table_name) attr_id, source_kind
+        FROM attribute_source WHERE source_kind = 'feature_table'
+       ORDER BY table_name, attr_id)
+     UNION ALL
+     (SELECT attr_id, source_kind
+        FROM attribute_source WHERE source_kind = 'acs_long' LIMIT 500)`
+  );
+
+  const features = [];
+  const values = [];
+  for (const r of rows) {
+    const v = byId.get(r.attr_id);
+    if (!v) continue;
+    if (r.source_kind === "feature_table") {
+      // Skip the datasets whose catalog name is an opaque ETL hash -- they
+      // are real, but "table_2545cd7a... locations" is not a useful offer.
+      if (!v.dataset_clean || /^[0-9a-f]{8}|^table_/i.test(v.dataset_clean)) continue;
+      features.push({ attr_id: r.attr_id, dataset_clean: v.dataset_clean, is_feature_table: true });
+    } else {
+      const desc = v.attr_desc || "";
+      // Estimates only: the MOE/PMOE/PCT_EST variants are margins of error and
+      // percentage duplicates, which make for confusing example questions.
+      if (!/^estimate/i.test(desc)) continue;
+      const label = shortLabel(desc);
+      if (!label || label.length > 45) continue;
+      values.push({ attr_id: r.attr_id, attr_desc: desc });
+    }
+  }
+
+  answerableSampleCache = [...values.slice(0, 6), ...features.slice(0, 6)];
+  return answerableSampleCache;
+}
+
+/**
+ * Are named boundaries loaded?
+ *
+ * Cached after the first answer: place_geom is populated by an ETL run, not at
+ * runtime, so this cannot change while the process lives. A false result is not
+ * cached, so starting the API before loading boundaries and loading them after
+ * does not require a restart.
+ */
+let placeBoundariesCache = null;
+async function placeBoundariesLoaded() {
+  if (placeBoundariesCache) return true;
+  try {
+    const { rows } = await pool.query(
+      "SELECT EXISTS (SELECT 1 FROM place_geom LIMIT 1) AS present");
+    placeBoundariesCache = rows[0]?.present === true;
+    return placeBoundariesCache;
+  } catch {
+    // The table does not exist on an install that has never run the loader.
+    return false;
+  }
+}
+
 async function resolveAttributes(attrIds) {
   const out = new Map();
   if (!attrIds.length) return out;
   const { rows } = await pool.query(
+    // geom_column and srid were previously omitted, and the compiler only kept
+    // working because it falls back to "geom"/4326 -- true for every layer the
+    // ETL currently loads, and silently wrong for the first one that isn't.
     `SELECT attr_id, dataset_id, description, source_kind, table_name,
-            value_column, census_code, entity_type, geom_table
+            value_column, census_code, entity_type, geom_table, geom_column, srid
        FROM attribute_source
       WHERE attr_id = ANY($1)`,
     [attrIds]
   );
-  for (const r of rows) out.set(r.attr_id, r);
+  const labels = rows.some(r => r.source_kind === "feature_table")
+    ? await featureLabelColumns()
+    : null;
+  for (const r of rows) {
+    if (r.source_kind === "feature_table" && labels) {
+      r.label_columns = labels.get(r.table_name) || [];
+      // Carried on the resolved row so the validator can check a filter against
+      // real values and the compiler can bind them -- same path attr_ids take.
+      r.filter_values = await featureFilterValues(r.table_name, r.label_columns);
+    }
+    out.set(r.attr_id, r);
+  }
   return out;
 }
 
@@ -1173,18 +1395,46 @@ async function resolveAttributes(attrIds) {
  * Body: { q, top_k?, execute?, entity_type? }
  * Returns the retrieved candidates, the plan, the compiled SQL, and the rows.
  */
-app.post("/api/analyze", async (req, res) => {
+/**
+ * An analyze failure that already knows its HTTP status and its response body.
+ * This is what lets runAnalysis stay transport-agnostic: POST turns these into
+ * a status plus JSON, the SSE route turns them into an `error` event.
+ */
+class AnalyzeError extends Error {
+  constructor(status, payload) {
+    super(payload.error);
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
+/**
+ * The analyze pipeline: retrieve -> plan -> execute.
+ *
+ * Extracted from the POST handler so that POST /api/analyze and
+ * GET /api/analyze/stream run the SAME code. Duplicating it would guarantee
+ * the two drift, and the streaming one is the path the UI actually uses.
+ *
+ * `emit` receives structured progress ({ stage, ... }). It is a no-op for the
+ * plain POST and an SSE writer for the stream. `generatePlan` takes the same
+ * shape, so planner-internal stages (attempts, repairs) flow through untouched.
+ *
+ * `includeGeometry` exists because ST_AsGeoJSON for 1,000 counties is ~6.6 MB,
+ * and the frontend already ships counties.geojson and joins on fips locally.
+ */
+async function runAnalysis({ query, top_k = 25, execute = true,
+                             includeGeometry = true, emit = () => {} }) {
   const started = Date.now();
   try {
-    const { q: query, top_k = 25, execute = true } = req.body || {};
     if (!query || !query.trim()) {
-      return res.status(400).json({ error: "body field 'q' is required" });
+      throw new AnalyzeError(400, { error: "field 'q' is required" });
     }
     if (!isEmbeddingsReady) {
-      return res.status(503).json({ error: "search index not ready" });
+      throw new AnalyzeError(503, { error: "search index not ready" });
     }
 
     console.log(`\n${"=".repeat(70)}\nANALYZE: "${query}"\n${"=".repeat(70)}`);
+    emit({ stage: "started", query });
 
     // 1. Retrieve candidates via the DECOMPOSED pipeline, not a single search.
     //    This matters for planning specifically: "poverty normalized by
@@ -1207,6 +1457,8 @@ app.post("/api/analyze", async (req, res) => {
       topKPerConcept: Math.max(top_k, RETRIEVAL_BUDGET)
     });
     const candidates = search.all_results || [];
+    emit({ stage: "decomposed", decomposition: search.decomposition,
+           retrieved: candidates.length });
     const resolved = await resolveAttributes(candidates.map(c => c.attr_id));
 
     // Collapse feature tables to one candidate per dataset.
@@ -1216,7 +1468,7 @@ app.post("/api/analyze", async (req, res) => {
     // tornado tracks offered the planner seven rows from the same table --
     // "Yr", "Len", "Tz", "Pre 1996 Loss" -- which is noise, and none of it
     // says "tornado". One row per dataset, described by the dataset name, is
-    // both what the op needs and what a reader would recognise.
+    // both what the op needs and what a reader would recognize.
     // Facility datasets need two guards, both learned the hard way. Without
     // them, adding facility coverage dropped plan validity from 62.5% to 12.5%.
     //
@@ -1235,21 +1487,69 @@ app.post("/api/analyze", async (req, res) => {
     for (const c of candidates) {
       const src = resolved.get(c.attr_id);
       if (!src) continue;
-      if (src.source_kind !== "feature_table") {
-        valueSeries.push(c);
-        continue;
+      if (src.source_kind !== "feature_table") valueSeries.push(c);
+    }
+
+    // Facility slots are filled ROUND-ROBIN ACROSS SUB-QUERIES, not first-come
+    // down the merged list.
+    //
+    // Taking the merged order looks right and silently loses the dataset the
+    // question is actually about. Measured on "how far is each county from the
+    // nearest hospital": the sub-query "nearest hospital" ranks Hospitals #1,
+    // but RRF over three sub-queries buries it at merged rank 19, behind six
+    // unrelated facility datasets pulled in by "county distance" and
+    // "population density". Those six filled the cap, Hospitals never reached
+    // the planner, and the planner dutifully measured distance to Major Sport
+    // Venues while calling it "nearest hospital".
+    //
+    // One dataset per sub-query per round guarantees every concept the
+    // decomposer identified is represented before any concept gets a second.
+    const facilityLists = (search.results_by_query || [])
+      .map(q => (q.results || []).filter(c => {
+        const src = resolved.get(c.attr_id);
+        return src && src.source_kind === "feature_table"
+            && c.search_purpose !== "normalization";   // a denominator is never a facility count
+      }))
+      .filter(list => list.length);
+
+    // Fall back to the merged list as a single group, so behavior is unchanged
+    // if results_by_query is ever absent.
+    const groups = facilityLists.length ? facilityLists : [candidates.filter(c => {
+      const src = resolved.get(c.attr_id);
+      return src && src.source_kind === "feature_table" && c.search_purpose !== "normalization";
+    })];
+
+    const cursors = groups.map(() => 0);
+    let addedThisRound = true;
+    while (featureRows.length < MAX_FEATURE_CANDIDATES && addedThisRound) {
+      addedThisRound = false;
+      for (let gi = 0; gi < groups.length; gi++) {
+        if (featureRows.length >= MAX_FEATURE_CANDIDATES) break;
+        const list = groups[gi];
+        while (cursors[gi] < list.length) {
+          const c = list[cursors[gi]++];
+          const src = resolved.get(c.attr_id);
+          if (!src || seenTable.has(src.table_name)) continue;   // one row per dataset
+          seenTable.add(src.table_name);
+          featureRows.push({
+            ...c,
+            // Facility columns have no useful description (see PROVENANCE.md on
+            // the discarded gen_desc), so describe the dataset instead.
+            // Op-neutral: this dataset can be counted per county, measured
+            // distance to, or mapped directly. Saying "count per county" here
+            // put that phrase into the step description of a locations result,
+            // which then read as a count of something it had not counted.
+            attr_desc: `${c.dataset_clean || src.table_name} (mapped locations)`,
+            is_feature_table: true,
+            // Carried into the prompt so the planner filters by values that
+            // exist, rather than inventing plausible-looking ones that match
+            // nothing and return an empty answer that looks valid.
+            filter_values: src.filter_values || {},
+          });
+          addedThisRound = true;
+          break;
+        }
       }
-      if (c.search_purpose === "normalization") continue;      // guard 1
-      if (seenTable.has(src.table_name)) continue;             // one per dataset
-      if (featureRows.length >= MAX_FEATURE_CANDIDATES) continue;  // guard 2
-      seenTable.add(src.table_name);
-      featureRows.push({
-        ...c,
-        // Facility columns have no useful description (see PROVENANCE.md on the
-        // discarded gen_desc), so describe the dataset instead.
-        attr_desc: `${c.dataset_clean || src.table_name} (map features; count per county)`,
-        is_feature_table: true
-      });
     }
 
     // Quota per purpose, not a flat rank cut.
@@ -1263,9 +1563,62 @@ app.post("/api/analyze", async (req, res) => {
     const QUOTA = { primary: 10, normalization: 6, filter: 2, related: 2 };
     const takenByPurpose = { primary: 0, normalization: 0, filter: 0, related: 0 };
     const picked = [];
+
+    // The quota is per purpose, and it used to be filled first-come from the
+    // merged list. That silently loses a whole CONCEPT whenever two of them
+    // share a purpose.
+    //
+    // Measured on "compare median income against educational attainment": the
+    // decomposer emits two primary sub-queries, both retrieve well on their
+    // own, and income filled all 10 primary slots. Educational attainment never
+    // reached the planner, which then reported -- correctly, given what it was
+    // shown -- that the data did not exist. A direct search ranks it 1-6.
+    //
+    // So the purpose quota is now shared ROUND-ROBIN across the sub-queries
+    // that carry that purpose: every concept the decomposer found is
+    // represented before any concept gets a second slot. Same fix as the
+    // facility cap above, one level up.
+    const allowed = new Map(valueSeries.map(c => [c.attr_id, c]));
+    const byPurpose = new Map();
+    for (const q of search.results_by_query || []) {
+      const purpose = QUOTA[q.purpose] !== undefined ? q.purpose : "related";
+      const list = (q.results || [])
+        .map(r => allowed.get(r.attr_id))
+        .filter(Boolean);
+      if (!list.length) continue;
+      if (!byPurpose.has(purpose)) byPurpose.set(purpose, []);
+      byPurpose.get(purpose).push(list);
+    }
+
+    const seenAttr = new Set();
+    for (const [purpose, groups] of byPurpose) {
+      const cursors = groups.map(() => 0);
+      let added = true;
+      while (takenByPurpose[purpose] < QUOTA[purpose] && added) {
+        added = false;
+        for (let gi = 0; gi < groups.length; gi++) {
+          if (takenByPurpose[purpose] >= QUOTA[purpose]) break;
+          const list = groups[gi];
+          while (cursors[gi] < list.length) {
+            const c = list[cursors[gi]++];
+            if (seenAttr.has(c.attr_id)) continue;
+            seenAttr.add(c.attr_id);
+            takenByPurpose[purpose]++;
+            picked.push(c);
+            added = true;
+            break;
+          }
+        }
+      }
+    }
+
+    // Top up from the merged order for anything the per-query pass could not
+    // fill, and as the whole path when results_by_query is unavailable.
     for (const c of valueSeries) {
+      if (seenAttr.has(c.attr_id)) continue;
       const purpose = QUOTA[c.search_purpose] !== undefined ? c.search_purpose : "related";
       if (takenByPurpose[purpose] >= QUOTA[purpose]) continue;
+      seenAttr.add(c.attr_id);
       takenByPurpose[purpose]++;
       picked.push(c);
     }
@@ -1278,13 +1631,30 @@ app.post("/api/analyze", async (req, res) => {
 
 
     console.log(`   ${candidates.length} retrieved, ${executable.length} executable`);
+    emit({ stage: "retrieved", retrieved: candidates.length,
+           executable: executable.length, by_purpose: takenByPurpose,
+           facility: featureRows.length });
+
+    // Named separately from "we found nothing": a dataset that IS in the
+    // catalog but has no table is a loading gap, not an unsupported question,
+    // and the user cannot tell those apart without being told.
+    const missing = unavailableDatasets(candidates, resolved);
 
     if (executable.length === 0) {
-      return res.status(422).json({
-        error: "no executable attributes for this query",
-        detail: "Retrieval found matches, but none are mapped to a physical " +
-                "table yet. Only ACS county attributes are loaded; see " +
-                "etl/load_reference_data.py.",
+      throw new AnalyzeError(422, {
+        error: missing.length
+          ? `the data for this question has not been loaded`
+          : "no executable attributes for this query",
+        detail: missing.length
+          ? `Retrieval matched ${missing.join(", ")}, but ${missing.length > 1 ? "those datasets are" : "that dataset is"} ` +
+            `in the catalog without any underlying table. See docs/RUNBOOK.md section 4.`
+          : "Retrieval found matches, but none are mapped to a physical " +
+            "table yet. Only ACS county attributes are loaded; see " +
+            "etl/load_reference_data.py.",
+        unavailable_datasets: missing,
+        // Nothing here resolved, so the suggestions come from the wider
+        // catalog of what IS loaded rather than from this query's results.
+        suggestions: buildSuggestions(await answerableSample()),
         retrieved: candidates.slice(0, 10),
         ms: Date.now() - started
       });
@@ -1298,12 +1668,43 @@ app.post("/api/analyze", async (req, res) => {
       callLLM: (sys, usr, temp, schema) =>
         callLLM(sys, usr, temp, schema, CONFIG.llm.planModel),
       resolve: resolveAttributes,
-      log: (m) => console.log(m)
+      // Whether named boundaries are loaded. filter_place is useless without
+      // them, and offering an op that can only fail costs a repair round.
+      hasPlaceBoundaries: await placeBoundariesLoaded(),
+      log: (m) => console.log(m),
+      emit,
     });
 
     if (!planning.ok) {
-      return res.status(422).json({
+      // An empty steps array is not a malfunction: it is the planner saying the
+      // attributes it was shown cannot answer the question. Observed on
+      // "population density per square mile", where retrieval returns housing
+      // occupancy columns and no total-population series, so there is nothing
+      // to divide by land area.
+      //
+      // Reported as a coverage answer rather than "could not produce a valid
+      // plan", which reads as a crash and sends the user looking for a bug.
+      const allEmpty = planning.attempts.length > 0 &&
+        planning.attempts.every(a => (a.errors || []).some(e => /no steps/.test(e)));
+      // Grounded alternatives, built from what DID resolve -- so following one
+      // cannot fail the same way this question just did.
+      const suggestions = buildSuggestions(executable);
+      throw new AnalyzeError(422, allEmpty ? {
+        error: "no analysis could be built from the available data",
+        detail: "Retrieval found related attributes, but none of them answer " +
+                "this question directly. These are things the same data can answer:",
+        suggestions,
+        unavailable_datasets: missing,
+        validation_errors: planning.errors,
+        attempts: planning.attempts.length,
+        candidates: executable.slice(0, 10),
+        ms: Date.now() - started
+      } : {
         error: "could not produce a valid plan",
+        detail: "The planner could not turn this into an executable analysis. " +
+                "These are close to what it did find:",
+        suggestions,
+        unavailable_datasets: missing,
         validation_errors: planning.errors,
         attempts: planning.attempts.length,
         candidates: executable.slice(0, 10),
@@ -1311,41 +1712,229 @@ app.post("/api/analyze", async (req, res) => {
       });
     }
 
+    // Provenance: everything needed to reconstruct or audit this result later.
+    //
+    // Assembled server-side because this is where the facts actually are. The
+    // browser cannot know which model planned the query, which embedding
+    // corpus was searched, or which physical column an attr_id resolved to --
+    // and a provenance record the client fills in itself is worth very little.
+    //
+    // The per-attribute origins matter most. A downloaded CSV of "poverty rate"
+    // is not checkable unless it says WHICH poverty measure, from which table
+    // and census code, for which year.
+    const usedAttrIds = [...new Set(planning.plan.steps.flatMap(
+      s => [s.attr_id, s.near_attr_id].filter(Boolean)))];
+    const byId = new Map(executable.map(c => [c.attr_id, c]));
+    const origins = usedAttrIds.map(id => {
+      const src = planning.resolved.get(id) || {};
+      const cand = byId.get(id) || {};
+      const isFeature = src.source_kind === "feature_table";
+      return {
+        attr_id: id,
+        description: cand.attr_desc || src.description || null,
+        dataset: cand.dataset_clean || null,
+        original_name: cand.attr_orig || null,
+        source_kind: src.source_kind || null,
+        table_name: src.table_name || null,
+        // A feature dataset is read for its GEOMETRY -- counted, or measured
+        // against. attribute_source still carries whichever column retrieval
+        // happened to match ("website", "objectid"), and reporting that as the
+        // source of the number is simply wrong, so it is dropped here rather
+        // than in each of the three places that render provenance.
+        value_column: isFeature ? null : (src.value_column || null),
+        geometry_column: isFeature ? (src.geom_column || "geom") : null,
+        census_code: src.census_code || null,
+        entity_type: cand.entity_type || src.entity_type || null,
+        start_date: cand.start_date || null,
+        end_date: cand.end_date || null,
+        srid: src.srid ?? null,
+      };
+    });
+
     const body = {
       query,
       decomposition: search.decomposition,
       plan: planning.plan,
       repairs: planning.repairs,
-      candidates: executable.slice(0, 10),
+      // Deterministic corrections applied to the model's plan. Surfaced because
+      // a filter that could not be applied silently widens the answer.
+      adjustments: planning.adjustments || [],
+      // ALL executable candidates, not the top 10. A plan may load an attribute
+      // ranked below 10th, and the UI's step-by-step report has to be able to
+      // name what each step operates on. The list is ~25 small rows.
+      candidates: executable,
+      provenance: {
+        generated_at: new Date().toISOString(),
+        query,
+        intent: planning.plan.intent,
+        models: {
+          decomposition: CONFIG.llm.model,
+          planner: CONFIG.llm.planModel || CONFIG.llm.model,
+          embedding: CONFIG.embedder.model,
+        },
+        retrieval: {
+          corpus_cache_key: corpusCacheKey ?? null,
+          catalog_rows: variables.length,
+          retrieved: candidates.length,
+          executable: executable.length,
+          plan_repairs: planning.repairs,
+        },
+        database: CONFIG.database.database,
+        attribute_origins: origins,
+        // Units are not derivable from the numbers and are wrong to guess at.
+        units_note:
+          "per_area yields value per square mile of LAND area (water excluded); " +
+          "nearest_distance yields miles; normalize yields numerator/denominator " +
+          "times the step's scale.",
+      },
       ms: Date.now() - started
     };
 
     // 3. Execute, unless the caller only wanted the plan.
     if (execute) {
+      emit({ stage: "executing" });
       try {
         const result = await executePlan(planning.plan, planning.resolved, pool);
         body.sql = result.sql;
         body.params = result.params;
         body.row_count = result.row_count;
         body.rows = result.rows;
-        body.geometry = result.geometry;
         body.execution_ms = result.ms;
+        body.output_mode = result.mode;
+        // A successful result can still be the wrong ANSWER: a city filter with
+        // no state quietly spans the country. Report the spread so the UI can
+        // offer to narrow, rather than presenting 25 states as one city.
+        const ambiguity = cityAmbiguity(planning.plan, result.features);
+        if (ambiguity) body.ambiguity = ambiguity;
+        if (result.mode === "features") {
+          // Feature geometry is the ANSWER here, not an optional overlay, so
+          // include_geometry does not apply -- withholding it would leave the
+          // caller with nothing. Bounded instead by MAX_FEATURES.
+          body.features = result.features;
+        } else if (includeGeometry) {
+          // County geometry is ~6.6 MB for a 1,000-row result. Callers that
+          // already have county boundaries locally ask for it to be left out.
+          body.geometry = result.geometry;
+        }
       } catch (err) {
         // A plan that validates can still fail at execution. Return the plan
         // and the reason rather than swallowing both.
         console.error("   Execution failed:", err.message);
         body.execution_error = err.message;
-        res.status(500);
+        body.http_status = 500;
       }
     }
 
     body.ms = Date.now() - started;
     console.log(`   done in ${body.ms}ms (${body.row_count ?? 0} rows)`);
-    return res.json(body);
+    return body;
 
   } catch (error) {
+    if (error instanceof AnalyzeError) throw error;
     console.error("Analyze error:", error);
-    return res.status(500).json({ error: "analyze failed", details: error.message });
+    throw new AnalyzeError(500, { error: "analyze failed", details: error.message });
+  }
+}
+
+app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
+  const { q, top_k, execute, include_geometry } = req.body || {};
+  // Queued like the stream: both compete for the same single GPU, and letting
+  // POST bypass the queue would let it jump ahead of everyone waiting.
+  let closed = false;
+  req.on("close", () => { closed = true; });
+  try {
+    const body = await analysisQueue.submit(
+      () => runAnalysis({
+        query: q, top_k, execute,
+        // Defaults to true so existing callers (eval/run.py, curl) are unchanged.
+        includeGeometry: include_geometry !== false,
+      }),
+      { isAbandoned: () => closed },
+    );
+    const status = body.http_status ?? 200;
+    delete body.http_status;
+    return res.status(status).json(body);
+  } catch (err) {
+    if (err instanceof QueueFullError) {
+      res.set("Retry-After", "30");
+      return res.status(503).json({
+        error: "server is busy",
+        detail: `${err.depth} analyses are already waiting. Try again shortly.`,
+      });
+    }
+    if (err instanceof AnalyzeError) return res.status(err.status).json(err.payload);
+    return res.status(500).json({ error: "analyze failed", details: err.message });
+  }
+});
+
+/**
+ * Streaming analyze.
+ *
+ * GET rather than POST because EventSource cannot issue a POST, and the query
+ * is short enough to sit in the querystring. A 45s p50 with no feedback is the
+ * reason this exists: the UI shows which stage is running instead of a spinner.
+ *
+ * nginx is already configured for this -- `proxy_buffering off` in
+ * frontend/nginx.conf, without which every event would be held until the
+ * response completed and the stream would be pointless.
+ *
+ * Geometry defaults OFF here: the client joins values to its own
+ * counties.geojson on fips, so shipping polygons would add ~6.6 MB to a
+ * payload the browser already has.
+ */
+app.get("/api/analyze/stream", auth.requireAuth, limitAnalyze, async (req, res) => {
+  res.set({
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive",
+    // Belt and braces: honored by nginx even if proxy_buffering is ever re-enabled.
+    "X-Accel-Buffering": "no",
+  });
+  res.flushHeaders?.();
+
+  let open = true;
+  req.on("close", () => { open = false; });
+
+  const send = (event, data) => {
+    if (!open) return;
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // Heartbeat. Planning can sit silent for tens of seconds inside one LLM call,
+  // and idle proxies drop connections; a comment frame keeps it alive and is
+  // ignored by EventSource.
+  const heartbeat = setInterval(() => { if (open) res.write(": keepalive\n\n"); }, 15000);
+
+  try {
+    const body = await analysisQueue.submit(
+      () => runAnalysis({
+        query: req.query.q,
+        top_k: req.query.top_k ? Number(req.query.top_k) : undefined,
+        execute: req.query.execute !== "false",
+        includeGeometry: req.query.include_geometry === "true",
+        emit: (ev) => send(ev.stage, ev),
+      }),
+      {
+        // The whole reason the queue reports position: a 19s analysis behind
+        // three others is a 76s wait, and an unexplained 76s reads as a hang.
+        onPosition: (position, total) => send("queued", { stage: "queued", position, total }),
+        // A browser that navigated away must not cost the GPU a full run.
+        isAbandoned: () => !open,
+      },
+    );
+    delete body.http_status;
+    send("done", body);
+  } catch (err) {
+    const payload = err instanceof QueueFullError
+      ? { status: 503, error: "server is busy",
+          detail: `${err.depth} analyses are already waiting. Try again shortly.` }
+      : err instanceof AnalyzeError
+        ? { status: err.status, ...err.payload }
+        : { status: 500, error: "analyze failed", details: err.message };
+    send("failed", payload);
+  } finally {
+    clearInterval(heartbeat);
+    if (open) res.end();
   }
 });
 
@@ -1362,6 +1951,8 @@ app.get("/api/health", async (req, res) => {
     plan_model: CONFIG.llm.planModel,
     database: CONFIG.database.database,
     resolvable_attributes: resolvableCount,
+    auth_required: auth.AUTH_ENABLED,
+    queue: analysisQueue.stats(),
     corpus_cache_key: corpusCacheKey,
     // True when the embedder has re-embedded since this process started. The
     // vectors held here are then from a different space than the query
@@ -1450,9 +2041,12 @@ initializeEmbeddings().then(() => {
     console.log(`   POST /api/unified-search   - Full unified search pipeline`);
     console.log(`   POST /api/decompose-query  - Query decomposition only`);
     console.log(`   GET  /api/search           - Simple hybrid search`);
-    console.log(`   POST /api/get-data         - Retrieve PostGIS data`);
     console.log(`   POST /api/analyze          - NL -> plan -> executed results`);
     console.log(`   GET  /api/health           - Health check`);
+    console.log(`\n  Access control:`);
+    console.log(auth.startupWarning());
+    console.log(`   Queue: concurrency ${analysisQueue.stats().concurrency}, ` +
+                `max depth ${analysisQueue.stats().maxDepth}`);
     console.log(`\n  Configuration:`);
     console.log(`   Embedder:  ${CONFIG.embedder.url} (${CONFIG.embedder.model})`);
     console.log(`   Ollama:    ${CONFIG.llm.endpoint}`);
@@ -1477,8 +2071,7 @@ module.exports = {
   decomposeQuery,
   performHybridSearch,
   verifyResultsWithLLM,
-  getDataFromResults,
-  
+
   // Helper functions
   createSmartFallback,
   loadVariablesFromCSV,

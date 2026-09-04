@@ -149,7 +149,7 @@ def check_text_health(rows: list[dict], rep: Report) -> None:
     huge = sum(1 for r in rows if len(r.get("attr_desc") or "") > 600)
     if huge:
         rep.warn(f"{huge} row(s) have an attr_desc over 600 chars; the embedder truncates "
-                 f"context and BM25 length-normalises against them.")
+                 f"context and BM25 length-normalizes against them.")
     blank_desc = sum(1 for r in rows if not (r.get("attr_desc") or "").strip())
     if blank_desc:
         rep.warn(f"{blank_desc} row(s) have no attr_desc. With tags contributing nothing "

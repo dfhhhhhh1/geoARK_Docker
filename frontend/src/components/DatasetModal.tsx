@@ -1,14 +1,12 @@
 import React from 'react';
-import { 
-  X, 
-  Download, 
-  Eye, 
-  Calendar, 
-  MapPin, 
-  Database, 
-  FileText, 
-  ShoppingCart,
-  CheckCircle,
+import { Link } from 'react-router-dom';
+import {
+  X,
+  Eye,
+  Calendar,
+  MapPin,
+  Database,
+  Sparkles,
   ExternalLink
 } from 'lucide-react';
 import { Dataset } from '../types';
@@ -16,16 +14,9 @@ import { Dataset } from '../types';
 interface DatasetModalProps {
   dataset: Dataset;
   onClose: () => void;
-  onAddToCart: (dataset: Dataset) => void;
-  isInCart: boolean;
 }
 
-const DatasetModal: React.FC<DatasetModalProps> = ({ 
-  dataset, 
-  onClose, 
-  onAddToCart, 
-  isInCart 
-}) => {
+const DatasetModal: React.FC<DatasetModalProps> = ({ dataset, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
@@ -62,13 +53,6 @@ const DatasetModal: React.FC<DatasetModalProps> = ({
                 <p className="text-slate-800 font-semibold">{dataset.source}</p>
               </div>
               
-              <div className="bg-slate-50 rounded-lg p-4">
-                <div className="flex items-center space-x-2 mb-1">
-                  <FileText className="w-4 h-4 text-slate-500" />
-                  <span className="text-sm font-medium text-slate-700">File Size</span>
-                </div>
-                <p className="text-slate-800 font-semibold">{dataset.fileSize}</p>
-              </div>
               
               <div className="bg-slate-50 rounded-lg p-4">
                 <div className="flex items-center space-x-2 mb-1">
@@ -113,11 +97,6 @@ const DatasetModal: React.FC<DatasetModalProps> = ({
                 <h3 className="font-semibold text-slate-800 mb-3">Geographic Coverage</h3>
                 <div className="bg-slate-50 rounded-lg p-4 space-y-2">
                   <p className="text-slate-700">{dataset.coverage.geographic}</p>
-                  <div className="text-sm text-slate-600">
-                    <p>Coordinates: {dataset.coordinates.lat.toFixed(4)}, {dataset.coordinates.lng.toFixed(4)}</p>
-                    <p>Bounding Box: N {dataset.boundingBox.north}°, S {dataset.boundingBox.south}°</p>
-                    <p className="ml-12">E {dataset.boundingBox.east}°, W {dataset.boundingBox.west}°</p>
-                  </div>
                 </div>
               </div>
               
@@ -181,34 +160,21 @@ const DatasetModal: React.FC<DatasetModalProps> = ({
               </button>
             </div>
             
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => onAddToCart(dataset)}
-                disabled={isInCart}
-                className={`flex items-center space-x-2 px-6 py-2.5 rounded-lg transition-all font-medium ${
-                  isInCart
-                    ? 'bg-green-100 text-green-700 cursor-default'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
-                }`}
-              >
-                {isInCart ? (
-                  <>
-                    <CheckCircle className="w-5 h-5" />
-                    <span>Added to Cart</span>
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="w-5 h-5" />
-                    <span>Add to Cart</span>
-                  </>
-                )}
-              </button>
-              
-              <button className="flex items-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg hover:from-green-700 hover:to-teal-700 transition-all font-medium shadow-lg hover:shadow-xl">
-                <Download className="w-5 h-5" />
-                <span>Download Now</span>
-              </button>
-            </div>
+            {/* "Add to Cart" and "Download Now" used to live here. Neither did
+                anything: the cart checkout and the download button both opened
+                /api/download, which the backend does not implement. Data leaves
+                this app through an analysis, which exports CSV, GeoJSON and a
+                provenance report. */}
+            <Link
+              to={`/analysis?q=${encodeURIComponent(dataset.source || dataset.title)}`}
+              onClick={onClose}
+              className="flex items-center space-x-2 px-6 py-2.5 rounded-lg font-medium
+                         bg-blue-600 text-white hover:bg-blue-700 shadow-lg
+                         hover:shadow-xl transition-all"
+            >
+              <Sparkles className="w-5 h-5" />
+              <span>Use in analysis</span>
+            </Link>
           </div>
         </div>
       </div>

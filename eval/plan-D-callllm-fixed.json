@@ -1,0 +1,183 @@
+{
+  "queries": 8,
+  "plan_validity": 1.0,
+  "op_appropriateness": 0.875,
+  "forbidden_op_rate": 0.0,
+  "op_diversity": 0.75,
+  "distinct_op_sequences": [
+    "count_features->output",
+    "load->aggregate->output",
+    "load->filter_attr->output",
+    "load->load->normalize->output",
+    "load->output",
+    "load->rank->output"
+  ],
+  "latency_mean": 24.6,
+  "detail": [
+    {
+      "id": "rank-top-income",
+      "query": "list the top 10 counties with the highest median household income",
+      "planned": true,
+      "intent": "The ten counties ranked highest on median household income",
+      "ops": "load->rank->output",
+      "expect_op": "rank",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 26.4
+    },
+    {
+      "id": "rank-bottom-uninsured",
+      "query": "the 5 counties with the lowest rate of health insurance coverage",
+      "planned": true,
+      "intent": "The five counties ranked lowest on the percentage of health insurance coverage",
+      "ops": "load->rank->output",
+      "expect_op": "rank",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_386",
+          "purpose": "primary",
+          "desc": "Percent Estimate!!HEALTH INSURANCE COVERAGE!!Civilian noninstitutionalized population!!With health i"
+        }
+      ],
+      "error": null,
+      "seconds": 36.5
+    },
+    {
+      "id": "normalize-poverty",
+      "query": "poverty rate normalized by total population for counties",
+      "planned": true,
+      "intent": "Poverty rate (percentage of civilian population over 18 in poverty) normalized by total population for counties",
+      "ops": "load->load->normalize->output",
+      "expect_op": "normalize",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_02_01_426",
+          "purpose": "primary",
+          "desc": "Estimate!!Percent!!POVERTY STATUS IN THE PAST 12 MONTHS!!Civilian population 18 years and over for w"
+        },
+        {
+          "attr_id": "04d18a18_08_01_04",
+          "purpose": "normalization",
+          "desc": "Estimate|Total|Total population"
+        }
+      ],
+      "error": null,
+      "seconds": 46.8
+    },
+    {
+      "id": "count-hospitals",
+      "query": "how many hospitals are in each county",
+      "planned": true,
+      "intent": "Number of hospital features in each county",
+      "ops": "count_features->output",
+      "expect_op": "count_features",
+      "expect_op_present": true,
+      "forbid_op": "normalize",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "443ff20b_01_01_24",
+          "purpose": "primary",
+          "desc": "Hospitals (map features; count per county)"
+        }
+      ],
+      "error": null,
+      "seconds": 7.1
+    },
+    {
+      "id": "join-income-education",
+      "query": "compare median income against educational attainment",
+      "planned": true,
+      "intent": "Compare median income attributes against educational attainment data, but educational attainment data is not available in the provided attributes",
+      "ops": "load->output",
+      "expect_op": "join",
+      "expect_op_present": false,
+      "forbid_op": "normalize",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_150",
+          "purpose": "primary",
+          "desc": "Estimate|Total|Households|HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2018 INFLATION-ADJUSTED DOLLARS"
+        }
+      ],
+      "error": null,
+      "seconds": 35.0
+    },
+    {
+      "id": "aggregate-mean-income",
+      "query": "what is the average median household income across all counties",
+      "planned": true,
+      "intent": "The average of median household income over all counties",
+      "ops": "load->aggregate->output",
+      "expect_op": "aggregate",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 17.5
+    },
+    {
+      "id": "filter-high-income",
+      "query": "counties where median household income is above 75000",
+      "planned": true,
+      "intent": "Counties whose median household income is greater than 75000",
+      "ops": "load->filter_attr->output",
+      "expect_op": "filter_attr",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_150",
+          "purpose": "primary",
+          "desc": "Estimate|Total|Households|HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2018 INFLATION-ADJUSTED DOLLARS"
+        }
+      ],
+      "error": null,
+      "seconds": 20.2
+    },
+    {
+      "id": "plain-load-population",
+      "query": "show total population by county",
+      "planned": true,
+      "intent": "Total population in each county",
+      "ops": "load->output",
+      "expect_op": "load",
+      "expect_op_present": true,
+      "forbid_op": "normalize",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_08_01_04",
+          "purpose": "primary",
+          "desc": "Estimate|Total|Total population"
+        }
+      ],
+      "error": null,
+      "seconds": 7.3
+    }
+  ]
+}
