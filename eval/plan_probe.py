@@ -45,8 +45,10 @@ GREEN, RED, YELLOW, DIM, BOLD, OFF = (
 )
 
 
-def call_analyze(base: str, query: str, timeout: int) -> tuple[dict, float]:
-    body = json.dumps({"q": query, "execute": False}).encode()
+def call_analyze(base: str, query: str, timeout: int,
+                 expand: bool | None = None) -> tuple[dict, float]:
+    body = json.dumps({"q": query, "execute": False,
+                       **({} if expand is None else {"expand": expand})}).encode()
     req = urllib.request.Request(
         f"{base}/api/analyze", data=body,
         headers={"Content-Type": "application/json"}, method="POST")
@@ -64,10 +66,10 @@ def call_analyze(base: str, query: str, timeout: int) -> tuple[dict, float]:
         return {"error": str(e)}, time.time() - t0
 
 
-def probe(base: str, queries: list[dict], timeout: int) -> dict:
+def probe(base: str, queries: list[dict], timeout: int, expand: bool | None = None) -> dict:
     rows = []
     for q in queries:
-        payload, secs = call_analyze(base, q["query"], timeout)
+        payload, secs = call_analyze(base, q["query"], timeout, expand)
         plan = payload.get("plan") or {}
         steps = plan.get("steps") or []
         ops = [s.get("op") for s in steps]
@@ -208,6 +210,11 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--save", type=Path)
     ap.add_argument("--compare", type=Path)
+    # Literature expansion, per request. The check that matters: op
+    # appropriateness must not move when extra LINKED IN MEDICAL LITERATURE
+    # candidates are offered to the planner.
+    ap.add_argument("--expand", dest="expand", action="store_const", const=True, default=None)
+    ap.add_argument("--no-expand", dest="expand", action="store_const", const=False)
     args = ap.parse_args()
 
     suite = yaml.safe_load(args.suite_file.read_text(encoding="utf-8"))
@@ -215,7 +222,7 @@ def main() -> int:
     print(f"{BOLD}plan correctness probe{OFF}  {DIM}{len(queries)} queries, "
           f"execute=false{OFF}\n")
 
-    res = probe(args.base, queries, args.timeout)
+    res = probe(args.base, queries, args.timeout, args.expand)
     show(res)
 
     if args.compare:

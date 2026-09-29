@@ -6,14 +6,22 @@ import { useAnalyzeStream } from '../hooks/useAnalyzeStream';
 import AnalysisProgress from './AnalysisProgress';
 import AnalysisReport from './AnalysisReport';
 import ChoroplethMap from './ChoroplethMap';
+import LayeredMap from './LayeredMap';
 import FeatureMap from './FeatureMap';
 import ErrorBoundary from './ErrorBoundary';
 import AnalysisFailurePanel from './AnalysisFailure';
 import AmbiguityNotice from './AmbiguityNotice';
+import CorrelationCard from './CorrelationCard';
+import FactorTable from './FactorTable';
 import type { MappedFeature } from '../types';
 import {
   download, slug, toCsv, toGeoJson, toMarkdownReport, toBundle,
 } from '../lib/exports';
+import { deriveSeries } from '../lib/series';
+import { OP_LABEL } from '../lib/ops';
+import {
+  ViewTabs, ChartView, StatisticsView, suggestedView, type ViewKind,
+} from './ResultViews';
 
 const EXAMPLES = [
   'poverty rate normalized by total population for counties',
@@ -34,6 +42,10 @@ const AnalysisPage: React.FC = () => {
     stage, events, result, error, failure, isRunning, elapsedMs, run, cancel,
   } = useAnalyzeStream();
   const [exporting, setExporting] = useState(false);
+  // Which view is on screen. `null` means "follow the plan", so a new analysis
+  // lands on whatever it asked for; once the user picks a tab their choice is
+  // kept across queries, because overriding it every 20 seconds would be rude.
+  const [view, setView] = useState<ViewKind | null>(null);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +55,25 @@ const AnalysisPage: React.FC = () => {
   const rows = result?.rows ?? [];
   const features = result?.features ?? [];
   const isFeatures = result?.output_mode === 'features';
-  const hasRows = isFeatures ? features.length > 0 : rows.length > 0;
+  // One statistic (correlate): no county to map, so it replaces the map.
+  const isStatistic = !!result?.stats;
+  // A ranked factor table (explain): also no county layer to map.
+  const isFactors = !!result?.explain;
+  // Attributes the relevance check judged to be stand-ins for what was asked.
+  const proxies = (result?.relevance ?? []).filter(v => v.verdict === 'proxy');
+  const hasRows = !isStatistic && !isFactors && (result?.layers?.length ?? 0) > 1
+    ? result!.layers!.some(l => (l.rows?.length ?? l.features?.length ?? 0) > 0)
+    : isFeatures ? features.length > 0 : rows.length > 0;
+  // One entry, or two when the plan ended in a join. Derived once here and
+  // passed down so the map, the table and the exports agree on the names.
+  const series = React.useMemo(
+    () => (result && !isFeatures ? deriveSeries(result, rows) : []),
+    [result, rows, isFeatures]);
+  // Present only when the plan had more than one `output` step. A single-output
+  // plan keeps the flat shape, so this stays empty and nothing below changes.
+  const layers = result?.layers ?? [];
+  // The user's tab wins once they have chosen one; otherwise follow the plan.
+  const activeView: ViewKind = view ?? suggestedView(result);
 
   /**
    * GeoJSON export joins values to the local county boundaries, the same source
@@ -149,8 +179,18 @@ const AnalysisPage: React.FC = () => {
         </div>
       )}
 
-      {result && !isRunning && (
-        <div className="max-w-6xl mx-auto space-y-6">
+      {/* Rendered while a new query runs, not only after it finishes. Clearing
+          it unmounted the Leaflet map and rebuilt it at the default national
+          zoom on every question. The previous answer stays readable, dimmed,
+          until the new one replaces it. */}
+      {result && (
+        <div className={`max-w-6xl mx-auto space-y-6 transition-opacity ${
+          isRunning ? 'opacity-45 pointer-events-none' : ''}`}>
+          {isRunning && (
+            <p className="text-center text-sm text-slate-500">
+              Showing the previous result while this question is planned.
+            </p>
+          )}
           {result.ambiguity && (
             <AmbiguityNotice
               ambiguity={result.ambiguity}
@@ -167,7 +207,7 @@ const AnalysisPage: React.FC = () => {
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
               <div className="flex items-start justify-between mb-4 gap-3">
-                <h3 className="text-lg font-semibold text-slate-800 shrink-0">Map</h3>
+                <h3 className="text-lg font-semibold text-slate-800 shrink-0">Result</h3>
                 {/* Every export carries the provenance block: the CSV as `#`
                     comment lines, the GeoJSON as a `metadata` member, the report
                     in full. A file that outlives this screen has to be able to
@@ -196,14 +236,93 @@ const AnalysisPage: React.FC = () => {
                   ))}
                 </div>
               </div>
-              {hasRows ? (
+              {/* The planner's output_type picks the default tab; every view
+                  stays reachable. A feature result has no per-county numbers,
+                  so it only ever gets the map. */}
+              {hasRows && !isFeatures && (
+                <div className="mb-4">
+                  <ViewTabs
+                    active={activeView}
+                    suggested={suggestedView(result)}
+                    onChange={setView}
+                  />
+                </div>
+              )}
+
+              {/* The chart and summary mount and unmount freely; the MAP does
+                  not. Unmounting it destroys the Leaflet instance, and coming
+                  back rebuilds it at the default national zoom -- so it stays
+                  mounted and hides itself via the `visible` prop. */}
+              {hasRows && !isFeatures && activeView === 'chart' && (
+                <ChartView rows={rows} series={series}
+                           valueLabel={result.value_label ?? null} />
+              )}
+              {hasRows && !isFeatures && activeView === 'statistics' && (
+                <StatisticsView rows={rows} series={series} />
+              )}
+              {hasRows && !isFeatures && activeView === 'table' && (
+                <p className="text-sm text-slate-500">
+                  The full table is below, under Results.
+                </p>
+              )}
+              {proxies.length > 0 && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5
+                                text-sm text-amber-900">
+                  Answered with a stand-in:{' '}
+                  {proxies.map((p, i) => (
+                    <span key={p.attr_id}>
+                      {i > 0 && '; '}
+                      <strong>{p.description ?? p.attr_id}</strong>
+                      {p.reason ? ` (${p.reason})` : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {isStatistic ? (
+                <CorrelationCard result={result} />
+              ) : isFactors ? (
+                <FactorTable result={result} />
+              ) : hasRows ? (
                 <ErrorBoundary label="the map">
-                  {/* Two different answers, two components: a choropleth encodes
-                      one number per county in color; a feature layer encodes
-                      identity and position and has no value to bin. */}
-                  {isFeatures
-                    ? <FeatureMap features={features} intent={result.plan.intent} />
-                    : <ChoroplethMap rows={rows} intent={result.plan.intent} />}
+                  {/* A plan with several `output` steps returns several layers,
+                      and they can be different shapes -- a point layer and a
+                      choropleth from one question. Each is drawn by the
+                      component that matches its shape rather than by one
+                      component with a mode flag. */}
+                  {layers.length > 1 ? (
+                    <>
+                      {/* Values layers share ONE map so they can be compared
+                          through each other; a feature layer has its own
+                          geometry and gets its own. */}
+                      {layers.some(l => l.mode === 'values') && (
+                        <LayeredMap
+                          layers={layers.filter(l => l.mode === 'values')}
+                          intent={result.plan.intent}
+                          describe={(l) =>
+                            `${OP_LABEL[l.op] ?? l.op}${l.part ? ' (component)' : ''}`}
+                        />
+                      )}
+                      {layers.filter(l => l.mode === 'features').map(l => (
+                        <div key={l.id} className="mt-5">
+                          <p className="text-xs font-medium text-slate-500 mb-1.5">
+                            Locations · {l.row_count.toLocaleString()}
+                          </p>
+                          <FeatureMap features={l.features ?? []}
+                                      intent={result.plan.intent} />
+                        </div>
+                      ))}
+                    </>
+                  ) : isFeatures ? (
+                    <FeatureMap features={features} intent={result.plan.intent} />
+                  ) : (
+                    <ChoroplethMap
+                      rows={rows}
+                      intent={result.plan.intent}
+                      result={result}
+                      diverging={result.diverging}
+                      valueLabel={result.value_label ?? null}
+                      visible={activeView === 'map'} />
+                  )}
                 </ErrorBoundary>
               ) : (
                 <div className="h-[420px] flex items-center justify-center text-sm
@@ -246,7 +365,17 @@ const AnalysisPage: React.FC = () => {
                     <tr className="text-left text-slate-500 border-b border-slate-200">
                       <th className="py-2 pr-4 font-medium">County</th>
                       <th className="py-2 pr-4 font-medium">FIPS</th>
-                      <th className="py-2 font-medium text-right">Value</th>
+                      {/* One column per measure. A two-attribute question
+                          returns both, and a table that showed only the first
+                          would quietly answer half of it. */}
+                      {series.map(s => (
+                        <th key={s.key} className="py-2 pl-4 font-medium text-right"
+                            title={s.label}>
+                          <span className="inline-block max-w-[14rem] truncate align-bottom">
+                            {series.length > 1 ? s.label : 'Value'}
+                          </span>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -254,11 +383,16 @@ const AnalysisPage: React.FC = () => {
                       <tr key={r.fips} className="border-b border-slate-100 last:border-0">
                         <td className="py-1.5 pr-4 text-slate-800">{r.name ?? '-'}</td>
                         <td className="py-1.5 pr-4 text-slate-500 tabular-nums">{r.fips}</td>
-                        <td className="py-1.5 text-right text-slate-800 tabular-nums">
-                          {r.value === null ? '-' : r.value.toLocaleString(undefined, {
-                            maximumFractionDigits: 3,
-                          })}
-                        </td>
+                        {series.map(s => (
+                          <td key={s.key}
+                              className="py-1.5 pl-4 text-right text-slate-800 tabular-nums">
+                            {r[s.key] === null || r[s.key] === undefined
+                              ? '-'
+                              : (r[s.key] as number).toLocaleString(undefined, {
+                                  maximumFractionDigits: 3,
+                                })}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>

@@ -1,0 +1,541 @@
+{
+  "endpoint": "unified",
+  "llm_filter": false,
+  "top_k": 20,
+  "queries": 37,
+  "errors": [],
+  "concept_recall": 0.9777777777777777,
+  "query_success": 0.972972972972973,
+  "mrr": 0.7568752193752194,
+  "latency_p50": 0.788,
+  "latency_p95": 1.082,
+  "per_suite": {
+    "single_concept": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    },
+    "facilities_via_tags": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    },
+    "multi_concept": {
+      "concept_recall": 0.9375,
+      "query_success": 0.875
+    },
+    "geographic_level": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    },
+    "paraphrase": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    },
+    "temporal": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    }
+  },
+  "detail": {
+    "single_concept": [
+      {
+        "id": "poverty-rate",
+        "query": "poverty rate",
+        "n_results": 20,
+        "concepts": {
+          "poverty": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.86
+      },
+      {
+        "id": "unemployment",
+        "query": "unemployment rate",
+        "n_results": 20,
+        "concepts": {
+          "unemployment": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.83
+      },
+      {
+        "id": "median-income",
+        "query": "median household income",
+        "n_results": 20,
+        "concepts": {
+          "income": 2
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.5,
+        "seconds": 0.767
+      },
+      {
+        "id": "health-insurance",
+        "query": "people without health insurance",
+        "n_results": 20,
+        "concepts": {
+          "insurance": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.788
+      },
+      {
+        "id": "snap-benefits",
+        "query": "food stamps and SNAP benefits",
+        "n_results": 20,
+        "concepts": {
+          "snap": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 1.009
+      },
+      {
+        "id": "veterans",
+        "query": "veteran population characteristics",
+        "n_results": 20,
+        "concepts": {
+          "veterans": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.983
+      },
+      {
+        "id": "hospital-beds",
+        "query": "hospital bed capacity",
+        "n_results": 20,
+        "concepts": {
+          "hospital": 2
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.5,
+        "seconds": 0.781
+      },
+      {
+        "id": "housing-units",
+        "query": "total housing units",
+        "n_results": 20,
+        "concepts": {
+          "housing": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.706
+      },
+      {
+        "id": "educational-attainment",
+        "query": "educational attainment bachelors degree",
+        "n_results": 16,
+        "concepts": {
+          "education": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.896
+      },
+      {
+        "id": "commuting",
+        "query": "commute time to work",
+        "n_results": 18,
+        "concepts": {
+          "commute": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 1.145
+      }
+    ],
+    "facilities_via_tags": [
+      {
+        "id": "power-plants",
+        "query": "power plants",
+        "n_results": 20,
+        "concepts": {
+          "power": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.802
+      },
+      {
+        "id": "oil-refineries",
+        "query": "oil refineries",
+        "n_results": 20,
+        "concepts": {
+          "refinery": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.8
+      },
+      {
+        "id": "emergency-shelters",
+        "query": "emergency shelter locations",
+        "n_results": 19,
+        "concepts": {
+          "shelter": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 1.084
+      },
+      {
+        "id": "public-health-depts",
+        "query": "public health departments",
+        "n_results": 20,
+        "concepts": {
+          "health_dept": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.8
+      },
+      {
+        "id": "natural-gas",
+        "query": "natural gas infrastructure",
+        "n_results": 20,
+        "concepts": {
+          "gas": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.835
+      },
+      {
+        "id": "volcanic-eruptions",
+        "query": "historical volcanic eruptions",
+        "n_results": 20,
+        "concepts": {
+          "volcano": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.645
+      }
+    ],
+    "multi_concept": [
+      {
+        "id": "poverty-per-capita",
+        "query": "poverty rates normalized by population for counties",
+        "n_results": 18,
+        "concepts": {
+          "poverty": 1,
+          "population": 6
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5833333333333334,
+        "seconds": 0.734
+      },
+      {
+        "id": "uninsured-per-capita",
+        "query": "share of population without health insurance per capita",
+        "n_results": 20,
+        "concepts": {
+          "insurance": 1,
+          "population": 1
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.769
+      },
+      {
+        "id": "income-vs-education",
+        "query": "compare median income against educational attainment",
+        "n_results": 20,
+        "concepts": {
+          "income": 1,
+          "education": 11
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5454545454545454,
+        "seconds": 0.621
+      },
+      {
+        "id": "unemployment-and-snap",
+        "query": "unemployment and food stamp usage together",
+        "n_results": 18,
+        "concepts": {
+          "unemployment": 1,
+          "snap": 7
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5714285714285714,
+        "seconds": 0.696
+      },
+      {
+        "id": "elderly-and-housing",
+        "query": "elderly population and housing occupancy",
+        "n_results": 19,
+        "concepts": {
+          "elderly": 2,
+          "housing": 6
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.3333333333333333,
+        "seconds": 1.082
+      },
+      {
+        "id": "veterans-disability-income",
+        "query": "veterans with disabilities and their income",
+        "n_results": 20,
+        "concepts": {
+          "veterans": null,
+          "disability": 6
+        },
+        "n_concepts": 2,
+        "n_found": 1,
+        "all_found": false,
+        "mrr": 0.16666666666666666,
+        "seconds": 1.078
+      },
+      {
+        "id": "race-and-poverty",
+        "query": "poverty broken down by race",
+        "n_results": 18,
+        "concepts": {
+          "poverty": 1,
+          "race": 8
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5625,
+        "seconds": 0.904
+      },
+      {
+        "id": "children-food-insecurity",
+        "query": "children in food insecure households",
+        "n_results": 18,
+        "concepts": {
+          "children": 4,
+          "food": 1
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.625,
+        "seconds": 0.76
+      }
+    ],
+    "geographic_level": [
+      {
+        "id": "tract-level-snap",
+        "query": "SNAP benefits at the census tract level",
+        "n_results": 18,
+        "concepts": {
+          "snap_tract": 4
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.25,
+        "seconds": 0.762
+      },
+      {
+        "id": "county-unemployment",
+        "query": "county level unemployment",
+        "n_results": 20,
+        "concepts": {
+          "unemp_county": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.772
+      },
+      {
+        "id": "state-hospital-capacity",
+        "query": "hospital capacity by state",
+        "n_results": 18,
+        "concepts": {
+          "hosp_state": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.678
+      }
+    ],
+    "paraphrase": [
+      {
+        "id": "poor-people",
+        "query": "areas where lots of people are poor",
+        "n_results": 20,
+        "concepts": {
+          "poverty": 6
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.16666666666666666,
+        "seconds": 0.64
+      },
+      {
+        "id": "jobless",
+        "query": "places with many people out of work",
+        "n_results": 20,
+        "concepts": {
+          "unemployment": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.665
+      },
+      {
+        "id": "no-doctor-coverage",
+        "query": "people who cannot afford medical coverage",
+        "n_results": 20,
+        "concepts": {
+          "insurance": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.669
+      },
+      {
+        "id": "old-people",
+        "query": "where do seniors live",
+        "n_results": 19,
+        "concepts": {
+          "elderly": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.971
+      },
+      {
+        "id": "rent-burden",
+        "query": "households struggling to pay rent",
+        "n_results": 20,
+        "concepts": {
+          "rent": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 1.058
+      }
+    ],
+    "temporal": [
+      {
+        "id": "poverty-2015",
+        "query": "poverty rate in 2015",
+        "n_results": 20,
+        "concepts": {
+          "poverty_2015": 3
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.3333333333333333,
+        "seconds": 1.035
+      },
+      {
+        "id": "unemployment-2017",
+        "query": "unemployment during 2017",
+        "n_results": 17,
+        "concepts": {
+          "unemp_2017": 5
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.2,
+        "seconds": 0.771
+      },
+      {
+        "id": "acs-2018",
+        "query": "2018 american community survey estimates",
+        "n_results": 18,
+        "concepts": {
+          "acs_2018": 3
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.3333333333333333,
+        "seconds": 0.778
+      },
+      {
+        "id": "income-2013-2017",
+        "query": "median income covering 2013 to 2017",
+        "n_results": 18,
+        "concepts": {
+          "income_range": 3
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.3333333333333333,
+        "seconds": 0.909
+      },
+      {
+        "id": "recent-2020",
+        "query": "2020 data",
+        "n_results": 20,
+        "concepts": {
+          "y2020": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.749
+      }
+    ]
+  }
+}

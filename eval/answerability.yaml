@@ -1,0 +1,53 @@
+# Does the planner refuse what the data cannot answer, and ONLY that?
+# (backend/planner/relevance.js)
+#
+#   python eval/answerability_probe.py --relevance-check off --save eval/ans-off.json
+#   python eval/answerability_probe.py --relevance-check on  --save eval/ans-on.json \
+#       --compare eval/ans-off.json
+#
+# Two numbers, and both matter:
+#   catch rate      share of `refuse` questions that did not come back as an answer
+#   false refusals  share of `answer` questions that were refused
+#
+# A check that refuses everything scores a perfect catch rate. The `answer`
+# half deliberately leans on PROXY questions ("wealthiest" -> income, "hardest
+# to see a doctor" -> hospitals), which are the ones an over-eager check would
+# wrongly reject.
+
+queries:
+  # ---- nothing loaded measures these ---------------------------------------
+  - {id: r-rainfall,  expect: refuse, query: "What is the average rainfall by county?"}
+  - {id: r-snowfall,  expect: refuse, query: "Which counties get the most snow each year?"}
+  - {id: r-dogs,      expect: refuse, query: "How many pet dogs live in each county?"}
+  - {id: r-milk,      expect: refuse, query: "What does a gallon of milk cost in each county?"}
+  - {id: r-mars,      expect: refuse, query: "crater diameters on the surface of Mars"}
+  - {id: r-sharks,    expect: refuse, query: "shark attack incidents along the Australian coast"}
+  - {id: r-bitcoin,   expect: refuse, query: "bitcoin mining hash rate difficulty adjustment"}
+  - {id: r-football,  expect: refuse, query: "premier league football match attendance figures"}
+  - {id: r-sourdough, expect: refuse, query: "sourdough bread fermentation starter recipes"}
+  - {id: r-latin,     expect: refuse, query: "declension tables for classical Latin nouns"}
+
+  # ---- answerable, several only by proxy --------------------------------------
+  - {id: a-income,     expect: answer, query: "What is the median household income in each county?"}
+  - {id: a-poorest,    expect: answer, query: "Which are the poorest counties in America?"}
+  - {id: a-wealthiest, expect: answer, query: "Where do the wealthiest people live?"}
+  - {id: a-hosp-pc,    expect: answer, query: "Which counties have the most hospitals per person?"}
+  - {id: a-uninsured,  expect: answer, query: "Where are people most likely to be uninsured?"}
+  - {id: a-doctor,     expect: answer, query: "Where is it hardest to see a doctor?"}
+  - {id: a-texas,      expect: answer, query: "Of the counties in Texas, which ten have the worst unemployment?"}
+  - {id: a-compare,    expect: answer, query: "Compare obesity and poverty by county"}
+  - {id: a-diabetes,   expect: answer, query: "Are there parts of the country where diabetes is unusually common?"}
+  - {id: a-fire,       expect: answer, query: "Where are all the fire stations in Colorado?"}
+  - {id: a-detroit,    expect: answer, query: "What are the poverty rates around Detroit?"}
+  - {id: a-florida,    expect: answer, query: "Show me health insurance coverage in Florida"}
+  - {id: a-corr-ob,    expect: answer, query: "is obesity related to diabetes across counties"}
+  - {id: a-corr-inc,   expect: answer, query: "does median household income affect asthma rates"}
+  - {id: a-renters,    expect: answer, query: "households struggling to pay rent"}
+  - {id: a-seniors,    expect: answer, query: "where do seniors live"}
+  # explain: the outcome feeds `explain`, and the check once judged it
+  # "unrelated" ("it measures asthma, not the factors") and refused. These
+  # would have caught it.
+  - {id: a-expl-asthma,  expect: answer, query: "what explains asthma rates"}
+  - {id: a-expl-obesity, expect: answer, query: "what drives obesity across counties"}
+  - {id: a-expl-heart,   expect: answer, query: "risk factors for heart disease by county"}
+  - {id: a-expl-unemp,   expect: answer, query: "what drives unemployment across counties"}

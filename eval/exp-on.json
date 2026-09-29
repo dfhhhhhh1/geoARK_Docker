@@ -1,0 +1,262 @@
+{
+  "endpoint": "unified",
+  "llm_filter": false,
+  "top_k": 60,
+  "queries": 12,
+  "errors": [],
+  "concept_recall": 1.0,
+  "query_success": 1.0,
+  "mrr": 0.6646333224176028,
+  "latency_p50": 0.771,
+  "latency_p95": 0.989,
+  "per_suite": {
+    "expansion_related_concepts": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    },
+    "expansion_must_not_fire": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    }
+  },
+  "detail": {
+    "expansion_related_concepts": [
+      {
+        "id": "exp-chd",
+        "query": "coronary heart disease in each county",
+        "n_results": 66,
+        "concepts": {
+          "subject": 1,
+          "related": 61
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5081967213114754,
+        "seconds": 1.175,
+        "expansion_seeds": [
+          "Coronary Arteriosclerosis"
+        ],
+        "expansion_kept": [
+          "Diabetes",
+          "Obesity"
+        ]
+      },
+      {
+        "id": "exp-asthma",
+        "query": "asthma rates by county",
+        "n_results": 66,
+        "concepts": {
+          "subject": 1,
+          "related": 5
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.6,
+        "seconds": 0.893,
+        "expansion_seeds": [
+          "Asthma"
+        ],
+        "expansion_kept": [
+          "Obesity",
+          "Chronic Obstructive Airway Disease",
+          "Air Pollutants"
+        ]
+      },
+      {
+        "id": "exp-copd",
+        "query": "where is COPD most common",
+        "n_results": 69,
+        "concepts": {
+          "subject": 1,
+          "related": 3
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.6666666666666666,
+        "seconds": 0.686,
+        "expansion_seeds": [
+          "Chronic Obstructive Airway Disease"
+        ],
+        "expansion_kept": [
+          "Cigarette smoke",
+          "Smoking",
+          "Asthma",
+          "Cigarette Smoking"
+        ]
+      },
+      {
+        "id": "exp-diabetes",
+        "query": "diabetes prevalence across the South",
+        "n_results": 66,
+        "concepts": {
+          "subject": 1,
+          "related": 10
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.55,
+        "seconds": 0.819,
+        "expansion_seeds": [
+          "Diabetes"
+        ],
+        "expansion_kept": [
+          "Obesity",
+          "Cardiovascular Diseases"
+        ]
+      },
+      {
+        "id": "exp-stroke",
+        "query": "stroke hospitalization by county",
+        "n_results": 65,
+        "concepts": {
+          "subject": 1,
+          "related": 59
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5084745762711864,
+        "seconds": 0.989,
+        "expansion_seeds": [
+          "Cerebrovascular accident"
+        ],
+        "expansion_kept": [
+          "Diabetes",
+          "Cardiovascular Diseases",
+          "Diabetes Mellitus"
+        ]
+      },
+      {
+        "id": "exp-obesity",
+        "query": "obesity rates in Texas counties",
+        "n_results": 68,
+        "concepts": {
+          "subject": 1,
+          "related": 7
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5714285714285714,
+        "seconds": 0.871,
+        "expansion_seeds": [
+          "Obesity"
+        ],
+        "expansion_kept": [
+          "Cardiovascular Diseases",
+          "Chronic disease",
+          "Asthma"
+        ]
+      },
+      {
+        "id": "exp-lung-cancer",
+        "query": "counties with high lung cancer",
+        "n_results": 66,
+        "concepts": {
+          "subject": 1,
+          "related": 10
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.55,
+        "seconds": 0.695,
+        "expansion_seeds": [
+          "Malignant neoplasm of lung"
+        ],
+        "expansion_kept": [
+          "Smoking",
+          "Cigarette Smoking"
+        ]
+      },
+      {
+        "id": "exp-hypertension",
+        "query": "high blood pressure by county",
+        "n_results": 69,
+        "concepts": {
+          "subject": 1,
+          "related": 24
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5208333333333334,
+        "seconds": 0.901,
+        "expansion_seeds": [
+          "Hypertensive disease"
+        ],
+        "expansion_kept": [
+          "Cardiovascular Diseases",
+          "Obesity",
+          "Diabetes"
+        ]
+      }
+    ],
+    "expansion_must_not_fire": [
+      {
+        "id": "nofire-income",
+        "query": "median household income by county",
+        "n_results": 60,
+        "concepts": {
+          "subject": 2
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.5,
+        "seconds": 0.548,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      },
+      {
+        "id": "nofire-poverty",
+        "query": "poverty rate normalized by population",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.724,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      },
+      {
+        "id": "nofire-hospitals",
+        "query": "how many hospitals are in each county",
+        "n_results": 59,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.651,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      },
+      {
+        "id": "nofire-unemployment",
+        "query": "unemployment trend since 2010",
+        "n_results": 47,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.698,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      }
+    ]
+  }
+}

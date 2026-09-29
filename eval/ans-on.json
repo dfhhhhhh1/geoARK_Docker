@@ -1,0 +1,400 @@
+{
+  "relevance_check": "on",
+  "catch_rate": 0.9,
+  "honest_refusal_rate": 0.7,
+  "false_refusal_rate": 0.0,
+  "rows": [
+    {
+      "id": "r-rainfall",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 23.7
+    },
+    {
+      "id": "r-snowfall",
+      "expect": "refuse",
+      "outcome": "answered",
+      "correct": false,
+      "ops": [
+        "load",
+        "rank",
+        "output"
+      ],
+      "verdicts": [
+        "proxy:Adverse Climate Events"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 36.1
+    },
+    {
+      "id": "r-dogs",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 52.8
+    },
+    {
+      "id": "r-milk",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 58.7
+    },
+    {
+      "id": "r-mars",
+      "expect": "refuse",
+      "outcome": "failed",
+      "correct": false,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "could not produce a valid plan",
+      "seconds": 38.1
+    },
+    {
+      "id": "r-sharks",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 51.0
+    },
+    {
+      "id": "r-bitcoin",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 21.8
+    },
+    {
+      "id": "r-football",
+      "expect": "refuse",
+      "outcome": "failed",
+      "correct": false,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "could not produce a valid plan",
+      "seconds": 49.6
+    },
+    {
+      "id": "r-sourdough",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 25.7
+    },
+    {
+      "id": "r-latin",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 20.8
+    },
+    {
+      "id": "a-income",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Median_Household_Income"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 15.4
+    },
+    {
+      "id": "a-poorest",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "rank",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Estimate|Percent|Households|POVERTY STAT"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 29.7
+    },
+    {
+      "id": "a-wealthiest",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "rank",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Estimate!!INCOME AND BENEFITS (IN 2018 I"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 15.7
+    },
+    {
+      "id": "a-hosp-pc",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "count_features",
+        "load",
+        "normalize",
+        "rank",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Hospitals (mapped locations)",
+        "denominator:Population"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 22.2
+    },
+    {
+      "id": "a-uninsured",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Uninsured"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 101.2
+    },
+    {
+      "id": "a-doctor",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "count_features",
+        "output"
+      ],
+      "verdicts": [
+        "proxy:Hospitals (mapped locations)"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 141.5
+    },
+    {
+      "id": "a-texas",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "filter_area",
+        "rank",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Estimate!!Percent!!EMPLOYMENT STATUS!!Ci"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 67.9
+    },
+    {
+      "id": "a-compare",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "load",
+        "join",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Obesity among adults (crude prevalence) ",
+        "direct:Estimate|Percent|Households|POVERTY STAT"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.8
+    },
+    {
+      "id": "a-diabetes",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "hotspot",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Diagnosed diabetes among adults (age-adj"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 23.1
+    },
+    {
+      "id": "a-fire",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "select_features",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Fire Stations (mapped locations)"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 10.8
+    },
+    {
+      "id": "a-detroit",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "filter_place",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Estimate!!Percent!!POVERTY STATUS IN THE"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 71.4
+    },
+    {
+      "id": "a-florida",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "filter_area",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Percent Estimate!!HEALTH INSURANCE COVER"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 23.7
+    },
+    {
+      "id": "a-corr-ob",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "load",
+        "correlate",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Obesity among adults (crude prevalence) ",
+        "direct:Diagnosed diabetes among adults (crude p"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 49.3
+    },
+    {
+      "id": "a-corr-inc",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "load",
+        "correlate",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Median_Household_Income",
+        "direct:Current asthma among adults (age-adjuste"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 23.8
+    },
+    {
+      "id": "a-renters",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Severe housing cost burden"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 82.3
+    },
+    {
+      "id": "a-seniors",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Estimate!!Total!!Medicare coverage alone"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 18.6
+    }
+  ]
+}

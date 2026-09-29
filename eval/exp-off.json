@@ -1,0 +1,192 @@
+{
+  "endpoint": "unified",
+  "llm_filter": false,
+  "top_k": 60,
+  "queries": 12,
+  "errors": [],
+  "concept_recall": 0.95,
+  "query_success": 0.9166666666666666,
+  "mrr": 0.7067223084886128,
+  "latency_p50": 0.881,
+  "latency_p95": 0.955,
+  "per_suite": {
+    "expansion_related_concepts": {
+      "concept_recall": 0.9375,
+      "query_success": 0.875
+    },
+    "expansion_must_not_fire": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    }
+  },
+  "detail": {
+    "expansion_related_concepts": [
+      {
+        "id": "exp-chd",
+        "query": "coronary heart disease in each county",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1,
+          "related": 23
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5217391304347826,
+        "seconds": 1.193
+      },
+      {
+        "id": "exp-asthma",
+        "query": "asthma rates by county",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1,
+          "related": 5
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.6,
+        "seconds": 0.951
+      },
+      {
+        "id": "exp-copd",
+        "query": "where is COPD most common",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1,
+          "related": 3
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.6666666666666666,
+        "seconds": 0.843
+      },
+      {
+        "id": "exp-diabetes",
+        "query": "diabetes prevalence across the South",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1,
+          "related": 10
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.55,
+        "seconds": 0.808
+      },
+      {
+        "id": "exp-stroke",
+        "query": "stroke hospitalization by county",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1,
+          "related": null
+        },
+        "n_concepts": 2,
+        "n_found": 1,
+        "all_found": false,
+        "mrr": 1.0,
+        "seconds": 0.946
+      },
+      {
+        "id": "exp-obesity",
+        "query": "obesity rates in Texas counties",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1,
+          "related": 7
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5714285714285714,
+        "seconds": 0.764
+      },
+      {
+        "id": "exp-lung-cancer",
+        "query": "counties with high lung cancer",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1,
+          "related": 10
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.55,
+        "seconds": 0.92
+      },
+      {
+        "id": "exp-hypertension",
+        "query": "high blood pressure by county",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1,
+          "related": 24
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5208333333333334,
+        "seconds": 0.624
+      }
+    ],
+    "expansion_must_not_fire": [
+      {
+        "id": "nofire-income",
+        "query": "median household income by county",
+        "n_results": 60,
+        "concepts": {
+          "subject": 2
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.5,
+        "seconds": 0.644
+      },
+      {
+        "id": "nofire-poverty",
+        "query": "poverty rate normalized by population",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.955
+      },
+      {
+        "id": "nofire-hospitals",
+        "query": "how many hospitals are in each county",
+        "n_results": 59,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.737
+      },
+      {
+        "id": "nofire-unemployment",
+        "query": "unemployment trend since 2010",
+        "n_results": 47,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.938
+      }
+    ]
+  }
+}

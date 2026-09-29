@@ -54,6 +54,25 @@ the vector space, and the drift check will say so.
 `PLAN_MODEL` is the single highest-leverage setting. Planning is where quality is
 lost; `LLM_MODEL` stays small for decomposition. See §5.
 
+### What the data archive holds
+
+`GEODATA_DIR` (default `../geospatial_database_data`, mounted read-only at
+`/data`) is the single thing to copy to a new server. Everything loaded lives
+there, organised by how it is loaded:
+
+```
+geospatial_database_data/
+  HSIP_without_tifs/       101 facility geodatabases   -> make load-geo
+  fips_merged_ACS_data.csv ACS county values           -> make load-reference
+  county_csv/              7 county CSV releases       -> make county-values
+  tiger/                   4 TIGER geodatabases        -> make boundaries SRC=/data/tiger
+  raster/                  1 km population grid        -> not yet supported
+```
+
+`deploy/incoming/` is a staging area, not storage: put new files there, load
+them, then move them into the archive so a rebuild on another machine has
+everything in one place.
+
 ## 2. Get the source data across
 
 Two directories live outside the repo because they are too large to track:
@@ -226,6 +245,72 @@ capacity, a 14B planner should recover the 62.5% and go past it. If it does
 not, the problem is the prompt or the tool surface, and no amount of GPU will
 fix it.** Either answer is worth having, and it decides whether Phase 4 is
 sensible to start.
+
+## 5a-0. County measures with a time dimension
+
+The value store is keyed `(fips, census_code, year)`. Everything below is
+reproducible from files in `geospatial_database_data/county_csv/`, which is the
+archive; nothing here needs a network connection or an API key.
+
+**One-time migration**, on a database created before the year column existed:
+
+```bash
+make add-year
+```
+
+It backfills existing rows to 2018 (the ACS 5-year vintage that was loaded),
+widens the primary key, and prints a year/measure summary. Safe to re-run.
+
+**Load the county CSVs.** Three release formats are handled, detected by header
+rather than by filename:
+
+| Source | Shape | Year comes from |
+|---|---|---|
+| USDA ERS (`Unemployment2023.csv`, `Education2023.csv`, `Poverty2023.csv`, `PopulationEstimates.csv`) | long | the attribute NAME, in four different conventions |
+| CDC PLACES | long | an explicit `Year` column |
+| County Health Rankings (`analytic_data*.csv`) | wide, **two-row header** | the `year` column |
+
+```bash
+make county-values-dry          # parse everything, write nothing
+make county-values              # load values + attribute_source
+# then, on the HOST -- the catalog is mounted read-only in the containers:
+python3 etl/load_county_values.py --source-dir geospatial_database_data/county_csv \
+    --catalog-only --catalog backend/geoark_attributes.csv
+python3 etl/validate_catalog.py --new backend/geoark_attributes.csv
+make reindex && make up-gpu
+```
+
+**The catalog step is not optional.** Search indexes the catalog CSV, not the
+database. A measure in `attribute_source` but not in the catalog resolves
+perfectly and is never retrieved, which from outside looks exactly like the data
+not being loaded.
+
+Measured on the current archive: 7 files, **277 measures, 1.49M values,
+1970-2024**. Coverage goes 4,893 -> 5,170 resolvable attributes; the catalog
+grows only 277 rows because the year is a COLUMN, not a row. Loading
+`Unemployment2023.csv`'s 101 attribute names as 101 attributes instead of 9
+measures x 24 years would bloat the corpus, and corpus size is already the
+limiting factor on retrieval quality.
+
+**Three traps these files contain**, all of which a naive CSV loader hits:
+
+- `Education2023.csv` and `PopulationEstimates.csv` are **cp1252, not UTF-8**,
+  and the first bad byte is 13.5 MB and 5.5 MB in (`Añasco Municipio`,
+  `Doña Ana County`). Sniffing the first chunk calls them UTF-8 and the load
+  dies most of the way through, or survives with `errors="replace"` and
+  silently mangles county names. The loader decodes the whole file once, up
+  front.
+- County Health Rankings has a **two-row header**: human labels then machine
+  codes. Read naively, row two becomes a data row of garbage.
+- CDC PLACES carries **two rows per county and measure**, crude and
+  age-adjusted. They are stored as separate measures; collapsing them would put
+  two values in one slot and the last write would win silently.
+
+**Spatial statistics** need the adjacency table once:
+
+```bash
+make neighbors        # 18,608 pairs, mean 5.79 neighbours
+```
 
 ## 5a. Adding data
 

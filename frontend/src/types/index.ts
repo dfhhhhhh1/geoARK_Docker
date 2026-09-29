@@ -123,6 +123,8 @@ export interface UnifiedSearchResultsByPurpose {
   normalization: UnifiedSearchResultItem[];
   filter: UnifiedSearchResultItem[];
   related: UnifiedSearchResultItem[];
+  /** Literature expansion (backend/expansion.js); absent on older servers. */
+  expanded?: UnifiedSearchResultItem[];
 }
 
 export interface UnifiedSearchStats {
@@ -155,7 +157,34 @@ export type PlanOp =
   | 'load' | 'count_features' | 'count_near' | 'nearest_distance'
   | 'select_features'
   | 'filter_attr' | 'filter_area' | 'filter_place' | 'per_area'
-  | 'normalize' | 'aggregate' | 'rank' | 'join' | 'output';
+  | 'normalize' | 'aggregate' | 'rank' | 'join' | 'combine'
+  | 'hotspot' | 'outlier' | 'correlate' | 'explain' | 'output';
+
+/**
+ * One returned result. A plan with several `output` steps produces several.
+ *
+ * `diverging` is declared by the operator that produced the layer, not inferred
+ * from the values: hotspot and outlier emit numbers signed around zero, and a
+ * run that happens to be all-positive is still a diverging measure.
+ */
+export interface AnalysisLayer {
+  id: string;
+  step: string;
+  op: PlanOp;
+  /**
+   * True for an input the compiler surfaced beside an arithmetic result. A
+   * difference or a ratio is not interpretable alone -- the same value arises
+   * from opposite situations -- so its two parts come back as layers too.
+   */
+  part?: boolean;
+  mode: 'values' | 'features';
+  series?: number;
+  diverging?: boolean;
+  value_label?: string | null;
+  row_count: number;
+  rows?: AnalysisRow[];
+  features?: MappedFeature[];
+}
 
 /**
  * A single mapped location. Properties vary by layer -- only about half carry
@@ -192,6 +221,8 @@ export interface PlanStep {
   place_name?: string;
   /** select_features / count_features: narrow a layer by its own attributes. */
   attribute_filters?: Array<{ column: string; value: string }>;
+  /** combine: how the two inputs are put together. */
+  operation?: 'ratio' | 'sum' | 'difference' | 'percent_change';
 }
 
 /**
@@ -245,6 +276,14 @@ export interface AnalysisRow {
   name: string | null;
   state_fp: string | null;
   value: number | null;
+  /**
+   * The second measure, present only when the plan ends in a `join`.
+   *
+   * "Population and poverty rate" is one analysis with two numbers per county,
+   * not two analyses: the compiler's join step already computed both, and the
+   * final SELECT used to discard this one.
+   */
+  value_b?: number | null;
 }
 
 export interface AnalysisResponse {
@@ -267,10 +306,81 @@ export interface AnalysisResponse {
    * choropleth draws; 'features' is individual locations with their own
    * geometry. They are mutually exclusive -- a plan is one or the other.
    */
-  output_mode?: 'values' | 'features';
+  output_mode?: 'values' | 'features' | 'factors';
+  /** 2 when every row carries `value_b`; absent or 1 for a single measure. */
+  series?: number;
+  /** The first layer is a signed measure and needs a diverging ramp. */
+  diverging?: boolean;
+  /** What the number means, e.g. "Gi* z-score". */
+  value_label?: string | null;
+  /** Present only when the plan had more than one `output` step. */
+  layers?: AnalysisLayer[];
+  layer_count?: number;
   features?: MappedFeature[];
   ambiguity?: CityAmbiguity;
+  /** Present when the result is one statistic (correlate), not a county layer. */
+  stats?: CorrelationStats | null;
+  /** How each attribute the plan uses relates to the question. */
+  relevance?: RelevanceVerdict[] | null;
+  /** Present when the result is a ranked factor table (explain). */
+  explain?: ExplainResult;
   ms: number;
+}
+
+/** correlate's single row. `value` is Spearman's rho. */
+export interface CorrelationStats {
+  value: number | null;
+  pearson_r: number | null;
+  n: number | null;
+  n_effective: number | null;
+  ci_low: number | null;
+  ci_high: number | null;
+  p_value: number | null;
+  slope: number | null;
+  intercept: number | null;
+  moran_a: number | null;
+  moran_b: number | null;
+}
+
+export interface ExplainFactor {
+  attr_id: string;
+  role: 'factor' | 'control';
+  description: string | null;
+  source: 'literature' | 'question' | 'default' | 'control';
+  literature?: {
+    concept: string; seed: string; papers: number; predicates: string[];
+    papers_as_cause: number | null; papers_as_effect: number | null;
+    direction: 'cause' | 'effect' | null;
+  };
+  status: 'ok' | 'same_measure_as_outcome' | 'same_measure_as_control'
+        | 'too_few_counties' | 'controls_collinear';
+  /** Present when the literature mostly reports it as a consequence; unranked. */
+  context?: 'consequence';
+  rank?: number;
+  n: number;
+  n_effective?: number;
+  rho?: number;
+  partial_rho?: number;
+  ci_low?: number;
+  ci_high?: number;
+  p_value?: number;
+  q_value?: number;
+  importance?: number;
+  attenuation?: number | null;
+}
+
+export interface ExplainResult {
+  factors: ExplainFactor[];
+  controls: Array<{ attr_id: string; description: string | null }>;
+  outcome_counties: number;
+}
+
+export interface RelevanceVerdict {
+  attr_id: string;
+  label: string;
+  description: string | null;
+  verdict: 'direct' | 'proxy' | 'denominator' | 'unrelated' | 'unchecked';
+  reason: string | null;
 }
 
 /**

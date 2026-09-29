@@ -34,6 +34,10 @@ export interface AnalyzeStreamState {
   elapsedMs: number;
 }
 
+/** The shown result belongs to a previous question, not the one running now. */
+export const isStale = (s: { isRunning: boolean; result: unknown }) =>
+  s.isRunning && s.result !== null;
+
 const TERMINAL: AnalysisStage[] = ['done', 'failed'];
 
 export function useAnalyzeStream() {
@@ -76,10 +80,17 @@ export function useAnalyzeStream() {
     close();
 
     startedAtRef.current = Date.now();
-    setState({
-      stage: 'started', events: [], result: null,
+    // The PREVIOUS result is deliberately kept until a new one replaces it.
+    // Clearing it here unmounted the whole result block, which destroyed the
+    // Leaflet map and rebuilt it at the default national zoom on every query --
+    // the user saw the map "zoom all the way out" each time they asked
+    // something. Keeping it mounted also means the last answer stays readable
+    // while the next one is being planned, which takes ~20s.
+    setState(s => ({
+      ...s,
+      stage: 'started', events: [],
       error: null, failure: null, isRunning: true, elapsedMs: 0,
-    });
+    }));
 
     const url = `/api/analyze/stream?q=${encodeURIComponent(query)}`;
     const es = new EventSource(url);

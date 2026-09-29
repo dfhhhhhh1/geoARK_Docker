@@ -45,6 +45,9 @@ metric *can* move. See the correction in [eval/README.md](eval/README.md).
 | One failed table import logs ~1000 errors | Every row insert repeats "relation does not exist" | Count distinct messages, not lines |
 | `ST_Transform` on the **facility** side of a spatial join | Non-sargable; disables the GIST index; 5 min instead of 3 s | Transform the county side, or neither when SRIDs match |
 | gdb table names are opaque hashes | Tempting to rename to human names | **Don't**, 29 of 83 rows in `etl/facility_table_map.csv` are keyed on those hashes |
+| A plain `docker compose up` drops the GPU, and `make up-gpu` does not put it back | `ollama ps` reads `100% CPU`; every planner call times out at 90s and the API reports "could not produce a valid plan" | Recreating any service without `-f docker-compose.gpu.yml` cascades to `ollama` and rebuilds it with no device request. `make up-gpu` then only **restarts** the container, it does not recreate it, so the config never changes. Use `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --force-recreate ollama embedder`, and confirm with `docker inspect geoark-ollama-1 --format '{{json .HostConfig.DeviceRequests}}'` returning non-null |
+| **Top-level `temperature` is ignored by Ollama** (fixed 2026-09-29) | Run-to-run flakiness that every probe had to average over | `callLLM` sent `temperature` beside `messages`; Ollama reads only `options.temperature` and says nothing. Every call ran at the model default: **qwen3:14b 0.6, gemma3:4b 1.0**, not the 0.1-0.2 recorded throughout this file. Verified in the ollama log (`temp = 1.000` vs `0.000`). Every planner number before 2026-09-29 was measured at those defaults |
+| **4,096-token context overflow** (fixed 2026-09-29) | "Plan invalid" retries; ollama log shows `slot context shift ... n_discard = 2045` | The planner prompt is ~3,600 tokens; qwen3's reasoning pushed past 4,096 and Ollama silently discarded the first half of the prompt, i.e. the system instructions, mid-answer. Now `num_ctx` 8,192 for the planner and 4,096 for gemma, with `OLLAMA_KV_CACHE_TYPE=q8_0` + flash attention so both stay resident on 16 GB (at 8,192 each, Ollama evicted one per switch). Check `ollama ps` shows both, 100% GPU |
 
 ## Measured facts (do not re-derive)
 
@@ -199,6 +202,138 @@ Two regressions this caused, both now fixed and both worth remembering:
    anything still malformed. A name must END in a letter: allowing a trailing
    apostrophe let the leaked quote survive as "Springfield'".
 
+### Spatial statistics without PySAL (2026-09-10)
+
+`hotspot` (Getis-Ord Gi*) and `outlier` (Tukey fence on the IQR) are **pure
+SQL**. The plan was a Python sidecar; it turned out not to be needed. Gi* over
+binary contiguity weights is a join against an adjacency table plus two
+aggregates, so it stays inside the read-only transaction, inside the
+`(fips, value)` contract, and off the dependency list. PySAL earns its keep for
+weights schemes this does not implement, distance bands and kernels, not for
+this.
+
+`county_neighbors` is materialized (`make neighbors`, 18,608 pairs, mean 5.79).
+Computing it inline is 511ms, measured, which is payable once and wasteful per
+query.
+
+**`ST_Intersects`, not `ST_Touches`.** Touches is the textbook contiguity test
+and the wrong one here: TIGER county polygons are generalized, so a shared
+border is often a hairline overlap rather than a clean shared edge, and Touches
+drops those pairs. That would remove real neighbours from the weights and
+quietly change every score. Same family as the `filter_place` sliver problem, in
+the other direction.
+
+**Validated against known answers, not just "it ran".** On poverty rate the
+hottest cluster is Puerto Rico and the coldest are Fairfax VA and the Denver
+suburbs; on median income the outliers are Loudoun, Falls Church, Santa Clara.
+The number that actually pins it is **mean Gi\* = −0.008 across 3,221
+counties**: a standardized statistic must average to zero, and an implementation
+error in the weights or the variance term would not.
+
+`outlier` uses the median and IQR rather than a mean and standard deviation,
+because both of those are dragged by the very values it is looking for, and
+these distributions are heavily skewed, which is already why the choropleth uses
+quantile bins.
+
+**Three ops were added and the decision space did not grow.** `hotspot`,
+`outlier` and `combine` all gate on the question's PHRASING via `offered(ctx)`,
+which now receives the query. For every question that is not asking for them
+they are absent from the enum and the prompt, so the 48-context prompt snapshot
+is still byte-identical and the pre-existing probe queries see exactly the op
+set they saw before. This is the lever that makes op-set growth affordable;
+without it, the measured cost of going 7 ops to 8 says this would have hurt.
+
+`hotspot` is additionally gated on `county_neighbors` being populated, the same
+way `filter_place` is gated on `place_geom`: an op that can only fail should
+never be offered.
+
+**Measured, and the first measurement was misleading.** The 26-query probe read
+80.8% op appropriateness against 95.2% before, which looks like the op-budget
+cost arriving. It was not. Split by age:
+
+- **Pre-existing 21 queries: 20 correct, exactly 95.2%, unchanged.** The gate did
+  its job; nothing regressed.
+- New statistics queries: 1 of 5 on that run.
+
+Re-run three times (`eval/stats_probe.yaml`, `--suite-file`), the new queries
+score **4 of 5 every time**: hotspot, outlier, combine and the rank control all
+3/3. The single-run 1/5 was variance at temperature 0.1, and a 5-query sample is
+too small to read once. **Repeat a small suite before believing it.**
+
+The one consistent failure, `hotspot-clusters`, is **retrieval, not planning**:
+"show me clusters of counties with high uninsured rates" retrieves six facility
+layers (biodiesel plants, crushed stone operations) and no health-insurance
+attribute, so the model correctly emits no steps. The same question phrased
+"where are the hot spots of people without health insurance" retrieves 10
+correct ACS attributes and plans `load -> hotspot -> output` every time. The word
+"clusters" derails decomposition. Same family as `density-per-area`.
+
+`generatePlan` now logs `ops offered:` for exactly this reason: "the model did
+not use op X" and "op X was never on the menu" look identical from outside and
+need different fixes.
+
+**Signed output needs a different ramp, and the backend says so.** Both ops emit
+values around zero, and the sequential blue would paint a cold spot and a hot
+spot as two shades of one colour. The op declares `diverging: true` and it
+travels with the layer, because the frontend cannot infer it: a run that happens
+to be all-positive is still a diverging measure. Bins are symmetric about zero
+from the quantiles of |value|, so the neutral colour stays on zero.
+
+### The year dimension, and what more data did to the planner (2026-09-10)
+
+`acs_county_values` is keyed `(fips, census_code, year)`. `load` takes an
+optional `year`; omitting it means the latest vintage THAT MEASURE has, which
+differs per measure, so there is no default to hardcode. Both the field and its
+prompt section are gated on the question mentioning time, so the 48-context
+snapshot is unchanged for everything else.
+
+277 measures loaded from USDA ERS, CDC PLACES and County Health Rankings
+(`make county-values`). Coverage 4,893 -> 5,162. The catalog grew by only 269
+rows because **the year is a column, not a row**: `Unemployment2023.csv`'s 101
+attribute names are 9 measures x 24 years.
+
+**The probe moved a long way, in the right direction.** 26 queries:
+
+| | before | after |
+|---|--:|--:|
+| op appropriateness | 80.8% | **92.3%** |
+| forbidden op rate | 3.8% | **0.0%** |
+| op diversity | 0.50 | 0.65 |
+
+All four statistics queries flipped to correct, including `hotspot-clusters`,
+which was recorded above as a retrieval failure. **It was, and the data fixed
+it**: "clusters of counties with high uninsured rates" now retrieves real
+uninsured measures instead of biodiesel plants. The lesson is that a retrieval
+failure attributed to phrasing can be a coverage problem wearing phrasing's
+clothes, and adding data is sometimes the cheaper fix than prompt work.
+
+`known_item.yaml` is unmoved at 91.7% recall@1 / MRR 0.958, so a 4% larger
+corpus cost nothing measurable in ranking. That suite tests 12 pre-existing
+attributes, so it proves nothing regressed, not that the new measures rank well.
+
+**`place-metro` is now a flake**, not a regression: correct in the previous
+probe, no-plan in this one, and `filter_attr operator "=" value 32200` on a
+manual retry. Repeat it before acting on it.
+
+**Two defects this load introduced, both mine, both found by looking.** ERS uses
+ACS-style year RANGES (`2008-12`, `2019-23`); matching only the leading year left
+`-12` glued to the label and split one measure into three
+("Bachelor's degree or higher", "...-12", "...-23") that retrieval could not
+tell apart. Ranges are now dated by their END year, the convention ACS uses. And
+`combine` bound `scale` for every operation while only `ratio` references it, so
+`difference` sent three parameters for two placeholders and Postgres rejected it
+**at execution, on a plan that had validated and compiled**. A test now checks
+that every op's bound parameter count matches the `$n` its SQL actually uses.
+
+**Near-duplicates are the new retrieval risk.** There are now 42 unemployment-ish
+attributes across three sources. The first trend query compared ERS
+`UNEMPLOYMENT_RATE` against a County Health Rankings unemployment measure and
+returned -99% everywhere: valid, executable, wrong. The cause was example
+copying, the only `combine` example loading two DIFFERENT attributes; a
+year-gated example showing the same attribute twice fixed it. 36% of the new
+rows still have two-word descriptions, which is the `gen_desc` gap from the 392
+bare facility rows, now slightly larger.
+
 ### Named boundaries: `place_geom` and `filter_place` (2026-09-02)
 
 TIGER 2026 gave the thing that was missing. `county_geom` was the ONLY
@@ -331,6 +466,112 @@ concept the decomposer found is represented before any concept gets a second.
 This is the same failure as the per-purpose `QUOTA` issue below, in a different
 cap; that one is still open.
 
+### Two measures from one question (2026-09-03)
+
+"Show me population and poverty rates" was answerable all along and the answer
+was being thrown away. `join` has always emitted `a.value AS value, b.value AS
+value_b`; the final SELECT listed only `r.value`, so the second series died one
+line before the result. Carrying it out is a conditional column plus a
+`withSecond` set of CTE names.
+
+**The set is the load-bearing part.** Every other op selects `(fips, value)`
+explicitly and therefore DROPS `value_b`, so `load -> load -> join -> rank ->
+output` has one column. Emitting `r.value_b` for it would be a SQL error at
+runtime, on a plan that validated: the failure mode this project keeps hitting,
+in the other direction. Two tests pin both cases.
+
+Measured end to end: "total population and poverty rate for each county" plans
+`load -> load -> join -> output`, `series: 2`, Los Angeles 10,040,682 and 14.0%.
+
+Not a bivariate choropleth. One number is in the color and a switch says which;
+a 2D color matrix needs a legend most people will not read. Both numbers are
+always in the hover readout, both columns in the table, both in every export.
+
+Caveat that is data, not code: that run returned **1,524 counties, not 3,220**,
+because retrieval chose `S0102_C01_001E` for "total population" and that subject
+table only covers 1,524 counties. The join dropped nothing the first series did
+not already lack. Same family as the `density-per-area` flake: a plausible
+attribute with quietly narrow coverage.
+
+### Map controls, and the stuck-tooltip class of bug
+
+`sticky: true` tooltips were bound per county. Leaflet's `mouseout` is not
+reliable at the edge of the container, so a label could stay on screen with the
+pointer nowhere near it. Rebinding or calling `closeTooltip` harder does not fix
+it, because the missed event is the problem.
+
+The readout is now React state in an overlay, and the map wrapper's own DOM
+`mouseleave` is the backstop: it fires when Leaflet's does not. The overlay is
+`pointer-events-none`, because a readout that can receive the pointer steals the
+`mouseout` from the county underneath it, which was one of the original causes.
+Verified through the backstop path specifically, not the happy path.
+
+**Typing in the question box reset the map.** `FitToData`'s effect depended on
+an array rebuilt inline during render, so every keystroke re-ran `fitBounds` and
+discarded the user's zoom. Memoizing it is the fix; a signature ref is the
+second guard, so refitting now depends on the RESULT changing rather than on the
+effect re-running. Verified: 21 keystrokes, zero map DOM churn.
+
+Opacity is applied with `setStyle` rather than by remounting. The GeoJSON key
+deliberately excludes it: rebuilding 3,233 polygons on every tick of a slider
+drag is visibly slow. Series and theme stay in the key, because those genuinely
+change every fill.
+
+Basemaps (`lib/basemaps.ts`) are public tile services, no API key. The
+no-cloud-APIs rule is about inference, and OSM tiles were already being fetched;
+what is new is that two more hosts see the area being viewed. Point every `url`
+at a local tile server if that matters. Satellite carries a labels overlay at
+`zIndex 650`, because Esri's imagery has no place names and a county fill over
+unidentifiable ground is not a map.
+
+### The op registry, and the plan as a real DAG (2026-09-10)
+
+Adding an op used to mean editing **seven files** and nothing enforced that they
+agreed. Twice they did not, and both failures were invisible: an op named in the
+prompt but missing from the decoding enum costs a repair round on a plan the
+model was never able to emit, and op validation that lived in a loop beginning
+`if (!src) continue` was skipped entirely for every op carrying `attr_id: ""`.
+
+An op is now one module in `backend/planner/ops/` declaring its arity, required
+fields, result shape, grounding rules, narrowing predicate, prompt line, worked
+examples, validation and compilation. `planSchemaFor` and `buildSystemPrompt`
+both derive from the same `offered(ctx)` call, so **they cannot disagree by
+construction**. See [docs/OPERATORS.md](docs/OPERATORS.md).
+
+**Ordering stays central, because order is behavior.** The decoder reads the
+enum in order and the model reads the prompt top to bottom, so the four orders
+are explicit arrays in `ops/index.js`. They genuinely differ; deriving one from
+another would change the bytes the model sees.
+
+**The refactor was pinned, not trusted.** `snapshot_prompt.js` captures the
+prompt and schema across all 48 narrowing contexts and fails on a one-byte
+change. Everything measured about this planner rests on that text, so a
+restructuring that quietly reworded it would invalidate 95.2% op appropriateness
+without anything looking wrong. It is a behavior test, not a formatting one:
+re-baseline with `--write` only when a prompt change is the intended change.
+
+**The plan was always a DAG; the compiler was not.** Split (one step feeding
+several consumers) already worked, because a step is a named CTE. What did not:
+
+- **Multiple outputs.** A plan may now carry several `output` steps; each
+  compiles to its own statement over only the CTEs it reaches, and returns as a
+  separate layer. All of them run in ONE read-only transaction, so every layer
+  sees the same snapshot.
+- **Mixed layers.** The `select_features` rule was "must be alone in the plan".
+  It is now "may only be consumed by an `output`", which is the rule that was
+  actually meant, and it lets a point layer and a choropleth come back together.
+- **Prelude pruning.** Postgres never evaluates an unreferenced CTE, so a shared
+  prelude would have been correct. It is pruned anyway because the generated SQL
+  is shown to the user, and a listing that declares steps the query does not run
+  misrepresents what happened.
+
+**The planner is not yet told any of this.** The prompt still says to end with
+exactly one output. Enabling multi-output is a prompt change and gets measured
+on its own; same for `ops/combine.js` (ratio / sum / difference /
+percent_change), which is written and tested but deliberately not registered.
+Op-set size is the thing that costs accuracy, so a new op goes in behind its own
+`plan_probe.py` run rather than riding along with a refactor.
+
 ### Provenance travels with the data
 
 `/api/analyze` returns a `provenance` block, timestamp, the three model names,
@@ -374,6 +615,110 @@ A feature dataset's origin reports its **geometry column**, not `value_column`.
    Feature tables were checked for the same problem and do not have it. The
    four layers `pg_class` reported as empty were simply never `ANALYZE`d
    (`reltuples = -1` means unknown, not zero) and hold 7 to 48 rows each.
+
+### Literature expansion from SemMedDB (2026-09-28)
+
+`backend/expansion.js`, `etl/build_semmed_index.py`, `docs/EXPANSION.md`.
+Integrated from the `searchImprovement/` prototype. It links a condition in the
+question ("coronary heart disease") to UMLS, looks up what PubMed says causes or
+is associated with it (obesity, hypertension, smoking), and searches the catalog
+for those too, under a new purpose `expanded`.
+
+- **On by default since 2026-09-29** (`EXPAND_ENABLED=1`), and `expand: true|false` is a
+  per-request field on unified-search and analyze, so an A/B needs no container
+  recreate. Needs `make semmed` first.
+- **Cannot move known_item.yaml, by construction.** Expanded results are
+  appended after every decomposed sub-query. Use `eval/expansion.yaml` with
+  `--score-depth` larger than `--top-k`, or the A/B reads "no effect" because it
+  never looked at the appended rows.
+- **Prompt is byte-identical when nothing expands**: `snapshot_prompt.js`
+  passes across all 48 contexts. When it does expand, candidates appear under a
+  separate "LINKED IN MEDICAL LITERATURE" heading, after facility layers. That
+  is new planner input and needs `plan_probe.py --expand` vs `--no-expand`, 3x.
+- The prototype's runtime scispaCy linker (GBs resident) and PubMed calls (the
+  question leaves the machine) were deliberately not ported. Aliases come from
+  scispaCy's KB **file** at build time; without it, "high blood pressure",
+  "stroke", "COPD" link to nothing (SemMedDB names are clinical).
+- Measured on the real file: 1,894,930 of 130,480,195 predications survive the
+  filters. Among the top neighbors of every disease were "Inflammation",
+  "Pathogenesis" (`patf`) and "sex"/"Gender" (`orga`), which are excluded as
+  neighbors.
+- **The guessed cutoff silently disabled it.** `EXPAND_MIN_SIM=0.72` rejected
+  every concept: concept names score 0.61-0.68 against the rows they should
+  find, 0.43-0.60 against rows they should not. Now 0.61, set on the same 8
+  questions it is scored on. The first "on" run also read an "index not
+  loaded" answer cached from before `make semmed` and ran unexpanded; the
+  negative cache is now 10s and a skip is logged.
+- **UMLS aliases fire on non-health questions.** 3 of 26 plan-probe questions
+  linked: "hot spots" -> a dog dermatitis, "transmission" -> disease
+  transmission, "educational attainment" -> Academic achievement (a true
+  synonym, wrong domain). Fixed by seed rules, not a word list: no `patf`
+  seeds, `inbe` links by own name only, and mention-to-concept similarity
+  >= 0.6 (homonym 0.479, lowest correct link 0.738). Now 0/41 probe and 0/37
+  regression questions expand. Popularity (`n_rel`) cannot separate them:
+  suicide is 12, the dermatitis 21.
+- Reach: related-measure recall 7/8 -> 8/8 on `eval/expansion.yaml`, but only
+  2 of 8 needed expansion to get there, and the suite is lenient. Planner: 8/8
+  same primary attribute, never planned over an unasked-for linked candidate.
+  One run each. Details in `docs/EXPANSION.md`.
+
+### `correlate` and the relevance check (2026-09-29)
+
+`docs/CORRELATE.md`. The research-readiness review found the system could map
+and rank but not TEST a relationship, and could answer confidently with data
+measuring something else ("average rainfall" -> mean of reading scores).
+
+- **`correlate`**: two series -> one row. Spearman rho headline (skewed data),
+  Pearson, slope, 95% CI and p on an **effective n** discounted by Moran's I
+  (~0.6 for PLACES, so n_eff ~ n/2). Pure SQL. Verified: income ~ diabetes rho
+  -0.691 / r -0.631 reproduced exactly by an independent Python implementation;
+  Moran's I of random noise -0.011. Gated on relationship phrasing + adjacency;
+  snapshot byte-identical. A statistic may only feed an `output` (validator).
+- **PLACES ~ PLACES correlations are inflated** by shared model covariates
+  (smoking ~ COPD 0.936). The UI warns; don't cite them as findings.
+- **Relevance check**: retrieval similarity CANNOT detect unanswerable questions
+  (absent concepts score up to 0.65, answerable down to 0.47, rainfall 0.54).
+  So it judges the finished plan: each used attribute is direct / proxy /
+  denominator / unrelated; unrelated goes back through repair.
+- **Its first measurement was a silent no-op**: exact label matching found no
+  verdicts, and `|| "{}"` hid it. Only visible because the probe printed the
+  verdicts. Unmatched is now `skipped`, never a pass.
+- In 4 probe runs the check itself rejected nothing; the planner declines most
+  unanswerable questions itself. What moved honest refusals 6-7/10 -> 9/10 was
+  reading the planner's malformed "nothing" (output-only plans, last-attempt
+  no-steps) as a refusal. False refusals 0/16 throughout.
+
+### `explain`: ranked factors (2026-09-29)
+
+`docs/EXPLAIN.md`. `load(outcome) -> explain -> output`; factors are attached
+by CODE (literature concepts, then named concepts, then a default set), never
+listed by the model. Partial Spearman after controlling income / % 65+ /
+% rural, effective n from Moran's I of the residuals, BH q-values, ranked by
+the CI bound nearest zero. Computed in Node (`planner/stats.js`), the first
+`kind: "compute"` op.
+
+- **The synthetic-confounder test caught a design error before real data**:
+  dropping a control collinear with a factor removed exactly the confounder,
+  and an income-tracking factor read partial -0.69 instead of ~0. Keep controls;
+  report a factor >= 0.97 with a control as the same measure.
+- **Literature direction must be counted, not listed.** roles=[cause,effect]
+  hid that CVD follows FROM diabetes (733 vs 153 papers); it ranked #1 as an
+  explanation. Consequences are now context, and why-questions expand by
+  cause-papers (obesity's table otherwise had zero drivers).
+- Measured: obesity <- physical inactivity +0.48; diabetes <- obesity +0.42
+  (raw +0.67); asthma <- smoking +0.30, PM2.5 null after income.
+- **The relevance check refused "what explains asthma rates"**, judging the
+  outcome unrelated. Fixed by telling it each attribute's plan role; the
+  answerability suite now has explain questions.
+- **The relevance check was then rebuilt as extraction** (docs/CORRELATE.md):
+  quote the question phrase an attribute measures + a fit; only `none` rejects,
+  and only if the attribute's name shares no content word with the question
+  (qwen3 twice "rejected" an attribute the question literally named). v3:
+  0/20 false refusals, 9/10 honest refusals, 5.7s p50. gemma3:4b was
+  benchmarked for it and is unusable (describes the question, not the
+  attribute; passes "pet dogs" on household counts).
+- **After fixing temperature + context** (traps table): plan_probe 92.3% op
+  appropriateness unchanged, validity 96.2%, mean latency 25.5s.
 
 ## Two things generated and then thrown away
 

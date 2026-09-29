@@ -24,6 +24,8 @@ const fs = require("fs");
 const { Pool } = require("pg");
 const { DECOMPOSITION_SCHEMA, VERIFICATION_SCHEMA } = require("./schemas");
 const { generatePlan, executePlan } = require("./planner");
+const planOps = require("./planner/ops");
+const { callGoogle, googleConfigured } = require("./llm_google");
 const {
   buildSuggestions, unavailableDatasets, cityAmbiguity, shortLabel,
 } = require("./suggestions");
@@ -33,6 +35,7 @@ console.log("  Starting Unified Geospatial Search Server...");
 const auth = require("./auth");
 const { createLimiter, rateLimit } = require("./ratelimit");
 const { createQueue, QueueFullError } = require("./queue");
+const { expandQuery, EXPANSION_CONFIG, indexLoaded: expansionIndexLoaded } = require("./expansion");
 
 const app = express();
 
@@ -108,7 +111,23 @@ const CONFIG = {
     // A local LLM that has been OOM-killed accepts the connection and then
     // never answers. Without a deadline the request hangs until nginx gives
     // up at 300s -- observed wedging an evaluation run for 20+ minutes.
-    timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? 90000)
+    timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? 90000),
+    // Context window per call. Ollama defaults to 4,096, and the planner prompt
+    // alone is ~3,600 tokens: once qwen3 reasons past the window, Ollama does a
+    // "context shift" that silently DISCARDS the first half of the prompt --
+    // the system instructions -- and keeps generating. Seen in the ollama log
+    // for "what causes lung cancer in the south". 8,192 fits on a 16 GB card
+    // only with an 8-bit KV cache (OLLAMA_KV_CACHE_TYPE=q8_0 on the ollama
+    // service).
+    //
+    // Per MODEL, not global: at 8,192 for both, Ollama's scheduler would no
+    // longer keep qwen3:14b and gemma3:4b resident together on 16 GB and
+    // evicted one on every switch (logged "predicted to exceed available
+    // memory, evicting" with gemma at 4.4 GiB vs 5.5 free). The decomposer's
+    // prompts are a few hundred tokens and never needed the larger window.
+    // A model always gets the same num_ctx, so no call forces a reload.
+    numCtx: Number(process.env.LLM_NUM_CTX ?? 8192),
+    smallNumCtx: Number(process.env.LLM_SMALL_NUM_CTX ?? 4096)
   },
   embedder: {
     url: EMBEDDER_URL,
@@ -182,6 +201,12 @@ Rules:
  * POST to the LLM with a hard deadline. Ollama accepts connections even when
  * its model runner is dead, so "no response" is a real and silent failure mode.
  */
+/** The planner model gets the large window; everything else the small one. */
+function numCtxFor(model) {
+  return model === CONFIG.llm.planModel && CONFIG.llm.planModel !== CONFIG.llm.model
+    ? CONFIG.llm.numCtx : CONFIG.llm.smallNumCtx;
+}
+
 async function llmFetch(body) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CONFIG.llm.timeoutMs);
@@ -211,7 +236,7 @@ async function llmFetch(body) {
  *                no fence-stripping, no regex extraction, no repair.
  */
 async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = null,
-                       model = CONFIG.llm.model) {
+                       model = CONFIG.llm.model, extra = {}) {
   try {
     console.log(`   Calling LLM (${model})...`);
     
@@ -240,9 +265,16 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
         { role: "system", content: systemPrompt },
         ...(userPrompt ? [{ role: "user", content: userPrompt }] : []),
       ],
-      temperature: temperature,
       stream: false,
-      ...(schema ? { format: schema } : {})
+      ...(schema ? { format: schema } : {}),
+      // Sampling settings MUST be inside `options`. This used to send
+      // `temperature` at the top level, which Ollama ignores without error, so
+      // every call ran at the model's own default: 0.6 for qwen3:14b and 1.0
+      // for gemma3:4b -- not the 0.1-0.2 every measurement in CLAUDE.md
+      // assumed. Verified: top-level temperature 0 logged "temp = 1.000",
+      // options.temperature 0 logged "temp = 0.000".
+      options: { temperature, num_ctx: numCtxFor(model), ...(extra.options || {}) },
+      ...(extra.think !== undefined ? { think: extra.think } : {}),
     });
     
     if (!response.ok) {
@@ -425,6 +457,26 @@ function createEmbeddingText(row) {
   
   // Include attribute info
   if (row.attr_desc) parts.push(row.attr_desc.trim());
+  // The generated one-sentence description, for rows whose attr_desc is a bare
+  // column name. 392 facility rows have an attr_desc of "Name" or "Objectid",
+  // and about a third of the county-measure rows are two words; those carry
+  // almost no text for retrieval to match on. The generator has existed in
+  // etl/ingest.py all along and its output was discarded -- see
+  // etl/backfill_gen_desc.py. Placed next to attr_desc because it is the same
+  // KIND of signal, and only present where the real description was thin, so
+  // rows with a good attr_desc are unaffected.
+  // The lead-in is stripped. Every generated sentence opens "This column
+  // contains the ..." -- identical across all 2,642 of them -- and including it
+  // adds the same tokens to thousands of rows, which makes them LESS
+  // distinguishable rather than more. Measured: with the boilerplate in,
+  // known-item MRR fell 0.958 -> 0.944 while recall@1 held, which is the
+  // signature of a diluted vector space rather than a wrong one.
+  if (row.gen_desc) {
+    const cleaned = row.gen_desc
+      .replace(/^\s*(this|the)\s+(column|field|attribute)\s+(contains|holds|represents|stores|indicates|provides)\s+(the|a|an)?\s*/i, '')
+      .trim();
+    if (cleaned) parts.push(cleaned);
+  }
   if (row.attr_orig) parts.push(row.attr_orig.replace(/_/g, ' ').trim());
   
   // Include tags (most important for search)
@@ -836,7 +888,7 @@ async function verifyResultsWithLLM(originalQuery, decomposition, allResults) {
       messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
       format: VERIFICATION_SCHEMA,   // constrained to {reasoning, keep_ids}
       stream: false,
-      options: { temperature: 0.1 }
+      options: { temperature: 0.1, num_ctx: numCtxFor(CONFIG.llm.model) }
     });
     
     
@@ -885,7 +937,10 @@ async function verifyResultsWithLLM(originalQuery, decomposition, allResults) {
 async function unifiedSearch(query, options = {}) {
   const {
     useLLMFilter = true,
-    topKPerConcept = CONFIG.search.topK
+    topKPerConcept = CONFIG.search.topK,
+    // Literature expansion (backend/expansion.js). Defaults to EXPAND_ENABLED;
+    // requests may override it, so an A/B needs no container recreate.
+    expand = EXPANSION_CONFIG.enabled
   } = options;
   
   const startTime = Date.now();
@@ -931,6 +986,29 @@ async function unifiedSearch(query, options = {}) {
     
     allResults.push(...results);
   }
+
+  // STEP 2b: Literature expansion. Appended AFTER every decomposed sub-query,
+  // so it cannot change the rank of anything the decomposer asked for; it can
+  // only add attributes the question never named.
+  let expansion = null;
+  if (expand) {
+    console.log(`
+[STEP 2b] Literature expansion`);
+    expansion = await expandQuery({
+      pool, query, decomposition,
+      search: performHybridSearch,
+      embed: async (texts) => (await generateEmbeddings(texts, false)).embeddings,
+      // The same phrasing test that offers `explain` to the planner, so the
+      // expansion and the op agree about what kind of question this is.
+      causesFirst: planOps.byName("explain").offered({ query, hasNeighbors: true }),
+      alreadyRetrieved: new Set(allResults.map(r => r.attr_id)),
+      log: (m) => console.log(m),
+    });
+    for (const rq of expansion.results_by_query) {
+      resultsByQuery.push(rq);
+      allResults.push(...rq.results);
+    }
+  }
   
   // Remove duplicates based on attr_id
   const uniqueResults = [];
@@ -963,7 +1041,8 @@ async function unifiedSearch(query, options = {}) {
     primary: finalResults.filter(r => r.search_purpose === 'primary'),
     normalization: finalResults.filter(r => r.search_purpose === 'normalization'),
     filter: finalResults.filter(r => r.search_purpose === 'filter'),
-    related: finalResults.filter(r => r.search_purpose === 'related')
+    related: finalResults.filter(r => r.search_purpose === 'related'),
+    expanded: finalResults.filter(r => r.search_purpose === 'expanded')
   };
   
   const elapsed = Date.now() - startTime;
@@ -979,6 +1058,9 @@ async function unifiedSearch(query, options = {}) {
   return {
     query,
     decomposition,
+    // Which concepts were linked, what was related to them, and why each
+    // related concept was kept or skipped. null when expansion was off.
+    expansion,
     llm_reasoning: llmReasoning,
     results_by_query: resultsByQuery,
     results_by_purpose: resultsByPurpose,
@@ -1056,7 +1138,7 @@ app.post("/api/unified-search", auth.requireAuth, limitSearch, async (req, res) 
     // much -- on one sample query it cut 18 retrieved rows to 3. That is a
     // reranker's job, and a cross-encoder should replace it (docs/AI-PIPELINE.md
     // section 4). Until then, opt in explicitly if you want the ranking.
-    const { q: query, use_llm_filter = false, top_k = 10 } = req.body;
+    const { q: query, use_llm_filter = false, top_k = 10, expand } = req.body;
     
     if (!query || query.trim().length === 0) {
       return res.status(400).json({ error: "Query 'q' is required" });
@@ -1064,7 +1146,8 @@ app.post("/api/unified-search", auth.requireAuth, limitSearch, async (req, res) 
     
     const results = await unifiedSearch(query, {
       useLLMFilter: use_llm_filter,
-      topKPerConcept: top_k
+      topKPerConcept: top_k,
+      ...(typeof expand === "boolean" ? { expand } : {})
     });
     
     res.json(results);
@@ -1359,6 +1442,26 @@ async function placeBoundariesLoaded() {
   }
 }
 
+/**
+ * Whether county adjacency has been built (`make neighbors`).
+ *
+ * Cached the same way, and for the same reason: `hotspot` needs a weights
+ * matrix, and offering an op that can only fail costs a repair round on a plan
+ * the data could never support.
+ */
+let neighborsCache = null;
+async function countyNeighborsLoaded() {
+  if (neighborsCache) return true;
+  try {
+    const { rows } = await pool.query(
+      "SELECT EXISTS (SELECT 1 FROM county_neighbors LIMIT 1) AS present");
+    neighborsCache = rows[0]?.present === true;
+    return neighborsCache;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveAttributes(attrIds) {
   const out = new Map();
   if (!attrIds.length) return out;
@@ -1423,7 +1526,15 @@ class AnalyzeError extends Error {
  * and the frontend already ships counties.geojson and joins on fips locally.
  */
 async function runAnalysis({ query, top_k = 25, execute = true,
-                             includeGeometry = true, emit = () => {} }) {
+                             includeGeometry = true, emit = () => {},
+                             // Per-request engine override, for the A/B in
+                             // eval/provider_bench.py. Absent means the
+                             // configured default, which is the local runner.
+                             provider = null,
+                             // Literature expansion override; null = EXPAND_ENABLED.
+                             expand = null,
+                             // Relevance check override; null = RELEVANCE_CHECK.
+                             relevanceCheck = null }) {
   const started = Date.now();
   try {
     if (!query || !query.trim()) {
@@ -1454,11 +1565,16 @@ async function runAnalysis({ query, top_k = 25, execute = true,
     const RETRIEVAL_BUDGET = Number(process.env.ANALYZE_RETRIEVAL_BUDGET ?? 60);
     const search = await unifiedSearch(query, {
       useLLMFilter: false,            // measured in Phase 2: costs 10pp recall
-      topKPerConcept: Math.max(top_k, RETRIEVAL_BUDGET)
+      topKPerConcept: Math.max(top_k, RETRIEVAL_BUDGET),
+      ...(typeof expand === "boolean" ? { expand } : {})
     });
     const candidates = search.all_results || [];
     emit({ stage: "decomposed", decomposition: search.decomposition,
            retrieved: candidates.length });
+    if (search.expansion?.seeds?.length) {
+      emit({ stage: "expanded", seeds: search.expansion.seeds,
+             kept: search.expansion.concepts.filter(c => c.kept).map(c => c.name) });
+    }
     const resolved = await resolveAttributes(candidates.map(c => c.attr_id));
 
     // Collapse feature tables to one candidate per dataset.
@@ -1508,7 +1624,12 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       .map(q => (q.results || []).filter(c => {
         const src = resolved.get(c.attr_id);
         return src && src.source_kind === "feature_table"
-            && c.search_purpose !== "normalization";   // a denominator is never a facility count
+            && c.search_purpose !== "normalization"    // a denominator is never a facility count
+            // Literature expansion adds value series, not map layers. Without
+            // this, "obesity rates in Texas" let an expanded concept claim a
+            // facility slot -- a 5th expanded candidate past EXPAND_QUOTA (4),
+            // and one placed ahead of the rule that expanded goes last.
+            && c.search_purpose !== "expanded";
       }))
       .filter(list => list.length);
 
@@ -1516,7 +1637,8 @@ async function runAnalysis({ query, top_k = 25, execute = true,
     // if results_by_query is ever absent.
     const groups = facilityLists.length ? facilityLists : [candidates.filter(c => {
       const src = resolved.get(c.attr_id);
-      return src && src.source_kind === "feature_table" && c.search_purpose !== "normalization";
+      return src && src.source_kind === "feature_table"
+          && c.search_purpose !== "normalization" && c.search_purpose !== "expanded";
     })];
 
     const cursors = groups.map(() => 0);
@@ -1560,8 +1682,11 @@ async function runAnalysis({ query, top_k = 25, execute = true,
     // rate at all. Observed directly -- the normalization section came back
     // empty for "poverty normalized by population", which is the one query
     // shape this whole pipeline exists to serve.
-    const QUOTA = { primary: 10, normalization: 6, filter: 2, related: 2 };
-    const takenByPurpose = { primary: 0, normalization: 0, filter: 0, related: 0 };
+    // `expanded` is literature expansion (backend/expansion.js). Absent unless
+    // expansion ran and kept something, so this is inert when it is off.
+    const QUOTA = { primary: 10, normalization: 6, filter: 2, related: 2,
+                    expanded: Number(process.env.EXPAND_QUOTA ?? 4) };
+    const takenByPurpose = { primary: 0, normalization: 0, filter: 0, related: 0, expanded: 0 };
     const picked = [];
 
     // The quota is per purpose, and it used to be filled first-come from the
@@ -1623,7 +1748,16 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       picked.push(c);
     }
 
-    const executable = [...picked, ...featureRows].slice(0, top_k);
+    // Expanded candidates go LAST, after the facility rows: they are the only
+    // candidates the question did not ask for, so when top_k truncates, they
+    // are what gets cut, not the Hospitals layer a question named. With
+    // expansion off there are none and this is the previous ordering exactly,
+    // which keeps the prompt byte-identical.
+    const executable = [
+      ...picked.filter(c => c.search_purpose !== "expanded"),
+      ...featureRows,
+      ...picked.filter(c => c.search_purpose === "expanded"),
+    ].slice(0, top_k);
 
     console.log(`   candidates by purpose: ${JSON.stringify(takenByPurpose)}, ` +
                 `${featureRows.length} facility`);
@@ -1665,14 +1799,19 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       query,
       candidates: executable,
       // Bind the planner to PLAN_MODEL, leaving decomposition on the small one.
-      callLLM: (sys, usr, temp, schema) =>
-        callLLM(sys, usr, temp, schema, CONFIG.llm.planModel),
+      callLLM: (sys, usr, temp, schema, extra) =>
+        callLLM(sys, usr, temp, schema, CONFIG.llm.planModel, extra),
       resolve: resolveAttributes,
       // Whether named boundaries are loaded. filter_place is useless without
       // them, and offering an op that can only fail costs a repair round.
       hasPlaceBoundaries: await placeBoundariesLoaded(),
+      hasNeighbors: await countyNeighborsLoaded(),
       log: (m) => console.log(m),
       emit,
+      // planner/relevance.js. On by default; eval runs can pass
+      // relevance_check:false to measure it without recreating the container.
+      relevanceCheck: typeof relevanceCheck === "boolean" ? relevanceCheck
+        : !/^(0|false|no)$/i.test(process.env.RELEVANCE_CHECK ?? "1"),
     });
 
     if (!planning.ok) {
@@ -1684,8 +1823,36 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       //
       // Reported as a coverage answer rather than "could not produce a valid
       // plan", which reads as a crash and sends the user looking for a bug.
+      // The planner's LAST word decides. "Premier league attendance" produced a
+      // malformed plan, was sent back, and then returned no steps -- it had
+      // concluded nothing answers the question, and requiring EVERY attempt to
+      // say so reported that as "could not produce a valid plan".
       const allEmpty = planning.attempts.length > 0 &&
-        planning.attempts.every(a => (a.errors || []).some(e => /no steps/.test(e)));
+        (planning.attempts.at(-1).errors || []).some(e => /no steps/.test(e));
+      // Every attempt either used data that does not measure the question, or
+      // gave up with no steps. That is "not loaded", not a planner malfunction,
+      // and must never be reported as an answer.
+      const rejected = planning.attempts.flatMap(a => (a.relevance || [])
+        .filter(v => v.verdict === "unrelated"));
+      const notMeasured = rejected.length > 0 &&
+        (planning.attempts.at(-1).errors || []).some(e => /no steps|^NOT_RELEVANT/.test(e));
+      if (notMeasured) {
+        const names = [...new Set(rejected.map(v => v.description).filter(Boolean))];
+        throw new AnalyzeError(422, {
+          error: "the loaded data does not measure what this question asks about",
+          detail: "The closest attributes found measure something else " +
+                  `(${names.slice(0, 3).map(n => `"${n.slice(0, 60)}"`).join(", ")}), ` +
+                  "so any number built on them would answer a different question. " +
+                  "These are things the same data can answer:",
+          not_measured: true,
+          rejected_attributes: rejected,
+          suggestions: buildSuggestions(executable),
+          unavailable_datasets: missing,
+          attempts: planning.attempts.length,
+          candidates: executable.slice(0, 10),
+          ms: Date.now() - started
+        });
+      }
       // Grounded alternatives, built from what DID resolve -- so following one
       // cannot fail the same way this question just did.
       const suggestions = buildSuggestions(executable);
@@ -1722,8 +1889,40 @@ async function runAnalysis({ query, top_k = 25, execute = true,
     // The per-attribute origins matter most. A downloaded CSV of "poverty rate"
     // is not checkable unless it says WHICH poverty measure, from which table
     // and census code, for which year.
+    // explain: attach its factors now that the plan is valid. Chosen by code,
+    // never by the model (planner/ops/explain.js), then resolved like any
+    // other attribute so the compiler can bind them.
+    const explainStep = planning.plan.steps.find(s => s.op === "explain");
+    if (explainStep) {
+      const outcomeStep = planning.plan.steps.find(s => s.id === (explainStep.inputs || [])[0]);
+      const chosen = planOps.byName("explain").chooseFactors({
+        outcomeAttrId: outcomeStep?.attr_id || null,
+        candidates: executable,
+        resultsByQuery: search.results_by_query || [],
+        expansion: search.expansion,
+      });
+      const extra = await resolveAttributes(chosen.map(f => f.attr_id));
+      explainStep.factors = chosen
+        .filter(f => extra.get(f.attr_id) && extra.get(f.attr_id).source_kind !== "feature_table")
+        .map(f => ({ ...f, description: f.description || extra.get(f.attr_id).description || f.attr_id }));
+      for (const [k, v] of extra) planning.resolved.set(k, v);
+      const nFactors = explainStep.factors.filter(f => f.role === "factor").length;
+      console.log(`   explain: ${nFactors} factor(s), ` +
+        `${explainStep.factors.length - nFactors} control(s): ` +
+        explainStep.factors.map(f => `${f.role[0]}:${(f.description || "").slice(0, 30)}`).join(" | "));
+      if (!nFactors) {
+        throw new AnalyzeError(422, {
+          error: "no candidate factors could be found for this outcome",
+          detail: "Neither the question, the literature links nor the default covariates " +
+                  "resolved to loaded data.",
+          plan: planning.plan, ms: Date.now() - started,
+        });
+      }
+    }
+
     const usedAttrIds = [...new Set(planning.plan.steps.flatMap(
-      s => [s.attr_id, s.near_attr_id].filter(Boolean)))];
+      s => [s.attr_id, s.near_attr_id, ...(s.factors || []).map(f => f.attr_id)]
+        .filter(Boolean)))];
     const byId = new Map(executable.map(c => [c.attr_id, c]));
     const origins = usedAttrIds.map(id => {
       const src = planning.resolved.get(id) || {};
@@ -1754,11 +1953,16 @@ async function runAnalysis({ query, top_k = 25, execute = true,
     const body = {
       query,
       decomposition: search.decomposition,
+      expansion: search.expansion,
       plan: planning.plan,
       repairs: planning.repairs,
       // Deterministic corrections applied to the model's plan. Surfaced because
       // a filter that could not be applied silently widens the answer.
       adjustments: planning.adjustments || [],
+      // How each attribute the plan uses relates to the question. A "proxy"
+      // is kept but should be shown: "median household income" answers "the
+      // wealthiest" only by stand-in, and the reader deserves to know that.
+      relevance: planning.relevance,
       // ALL executable candidates, not the top 10. A plan may load an attribute
       // ranked below 10th, and the UI's step-by-step report has to be able to
       // name what each step operates on. The list is ~25 small rows.
@@ -1778,6 +1982,13 @@ async function runAnalysis({ query, top_k = 25, execute = true,
           retrieved: candidates.length,
           executable: executable.length,
           plan_repairs: planning.repairs,
+          // Which candidates came from the literature rather than the question,
+          // and from which SemMedDB release. null when expansion was off.
+          expansion: search.expansion ? {
+            source: search.expansion.source || null,
+            seeds: search.expansion.seeds,
+            concepts: search.expansion.concepts.filter(c => c.kept).map(c => c.name),
+          } : null,
         },
         database: CONFIG.database.database,
         attribute_origins: origins,
@@ -1801,6 +2012,53 @@ async function runAnalysis({ query, top_k = 25, execute = true,
         body.rows = result.rows;
         body.execution_ms = result.ms;
         body.output_mode = result.mode;
+        // Two-series results carry `value_b` on every row. Announced explicitly
+        // so the UI can offer a series switch without having to sniff the rows.
+        if (result.series === 2) body.series = 2;
+        // Signed measures (hotspot, outlier) must be drawn on a diverging ramp.
+        // Declared by the op that produced the layer, not guessed from the
+        // numbers: an all-positive run of a diverging measure is still one.
+        if (result.diverging) {
+          body.diverging = true;
+          body.value_label = result.valueLabel ?? null;
+        }
+        // A one-row statistic (correlate): its figures, named. Also marks the
+        // result as a statistic rather than a county layer, so the UI shows a
+        // summary instead of a map of one NULL-fips row.
+        if (result.stats) {
+          body.stats = result.stats;
+          body.value_label = result.valueLabel ?? null;
+        }
+        // explain: the ranked factor table, the controls it used, and how many
+        // counties had the outcome at all.
+        if (result.mode === "factors") {
+          body.explain = {
+            factors: result.factors,
+            controls: result.controls,
+            outcome_counties: result.outcome_counties,
+          };
+        }
+        // A plan with several `output` steps returns several layers. The first
+        // is ALSO surfaced flat above, so a client that knows nothing about
+        // layers still gets an answer rather than an empty result.
+        if (result.layer_count > 1) {
+          body.layers = result.layers.map(l => ({
+            id: l.id,
+            step: l.step,
+            op: l.op,
+            // A component of an arithmetic result rather than the answer, so
+            // the UI can label it as such instead of calling it "Layer 2".
+            part: l.part === true,
+            mode: l.mode,
+            series: l.series,
+            diverging: l.diverging === true,
+            value_label: l.valueLabel ?? null,
+            stats: l.stats ?? null,
+            row_count: l.row_count,
+            ...(l.mode === "features" ? { features: l.features } : { rows: l.rows }),
+          }));
+          body.layer_count = result.layer_count;
+        }
         // A successful result can still be the wrong ANSWER: a city filter with
         // no state quietly spans the country. Report the spread so the UI can
         // offer to narrow, rather than presenting 25 states as one city.
@@ -1848,6 +2106,11 @@ app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
         query: q, top_k, execute,
         // Defaults to true so existing callers (eval/run.py, curl) are unchanged.
         includeGeometry: include_geometry !== false,
+        // Only ever "google" or absent; anything else falls through to local.
+        provider: req.body?.provider === "google" ? "google" : null,
+        expand: typeof req.body?.expand === "boolean" ? req.body.expand : null,
+        relevanceCheck: typeof req.body?.relevance_check === "boolean"
+          ? req.body.relevance_check : null,
       }),
       { isAbandoned: () => closed },
     );
@@ -1912,6 +2175,7 @@ app.get("/api/analyze/stream", auth.requireAuth, limitAnalyze, async (req, res) 
         top_k: req.query.top_k ? Number(req.query.top_k) : undefined,
         execute: req.query.execute !== "false",
         includeGeometry: req.query.include_geometry === "true",
+        expand: req.query.expand === "true" ? true : req.query.expand === "false" ? false : null,
         emit: (ev) => send(ev.stage, ev),
       }),
       {
@@ -1949,6 +2213,11 @@ app.get("/api/health", async (req, res) => {
     embedder_url: CONFIG.embedder.url,
     llm_model: CONFIG.llm.model,
     plan_model: CONFIG.llm.planModel,
+    // Whether this instance is sending questions off the machine. Reported
+    // because "local-only" is a property people rely on, and a config flag that
+    // silently changes it should be visible from outside.
+    llm_provider: process.env.LLM_PROVIDER || "ollama",
+    google_available: googleConfigured(),
     database: CONFIG.database.database,
     resolvable_attributes: resolvableCount,
     auth_required: auth.AUTH_ENABLED,
@@ -1958,7 +2227,11 @@ app.get("/api/health", async (req, res) => {
     // vectors held here are then from a different space than the query
     // embeddings, and results are silently wrong until POST /api/reload-corpus.
     corpus_stale: freshness.stale,
-    corpus_available_key: freshness.available
+    corpus_available_key: freshness.available,
+    // Literature expansion: whether it is on by default, and whether its index
+    // is built. Enabled with no index means it silently does nothing.
+    expansion_enabled: EXPANSION_CONFIG.enabled,
+    expansion_index: (await expansionIndexLoaded(pool)).meta
   });
 });
 

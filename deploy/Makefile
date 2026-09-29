@@ -3,7 +3,7 @@ COMPOSE := docker compose
 GPU     := docker compose -f docker-compose.yml -f docker-compose.gpu.yml
 DEV     := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 
-.PHONY: help up up-gpu down dev build logs ps health provenance models automl boundaries boundaries-dry inspect ingest load-geo load-reference load-reference-dry relink relink-features validate-catalog shell-api shell-embed shell-db reindex psql clean
+.PHONY: help up up-gpu down dev build logs ps health provenance models automl county-values county-values-dry semmed semmed-dry add-year neighbors boundaries boundaries-dry inspect ingest load-geo load-reference load-reference-dry relink relink-features validate-catalog shell-api shell-embed shell-db reindex psql clean
 
 help:            ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -72,6 +72,38 @@ load-geo:        ## Load HSIP shapefiles/geodatabases into PostGIS (slow; needs 
 relink-features: ## Re-link facility tables only (fast; run after load-geo)
 	$(COMPOSE) --profile etl run --rm etl \
 	  python /app/etl/load_reference_data.py --acs-csv /data/fips_merged_ACS_data.csv --features-only
+
+county-values-dry: ## Report what load_county_values would load, writing nothing
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
+	  /app/etl/load_county_values.py --source-dir $(or $(SRC),/data/county_csv)
+
+county-values:   ## Load USDA ERS / CDC PLACES / County Health Rankings county CSVs
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
+	  /app/etl/load_county_values.py --source-dir $(or $(SRC),/data/county_csv) --commit
+	@echo "  now register them for SEARCH (the catalog is mounted read-only in"
+	@echo "  the containers, so this half runs on the host):"
+	@echo "    python3 etl/load_county_values.py --source-dir geospatial_database_data/county_csv \\"
+	@echo "        --catalog-only --catalog backend/geoark_attributes.csv"
+	@echo "    make reindex && make up-gpu"
+
+# SEMMED_FILE is relative to SEMMED_DIR (mounted at /semmed). UMLS_KB is
+# optional; without it only SemMedDB's preferred names link, see docs/EXPANSION.md.
+SEMMED_FILE ?= semmedVER43_2024_R_PREDICATION.csv.gz
+semmed-dry:      ## Report what the literature-expansion index would hold, writing nothing
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm etl 	  python /app/etl/build_semmed_index.py --semmed /semmed/$(SEMMED_FILE)
+
+semmed:          ## Build the SemMedDB literature-expansion index (minutes, once)
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm etl 	  python /app/etl/build_semmed_index.py --semmed /semmed/$(SEMMED_FILE) 	    $(if $(UMLS_KB),--umls-kb /semmed/$(UMLS_KB)) --commit
+
+add-year:        ## One-time migration: add the year dimension to county values
+	$(COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U $${POSTGRES_USER:-geoark} \
+	  -d $${POSTGRES_DB:-mygisdb} < ../etl/add_year_dimension.sql
+
+# Piped over stdin rather than -f: the db container mounts pgdata and its init
+# directory, not the repo, so the file does not exist inside it.
+neighbors:       ## Build county adjacency (needed by the hotspot op)
+	$(COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U $${POSTGRES_USER:-geoark} \
+	  -d $${POSTGRES_DB:-mygisdb} < ../etl/county_neighbors.sql
 
 boundaries:      ## Load TIGER named boundaries (places, ZIPs, metros) into place_geom
 	$(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \

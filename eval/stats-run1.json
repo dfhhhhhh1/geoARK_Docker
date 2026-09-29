@@ -1,0 +1,328 @@
+{
+  "queries": 15,
+  "plan_validity": 0.8,
+  "op_appropriateness": 0.8,
+  "forbidden_op_rate": 0.0,
+  "op_diversity": 0.26666666666666666,
+  "distinct_op_sequences": [
+    "load->hotspot->output",
+    "load->load->combine->output",
+    "load->outlier->output",
+    "load->rank->output"
+  ],
+  "latency_mean": 18.3,
+  "detail": [
+    {
+      "id": "hotspot-poverty#1",
+      "query": "where are the hot spots of poverty",
+      "planned": true,
+      "intent": "Spatial clusters of high and low counts of households below poverty level, by county",
+      "ops": "load->hotspot->output",
+      "narrowing": [],
+      "expect_op": "hotspot",
+      "expect_op_present": true,
+      "forbid_op": "select_features",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_450",
+          "purpose": "primary",
+          "desc": "Estimate|Total|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        }
+      ],
+      "error": null,
+      "seconds": 38.9
+    },
+    {
+      "id": "hotspot-clusters#1",
+      "query": "show me clusters of counties with high uninsured rates",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "narrowing": [],
+      "expect_op": "hotspot",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 33.9
+    },
+    {
+      "id": "outlier-income#1",
+      "query": "which counties are outliers for median household income",
+      "planned": true,
+      "intent": "Counties whose median household income is unusual for the distribution",
+      "ops": "load->outlier->output",
+      "narrowing": [],
+      "expect_op": "outlier",
+      "expect_op_present": true,
+      "forbid_op": "rank",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 8.9
+    },
+    {
+      "id": "combine-difference#1",
+      "query": "the difference between the poverty rate and the unemployment rate",
+      "planned": true,
+      "intent": "The difference between the poverty rate and the unemployment rate, by county",
+      "ops": "load->load->combine->output",
+      "narrowing": [],
+      "expect_op": "combine",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        },
+        {
+          "attr_id": "04d18a18_02_01_402",
+          "purpose": "primary",
+          "desc": "Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate"
+        }
+      ],
+      "error": null,
+      "seconds": 14.3
+    },
+    {
+      "id": "stats-control-rank#1",
+      "query": "the 10 counties with the highest poverty rate",
+      "planned": true,
+      "intent": "The ten counties ranked highest on poverty rate",
+      "ops": "load->rank->output",
+      "narrowing": [],
+      "expect_op": "rank",
+      "expect_op_present": true,
+      "forbid_op": "hotspot",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        }
+      ],
+      "error": null,
+      "seconds": 9.0
+    },
+    {
+      "id": "hotspot-poverty#2",
+      "query": "where are the hot spots of poverty",
+      "planned": true,
+      "intent": "Spatial clusters of high and low poverty rates, by county",
+      "ops": "load->hotspot->output",
+      "narrowing": [],
+      "expect_op": "hotspot",
+      "expect_op_present": true,
+      "forbid_op": "select_features",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        }
+      ],
+      "error": null,
+      "seconds": 23.6
+    },
+    {
+      "id": "hotspot-clusters#2",
+      "query": "show me clusters of counties with high uninsured rates",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "narrowing": [],
+      "expect_op": "hotspot",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 25.5
+    },
+    {
+      "id": "outlier-income#2",
+      "query": "which counties are outliers for median household income",
+      "planned": true,
+      "intent": "Counties whose median household income is unusual for the distribution",
+      "ops": "load->outlier->output",
+      "narrowing": [],
+      "expect_op": "outlier",
+      "expect_op_present": true,
+      "forbid_op": "rank",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 7.5
+    },
+    {
+      "id": "combine-difference#2",
+      "query": "the difference between the poverty rate and the unemployment rate",
+      "planned": true,
+      "intent": "Poverty rate minus unemployment rate, by county",
+      "ops": "load->load->combine->output",
+      "narrowing": [],
+      "expect_op": "combine",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        },
+        {
+          "attr_id": "04d18a18_02_01_402",
+          "purpose": "primary",
+          "desc": "Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate"
+        }
+      ],
+      "error": null,
+      "seconds": 9.3
+    },
+    {
+      "id": "stats-control-rank#2",
+      "query": "the 10 counties with the highest poverty rate",
+      "planned": true,
+      "intent": "The ten counties ranked highest on poverty rate",
+      "ops": "load->rank->output",
+      "narrowing": [],
+      "expect_op": "rank",
+      "expect_op_present": true,
+      "forbid_op": "hotspot",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        }
+      ],
+      "error": null,
+      "seconds": 13.9
+    },
+    {
+      "id": "hotspot-poverty#3",
+      "query": "where are the hot spots of poverty",
+      "planned": true,
+      "intent": "Spatial clusters of high and low poverty, by county",
+      "ops": "load->hotspot->output",
+      "narrowing": [],
+      "expect_op": "hotspot",
+      "expect_op_present": true,
+      "forbid_op": "select_features",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_450",
+          "purpose": "primary",
+          "desc": "Estimate|Total|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        }
+      ],
+      "error": null,
+      "seconds": 15.0
+    },
+    {
+      "id": "hotspot-clusters#3",
+      "query": "show me clusters of counties with high uninsured rates",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "narrowing": [],
+      "expect_op": "hotspot",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 47.5
+    },
+    {
+      "id": "outlier-income#3",
+      "query": "which counties are outliers for median household income",
+      "planned": true,
+      "intent": "Counties whose median household income is unusual for the distribution",
+      "ops": "load->outlier->output",
+      "narrowing": [],
+      "expect_op": "outlier",
+      "expect_op_present": true,
+      "forbid_op": "rank",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 9.7
+    },
+    {
+      "id": "combine-difference#3",
+      "query": "the difference between the poverty rate and the unemployment rate",
+      "planned": true,
+      "intent": "Poverty rate minus unemployment rate, by county",
+      "ops": "load->load->combine->output",
+      "narrowing": [],
+      "expect_op": "combine",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        },
+        {
+          "attr_id": "04d18a18_02_01_402",
+          "purpose": "primary",
+          "desc": "Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate"
+        }
+      ],
+      "error": null,
+      "seconds": 8.6
+    },
+    {
+      "id": "stats-control-rank#3",
+      "query": "the 10 counties with the highest poverty rate",
+      "planned": true,
+      "intent": "The ten counties ranked highest on the percentage of households below poverty level",
+      "ops": "load->rank->output",
+      "narrowing": [],
+      "expect_op": "rank",
+      "expect_op_present": true,
+      "forbid_op": "hotspot",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        }
+      ],
+      "error": null,
+      "seconds": 9.0
+    }
+  ]
+}

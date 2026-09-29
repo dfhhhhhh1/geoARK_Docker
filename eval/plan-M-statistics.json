@@ -1,0 +1,614 @@
+{
+  "queries": 26,
+  "plan_validity": 0.9230769230769231,
+  "op_appropriateness": 0.8076923076923077,
+  "forbidden_op_rate": 0.038461538461538464,
+  "op_diversity": 0.5,
+  "distinct_op_sequences": [
+    "count_features->output",
+    "count_near->output",
+    "load->aggregate->output",
+    "load->filter_area->output",
+    "load->filter_attr->output",
+    "load->filter_place->output",
+    "load->load->join->output",
+    "load->load->normalize->output",
+    "load->output",
+    "load->rank->output",
+    "load->rank->rank->join->output",
+    "nearest_distance->output",
+    "select_features->output"
+  ],
+  "latency_mean": 17.9,
+  "detail": [
+    {
+      "id": "rank-top-income",
+      "query": "list the top 10 counties with the highest median household income",
+      "planned": true,
+      "intent": "The ten counties ranked highest on median household income",
+      "ops": "load->rank->output",
+      "narrowing": [],
+      "expect_op": "rank",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 17.0
+    },
+    {
+      "id": "rank-bottom-uninsured",
+      "query": "the 5 counties with the lowest rate of health insurance coverage",
+      "planned": true,
+      "intent": "The five counties ranked lowest on the rate of health insurance coverage",
+      "ops": "load->rank->output",
+      "narrowing": [],
+      "expect_op": "rank",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_386",
+          "purpose": "primary",
+          "desc": "Percent Estimate!!HEALTH INSURANCE COVERAGE!!Civilian noninstitutionalized population!!With health i"
+        }
+      ],
+      "error": null,
+      "seconds": 14.8
+    },
+    {
+      "id": "normalize-poverty",
+      "query": "poverty rate normalized by total population for counties",
+      "planned": true,
+      "intent": "Poverty rate divided by total population, by county",
+      "ops": "load->load->normalize->output",
+      "narrowing": [],
+      "expect_op": "normalize",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        },
+        {
+          "attr_id": "04d18a18_08_01_04",
+          "purpose": "normalization",
+          "desc": "Estimate|Total|Total population"
+        }
+      ],
+      "error": null,
+      "seconds": 10.7
+    },
+    {
+      "id": "count-hospitals",
+      "query": "how many hospitals are in each county",
+      "planned": true,
+      "intent": "Number of hospital features in each county",
+      "ops": "count_features->output",
+      "narrowing": [],
+      "expect_op": "count_features",
+      "expect_op_present": true,
+      "forbid_op": "normalize",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "443ff20b_01_01_24",
+          "purpose": "primary",
+          "desc": "Hospitals (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 7.1
+    },
+    {
+      "id": "join-income-education",
+      "query": "compare median income against educational attainment",
+      "planned": true,
+      "intent": "Median household income set alongside educational attainment, by county",
+      "ops": "load->load->join->output",
+      "narrowing": [],
+      "expect_op": "join",
+      "expect_op_present": true,
+      "forbid_op": "normalize",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_150",
+          "purpose": "primary",
+          "desc": "Estimate|Total|Households|HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2018 INFLATION-ADJUSTED DOLLARS"
+        },
+        {
+          "attr_id": "04d18a18_09_01_184",
+          "purpose": "primary",
+          "desc": "Estimate|EDUCATIONAL ATTAINMENT|Population 25 years and over"
+        }
+      ],
+      "error": null,
+      "seconds": 10.5
+    },
+    {
+      "id": "aggregate-mean-income",
+      "query": "what is the average median household income across all counties",
+      "planned": true,
+      "intent": "The average of median household income across all counties",
+      "ops": "load->aggregate->output",
+      "narrowing": [],
+      "expect_op": "aggregate",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_150",
+          "purpose": "primary",
+          "desc": "Estimate|Total|Households|HOUSEHOLD INCOME IN THE PAST 12 MONTHS (IN 2018 INFLATION-ADJUSTED DOLLARS"
+        }
+      ],
+      "error": null,
+      "seconds": 11.8
+    },
+    {
+      "id": "filter-high-income",
+      "query": "counties where median household income is above 75000",
+      "planned": true,
+      "intent": "Counties whose median household income is greater than 75000",
+      "ops": "load->filter_attr->output",
+      "narrowing": [],
+      "expect_op": "filter_attr",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 18.8
+    },
+    {
+      "id": "plain-load-population",
+      "query": "show total population by county",
+      "planned": true,
+      "intent": "Total population in each county",
+      "ops": "load->output",
+      "narrowing": [],
+      "expect_op": "load",
+      "expect_op_present": true,
+      "forbid_op": "normalize",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_08_01_04",
+          "purpose": "primary",
+          "desc": "Estimate|Total|Total population"
+        }
+      ],
+      "error": null,
+      "seconds": 6.6
+    },
+    {
+      "id": "area-state-restriction",
+      "query": "median household income for counties in Missouri",
+      "planned": true,
+      "intent": "Median household income for Missouri counties",
+      "ops": "load->filter_area->output",
+      "narrowing": [
+        "state=Missouri"
+      ],
+      "expect_op": "filter_area",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 9.7
+    },
+    {
+      "id": "area-region-restriction",
+      "query": "unemployment rate for counties in the Midwest",
+      "planned": true,
+      "intent": "Unemployment rate for counties in the Midwest",
+      "ops": "load->filter_area->output",
+      "narrowing": [
+        "state=Illinois",
+        "state=Indiana",
+        "state=Iowa",
+        "state=Kansas",
+        "state=Michigan",
+        "state=Minnesota",
+        "state=Missouri",
+        "state=Nebraska",
+        "state=North Dakota",
+        "state=Ohio",
+        "state=South Dakota",
+        "state=Wisconsin"
+      ],
+      "expect_op": "filter_area",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_38",
+          "purpose": "primary",
+          "desc": "Percent Estimate!!EMPLOYMENT STATUS!!Civilian labor force!!Unemployment Rate"
+        }
+      ],
+      "error": null,
+      "seconds": 28.1
+    },
+    {
+      "id": "area-unknown-region",
+      "query": "median household income for counties in New England",
+      "planned": true,
+      "intent": "Median household income for counties in New England",
+      "ops": "load->filter_area->output",
+      "narrowing": [
+        "state=Maine",
+        "state=New Hampshire",
+        "state=Vermont",
+        "state=Massachusetts",
+        "state=Rhode Island",
+        "state=Connecticut"
+      ],
+      "expect_op": "filter_area",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 11.1
+    },
+    {
+      "id": "place-city",
+      "query": "median household income for counties in the Springfield, Missouri area",
+      "planned": true,
+      "intent": "Median household income for counties in the Springfield, Missouri area",
+      "ops": "load->filter_place->output",
+      "narrowing": [
+        "status=Missouri",
+        "place=Springfield",
+        "state=Missouri"
+      ],
+      "expect_op": "filter_place",
+      "expect_op_present": true,
+      "forbid_op": "filter_attr",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 9.4
+    },
+    {
+      "id": "place-metro",
+      "query": "poverty rate for counties in the Chicago metro area",
+      "planned": true,
+      "intent": "Poverty rate for counties in the Chicago metro area",
+      "ops": "load->filter_place->output",
+      "narrowing": [
+        "cbsa=Chicago"
+      ],
+      "expect_op": "filter_place",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        }
+      ],
+      "error": null,
+      "seconds": 12.5
+    },
+    {
+      "id": "place-zip",
+      "query": "median household income for counties in ZIP code 63101",
+      "planned": true,
+      "intent": "Median household income for counties in ZIP code 63101",
+      "ops": "load->filter_place->output",
+      "narrowing": [
+        "zcta=63101"
+      ],
+      "expect_op": "filter_place",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 23.8
+    },
+    {
+      "id": "proximity-count",
+      "query": "hospitals within 10 miles of electric power transmission lines",
+      "planned": true,
+      "intent": "Number of hospitals within ten miles of electric power transmission lines, by county",
+      "ops": "count_near->output",
+      "narrowing": [],
+      "expect_op": "count_near",
+      "expect_op_present": true,
+      "forbid_op": "normalize",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "443ff20b_01_01_24",
+          "purpose": "primary",
+          "desc": "Hospitals (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 7.8
+    },
+    {
+      "id": "distance-to-nearest",
+      "query": "how far is each county from the nearest hospital",
+      "planned": true,
+      "intent": "Distance in miles from each county to its nearest hospital",
+      "ops": "nearest_distance->output",
+      "narrowing": [],
+      "expect_op": "nearest_distance",
+      "expect_op_present": true,
+      "forbid_op": "count_features",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "443ff20b_01_01_16",
+          "purpose": "primary",
+          "desc": "Hospitals (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 6.4
+    },
+    {
+      "id": "density-per-area",
+      "query": "population density per square mile",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "narrowing": [],
+      "expect_op": "per_area",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 30.3
+    },
+    {
+      "id": "locations-in-state",
+      "query": "where are the hospitals in Missouri",
+      "planned": true,
+      "intent": "Locations of hospitals in Missouri",
+      "ops": "select_features->output",
+      "narrowing": [
+        "state=Missouri"
+      ],
+      "expect_op": "select_features",
+      "expect_op_present": true,
+      "forbid_op": "count_features",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "443ff20b_01_01_24",
+          "purpose": "primary",
+          "desc": "Hospitals (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 6.3
+    },
+    {
+      "id": "locations-in-city",
+      "query": "show me the locations of fire stations in Springfield, Missouri",
+      "planned": true,
+      "intent": "Locations of fire stations in Springfield, Missouri",
+      "ops": "select_features->output",
+      "narrowing": [
+        "city=Springfield",
+        "state=Missouri"
+      ],
+      "expect_op": "select_features",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "964c8e3d_01_01_19",
+          "purpose": "primary",
+          "desc": "Fire Stations (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 13.5
+    },
+    {
+      "id": "filtered-count",
+      "query": "how many critical access hospitals are in each county",
+      "planned": true,
+      "intent": "Number of critical access hospitals in each county",
+      "ops": "count_features->output",
+      "narrowing": [
+        "type=CRITICAL ACCESS"
+      ],
+      "expect_op": "count_features",
+      "expect_op_present": true,
+      "forbid_op": "select_features",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "443ff20b_01_01_32",
+          "purpose": "primary",
+          "desc": "Hospitals (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 6.1
+    },
+    {
+      "id": "filtered-locations",
+      "query": "where are the open critical access hospitals in Missouri",
+      "planned": true,
+      "intent": "Locations of open critical access hospitals in Missouri",
+      "ops": "select_features->output",
+      "narrowing": [
+        "type=CRITICAL ACCESS",
+        "status=OPEN"
+      ],
+      "expect_op": "select_features",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "443ff20b_01_01_32",
+          "purpose": "primary",
+          "desc": "Hospitals (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 8.2
+    },
+    {
+      "id": "hotspot-poverty",
+      "query": "where are the hot spots of poverty",
+      "planned": true,
+      "intent": "Identify counties with high poverty rates (hot spots) based on the percentage of households below the poverty level [COUNTY 2018]",
+      "ops": "load->output",
+      "narrowing": [],
+      "expect_op": "hotspot",
+      "expect_op_present": false,
+      "forbid_op": "select_features",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        }
+      ],
+      "error": null,
+      "seconds": 24.4
+    },
+    {
+      "id": "hotspot-clusters",
+      "query": "show me clusters of counties with high uninsured rates",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "narrowing": [],
+      "expect_op": "hotspot",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 49.9
+    },
+    {
+      "id": "outlier-income",
+      "query": "which counties are outliers for median household income",
+      "planned": true,
+      "intent": "Identify counties with extreme median household income values (top and bottom outliers)",
+      "ops": "load->rank->rank->join->output",
+      "narrowing": [],
+      "expect_op": "outlier",
+      "expect_op_present": false,
+      "forbid_op": "rank",
+      "forbid_op_present": true,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_01_01_248",
+          "purpose": "primary",
+          "desc": "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!Total households!!Median househo"
+        }
+      ],
+      "error": null,
+      "seconds": 82.8
+    },
+    {
+      "id": "combine-difference",
+      "query": "the difference between the poverty rate and the unemployment rate",
+      "planned": true,
+      "intent": "The difference between the poverty rate and the unemployment rate, by county",
+      "ops": "load->load->join->output",
+      "narrowing": [],
+      "expect_op": "combine",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        },
+        {
+          "attr_id": "04d18a18_02_01_402",
+          "purpose": "primary",
+          "desc": "Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate"
+        }
+      ],
+      "error": null,
+      "seconds": 27.6
+    },
+    {
+      "id": "stats-control-rank",
+      "query": "the 10 counties with the highest poverty rate",
+      "planned": true,
+      "intent": "The ten counties ranked highest on poverty rate",
+      "ops": "load->rank->output",
+      "narrowing": [],
+      "expect_op": "rank",
+      "expect_op_present": true,
+      "forbid_op": "hotspot",
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        }
+      ],
+      "error": null,
+      "seconds": 9.4
+    }
+  ]
+}

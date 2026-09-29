@@ -1,0 +1,104 @@
+# Literature-expansion suite (backend/expansion.js).
+#
+# WHAT THIS CAN AND CANNOT SEE
+# ----------------------------
+# Each question names a condition. `subject` is the condition itself, a sanity
+# check that should pass with expansion on or off. `related` is a measure the
+# question NEVER names but the literature links to it (obesity for heart
+# disease, smoking for COPD). That concept is the measurement: it is what tags
+# and embeddings alone are not expected to reach.
+#
+# Run it as an A/B, same container, per-request switch:
+#
+#   python eval/run.py --suite-file eval/expansion.yaml --endpoint unified \
+#       --top-k 60 --score-depth 200 --save eval/exp-off.json
+#   python eval/run.py --suite-file eval/expansion.yaml --endpoint unified \
+#       --top-k 60 --score-depth 200 --expand --save eval/exp-on.json \
+#       --compare eval/exp-off.json
+#
+# --top-k 60 matches ANALYZE_RETRIEVAL_BUDGET, so this sees the candidate pool
+# the planner draws from. --score-depth must exceed it, because expanded results
+# are appended after every decomposed sub-query; scoring only the first 60 would
+# never look at them and would report "no effect" by construction.
+#
+# The control arm is not expected to score zero on `related`: the catalog
+# already tags the Obesity row with "Diabetes", for one. A related concept the
+# OFF arm already finds is not evidence for or against expansion.
+#
+# This suite says whether expansion REACHES more data. Whether the planner then
+# uses it well is a separate question: run plan_probe.py --expand against
+# plan_correctness.yaml and check op appropriateness did not move.
+
+suites:
+  - name: expansion_related_concepts
+    queries:
+      - id: exp-chd
+        query: "coronary heart disease in each county"
+        concepts:
+          subject: {desc: "heart disease|coronary"}
+          related: {desc: "obes|smok|cigarette|physical(ly)? inactiv|blood pressure|hypertens|diabet"}
+
+      - id: exp-asthma
+        query: "asthma rates by county"
+        concepts:
+          subject: {desc: "asthma"}
+          related: {desc: "obes|smok|cigarette|PM2|particulate|pollut|ozone"}
+
+      - id: exp-copd
+        query: "where is COPD most common"
+        concepts:
+          subject: {desc: "pulmonary|COPD"}
+          related: {desc: "smok|cigarette|tobacco|PM2|particulate|pollut"}
+
+      - id: exp-diabetes
+        query: "diabetes prevalence across the South"
+        concepts:
+          subject: {desc: "diabet"}
+          related: {desc: "obes|physical(ly)? inactiv|blood pressure|hypertens|heart disease"}
+
+      - id: exp-stroke
+        query: "stroke hospitalization by county"
+        concepts:
+          subject: {desc: "stroke"}
+          related: {desc: "blood pressure|hypertens|smok|cigarette|diabet|obes"}
+
+      - id: exp-obesity
+        query: "obesity rates in Texas counties"
+        concepts:
+          subject: {desc: "obes"}
+          related: {desc: "diabet|physical(ly)? inactiv|food desert|fast food|blood pressure|hypertens"}
+
+      - id: exp-lung-cancer
+        query: "counties with high lung cancer"
+        concepts:
+          subject: {desc: "cancer"}
+          related: {desc: "smok|cigarette|tobacco|PM2|particulate|pollut"}
+
+      - id: exp-hypertension
+        query: "high blood pressure by county"
+        concepts:
+          subject: {desc: "blood pressure|hypertens"}
+          related: {desc: "obes|diabet|stroke|heart disease|smok|drinking|alcohol"}
+
+  # Non-health questions. Expansion must link NOTHING here: the seed allowlist
+  # is what guarantees it, and this is where a too-broad alias would show up.
+  # Scored as concepts so the report reads the same; the real check is that
+  # `expansion.seeds` is empty in the saved JSON for every one of these.
+  - name: expansion_must_not_fire
+    queries:
+      - id: nofire-income
+        query: "median household income by county"
+        concepts:
+          subject: {desc: "median household income"}
+      - id: nofire-poverty
+        query: "poverty rate normalized by population"
+        concepts:
+          subject: {desc: "povert"}
+      - id: nofire-hospitals
+        query: "how many hospitals are in each county"
+        concepts:
+          subject: {dataset: "hospital"}
+      - id: nofire-unemployment
+        query: "unemployment trend since 2010"
+        concepts:
+          subject: {desc: "unemploy"}

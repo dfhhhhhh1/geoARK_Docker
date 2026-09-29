@@ -1,4 +1,5 @@
 import type { AnalysisResponse, AnalysisRow, AttributeOrigin, PlanStep } from '../types';
+import { deriveSeries } from './series';
 
 /**
  * Export builders.
@@ -134,9 +135,19 @@ export function toCsv(result: AnalysisResponse, rows: AnalysisRow[]): string {
   // A select_features result has no fips/value contract: each row is a location
   // with whatever attributes its layer carries, plus a coordinate.
   if (result.output_mode === 'features') return featureCsv(result);
+
+  // A two-measure result gets two value columns, and the header names them
+  // after the attributes rather than "value"/"value_b" -- a file that says
+  // `value_b` cannot be read a month later without the plan beside it.
+  const series = deriveSeries(result, rows);
+  const twoSeries = series.length > 1;
+  const header = twoSeries
+    ? `fips,name,state_fp,${series.map(s => csvEscape(s.label)).join(',')}`
+    : 'fips,name,state_fp,value';
   const body = rows.map(r =>
-    [r.fips, r.name, r.state_fp, r.value].map(csvEscape).join(','));
-  return [...csvProvenanceHeader(result), 'fips,name,state_fp,value', ...body].join('\n');
+    [r.fips, r.name, r.state_fp, ...series.map(s => r[s.key] ?? null)]
+      .map(csvEscape).join(','));
+  return [...csvProvenanceHeader(result), header, ...body].join('\n');
 }
 
 /** Representative point for a feature, so a CSV row still has a location. */
@@ -202,6 +213,7 @@ export function toGeoJson(
     });
   }
 
+  const series = deriveSeries(result, rows);
   const byFips = new Map(rows.map(r => [String(r.fips).padStart(5, '0'), r]));
   const features = counties.features
     .filter(f => byFips.has((f.properties as { GEOID?: string })?.GEOID ?? ''))
@@ -214,6 +226,12 @@ export function toGeoJson(
           name: row.name,
           state_fp: row.state_fp,
           value: row.value,
+          // Both measures travel, keyed by name as well as by `value_b`, so the
+          // file is readable in GIS software without the plan beside it.
+          ...(series.length > 1
+            ? { value_b: row.value_b ?? null, [series[0].label]: row.value,
+                [series[1].label]: row.value_b ?? null }
+            : {}),
         },
       };
     });
@@ -300,10 +318,17 @@ export function toMarkdownReport(result: AnalysisResponse, rows: AnalysisRow[]):
   } else {
     const shown = rows.slice(0, 25);
     if (shown.length) {
+      const series = deriveSeries(result, rows);
+      const heads = series.length > 1
+        ? series.map(s => s.label.replace(/\|/g, '›'))
+        : ['Value'];
       out.push(`## Results (first ${shown.length} of ${result.row_count})`, '');
-      out.push('| County | FIPS | Value |', '|---|---|---:|');
+      out.push(`| County | FIPS | ${heads.join(' | ')} |`,
+               `|---|---|${heads.map(() => '---:').join('|')}|`);
       for (const r of shown) {
-        out.push(`| ${r.name ?? '-'} | ${r.fips} | ${r.value === null ? '-' : r.value} |`);
+        const cells = series.map(s =>
+          r[s.key] === null || r[s.key] === undefined ? '-' : String(r[s.key]));
+        out.push(`| ${r.name ?? '-'} | ${r.fips} | ${cells.join(' | ')} |`);
       }
       out.push('');
     }

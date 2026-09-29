@@ -146,6 +146,46 @@ const plan = (...steps) => ({ intent: "t", output_type: "map", entity_type: "COU
     assert.match(sql, /NULLIF\(d\.value, 0\)/);
   });
 
+  // A join that reaches the output is how "population AND poverty rate" comes
+  // back as one result with two numbers per county. The second column was
+  // always computed; the final SELECT used to drop it, so the map could only
+  // ever show half of what was asked for.
+  await test("a join at the output keeps both measures", () => {
+    const { sql, series } = compilePlan(plan(
+      { id: "s1", op: "load", attr_id: "POV" },
+      { id: "s2", op: "load", attr_id: "POP" },
+      { id: "s3", op: "join", inputs: ["s1", "s2"] },
+      { id: "s4", op: "output", inputs: ["s3"] },
+    ), SOURCES);
+    assert.match(sql, /r\.value_b/, "the second measure never reached the SELECT");
+    assert.strictEqual(series, 2);
+  });
+
+  // The guard that makes the above safe: every other op selects (fips, value)
+  // explicitly, so it DROPS value_b. Emitting r.value_b for those would be a
+  // SQL error at runtime rather than a wrong number, on a query that validated.
+  await test("a join consumed by a later step exposes one measure", () => {
+    const { sql, series } = compilePlan(plan(
+      { id: "s1", op: "load", attr_id: "POV" },
+      { id: "s2", op: "load", attr_id: "POP" },
+      { id: "s3", op: "join", inputs: ["s1", "s2"] },
+      { id: "s4", op: "rank", inputs: ["s3"], direction: "desc", limit: 10 },
+      { id: "s5", op: "output", inputs: ["s4"] },
+    ), SOURCES);
+    assert.ok(!/r\.value_b/.test(sql),
+      "selected value_b from a CTE that does not have it");
+    assert.strictEqual(series, 1);
+  });
+
+  await test("a single-measure plan is unchanged", () => {
+    const { sql, series } = compilePlan(plan(
+      { id: "s1", op: "load", attr_id: "POV" },
+      { id: "s2", op: "output", inputs: ["s1"] },
+    ), SOURCES);
+    assert.ok(!/value_b/.test(sql));
+    assert.strictEqual(series, 1);
+  });
+
   await test("refuses an unsafe step id (SQL identifier injection)", () => {
     assert.throws(() => compilePlan(plan(
       { id: 'x"; DROP TABLE county_geom; --', op: "load", attr_id: "POV" },

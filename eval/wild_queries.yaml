@@ -1,0 +1,86 @@
+# Held-out queries, written as a USER would phrase them.
+#
+# Every other suite in this directory was written with the operator set open in
+# another window, which is how an evaluation ends up measuring whether the
+# system can do what it was built to do. These are deliberately written from the
+# outside: a journalist, a county health officer, a graduate student. No query
+# here was checked against the op list, the catalog, or the prompt before being
+# added, and several are expected to fail.
+#
+# `note` records what a reasonable person would expect back, so a failure can be
+# classified rather than just counted.
+queries:
+  # ---------------------------------------------------------------- plain ask
+  - id: w-simple-income
+    query: "What is the median household income in each county?"
+  - id: w-simple-poverty
+    query: "Show me poverty rates across the country"
+  - id: w-colloquial-poor
+    query: "Which are the poorest counties in America?"
+    note: "superlative with no explicit measure named"
+  - id: w-colloquial-rich
+    query: "Where do the wealthiest people live?"
+    note: "no measure, no geography word"
+
+  # ------------------------------------------------------------- normalization
+  - id: w-per-capita-hospitals
+    query: "Which counties have the most hospitals per person?"
+    note: "needs a count AND a denominator"
+  - id: w-implicit-rate
+    query: "Where are people most likely to be uninsured?"
+    note: "'most likely' implies a rate, not a count"
+  - id: w-doctors-access
+    query: "Where is it hardest to see a doctor?"
+    note: "colloquial; could be distance, count per capita, or neither"
+
+  # ------------------------------------------------------------------ compound
+  - id: w-two-conditions
+    query: "Show me rural counties with high poverty and few hospitals"
+    note: "three clauses; 'rural' has no attribute"
+  - id: w-filter-and-rank
+    query: "Of the counties in Texas, which ten have the worst unemployment?"
+  - id: w-compare-two
+    query: "Compare obesity and poverty by county"
+  - id: w-ratio-question
+    query: "Is there more unemployment in the south than the north?"
+    note: "comparative between two regions; no such op exists"
+
+  # ------------------------------------------------------------------ temporal
+  - id: w-trend-plain
+    query: "Has unemployment gotten better or worse since 2010?"
+  - id: w-trend-where
+    query: "Which counties saw the biggest increase in poverty over the last decade?"
+    note: "'last decade' is relative, not a year"
+  - id: w-point-in-time
+    query: "What was the unemployment rate in 2009?"
+
+  # ------------------------------------------------------------------- spatial
+  - id: w-near-city
+    query: "What are the poverty rates around Detroit?"
+  - id: w-state-plain
+    query: "Show me health insurance coverage in Florida"
+  - id: w-distance
+    query: "How far do people in rural counties have to drive to a hospital?"
+    note: "'rural' again; the distance part is supported"
+  - id: w-locations-plain
+    query: "Where are all the fire stations in Colorado?"
+
+  # ---------------------------------------------------------------- statistics
+  - id: w-hotspot-plain
+    query: "Are there parts of the country where diabetes is unusually common?"
+  - id: w-outlier-plain
+    query: "Which counties don't fit the pattern for income?"
+
+  # --------------------------------------------------- vague / out of scope
+  - id: w-vague
+    query: "Tell me about poverty"
+    note: "no geography, no verb; should still produce something or explain why"
+  - id: w-best-place
+    query: "Which county is the best place to live?"
+    note: "subjective; no single attribute answers it"
+  - id: w-out-of-scope
+    query: "What is the average rainfall by county?"
+    note: "no climate data loaded; should fail clearly, not invent"
+  - id: w-not-geographic
+    query: "How many people live in the United States?"
+    note: "a single national number, not a map"

@@ -139,14 +139,24 @@ def validate(suites: list[dict], csv_path: Path) -> int:
 # API
 # --------------------------------------------------------------------------- #
 
+# The literature-expansion block of the last unified/analyze response, so the
+# run loop can record which concepts were linked without changing call_api's
+# return shape.
+LAST_EXPANSION: dict | None = None
+
+
 def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
-             llm_filter: bool = False):
+             llm_filter: bool = False, expand: bool | None = None):
     """Return (results, seconds). Normalizes the two endpoints' response shapes."""
+    global LAST_EXPANSION
+    LAST_EXPANSION = None
     started = time.perf_counter()
+    # Omitted unless set, so a plain run measures the server's own default.
+    extra = {} if expand is None else {"expand": expand}
     if endpoint == "analyze":
         req = urllib.request.Request(
             f"{base}/api/analyze",
-            data=json.dumps({"q": query, "top_k": top_k}).encode(),
+            data=json.dumps({"q": query, "top_k": top_k, **extra}).encode(),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
@@ -157,6 +167,7 @@ def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
             # 422 means retrieval or planning failed -- a real outcome to
             # measure, not a transport error, so it is recorded not raised.
             payload = json.load(exc) if exc.headers.get("content-type", "").startswith("application/json") else {"error": str(exc)}
+        LAST_EXPANSION = payload.get("expansion")
         return payload, time.perf_counter() - started
 
     if endpoint == "search":
@@ -166,7 +177,7 @@ def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
         req = urllib.request.Request(
             f"{base}/api/unified-search",
             data=json.dumps({"q": query, "top_k": top_k,
-                             "use_llm_filter": llm_filter}).encode(),
+                             "use_llm_filter": llm_filter, **extra}).encode(),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
@@ -176,6 +187,7 @@ def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
 
     if isinstance(payload, list):
         return payload, elapsed
+    LAST_EXPANSION = payload.get("expansion")
     for key in ("all_results", "results", "top_variables"):
         if isinstance(payload.get(key), list):
             return payload[key], elapsed
@@ -285,7 +297,9 @@ def report_analyze(rows: list[dict]) -> dict:
     }
 
 
-def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
+def run(suites, base, endpoint, top_k, timeout, llm_filter=False,
+        expand=None, score_depth=None) -> dict:
+    score_depth = score_depth or top_k
     per_suite, latencies, errors = {}, [], []
     for suite in suites:
         rows = []
@@ -294,7 +308,7 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
         for q in suite["queries"]:
             try:
                 results, secs = call_api(base, endpoint, q["query"], top_k,
-                                         timeout, llm_filter)
+                                         timeout, llm_filter, expand)
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
                 print(f"  {RED}ERROR{OFF} {q['id']}: {exc}")
                 errors.append({"id": q["id"], "error": str(exc)})
@@ -328,8 +342,12 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False) -> dict:
                       f"{row['id']:20s} {DIM}{row['top_desc']}{OFF}")
                 continue
 
-            row = score_query(q, results, top_k)
+            row = score_query(q, results, score_depth)
             row["seconds"] = round(secs, 3)
+            if LAST_EXPANSION is not None:
+                row["expansion_seeds"] = [x.get("name") for x in LAST_EXPANSION.get("seeds") or []]
+                row["expansion_kept"] = [c["name"] for c in LAST_EXPANSION.get("concepts") or []
+                                         if c.get("kept")]
             rows.append(row)
 
             mark = f"{GREEN}PASS{OFF}" if row["all_found"] else f"{RED}FAIL{OFF}"
@@ -500,6 +518,16 @@ def main() -> int:
                     help="unified endpoint only: enable the LLM verification "
                          "step (default off, as in the API). Measured cost: "
                          "-10pp concept recall, +7.7s/query")
+    # Literature expansion (backend/expansion.js), sent per request so both arms
+    # of an A/B hit the same container. Omitted = the server's EXPAND_ENABLED.
+    ap.add_argument("--expand", dest="expand", action="store_const", const=True,
+                    default=None, help="request literature expansion")
+    ap.add_argument("--no-expand", dest="expand", action="store_const", const=False,
+                    help="explicitly disable literature expansion")
+    ap.add_argument("--score-depth", type=int,
+                    help="concept suites: score this many results (default --top-k). "
+                         "Expanded results are appended last, so an expansion A/B "
+                         "needs this larger than --top-k or it cannot see them")
     ap.add_argument("--fail-under", type=float,
                     help="exit 1 if concept recall is below this (0-1)")
     args = ap.parse_args()
@@ -514,7 +542,8 @@ def main() -> int:
         return 0
 
     res = run(suites, args.base.rstrip("/"), args.endpoint, args.top_k,
-              args.timeout, llm_filter=args.llm_filter)
+              args.timeout, llm_filter=args.llm_filter,
+              expand=args.expand, score_depth=args.score_depth)
     report(res)
 
     if args.compare:

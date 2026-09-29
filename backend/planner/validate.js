@@ -23,39 +23,26 @@
 
 const { toFipsPrefixes } = require("../states");
 
-const OPS = {
-  load: { needs: ["attr_id"], inputs: 0 },
-  // Facility datasets are point/polygon features with no fips key. This op is
-  // the bridge that turns them into the (fips, value) series everything else
-  // composes over: count features per county.
-  count_features: { needs: ["attr_id"], inputs: 0 },
-  // Same bridge, with a proximity condition: count features of attr_id that lie
-  // within `miles` of any feature of near_attr_id. Both must be feature tables.
-  count_near: { needs: ["attr_id", "near_attr_id", "miles"], inputs: 0 },
-  // Also a bridge, but produces a distance rather than a count.
-  nearest_distance: { needs: ["attr_id"], inputs: 0 },
-  // NOT a bridge: returns the features themselves. See the shape rule below.
-  select_features: { needs: ["attr_id"], inputs: 0 },
-  filter_attr: { needs: ["operator", "value"], inputs: 1 },
-  filter_area: { needs: ["states"], inputs: 1 },
-  filter_place: { needs: ["place_kind", "place_name"], inputs: 1 },
-  per_area: { needs: [], inputs: 1 },
-  normalize: { needs: [], inputs: 2 },
-  aggregate: { needs: ["function"], inputs: 1 },
-  rank: { needs: [], inputs: 1 },
-  join: { needs: [], inputs: 2 },
-  output: { needs: [], inputs: 1 },
-};
+const ops = require("./ops");
+
+/**
+ * Arity, required fields, grounding rules and shape rules all come from the op
+ * registry (planner/ops/), so a new op brings them with it rather than needing
+ * this file edited. What stays HERE is what is genuinely cross-cutting: id
+ * uniqueness, the DAG ordering rule, the terminal-output rule, and the
+ * shape-composition rule that spans several steps at once.
+ */
+const OPS = ops.arityTable();
 
 /** Ops whose attr_id (and near_attr_id) must name a facility dataset. */
-const FEATURE_OPS = ["count_features", "count_near", "nearest_distance", "select_features"];
+const FEATURE_OPS = ops.featureOps();
 
 /**
  * Ops that read a layer directly and can therefore narrow it by its own
  * attributes. count_near is excluded on purpose: it involves two layers, and
  * "which one does this filter apply to" has no obvious answer.
  */
-const FILTER_OPS = ["select_features", "count_features"];
+const FILTER_OPS = ops.filterOps();
 
 /**
  * @param plan        parsed plan object (already schema-valid)
@@ -110,35 +97,69 @@ async function validatePlan(plan, resolve) {
     before.add(st.id);
   }
 
-  // --- exactly one terminal output -----------------------------------------
-  const outputs = steps.filter(s => s.op === "output");
+  // --- terminal outputs ----------------------------------------------------
+  //
+  // A plan may carry SEVERAL outputs: each becomes its own returned layer, which
+  // is how one question fans out into, say, a point layer and a choropleth. The
+  // rules that remain are that there is at least one, that the plan ENDS on one
+  // (so the last thing a reader sees is a result, not a dangling computation),
+  // and that two of them do not name the same step -- that is a duplicated
+  // layer, not a second answer.
+  const outputs = steps.filter(s => ops.byName(s.op)?.terminal);
   if (outputs.length === 0) errors.push('plan must end with an "output" step');
-  if (outputs.length > 1) errors.push(`plan has ${outputs.length} output steps; exactly one is allowed`);
-  if (outputs.length === 1 && steps[steps.length - 1].op !== "output") {
+  if (outputs.length > 0 && !ops.byName(steps[steps.length - 1].op)?.terminal) {
     errors.push('the "output" step must be last');
   }
-
-  // --- select_features returns a different SHAPE, so it may not compose -----
-  //
-  // Every other op yields (fips, value) and chains. Features carry their own
-  // geometry and no county key, so normalize/rank/per_area have nothing to
-  // operate on. Rather than let a plan chain them and fail confusingly at
-  // compile time, the rule is stated here and the model is told it directly.
-  const featureSteps = steps.filter(s => s.op === "select_features");
-  if (featureSteps.length > 1) {
-    errors.push("a plan may contain at most one select_features step");
-  }
-  if (featureSteps.length === 1) {
-    const others = steps.filter(s => s.op !== "select_features" && s.op !== "output");
-    if (others.length) {
+  const outputSources = new Map();
+  for (const out of outputs) {
+    const src = (out.inputs || [])[0];
+    if (!src) continue;
+    if (outputSources.has(src)) {
       errors.push(
-        `select_features returns individual locations, not per-county values, so ` +
-        `it cannot be combined with ${[...new Set(others.map(s => s.op))].join(", ")}. ` +
-        `Use select_features then output, and put any state or city restriction ` +
-        `in the select_features step itself.`);
+        `steps "${outputSources.get(src)}" and "${out.id}" both output step ` +
+        `"${src}". Each output must name a different step.`);
     }
-    if (steps[0].op !== "select_features") {
-      errors.push('select_features must be the first step');
+    outputSources.set(src, out.id);
+  }
+
+  // --- a features step yields a different SHAPE, so it may not compose ------
+  //
+  // Every series op yields (fips, value) and chains. Features carry their own
+  // geometry and no county key, so normalize/rank/per_area have nothing to
+  // operate on. The rule is therefore about CONSUMERS rather than about being
+  // alone in the plan: a features step may only be read by an output, which
+  // lets it sit alongside a value series that has its own output while still
+  // refusing to be chained into one.
+  for (const st of steps) {
+    if (ops.byName(st.op)?.produces !== "features") continue;
+    const consumers = steps.filter(s => (s.inputs || []).includes(st.id));
+    const chained = consumers.filter(c => !ops.byName(c.op)?.terminal);
+    if (chained.length) {
+      errors.push(
+        `${st.op} returns individual locations, not per-county values, so ` +
+        `it cannot be combined with ${[...new Set(chained.map(s => s.op))].join(", ")}. ` +
+        `Feed it straight into an "output" step, and put any state or city ` +
+        `restriction in the ${st.op} step itself.`);
+    }
+    if (!consumers.length) {
+      errors.push(`step "${st.id}" (${st.op}) is never used by an output step`);
+    }
+  }
+
+  // --- a statistic is one row, so it may only be read by an output ---------
+  //
+  // correlate yields a single row with no county key. Ranking or normalizing
+  // it would validate, compile and return a plausible-looking nothing.
+  for (const st of steps) {
+    const m = ops.byName(st.op);
+    if (!m?.statColumns && m?.produces !== "factors") continue;
+    const consumers = steps.filter(s => (s.inputs || []).includes(st.id));
+    const chained = consumers.filter(c => !ops.byName(c.op)?.terminal);
+    if (chained.length) {
+      errors.push(
+        `${st.op} returns one summary row, not per-county values, so it cannot ` +
+        `feed ${[...new Set(chained.map(s => s.op))].join(", ")}. ` +
+        `Feed it straight into an "output" step.`);
     }
   }
 
@@ -163,136 +184,115 @@ async function validatePlan(plan, resolve) {
     }
   }
 
-  // --- a place name must have the shape its kind implies -------------------
+  // --- op-specific checks, from the registry -------------------------------
   //
-  // place_name is free text for the same reason `city` is: 32,642 place names
-  // cannot be an enum. So it gets the same backstop, with one difference --
-  // a ZCTA's name is a ZIP code, all digits, which the place-name pattern
-  // would reject.
-  //
-  // Its own loop, not the one below: that loop starts `if (!src) continue`, and
+  // Run unconditionally, and BEFORE resolution. The checks that live on an op
+  // module are the ones that need only the step itself -- a place name's shape,
+  // a city's shape, filter_area having any states at all. They used to sit in
+  // the resolved-source loop below, which begins `if (!src) continue`, and
   // filter_place carries attr_id "" by schema convention, so every check placed
-  // there is skipped for it. Two rejection tests caught this.
+  // there was silently skipped for it. Two rejection tests caught that; running
+  // them here means a new op cannot reintroduce it.
   for (const st of steps) {
-    if (st.op !== "filter_place" || !st.place_name) continue;
-    const value = String(st.place_name);
-    const ok = st.place_kind === "zcta"
-      ? /^\d{5}$/.test(value)
-      : /^[A-Za-z0-9]([A-Za-z0-9 .'\-]*[A-Za-z0-9])?$/.test(value);
-    if (!ok) {
-      errors.push(
-        `step "${st.id}": place_name ${JSON.stringify(value)} does not look like ` +
-        (st.place_kind === "zcta"
-          ? `a 5-digit ZIP code.`
-          : `a place name. Give the name alone, e.g. "Springfield", and put ` +
-            `any state in "states".`));
+    const mod = ops.byName(st.op);
+    if (mod && typeof mod.validate === "function") {
+      errors.push(...mod.validate(st));
     }
   }
 
-  // --- GROUNDING: every attr_id must resolve to a physical column -----------
-  // near_attr_id is included: it names a real dataset the SQL will read from,
-  // so it is exactly as much a grounding boundary as attr_id. Leaving it out
-  // would let a proximity step cite a dataset that was never retrieved.
+  // --- GROUNDING: every cited attribute must resolve to a physical column ----
+  //
+  // Which fields cite an attribute is declared per op (`grounds`), so
+  // near_attr_id is covered for the same reason attr_id is: it names a real
+  // dataset the SQL will read from, and leaving it out would let a proximity
+  // step cite something that was never retrieved.
+  const cites = (st) => {
+    const mod = ops.byName(st.op);
+    return (mod?.grounds || [])
+      .filter(g => st[g.field])
+      .map(g => ({ ...g, id: st[g.field] }));
+  };
+
   const attrIds = [];
-  for (const s of steps) {
-    if ((s.op === "load" || FEATURE_OPS.includes(s.op)) && s.attr_id) attrIds.push(s.attr_id);
-    if (s.op === "count_near" && s.near_attr_id) attrIds.push(s.near_attr_id);
-  }
+  for (const st of steps) for (const c of cites(st)) attrIds.push(c.id);
+
   const resolved = attrIds.length ? await resolve(attrIds) : new Map();
   for (const st of steps) {
-    const cite = [];
-    if ((st.op === "load" || FEATURE_OPS.includes(st.op)) && st.attr_id) {
-      cite.push(["attr_id", st.attr_id]);
-    }
-    if (st.op === "count_near" && st.near_attr_id) {
-      cite.push(["near_attr_id", st.near_attr_id]);
-    }
-    for (const [field, id] of cite) {
-      if (!resolved.has(id)) {
+    for (const c of cites(st)) {
+      if (!resolved.has(c.id)) {
         errors.push(
-          `step "${st.id}": ${field} "${id}" is not a known attribute. ` +
+          `step "${st.id}": ${c.field} "${c.id}" is not a known attribute. ` +
           `Use only attr_id values returned by search_variables.`);
       }
     }
   }
 
-  // An op must match the shape of its source. Loading a feature table as if it
-  // were a value series would silently produce nothing.
+  // --- an op must match the SHAPE of its source -----------------------------
+  //
+  // Loading a feature table as if it were a value series would silently produce
+  // nothing, and counting an ACS column has nothing to count.
   for (const st of steps) {
+    for (const c of cites(st)) {
+      const src = resolved.get(c.id);
+      if (!src) continue;
+      const isFeature = src.source_kind === "feature_table";
+      if (c.sourceKind === "value" && isFeature) {
+        errors.push(
+          `step "${st.id}": "${c.id}" is a facility dataset (point/polygon ` +
+          `features with no county key). Use op "count_features" to count them per ` +
+          `county, not "${st.op}".`);
+      }
+      if (c.sourceKind === "feature" && !isFeature) {
+        errors.push(c.message
+          ? `step "${st.id}": ${c.field} "${c.id}" ${c.message}`
+          : `step "${st.id}": "${c.id}" is already a per-county value series. ` +
+            `Use op "load", not "${st.op}".`);
+      }
+    }
+  }
+
+  // --- attribute filters must name a value the layer actually holds ---------
+  //
+  // A filter that misses returns zero rows while looking like a valid answer,
+  // which is the worst failure shape this project has. So the value is checked
+  // against the distinct values discovered for that column, matched
+  // case-insensitively, and NORMALISED to the stored spelling -- "critical
+  // access" becomes "CRITICAL ACCESS" rather than silently matching nothing.
+  //
+  // Which ops accept filters at all comes from the registry
+  // (`acceptsAttributeFilters`), so an op that reads two layers cannot silently
+  // acquire a filter whose target is ambiguous.
+  for (const st of steps) {
+    if (!Array.isArray(st.attribute_filters) || !st.attribute_filters.length) continue;
+    if (!FILTER_OPS.includes(st.op)) {
+      errors.push(
+        `step "${st.id}": attribute_filters only apply to ${FILTER_OPS.join(" or ")}`);
+      continue;
+    }
     const src = st.attr_id ? resolved.get(st.attr_id) : null;
     if (!src) continue;
-    if (st.op === "load" && src.source_kind === "feature_table") {
-      errors.push(
-        `step "${st.id}": "${st.attr_id}" is a facility dataset (point/polygon ` +
-        `features with no county key). Use op "count_features" to count them per ` +
-        `county, not "load".`);
-    }
-    if (FEATURE_OPS.includes(st.op) && src.source_kind !== "feature_table") {
-      errors.push(
-        `step "${st.id}": "${st.attr_id}" is already a per-county value series. ` +
-        `Use op "load", not "${st.op}".`);
-    }
-    // --- a city must look like a place name --------------------------------
-    //
-    // `city` is the one free-text field in a plan, and constrained decoding has
-    // been observed leaking JSON structure into it -- "Springfield','states':
-    // ['Missouri']" -- which compiles fine and matches nothing. generatePlan
-    // salvages the leading name before validation; this is the backstop for
-    // anything that reaches here unrepaired.
-    if (st.city && !/^[A-Za-z]([A-Za-z .'\-]*[A-Za-z])?$/.test(st.city)) {
-      errors.push(
-        `step "${st.id}": city ${JSON.stringify(st.city)} is not a place name. ` +
-        `Give the city on its own, e.g. "Springfield", and put the state in "states".`);
-    }
-
-    // --- attribute filters must name a value the layer actually holds -------
-    //
-    // A filter that misses returns zero rows while looking like a valid answer,
-    // which is the worst failure shape this project has. So the value is
-    // checked against the distinct values discovered for that column, matched
-    // case-insensitively, and NORMALISED to the stored spelling -- "critical
-    // access" becomes "CRITICAL ACCESS" rather than silently matching nothing.
-    if (Array.isArray(st.attribute_filters) && st.attribute_filters.length) {
-      if (!FILTER_OPS.includes(st.op)) {
+    const available = src.filter_values || {};
+    for (const f of st.attribute_filters) {
+      const values = available[f.column];
+      if (!values || !values.length) {
+        const usable = Object.keys(available);
         errors.push(
-          `step "${st.id}": attribute_filters only apply to ${FILTER_OPS.join(" or ")}`);
-      } else {
-        const available = src.filter_values || {};
-        for (const f of st.attribute_filters) {
-          const values = available[f.column];
-          if (!values || !values.length) {
-            const usable = Object.keys(available);
-            errors.push(
-              `step "${st.id}": "${st.attr_id}" has no filterable "${f.column}" column. ` +
-              (usable.length
-                ? `Available filters for this dataset: ${usable.join(", ")}.`
-                : `This dataset has no attribute filters; drop attribute_filters.`));
-            continue;
-          }
-          const match = values.find(
-            v => String(v).toLowerCase() === String(f.value).toLowerCase());
-          if (!match) {
-            errors.push(
-              `step "${st.id}": "${f.value}" is not a value of "${f.column}" for this ` +
-              `dataset. Valid values: ${values.slice(0, 12).map(v => `"${v}"`).join(", ")}` +
-              `${values.length > 12 ? ", ..." : ""}.`);
-            continue;
-          }
-          f.value = match;   // normalize to the stored spelling
-        }
+          `step "${st.id}": "${st.attr_id}" has no filterable "${f.column}" column. ` +
+          (usable.length
+            ? `Available filters for this dataset: ${usable.join(", ")}.`
+            : `This dataset has no attribute filters; drop attribute_filters.`));
+        continue;
       }
-    }
-
-    // The proximity target is a geometry the query measures against, so it too
-    // has to be a feature table -- an ACS column has nothing to be near.
-    if (st.op === "count_near" && st.near_attr_id) {
-      const nearSrc = resolved.get(st.near_attr_id);
-      if (nearSrc && nearSrc.source_kind !== "feature_table") {
+      const match = values.find(
+        v => String(v).toLowerCase() === String(f.value).toLowerCase());
+      if (!match) {
         errors.push(
-          `step "${st.id}": near_attr_id "${st.near_attr_id}" is a per-county value ` +
-          `series, not a mappable dataset. Proximity needs two datasets that have ` +
-          `locations on the map.`);
+          `step "${st.id}": "${f.value}" is not a value of "${f.column}" for this ` +
+          `dataset. Valid values: ${values.slice(0, 12).map(v => `"${v}"`).join(", ")}` +
+          `${values.length > 12 ? ", ..." : ""}.`);
+        continue;
       }
+      f.value = match;   // normalize to the stored spelling
     }
   }
 

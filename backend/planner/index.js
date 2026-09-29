@@ -17,7 +17,9 @@
 const { PLAN_SCHEMA, planSchemaFor } = require("../schemas");
 const { queryMentionsArea, statesMentioned, REGIONS } = require("../states");
 const { validatePlan } = require("./validate");
+const { checkRelevance } = require("./relevance");
 const { compilePlan, CompileError } = require("./compile");
+const opsRegistry = require("./ops");
 
 const MAX_REPAIRS = Number(process.env.PLAN_MAX_REPAIRS ?? 2);
 
@@ -96,45 +98,10 @@ Rules:
   scale 100 for a percentage. Never divide one PRIMARY attribute by another.
 - End with exactly one "output" step.`;
 
-const OP_LINES = {
-  load:           `  load         needs attr_id                       -> values for one attribute`,
-  count_features: `  count_features needs attr_id (a facility dataset) -> features per county.
-                 Accepts attribute_filters to count only some of them.`,
-  count_near:     `  count_near   needs attr_id, near_attr_id, miles  -> features of the first within
-                 that many miles of the second, per county`,
-  nearest_distance: `  nearest_distance needs attr_id                 -> miles from each county to
-                 the nearest such feature`,
-  select_features: `  select_features needs attr_id, optional states / city / attribute_filters / limit
-                 -> the individual locations themselves, drawn on the map.
-                 Use it ALONE: it returns places, not per-county numbers, so
-                 nothing else can be chained onto it. Put any place restriction
-                 in this step. City names repeat across the country, so when the
-                 question names a city AND a state, always set both.`,
-  filter_attr:    `  filter_attr  needs operator and value, 1 input   -> keep matching rows`,
-  filter_area:    `  filter_area  needs states, 1 input               -> keep only those states.
-                 "states" takes full state names. For a region, list its member
-                 states: "New England" becomes Maine, New Hampshire, Vermont,
-                 Massachusetts, Rhode Island, Connecticut. Midwest, Northeast,
-                 South and West may be given by name instead. List each state
-                 once.`,
-  filter_place:   `  filter_place needs place_kind and place_name, 1 input
-                 -> keep only counties inside a named city, ZIP code or metro.
-                 place_kind is one of: place (city or town), zcta (ZIP code),
-                 cbsa (metro area), urban (urbanized area). Place names repeat:
-                 22 cities are called Springfield, so set "states" as well when
-                 the question names one.`,
-  per_area:       `  per_area     1 input                             -> value per square mile of land`,
-  normalize:      `  normalize    2 inputs (numerator, denominator)   -> ratio, optional scale`,
-  aggregate:      `  aggregate    needs function, 1 input             -> mean/sum/count/min/max`,
-  rank:           `  rank         1 input, direction and limit        -> top or bottom n`,
-  join:           `  join         2 inputs                            -> combine on the shared area`,
-  output:         `  output       1 input                             -> terminal step`,
-};
-
-// These two sections name ops inline, so they are built rather than fixed:
-// mentioning count_features when it is absent from the decoding schema invites
-// a plan that cannot validate, costing a repair round. This is the leak the
-// old `.replace(/ and count_features;/, ";")` was patching by hand.
+// The prompt is assembled from the op registry. Each op owns its own line, its
+// phrasing hint and its worked examples, so an op cannot be described here
+// without also bringing its validation and its compilation -- which is the leak
+// the old `.replace(/ and count_features;/, ";")` was patching by hand.
 //
 // The literal field values are spelled out because the old prompt never did.
 // The schema constrains them anyway, but a model that has to guess between
@@ -155,29 +122,8 @@ Field values, written exactly like this:
 };
 
 const opChoice = (ops) => {
-  const has = (op) => ops.includes(op);
-  const lines = [
-    `  "rate", "per capita", "percentage of", "normalized by"   -> normalize`,
-    `  "top N", "highest", "lowest", "bottom N"                 -> rank`,
-    `  "compare A against B", "A versus B", "A alongside B"     -> join`,
-    ...(has("count_features")
-      ? [`  "how many X in each county", X being a facility dataset  -> count_features`] : []),
-    ...(has("count_near")
-      ? [`  "X within N miles of Y", "X near Y", "close to"          -> count_near`] : []),
-    ...(has("nearest_distance")
-      ? [`  "how far to the nearest X", "distance to X"              -> nearest_distance`] : []),
-    ...(has("select_features")
-      ? [`  "where are the X", "show me X locations", "list the X"   -> select_features`] : []),
-    `  "average", "total across all", a single overall number   -> aggregate`,
-    `  "where X is above / below N", "only counties that ..."   -> filter_attr`,
-    ...(has("filter_area")
-      ? [`  "in Missouri", "in New England", a state or region       -> filter_area`] : []),
-    ...(has("filter_place")
-      ? [`  "in Springfield", "in ZIP 63101", "in the Chicago metro" -> filter_place`] : []),
-    ...(has("per_area")
-      ? [`  "per square mile", "density of", "how concentrated"      -> per_area`] : []),
-    `  "show X", "map X", plain retrieval of one attribute      -> load, then output`,
-  ];
+  const lines = opsRegistry.inChoiceOrder(ops)
+    .map(n => opsRegistry.byName(n).choiceLine);
   // The composition note names no ops on purpose. Naming them made the sentence
   // leak operations the decoding schema had dropped, which costs a repair round
   // on a plan the model was never able to emit.
@@ -210,158 +156,34 @@ locations; the other two return one value per county.`
   : `Use "count_features" to get a per-county count of them.`}
 The validator will tell you if you pick the wrong one.`;
 
+/**
+ * Shown only when the question has a time dimension, like FILTER_NOTE. Most
+ * questions want the current figure and should never see a year field to get
+ * wrong -- and a model told about years on a question with no time in it is a
+ * model given one more way to answer something that was not asked.
+ */
+const YEAR_NOTE = `This question mentions time, so "load" accepts a "year".
+
+  Leave year out for the most recent figure. That is the default, and it is the
+  right choice whenever the question is about how things are now.
+
+  To compare two points in time, load the SAME attribute twice with different
+  years and combine them:
+
+    {"id":"s1","op":"load","attr_id":"a2","inputs":[],"year":2013}
+    {"id":"s2","op":"load","attr_id":"a2","inputs":[],"year":2023}
+    {"id":"s3","op":"combine","attr_id":"","inputs":["s1","s2"],"operation":"percent_change"}
+
+  percent_change reads as change FROM input 1 TO input 2, so put the earlier
+  year first. Not every attribute has every year; if one is missing the result
+  is empty rather than wrong.`;
+
 const EXAMPLES_HEADER = `WORKED EXAMPLES
 
 Each is a QUESTION and the correct PLAN for it. The op sequence and the intent
 are different in every one, because both follow from the question. Carrying a
 shape or an intent from an example over to a different question is the single
 most common way to get this wrong.`;
-
-const EXAMPLES = [
-  { op: "normalize", text:
-`QUESTION: poverty rate per capita by county
-  (a3 = a poverty count, a8 = total population)
-PLAN: {"intent":"Poverty count divided by total population, by county",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"load","attr_id":"a3","inputs":[]},
-          {"id":"s2","op":"load","attr_id":"a8","inputs":[]},
-          {"id":"s3","op":"normalize","attr_id":"","inputs":["s1","s2"],"scale":100},
-          {"id":"s4","op":"output","attr_id":"","inputs":["s3"]}]}` },
-
-  { op: "rank", text:
-`QUESTION: the 10 counties with the highest median household income
-  (a2 = median household income)
-PLAN: {"intent":"The ten counties ranked highest on median household income",
- "output_type":"table","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"load","attr_id":"a2","inputs":[]},
-          {"id":"s2","op":"rank","attr_id":"","inputs":["s1"],"direction":"desc","limit":10},
-          {"id":"s3","op":"output","attr_id":"","inputs":["s2"]}]}` },
-
-  { op: "join", text:
-`QUESTION: compare unemployment against educational attainment
-  (a1 = unemployment rate, a4 = share with a bachelor's degree)
-PLAN: {"intent":"Unemployment rate set alongside educational attainment, by county",
- "output_type":"chart","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"load","attr_id":"a1","inputs":[]},
-          {"id":"s2","op":"load","attr_id":"a4","inputs":[]},
-          {"id":"s3","op":"join","attr_id":"","inputs":["s1","s2"]},
-          {"id":"s4","op":"output","attr_id":"","inputs":["s3"]}]}` },
-
-  { op: "count_features", text:
-`QUESTION: how many hospitals are in each county
-  (a5 = a hospitals facility dataset)
-PLAN: {"intent":"Number of hospital features in each county",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"count_features","attr_id":"a5","inputs":[]},
-          {"id":"s2","op":"output","attr_id":"","inputs":["s1"]}]}` },
-
-  // The same op, narrowed by a value taken from the dataset's own filter list.
-  // `usesFilters` holds it back when no dataset on offer has any.
-  { op: "count_features", usesFilters: true, text:
-`QUESTION: how many critical access hospitals are in each county
-  (a5 = a hospitals facility dataset, listing filter type: "CRITICAL ACCESS")
-PLAN: {"intent":"Number of critical access hospitals in each county",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"count_features","attr_id":"a5","inputs":[],
-           "attribute_filters":[{"column":"type","value":"CRITICAL ACCESS"}]},
-          {"id":"s2","op":"output","attr_id":"","inputs":["s1"]}]}` },
-
-  { op: "aggregate", text:
-`QUESTION: the average median household income across all counties
-  (a2 = median household income)
-PLAN: {"intent":"Average of median household income over all counties",
- "output_type":"statistics","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"load","attr_id":"a2","inputs":[]},
-          {"id":"s2","op":"aggregate","attr_id":"","inputs":["s1"],"function":"mean"},
-          {"id":"s3","op":"output","attr_id":"","inputs":["s2"]}]}` },
-
-  { op: "filter_attr", text:
-`QUESTION: counties where median household income is above 75000
-  (a2 = median household income)
-PLAN: {"intent":"Counties whose median household income is greater than 75000",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"load","attr_id":"a2","inputs":[]},
-          {"id":"s2","op":"filter_attr","attr_id":"","inputs":["s1"],"operator":">","value":75000},
-          {"id":"s3","op":"output","attr_id":"","inputs":["s2"]}]}` },
-
-  { op: "load", text:
-`QUESTION: show total population by county
-  (a8 = total population)
-PLAN: {"intent":"Total population in each county",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"load","attr_id":"a8","inputs":[]},
-          {"id":"s2","op":"output","attr_id":"","inputs":["s1"]}]}` },
-
-  { op: "filter_area", text:
-`QUESTION: median household income for counties in Missouri
-  (a2 = median household income)
-PLAN: {"intent":"Median household income for Missouri counties",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"load","attr_id":"a2","inputs":[]},
-          {"id":"s2","op":"filter_area","attr_id":"","inputs":["s1"],"states":["Missouri"]},
-          {"id":"s3","op":"output","attr_id":"","inputs":["s2"]}]}` },
-
-  { op: "filter_place", text:
-`QUESTION: median household income for counties in the Springfield, Missouri area
-  (a2 = median household income)
-PLAN: {"intent":"Median household income for counties around Springfield, Missouri",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"load","attr_id":"a2","inputs":[]},
-          {"id":"s2","op":"filter_place","attr_id":"","inputs":["s1"],
-           "place_kind":"place","place_name":"Springfield","states":["Missouri"]},
-          {"id":"s3","op":"output","attr_id":"","inputs":["s2"]}]}` },
-
-  { op: "count_near", text:
-`QUESTION: hospitals within 10 miles of transmission lines
-  (a4 = a hospitals dataset, a6 = an electric transmission lines dataset)
-PLAN: {"intent":"Hospitals within ten miles of a transmission line, per county",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"count_near","attr_id":"a4","near_attr_id":"a6","miles":10,"inputs":[]},
-          {"id":"s2","op":"output","attr_id":"","inputs":["s1"]}]}` },
-
-  // Two examples, because the state form and the city form differ: `states`
-  // is spatial (any layer), `city` matches the layer's own column and only
-  // works where it has one.
-  { op: "select_features", text:
-`QUESTION: where are the hospitals in Missouri
-  (a4 = a hospitals dataset)
-PLAN: {"intent":"Locations of hospitals in Missouri",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"select_features","attr_id":"a4","inputs":[],"states":["Missouri"]},
-          {"id":"s2","op":"output","attr_id":"","inputs":["s1"]}]}` },
-
-  // Sets BOTH city and states. City names are not unique -- "Springfield" alone
-  // returned 97 fire stations across 25 states, of which 21 were in Missouri --
-  // and an example showing city on its own is what taught that mistake.
-  { op: "select_features", text:
-`QUESTION: show me the fire stations in Springfield, Missouri
-  (a7 = a fire stations dataset)
-PLAN: {"intent":"Locations of fire stations in Springfield, Missouri",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"select_features","attr_id":"a7","inputs":[],
-           "city":"Springfield","states":["Missouri"]},
-          {"id":"s2","op":"output","attr_id":"","inputs":["s1"]}]}` },
-
-  { op: "nearest_distance", text:
-`QUESTION: how far is each county from the nearest hospital
-  (a4 = a hospitals dataset)
-PLAN: {"intent":"Distance in miles from each county to its nearest hospital",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"nearest_distance","attr_id":"a4","inputs":[]},
-          {"id":"s2","op":"output","attr_id":"","inputs":["s1"]}]}` },
-
-  // Deliberately does NOT chain filter_area: that op is only offered when the
-  // question names a place, and an example may never demonstrate an op the
-  // decoding schema has dropped.
-  { op: "per_area", text:
-`QUESTION: population density per square mile
-  (a8 = total population)
-PLAN: {"intent":"Population per square mile of land in each county",
- "output_type":"map","entity_type":"COUNTY",
- "steps":[{"id":"s1","op":"load","attr_id":"a8","inputs":[]},
-          {"id":"s2","op":"per_area","attr_id":"","inputs":["s1"]},
-          {"id":"s3","op":"output","attr_id":"","inputs":["s2"]}]}` },
-];
 
 const INTENT_RULE = `"intent" must restate THE QUESTION YOU WERE GIVEN, in one sentence. Every
 example above states a different intent because each one restates its own
@@ -376,26 +198,22 @@ question.`;
  * why count_features and its example are dropped rather than left in with a
  * caveat. Narrowing the op set per query is what recovered plan validity from
  * 12.5% to 25.0% when facility coverage was added -- see docs/RUNBOOK.md.
+ *
+ * The offered set comes from the registry, which is the SAME call planSchemaFor
+ * makes. Those two used to be separate hand-maintained lists that had to agree,
+ * and an op named here but absent from the decoding enum costs a repair round
+ * on a plan the model was never able to emit.
  */
-function buildSystemPrompt({ hasFeatureTables = false, featureTableCount = 0,
-                             mentionsArea = false, wantsLocations = false,
-                             hasFilterableValues = false,
-                             hasPlaceBoundaries = false } = {}) {
-  // Must mirror planSchemaFor in schemas.js exactly. If the prompt offers an op
-  // the decoding enum has dropped, the model spends a repair round on a plan it
-  // was never able to emit.
-  const ops = ["load"];
-  if (hasFeatureTables) ops.push("count_features", "nearest_distance");
-  if (hasFeatureTables && wantsLocations) ops.push("select_features");
-  if (featureTableCount >= 2) ops.push("count_near");
-  ops.push("filter_attr");
-  if (mentionsArea) ops.push("filter_area");
-  if (mentionsArea && hasPlaceBoundaries) ops.push("filter_place");
-  ops.push("per_area", "normalize", "aggregate", "rank", "join", "output");
+function buildSystemPrompt(ctx = {}) {
+  const {
+    hasFeatureTables = false, wantsLocations = false, hasFilterableValues = false,
+  } = ctx;
+  const ops = opsRegistry.offeredFor(ctx);
 
   const sections = [
     PLAN_PREAMBLE,
-    "Operations:\n" + ops.map(o => OP_LINES[o]).join("\n"),
+    "Operations:\n" + opsRegistry.inPromptOrder(ops)
+      .map(n => opsRegistry.byName(n).promptLine).join("\n"),
     fieldRules(hasFeatureTables),
     opChoice(ops),
   ];
@@ -404,17 +222,12 @@ function buildSystemPrompt({ hasFeatureTables = false, featureTableCount = 0,
     // Only explain filters when some dataset on offer actually has them.
     if (hasFilterableValues) sections.push(FILTER_NOTE);
   }
+  // Explaining a field the decoding schema has dropped teaches a plan the model
+  // cannot emit, so this is gated on exactly the same predicate the schema uses.
+  if (opsRegistry.fieldOffered("year", ctx)) sections.push(YEAR_NOTE);
   sections.push(
     EXAMPLES_HEADER,
-    // One example per available op, so no op is demonstrated that the model
-    // cannot actually use, and none it CAN use is left undemonstrated. The
-    // filtered example is held back for the same reason: demonstrating a field
-    // that is absent from the decoding schema teaches a plan it cannot emit.
-    EXAMPLES
-      .filter(e => ops.includes(e.op))
-      .filter(e => hasFilterableValues || !e.usesFilters)
-      .map(e => e.text)
-      .join("\n\n"),
+    opsRegistry.examplesFor(ops, { hasFilterableValues }).join("\n\n"),
     INTENT_RULE);
 
   return sections.join("\n\n");
@@ -448,12 +261,18 @@ function buildRefs(results, limit = 25) {
   // ("Estimate|Total|Total population") WAS in the candidate list, tagged
   // normalization, and the planner still divided one poverty measure by
   // another. Separate sections tell it which pile the denominator comes from.
-  const ORDER = ["primary", "normalization", "filter", "related"];
+  // "expanded" is literature expansion (backend/expansion.js): attributes the
+  // question never named. Last, and labelled as such, so the planner reaches
+  // for them only when the question asks about causes or related factors. No
+  // candidate carries it unless expansion ran, so every existing prompt is
+  // byte-identical.
+  const ORDER = ["primary", "normalization", "filter", "related", "expanded"];
   const HEADINGS = {
     primary: "PRIMARY - the main quantity asked for",
     normalization: "NORMALIZATION - denominators for rates and per-capita figures",
     filter: "FILTER - qualifiers",
     related: "RELATED",
+    expanded: "LINKED IN MEDICAL LITERATURE - not named in the question; use only if it asks about causes, risk factors or related conditions",
   };
   const groups = new Map(ORDER.map(k => [k, []]));
   for (const item of labelled) {
@@ -751,6 +570,97 @@ function dropUnaskedFilters(plan, query) {
  *
  * @returns a description of what was corrected, or null.
  */
+
+/**
+ * Resolve a question's TIME reference into concrete years on the load steps.
+ *
+ * Measured on held-out queries: "has unemployment gotten better or worse since
+ * 2010" planned `load -> load -> normalize` over TWO DIFFERENT attributes and
+ * divided one by the other, and its own intent said so -- "compare unemployment
+ * rates from 2000 and 2018". "Which counties saw the biggest increase in
+ * poverty over the last decade" did the same. The year field was on offer in
+ * both cases and went unused.
+ *
+ * The prompt already carries a worked example for the explicit form ("percent
+ * change from 2007 to 2023") and it holds for that phrasing only. Relative time
+ * -- "since 2010", "over the last decade", "in 2009" -- has no anchor in the
+ * text, and asking the model to resolve it is asking it to guess at something
+ * the database already knows. So it is resolved here, deterministically, the
+ * same way applyImpliedState resolves a dropped state.
+ *
+ * Two shapes are repaired:
+ *   - a single load, and the question names one year   -> stamp that year
+ *   - two loads feeding a combine/normalize, and the question spans a period
+ *     -> make BOTH read the same attribute at the two ends of that period
+ *
+ * The second is the aggressive one, and it is deliberate: two different
+ * attributes divided by each other is not a trend under any reading, so the
+ * plan was already wrong. Leaving the later year unset means "the most recent
+ * this measure has", which the compiler resolves per measure.
+ *
+ * Returns a description of what changed, or null.
+ */
+const YEAR_IN_QUERY = /(?<!\d)(19[5-9]\d|20[0-4]\d)(?!\d)/g;
+
+function resolveRelativeYears(plan, query) {
+  const q = String(query || "");
+  // The same test the `year` field is gated on, stated locally rather than
+  // reached for through the registry: this repair must behave identically
+  // whether or not the field happened to be offered.
+  const TEMPORAL =
+    /\b(19\d{2}|20\d{2}|trends?|over time|since|growth|grew|shrank|declin\w*|increas\w*|decreas\w*|change\s+(from|in|since|between)|year[- ]over[- ]year|historical|last\s+decade|past\s+decade)\b/i;
+  if (!TEMPORAL.test(q)) return null;
+
+  const named = [...new Set((q.match(YEAR_IN_QUERY) || []).map(Number))].sort();
+  const now = new Date().getFullYear();
+  let span = null;                       // [earlier, later|null]
+
+  const lastN = q.match(/\b(?:last|past|previous)\s+(\d{1,2})\s+years?\b/i);
+  const decade = /\b(?:last|past|previous)\s+decade\b/i.test(q);
+
+  if (named.length >= 2)      span = [named[0], named[named.length - 1]];
+  else if (/\bsince\b/i.test(q) && named.length === 1) span = [named[0], null];
+  else if (lastN)             span = [now - Number(lastN[1]), null];
+  else if (decade)            span = [now - 10, null];
+
+  const loads = plan.steps.filter(s => s.op === "load");
+  const notes = [];
+
+  // A single year, a single measure: just stamp it.
+  if (!span && named.length === 1 && loads.length === 1 && !loads[0].year) {
+    loads[0].year = named[0];
+    return `read ${named[0]} rather than the latest year`;
+  }
+  if (!span) return null;
+
+  const combiner = plan.steps.find(
+    s => (s.op === "combine" || s.op === "normalize") && (s.inputs || []).length === 2);
+  if (!combiner) return null;
+
+  const [a, b] = combiner.inputs.map(id => plan.steps.find(s => s.id === id));
+  if (!a || !b || a.op !== "load" || b.op !== "load") return null;
+  if (a.year || b.year) return null;     // the model already answered this
+
+  // One measure at two points in time, not two measures divided by each other.
+  if (a.attr_id !== b.attr_id) {
+    notes.push(`compared "${a.attr_id}" against itself rather than against "${b.attr_id}"`);
+    b.attr_id = a.attr_id;
+  }
+  a.year = span[0];
+  if (span[1]) b.year = span[1];
+  // A ratio of a measure to its own earlier value is not what "increase" means.
+  if (combiner.op === "normalize") {
+    combiner.op = "combine";
+    combiner.operation = "percent_change";
+    delete combiner.scale;
+    notes.push("changed the ratio to a percent change");
+  } else if (!combiner.operation || combiner.operation === "ratio") {
+    combiner.operation = "percent_change";
+  }
+  notes.push(`set the period to ${span[0]}${span[1] ? `-${span[1]}` : " to the latest year"}`);
+  return notes.join("; ");
+}
+
 function repairStates(plan, query) {
   const notes = [];
   const named = statesMentioned(query);
@@ -772,9 +682,13 @@ function repairStates(plan, query) {
     // Tolerate the model naming the region itself, or listing its members.
     if (!extra.length) continue;
     st.states = [singleRegion];
+    // Worded as what was DONE, not what went wrong: shown in the UI, the old
+    // "the plan listed 2 state(s) outside it" read like a failure when it is a
+    // correction that worked (the model had put the Dakotas in "the South").
     notes.push(
-      `restricted to the ${singleRegion} (the plan listed ${extra.length} state(s) ` +
-      `outside it, including ${extra.slice(0, 3).join(", ")})`);
+      `used the Census Bureau's ${singleRegion} region; left out ` +
+      `${extra.slice(0, 3).join(", ")}${extra.length > 3 ? ` and ${extra.length - 3} more` : ""}, ` +
+      `which the planner had included but are not part of it`);
   }
   return notes.length ? notes.join("; ") : null;
 }
@@ -799,6 +713,9 @@ async function generatePlan({
   // Whether place_geom holds named boundaries. Passed in rather than probed
   // here so the planner stays free of database access.
   hasPlaceBoundaries = false,
+  // Whether county_neighbors is populated. Same reason: hotspot cannot run
+  // without adjacency, and an op that can only fail should not be offered.
+  hasNeighbors = false,
   log = console.log,
   // Structured progress, separate from `log`. `log` writes prose for a human
   // reading container output; `emit` carries machine-readable stages so the
@@ -806,6 +723,10 @@ async function generatePlan({
   // proxy_buffering off for it) can forward them without re-plumbing this
   // function. No-op by default, so nothing changes until a caller passes one.
   emit = () => {},
+  // Post-validation check that each attribute the plan uses measures what the
+  // question asks (planner/relevance.js). Off by default here so callers that
+  // script the LLM (the tests) are unaffected; runAnalysis turns it on.
+  relevanceCheck = false,
 }) {
   const attempts = [];
   let repairContext = "";
@@ -836,10 +757,20 @@ async function generatePlan({
 
   const narrowing = {
     hasFeatureTables, featureTableCount, mentionsArea, wantsLocations,
-    hasFilterableValues, hasPlaceBoundaries,
+    hasFilterableValues, hasPlaceBoundaries, hasNeighbors,
+    // The statistics ops gate on PHRASING as well as on loaded data -- nobody
+    // gets offered "hotspot" for a question that is not about clustering -- so
+    // the query itself is part of the narrowing context.
+    query,
   };
   const schema = planSchemaFor(narrowing);
   const systemPrompt = buildSystemPrompt(narrowing);
+
+  // Which ops this query was actually offered. Logged because "the model did
+  // not use op X" and "op X was never on the menu" look identical from the
+  // outside and need entirely different fixes -- one is a prompt problem, the
+  // other a gate or a missing table.
+  log(`   ops offered: ${schema.properties.steps.items.properties.op.enum.join(", ")}`);
 
   for (let attempt = 0; attempt <= MAX_REPAIRS; attempt++) {
     const userPrompt =
@@ -886,10 +817,28 @@ async function generatePlan({
       log(`   Repaired malformed city value: ${cityFix}`);
       emit({ stage: "plan_adjusted", detail: cityFix });
     }
+    const yearsFix = resolveRelativeYears(plan, query);
+    if (yearsFix) {
+      log(`   Resolved the time reference: ${yearsFix}`);
+      emit({ stage: "plan_adjusted", detail: `Time reference: ${yearsFix}.` });
+      adjustments.push(`Time reference resolved: ${yearsFix}.`);
+    }
+
     const implied = applyImpliedState(plan, query);
     if (implied) {
       log(`   Added implied state restriction: ${implied}`);
       emit({ stage: "plan_adjusted", detail: `restricted to ${implied}` });
+    }
+    // A plan of nothing but empty `output` steps is the model saying "none of
+    // these attributes answer this" in the only shape the schema let it
+    // produce. Measured on "shark attack incidents along the Australian coast":
+    // [{op: "output", inputs: []}], which validation reported as an arity
+    // error and the user saw as "could not produce a valid plan". It is the
+    // no-steps answer, and is treated as one.
+    if (Array.isArray(plan.steps) && plan.steps.length &&
+        plan.steps.every(s => s.op === "output" && !(s.inputs || []).length)) {
+      log(`   Plan had only empty output steps; treating it as no steps`);
+      plan.steps = [];
     }
     const unknownRefs = derefPlan(plan, refs);
     // After deref, attr_ids are real, so the dataset's own columns can be
@@ -915,6 +864,25 @@ async function generatePlan({
     }
 
     const check = await validatePlan(plan, resolve);
+
+    // Valid is not the same as answering the question: "average rainfall"
+    // planned a mean of reading scores. Unrelated attributes go back through
+    // the same repair loop as any other error.
+    let relevance = null;
+    if (check.ok && relevanceCheck) {
+      relevance = await checkRelevance({ query, plan, candidates, refs, callLLM, log });
+      if (relevance.errors.length) {
+        log(`   Plan uses data that does not measure the question (attempt ${attempt + 1})`);
+        emit({ stage: "plan_irrelevant", attempt: attempt + 1, errors: relevance.errors });
+        attempts.push({ attempt, errors: relevance.errors, plan, relevance: relevance.verdicts });
+        repairContext =
+          `\nYour previous plan was rejected. Fix these problems and return a ` +
+          `corrected plan:\n` + relevance.errors.map(e => `- ${e}`).join("\n") +
+          `\n\nPrevious plan:\n${JSON.stringify(plan)}\n`;
+        continue;
+      }
+    }
+
     if (check.ok) {
       log(`   Plan valid on attempt ${attempt + 1} (${plan.steps.length} steps)`);
       emit({
@@ -929,6 +897,9 @@ async function generatePlan({
         // attempt, and reporting it three times reads as three separate
         // problems rather than one.
         adjustments: [...new Set(adjustments)],
+        // Per-attribute verdicts: which are direct measures, which are proxies
+        // the reader should be told about. null when the check did not run.
+        relevance: relevance ? relevance.verdicts : null,
       };
     }
 
@@ -952,57 +923,133 @@ async function generatePlan({
 }
 
 /**
- * Compile a validated plan and run it. Read-only by construction: the compiler
- * emits a single SELECT, and this runs inside a read-only transaction as a
- * second line of defence.
+ * Shape one output's result set.
+ *
+ * Kept separate from executePlan because a plan can produce SEVERAL, and each
+ * is shaped by its own mode: a features layer is GeoJSON with whatever label
+ * columns that layer happens to carry, a values layer is the (fips, value)
+ * row contract. Forcing one into the other is what the two shapes exist to
+ * avoid.
  */
+function shapeLayer(out, res, ms) {
+  if (out.mode === "features") {
+    const labels = out.labels || [];
+    return {
+      id: out.id, step: out.step, mode: "features",
+      sql: out.sql, params: out.params,
+      row_count: res.rowCount,
+      ms,
+      rows: [],
+      features: res.rows.map(r => ({
+        type: "Feature",
+        geometry: r.geometry ? JSON.parse(r.geometry) : null,
+        properties: Object.fromEntries(labels.map(c => [c, r[c] ?? null])),
+      })).filter(f => f.geometry),
+    };
+  }
+
+  const twoSeries = out.series === 2;
+  const statCols = out.statColumns || [];
+  const num = (v) => (v === null || v === undefined ? null : Number(v));
+  return {
+    id: out.id, step: out.step, mode: "values",
+    sql: out.sql, params: out.params,
+    op: out.op,
+    part: out.part === true,
+    diverging: out.diverging,
+    valueLabel: out.valueLabel,
+    // How many measures each row carries. A `join` that reaches the output
+    // keeps both, so "population and poverty rate" is one layer with two
+    // series rather than two separate analyses.
+    series: twoSeries ? 2 : 1,
+    // A one-row statistic (correlate) carries its figures here, named, so a
+    // client does not have to know which op produced the layer to read them.
+    // null for every per-county layer.
+    stats: statCols.length && res.rows[0]
+      ? { value: num(res.rows[0].value),
+          ...Object.fromEntries(statCols.map(c => [c, num(res.rows[0][c])])) }
+      : null,
+    row_count: res.rowCount,
+    ms,
+    rows: res.rows.map(r => ({
+      fips: r.fips,
+      name: r.name,
+      state_fp: r.state_fp,
+      value: r.value === null ? null : Number(r.value),
+      ...(twoSeries
+        ? { value_b: r.value_b === null || r.value_b === undefined ? null : Number(r.value_b) }
+        : {}),
+    })),
+    // GeoJSON kept separate: it dwarfs the tabular payload and most callers
+    // (charts, tables) do not need it.
+    geometry: res.rows
+      .filter(r => r.geometry)
+      .map(r => ({ fips: r.fips, geometry: JSON.parse(r.geometry) })),
+  };
+}
+
+/**
+ * Compile a validated plan and run it.
+ *
+ * Read-only by construction: the compiler emits SELECTs and nothing else, and
+ * this runs inside a read-only transaction as a second line of defence.
+ *
+ * A plan may have several outputs. They run in ONE transaction, so every layer
+ * sees the same snapshot -- two layers of the same result read at different
+ * instants would be a subtle way to publish an inconsistent map.
+ *
+ * The return keeps the flat single-layer shape every existing caller reads, and
+ * adds `layers` alongside it. A one-output plan therefore looks exactly as it
+ * did, and nothing that ignores `layers` silently loses the first one.
+ */
+// County adjacency as Map<fips, fips[]>, for compute ops. 18,608 pairs, read
+// once: the table only changes when `make neighbors` is re-run.
+let neighborsCache = null;
+async function countyNeighbors(client) {
+  if (neighborsCache) return neighborsCache;
+  const { rows } = await client.query("SELECT fips, neighbor_fips FROM county_neighbors");
+  const m = new Map();
+  for (const r of rows) {
+    if (!m.has(r.fips)) m.set(r.fips, []);
+    m.get(r.fips).push(r.neighbor_fips);
+  }
+  neighborsCache = m;
+  return m;
+}
+
 async function executePlan(plan, resolved, pool, { timeoutMs = 30000 } = {}) {
   const compiled = compilePlan(plan, resolved);
-  const { sql, params, mode } = compiled;
   const client = await pool.connect();
   try {
     await client.query("BEGIN READ ONLY");
     await client.query(`SET LOCAL statement_timeout = ${Number(timeoutMs)}`);
+
     const started = Date.now();
-    const res = await client.query(sql, params);
+    const layers = [];
+    for (const out of compiled.outputs) {
+      const t0 = Date.now();
+      const res = await client.query(out.sql, out.params);
+      if (out.mode === "factors") {
+        const neighbors = await countyNeighbors(client);
+        const computed = opsRegistry.byName(out.op).compute(res.rows, { factors: out.factors, neighbors });
+        layers.push({
+          id: out.id, step: out.step, mode: "factors", op: out.op,
+          sql: out.sql, params: out.params,
+          row_count: computed.factors.length, ms: Date.now() - t0,
+          rows: [], ...computed,
+        });
+        continue;
+      }
+      layers.push(shapeLayer(out, res, Date.now() - t0));
+    }
     await client.query("COMMIT");
 
-    // A select_features plan returns individual locations: each row is its own
-    // geometry plus whatever label columns that layer happens to carry. There
-    // is no fips and no single "value", so it is shaped as GeoJSON features
-    // rather than forced into the (fips, value) row contract.
-    if (mode === "features") {
-      const labels = compiled.labels || [];
-      return {
-        sql, params, mode,
-        row_count: res.rowCount,
-        ms: Date.now() - started,
-        rows: [],
-        features: res.rows.map(r => ({
-          type: "Feature",
-          geometry: r.geometry ? JSON.parse(r.geometry) : null,
-          properties: Object.fromEntries(labels.map(c => [c, r[c] ?? null])),
-        })).filter(f => f.geometry),
-      };
-    }
-
+    const first = layers[0];
     return {
-      sql,
-      params,
-      mode,
-      row_count: res.rowCount,
+      ...first,
       ms: Date.now() - started,
-      rows: res.rows.map(r => ({
-        fips: r.fips,
-        name: r.name,
-        state_fp: r.state_fp,
-        value: r.value === null ? null : Number(r.value),
-      })),
-      // GeoJSON kept separate: it dwarfs the tabular payload and most callers
-      // (charts, tables) do not need it.
-      geometry: res.rows
-        .filter(r => r.geometry)
-        .map(r => ({ fips: r.fips, geometry: JSON.parse(r.geometry) })),
+      layers,
+      layer_count: layers.length,
     };
   } finally {
     client.release();
@@ -1011,5 +1058,8 @@ async function executePlan(plan, resolved, pool, { timeoutMs = 30000 } = {}) {
 
 module.exports = {
   generatePlan, executePlan, buildSystemPrompt, queryWantsLocations,
+  // Exported for its tests: it is the repair that turns a relative period
+  // ("since 2010", "the last decade") into concrete years on the load steps.
+  resolveRelativeYears,
   PLAN_SYSTEM_PROMPT, MAX_REPAIRS, CompileError,
 };

@@ -10,8 +10,8 @@
   "scripts": {
     "start": "node unified_search_server.js",
     "dev": "nodemon unified_search_server.js",
-    "check": "node --check unified_search_server.js && node --check enhanced_search_server.js",
-    "test": "node planner/test_planner.js && node test_suggestions.js && node test_access.js"
+    "check": "node --check unified_search_server.js && node --check enhanced_search_server.js && node --check expansion.js",
+    "test": "node planner/test_planner.js && node planner/test_dag.js && node planner/test_stats.js && node planner/test_relevance.js && node test_suggestions.js && node test_access.js && node test_expansion.js"
   },
   "keywords": [
     "geospatial",

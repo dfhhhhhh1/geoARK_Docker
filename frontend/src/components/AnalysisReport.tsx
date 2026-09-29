@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import type { AnalysisResponse, PlanStep } from '../types';
+import { OP_LABEL, OP_READING } from '../lib/ops';
 
 /**
  * The "how did it get this answer" panel.
@@ -11,23 +12,6 @@ import type { AnalysisResponse, PlanStep } from '../types';
  * because the planner CAN pick a defensible-looking wrong attribute, and the
  * step list is where that becomes visible.
  */
-
-const OP_LABEL: Record<PlanStep['op'], string> = {
-  load: 'Load',
-  count_features: 'Count features',
-  count_near: 'Count nearby',
-  nearest_distance: 'Distance to nearest',
-  select_features: 'Map locations',
-  filter_attr: 'Filter',
-  filter_area: 'Restrict to area',
-  filter_place: 'Restrict to place',
-  per_area: 'Per square mile',
-  normalize: 'Normalize',
-  aggregate: 'Aggregate',
-  rank: 'Rank',
-  join: 'Combine',
-  output: 'Output',
-};
 
 /**
  * The attribute narrowing a step applied.
@@ -104,6 +88,12 @@ const AnalysisReport: React.FC<Props> = ({ result }) => {
         return `${step.direction === 'asc' ? 'lowest' : 'highest'} ${step.limit ?? 20} from ${from}`;
       case 'join':
         return `${from}, matched on county`;
+      case 'combine':
+        return `${step.operation ?? 'combination'} of ${from}`;
+      case 'hotspot':
+        return `spatial clustering of ${from}, as a Gi* z-score per county`;
+      case 'outlier':
+        return `only the counties whose value in ${from} is unusual`;
       case 'output':
         return `result of ${from}`;
       default:
@@ -145,6 +135,14 @@ const AnalysisReport: React.FC<Props> = ({ result }) => {
             <div className="min-w-0 pt-0.5">
               <span className="font-medium text-slate-800">{OP_LABEL[step.op] ?? step.op}</span>
               <span className="text-slate-600">, {describeStep(step)}</span>
+              {/* A derived statistic needs its reading stated. "2.3" is not
+                  self-explanatory, and a number nobody can interpret is one
+                  nobody can check. */}
+              {OP_READING[step.op] && (
+                <p className="mt-1 text-xs text-slate-500 leading-snug">
+                  {OP_READING[step.op]}
+                </p>
+              )}
             </div>
           </li>
         ))}

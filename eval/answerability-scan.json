@@ -1,0 +1,1004 @@
+[
+ [
+  "answerable(queries.yaml)",
+  "poverty rate",
+  [
+   [
+    "poverty rate",
+    0.709,
+    "Poverty rate for children age 0-17 2017"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "unemployment rate",
+  [
+   [
+    "unemployment rate",
+    0.693,
+    "Unemployment_rate"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "median household income",
+  [
+   [
+    "median household income",
+    0.761,
+    "Median_Household_Income"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "people without health insurance",
+  [
+   [
+    "health insurance",
+    0.603,
+    "Estimate!!HEALTH INSURANCE COVERAGE!!Civ"
+   ],
+   [
+    "people without",
+    0.55,
+    "Total count of housing units without a v"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "food stamps and SNAP benefits",
+  [
+   [
+    "food stamps",
+    0.678,
+    "Received food stamps in the past 12 mont"
+   ],
+   [
+    "SNAP benefits",
+    0.635,
+    "SNAP benefits per capita 2010"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "veteran population characteristics",
+  [
+   [
+    "veteran population",
+    0.686,
+    "Percent of the population that are veter"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "hospital bed capacity",
+  [
+   [
+    "hospital beds",
+    0.703,
+    "Beds"
+   ],
+   [
+    "bed capacity",
+    0.685,
+    "Beds"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "total housing units",
+  [
+   [
+    "housing units",
+    0.603,
+    "Estimate!!UNITS IN STRUCTURE!!Total hous"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "educational attainment bachelors degree",
+  [
+   [
+    "educational attainment",
+    0.64,
+    "Estimate|EDUCATIONAL ATTAINMENT|Populati"
+   ],
+   [
+    "bachelors degree",
+    0.666,
+    "Bachelor's degree or higher"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "commute time to work",
+  [
+   [
+    "commute time",
+    0.67,
+    "Estimate!!COMMUTING TO WORK!!Workers 16 "
+   ],
+   [
+    "work location",
+    0.554,
+    "Estimate|Total|Workers 16 years and over"
+   ],
+   [
+    "average commute",
+    0.595,
+    "Long commute - driving alone"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "power plants",
+  [
+   [
+    "power plants",
+    0.662,
+    "Longitude"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "oil refineries",
+  [
+   [
+    "oil refineries",
+    0.725,
+    "State"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "emergency shelter locations",
+  [
+   [
+    "emergency shelters",
+    0.682,
+    "Shelter Id"
+   ],
+   [
+    "shelter locations",
+    0.757,
+    "Org City"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "public health departments",
+  [
+   [
+    "public health departments",
+    0.714,
+    "Name"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "natural gas infrastructure",
+  [
+   [
+    "natural gas",
+    0.668,
+    "Name"
+   ],
+   [
+    "infrastructure",
+    0.616,
+    "Name"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "historical volcanic eruptions",
+  [
+   [
+    "historical eruptions",
+    0.775,
+    "Year"
+   ],
+   [
+    "volcanic eruption magnitude",
+    0.758,
+    "Num"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "poverty rates normalized by population for counties",
+  [
+   [
+    "poverty rates",
+    0.709,
+    "Poverty rate for children age 0-17 2017"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "share of population without health insurance per capita",
+  [
+   [
+    "health insurance share",
+    0.59,
+    "Percent Estimate!!HEALTH INSURANCE COVER"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "compare median income against educational attainment",
+  [
+   [
+    "median income",
+    0.704,
+    "Median_Household_Income"
+   ],
+   [
+    "educational attainment",
+    0.64,
+    "Estimate|EDUCATIONAL ATTAINMENT|Populati"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "unemployment and food stamp usage together",
+  [
+   [
+    "unemployment rate",
+    0.693,
+    "Unemployment_rate"
+   ],
+   [
+    "food stamp recipients",
+    0.651,
+    "Received food stamps in the past 12 mont"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "elderly population and housing occupancy",
+  [
+   [
+    "elderly population",
+    0.705,
+    "Population"
+   ],
+   [
+    "housing occupancy",
+    0.577,
+    "Estimate!!HOUSING OCCUPANCY!!Total housi"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "veterans with disabilities and their income",
+  [
+   [
+    "veterans",
+    0.613,
+    "County"
+   ],
+   [
+    "disabilities",
+    0.654,
+    "% Disability: Functional Limitations"
+   ],
+   [
+    "income",
+    0.671,
+    "Estimate|Total|INCOME IN THE PAST 12 MON"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "poverty broken down by race",
+  [
+   [
+    "poverty rate",
+    0.709,
+    "Poverty rate for children age 0-17 2017"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "children in food insecure households",
+  [
+   [
+    "children",
+    0.563,
+    "Children in poverty"
+   ],
+   [
+    "food insecurity",
+    0.735,
+    "Food insecurity"
+   ],
+   [
+    "households",
+    0.614,
+    "Estimate|Total|HOUSEHOLDS BY TYPE|Househ"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "SNAP benefits at the census tract level",
+  [
+   [
+    "SNAP benefits",
+    0.635,
+    "SNAP benefits per capita 2010"
+   ],
+   [
+    "census tracts",
+    0.666,
+    "Census tract number"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "county level unemployment",
+  [
+   [
+    "county unemployment",
+    0.76,
+    "Unemployment"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "hospital capacity by state",
+  [
+   [
+    "hospital capacity",
+    0.706,
+    "40%  Hospital Capacity- Total Hospital B"
+   ],
+   [
+    "state data",
+    0.714,
+    "State Id"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "areas where lots of people are poor",
+  [
+   [
+    "poor people",
+    0.568,
+    "Poor or fair health"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "places with many people out of work",
+  [
+   [
+    "unemployment rate",
+    0.693,
+    "Unemployment_rate"
+   ],
+   [
+    "people out of work",
+    0.566,
+    "Estimate|Total|Workers 16 years and over"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "people who cannot afford medical coverage",
+  [
+   [
+    "medical coverage",
+    0.608,
+    "Medical Ne"
+   ],
+   [
+    "cannot afford",
+    0.535,
+    "Estimate!!SELECTED MONTHLY OWNER COSTS A"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "where do seniors live",
+  [
+   [
+    "seniors",
+    0.543,
+    "Total count of seniors age 65+ in tract "
+   ],
+   [
+    "location",
+    0.598,
+    "Country"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "households struggling to pay rent",
+  [
+   [
+    "struggling renters",
+    0.484,
+    "Estimate|Total|Renter-occupied housing u"
+   ],
+   [
+    "rent burden",
+    0.558,
+    "Estimate!!GROSS RENT!!Occupied units pay"
+   ],
+   [
+    "housing costs",
+    0.634,
+    "Severe housing cost burden"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "poverty rate in 2015",
+  [
+   [
+    "poverty rate",
+    0.709,
+    "Poverty rate for children age 0-17 2017"
+   ],
+   [
+    "2015",
+    0.602,
+    "Employed 2015"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "unemployment during 2017",
+  [
+   [
+    "unemployment",
+    0.653,
+    "Unemployment"
+   ],
+   [
+    "2017",
+    0.58,
+    "Employed 2017"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "2018 american community survey estimates",
+  [
+   [
+    "american community survey",
+    0.589,
+    "Pop06"
+   ],
+   [
+    "2018 estimates",
+    0.635,
+    "Estimate|Total|Households"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "median income covering 2013 to 2017",
+  [
+   [
+    "median income",
+    0.704,
+    "Median_Household_Income"
+   ],
+   [
+    "2013-2017",
+    0.653,
+    "Deep poverty 2013-17"
+   ]
+  ]
+ ],
+ [
+  "answerable(queries.yaml)",
+  "2020 data",
+  [
+   [
+    "2020 data",
+    0.668,
+    "RESIDUAL"
+   ]
+  ]
+ ],
+ [
+  "absent(known_item)",
+  "crater diameters on the surface of Mars",
+  [
+   [
+    "crater diameters",
+    0.608,
+    "Diameter"
+   ],
+   [
+    "Mars surface",
+    0.531,
+    "Surf Lat"
+   ]
+  ]
+ ],
+ [
+  "absent(known_item)",
+  "shark attack incidents along the Australian coast",
+  [
+   [
+    "shark attack incidents",
+    0.51,
+    "Incident I"
+   ],
+   [
+    "Australian coast",
+    0.45,
+    "Latitude"
+   ]
+  ]
+ ],
+ [
+  "absent(known_item)",
+  "bitcoin mining hash rate difficulty adjustment",
+  [
+   [
+    "bitcoin mining hash rate",
+    0.558,
+    "Mineral Operations Id"
+   ],
+   [
+    "hash rate difficulty",
+    0.551,
+    "Ruleid"
+   ],
+   [
+    "difficulty adjustment",
+    0.492,
+    "Val Method"
+   ]
+  ]
+ ],
+ [
+  "absent(known_item)",
+  "premier league football match attendance figures",
+  [
+   [
+    "premier league",
+    0.597,
+    "League"
+   ],
+   [
+    "football attendance",
+    0.646,
+    "Stadium Sh"
+   ]
+  ]
+ ],
+ [
+  "absent(known_item)",
+  "sourdough bread fermentation starter recipes",
+  [
+   [
+    "sourdough starter",
+    0.5,
+    "Source"
+   ],
+   [
+    "fermentation recipes",
+    0.604,
+    "Type"
+   ]
+  ]
+ ],
+ [
+  "absent(known_item)",
+  "declension tables for classical Latin nouns",
+  [
+   [
+    "classical latin nouns",
+    0.474,
+    "Feattype"
+   ],
+   [
+    "declension tables",
+    0.527,
+    "Wellidno"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "What is the median household income in each county?",
+  [
+   [
+    "median household income",
+    0.761,
+    "Median_Household_Income"
+   ],
+   [
+    "county level",
+    0.65,
+    "County"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Show me poverty rates across the country",
+  [
+   [
+    "poverty rates",
+    0.709,
+    "Poverty rate for children age 0-17 2017"
+   ],
+   [
+    "across country",
+    0.575,
+    "Country"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Which are the poorest counties in America?",
+  [
+   [
+    "poorest counties",
+    0.632,
+    "Persistent poverty counties 2004"
+   ],
+   [
+    "poverty rate",
+    0.709,
+    "Poverty rate for children age 0-17 2017"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Where do the wealthiest people live?",
+  [
+   [
+    "wealthiest people",
+    0.473,
+    "Income inequality"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Which counties have the most hospitals per person?",
+  [
+   [
+    "hospitals",
+    0.647,
+    "Website"
+   ],
+   [
+    "people",
+    0.542,
+    "% people of color"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Where are people most likely to be uninsured?",
+  [
+   [
+    "uninsured people",
+    0.71,
+    "Uninsured"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Where is it hardest to see a doctor?",
+  [
+   [
+    "doctor access",
+    0.586,
+    "Visits to doctor for routine checkup wit"
+   ],
+   [
+    "healthcare access",
+    0.653,
+    "Directions"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Show me rural counties with high poverty and few hospitals",
+  [
+   [
+    "rural counties",
+    0.733,
+    "% Rural"
+   ],
+   [
+    "high poverty",
+    0.605,
+    "High poverty counties 2013-17"
+   ],
+   [
+    "few hospitals",
+    0.607,
+    "State"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Of the counties in Texas, which ten have the worst unemployment?",
+  [
+   [
+    "unemployment rate",
+    0.693,
+    "Unemployment_rate"
+   ],
+   [
+    "Texas counties",
+    0.596,
+    "County"
+   ],
+   [
+    "worst unemployment",
+    0.564,
+    "Unemployment"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Compare obesity and poverty by county",
+  [
+   [
+    "obesity rates",
+    0.652,
+    "Adult obesity rate 2008"
+   ],
+   [
+    "poverty rates",
+    0.709,
+    "Poverty rate for children age 0-17 2017"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Is there more unemployment in the south than the north?",
+  [
+   [
+    "unemployment rate",
+    0.693,
+    "Unemployment_rate"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Has unemployment gotten better or worse since 2010?",
+  [
+   [
+    "unemployment rate",
+    0.693,
+    "Unemployment_rate"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Which counties saw the biggest increase in poverty over the last decade?",
+  [
+   [
+    "poverty increase",
+    0.575,
+    "Children in poverty"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "What was the unemployment rate in 2009?",
+  [
+   [
+    "unemployment rate",
+    0.693,
+    "Unemployment_rate"
+   ],
+   [
+    "2009",
+    0.59,
+    "Employed 2009"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "What are the poverty rates around Detroit?",
+  [
+   [
+    "poverty rates",
+    0.709,
+    "Poverty rate for children age 0-17 2017"
+   ],
+   [
+    "Detroit",
+    0.439,
+    "City"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Show me health insurance coverage in Florida",
+  [
+   [
+    "health insurance coverage",
+    0.623,
+    "Estimate!!HEALTH INSURANCE COVERAGE!!Civ"
+   ],
+   [
+    "Florida",
+    0.511,
+    "State"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "How far do people in rural counties have to drive to a hospital?",
+  [
+   [
+    "driving distance",
+    0.588,
+    "Length Mi"
+   ],
+   [
+    "rural counties",
+    0.733,
+    "% Rural"
+   ],
+   [
+    "hospital access",
+    0.644,
+    "State Id"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Where are all the fire stations in Colorado?",
+  [
+   [
+    "fire stations",
+    0.686,
+    "State"
+   ],
+   [
+    "Colorado",
+    0.527,
+    "Shelter Co"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Are there parts of the country where diabetes is unusually common?",
+  [
+   [
+    "diabetes prevalence",
+    0.8,
+    "Diabetes prevalence"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Which counties don't fit the pattern for income?",
+  [
+   [
+    "income patterns",
+    0.608,
+    "Estimate|Total|INCOME IN THE PAST 12 MON"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Tell me about poverty",
+  [
+   [
+    "poverty",
+    0.654,
+    "Children in poverty"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "Which county is the best place to live?",
+  [
+   [
+    "best place",
+    0.475,
+    "Country"
+   ],
+   [
+    "live",
+    0.489,
+    "Website"
+   ],
+   [
+    "county",
+    0.681,
+    "County"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "What is the average rainfall by county?",
+  [
+   [
+    "average rainfall",
+    0.54,
+    "Average household size 2013-17"
+   ],
+   [
+    "county data",
+    0.672,
+    "County"
+   ]
+  ]
+ ],
+ [
+  "wild",
+  "How many people live in the United States?",
+  [
+   [
+    "population",
+    0.63,
+    "Population"
+   ]
+  ]
+ ]
+]

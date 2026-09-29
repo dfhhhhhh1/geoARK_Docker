@@ -26,6 +26,13 @@ services:
       # two resident models enables the small-router / large-planner split.
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
       OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-2}
+      # The api asks for an 8,192-token window for the planner (LLM_NUM_CTX)
+      # and 4,096 for the small model (LLM_SMALL_NUM_CTX). The planner prompt
+      # plus reasoning overflows 4,096, and overflow silently drops the START of
+      # the prompt (the system instructions). An 8-bit KV cache (needs flash
+      # attention) is what lets both models stay resident on 16 GB.
+      OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
+      OLLAMA_KV_CACHE_TYPE: ${OLLAMA_KV_CACHE_TYPE:-q8_0}
 
   embedder:
     build:

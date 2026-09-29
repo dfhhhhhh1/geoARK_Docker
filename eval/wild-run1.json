@@ -1,0 +1,390 @@
+[
+  {
+    "id": "w-simple-income",
+    "query": "What is the median household income in each county?",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "load->output",
+    "intent": "Median household income in each county",
+    "rows": 3132,
+    "attrs": [
+      "Median_Household_Income"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 18.3
+  },
+  {
+    "id": "w-simple-poverty",
+    "query": "Show me poverty rates across the country",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "load->output",
+    "intent": "Poverty rate by county across the country",
+    "rows": 3221,
+    "attrs": [
+      "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 14.6
+  },
+  {
+    "id": "w-colloquial-poor",
+    "query": "Which are the poorest counties in America?",
+    "note": "superlative with no explicit measure named",
+    "outcome": "ROWS",
+    "ops": "load->rank->output",
+    "intent": "Counties with the highest percentage of households below the poverty level",
+    "rows": 10,
+    "attrs": [
+      "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 11.5
+  },
+  {
+    "id": "w-colloquial-rich",
+    "query": "Where do the wealthiest people live?",
+    "note": "no measure, no geography word",
+    "outcome": "ROWS",
+    "ops": "load->rank->output",
+    "intent": "Counties with the highest mean nonfamily income (a1) are where the wealthiest people live.",
+    "rows": 10,
+    "attrs": [
+      "Estimate!!INCOME AND BENEFITS (IN 2018 INFLATION-ADJUSTED DOLLARS)!!No"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 35.4
+  },
+  {
+    "id": "w-per-capita-hospitals",
+    "query": "Which counties have the most hospitals per person?",
+    "note": "needs a count AND a denominator",
+    "outcome": "ROWS",
+    "ops": "count_features->load->normalize->rank->output",
+    "intent": "Counties with the highest number of hospitals per person",
+    "rows": 10,
+    "attrs": [
+      "Hospitals (mapped locations)",
+      "Population",
+      "a10",
+      "a10",
+      "a10"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 36.1
+  },
+  {
+    "id": "w-implicit-rate",
+    "query": "Where are people most likely to be uninsured?",
+    "note": "'most likely' implies a rate, not a count",
+    "outcome": "ROWS",
+    "ops": "load->load->normalize->output",
+    "intent": "Percentage of people uninsured in each county, to show where they are most likely to be uninsured",
+    "rows": 3132,
+    "attrs": [
+      "Uninsured",
+      "Population"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": 3,
+    "seconds": 23.1
+  },
+  {
+    "id": "w-doctors-access",
+    "query": "Where is it hardest to see a doctor?",
+    "note": "colloquial; could be distance, count per capita, or neither",
+    "outcome": "ROWS",
+    "ops": "count_features->rank->output",
+    "intent": "Counties with the fewest hospitals, indicating hardest access to medical facilities",
+    "rows": 10,
+    "attrs": [
+      "Hospitals (mapped locations)"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 26.0
+  },
+  {
+    "id": "w-two-conditions",
+    "query": "Show me rural counties with high poverty and few hospitals",
+    "note": "three clauses; 'rural' has no attribute",
+    "outcome": "NO_PLAN",
+    "ops": "",
+    "intent": null,
+    "rows": null,
+    "attrs": [],
+    "error": "could not produce a valid plan",
+    "exec_error": null,
+    "layers": null,
+    "seconds": 112.5
+  },
+  {
+    "id": "w-filter-and-rank",
+    "query": "Of the counties in Texas, which ten have the worst unemployment?",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "load->filter_area->rank->output",
+    "intent": "Of the counties in Texas, which ten have the worst unemployment?",
+    "rows": 10,
+    "attrs": [
+      "Unemployment"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 21.0
+  },
+  {
+    "id": "w-compare-two",
+    "query": "Compare obesity and poverty by county",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "load->load->join->output",
+    "intent": "Obesity rates and poverty rates compared across counties",
+    "rows": 2945,
+    "attrs": [
+      "Obesity among adults (age-adjusted prevalence) (covers 2,957 counties)",
+      "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 20.0
+  },
+  {
+    "id": "w-ratio-question",
+    "query": "Is there more unemployment in the south than the north?",
+    "note": "comparative between two regions; no such op exists",
+    "outcome": "NO_PLAN",
+    "ops": "",
+    "intent": null,
+    "rows": null,
+    "attrs": [],
+    "error": "could not produce a valid plan",
+    "exec_error": null,
+    "layers": null,
+    "seconds": 183.2
+  },
+  {
+    "id": "w-trend-plain",
+    "query": "Has unemployment gotten better or worse since 2010?",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "load->load->normalize->output",
+    "intent": "Compare unemployment rates from 2000 (a1) and 2018 (a3) to assess trends since 2010, while noting that 2020 data (a2) is a count without population normalization.",
+    "rows": 3218,
+    "attrs": [
+      "Unemployment_rate",
+      "Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 ye",
+      "a3",
+      "a3"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": 3,
+    "seconds": 105.4
+  },
+  {
+    "id": "w-trend-where",
+    "query": "Which counties saw the biggest increase in poverty over the last decade?",
+    "note": "'last decade' is relative, not a year",
+    "outcome": "ROWS",
+    "ops": "load->load->normalize->rank->output",
+    "intent": "Counties with the largest increase in poverty from 2018 to 2020",
+    "rows": 10,
+    "attrs": [
+      "Estimate|Total|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below p",
+      "Children in poverty"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 91.2
+  },
+  {
+    "id": "w-point-in-time",
+    "query": "What was the unemployment rate in 2009?",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "load->output",
+    "intent": "Unemployment rate data for 2009 is not available in the provided attributes; the closest available data is from 2000 (a1)",
+    "rows": 3214,
+    "attrs": [
+      "Unemployment_rate"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 38.5
+  },
+  {
+    "id": "w-near-city",
+    "query": "What are the poverty rates around Detroit?",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "load->filter_place->output",
+    "intent": "Poverty rate in counties around Detroit, Michigan",
+    "rows": 6,
+    "attrs": [
+      "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 71.6
+  },
+  {
+    "id": "w-state-plain",
+    "query": "Show me health insurance coverage in Florida",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "load->filter_area->output",
+    "intent": "Health insurance coverage percentage in each county of Florida",
+    "rows": 67,
+    "attrs": [
+      "Percent Estimate!!HEALTH INSURANCE COVERAGE!!Civilian noninstitutional"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 16.6
+  },
+  {
+    "id": "w-distance",
+    "query": "How far do people in rural counties have to drive to a hospital?",
+    "note": "'rural' again; the distance part is supported",
+    "outcome": "ROWS",
+    "ops": "nearest_distance->output",
+    "intent": "How far do people in rural counties have to drive to a hospital?",
+    "rows": 3233,
+    "attrs": [
+      "Hospitals (mapped locations)"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 78.4
+  },
+  {
+    "id": "w-locations-plain",
+    "query": "Where are all the fire stations in Colorado?",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "select_features->output",
+    "intent": "Locations of fire stations in Colorado",
+    "rows": 858,
+    "attrs": [
+      "Fire Stations (mapped locations)"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 10.7
+  },
+  {
+    "id": "w-hotspot-plain",
+    "query": "Are there parts of the country where diabetes is unusually common?",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "load->outlier->output",
+    "intent": "Counties where diabetes prevalence is statistically unusual compared to other counties",
+    "rows": 73,
+    "attrs": [
+      "Diagnosed diabetes among adults (crude prevalence) (covers 2,957 count"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 11.5
+  },
+  {
+    "id": "w-outlier-plain",
+    "query": "Which counties don't fit the pattern for income?",
+    "note": null,
+    "outcome": "ROWS",
+    "ops": "load->aggregate->filter_attr->output",
+    "intent": "Counties where income deviates from the general pattern",
+    "rows": 1524,
+    "attrs": [
+      "Estimate|Total|INCOME IN THE PAST 12 MONTHS (IN 2018 INFLATION-ADJUSTE"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 29.4
+  },
+  {
+    "id": "w-vague",
+    "query": "Tell me about poverty",
+    "note": "no geography, no verb; should still produce something or explain why",
+    "outcome": "ROWS",
+    "ops": "load->output",
+    "intent": "Overview of poverty status across counties using the percentage of households below poverty level",
+    "rows": 3221,
+    "attrs": [
+      "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 13.8
+  },
+  {
+    "id": "w-best-place",
+    "query": "Which county is the best place to live?",
+    "note": "subjective; no single attribute answers it",
+    "outcome": "ROWS",
+    "ops": "load->rank->output",
+    "intent": "The county with the highest median household income, indicating a better place to live",
+    "rows": 1,
+    "attrs": [
+      "Median household income"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 24.8
+  },
+  {
+    "id": "w-out-of-scope",
+    "query": "What is the average rainfall by county?",
+    "note": "no climate data loaded; should fail clearly, not invent",
+    "outcome": "NO_PLAN",
+    "ops": "",
+    "intent": null,
+    "rows": null,
+    "attrs": [],
+    "error": "no analysis could be built from the available data",
+    "exec_error": null,
+    "layers": null,
+    "seconds": 46.5
+  },
+  {
+    "id": "w-not-geographic",
+    "query": "How many people live in the United States?",
+    "note": "a single national number, not a map",
+    "outcome": "ROWS",
+    "ops": "load->aggregate->output",
+    "intent": "Total population of the United States",
+    "rows": 1,
+    "attrs": [
+      "Population"
+    ],
+    "error": null,
+    "exec_error": null,
+    "layers": null,
+    "seconds": 7.7
+  }
+]

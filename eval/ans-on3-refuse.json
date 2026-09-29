@@ -1,0 +1,125 @@
+{
+  "relevance_check": "on",
+  "catch_rate": 0.9,
+  "honest_refusal_rate": 0.9,
+  "false_refusal_rate": 0.0,
+  "rows": [
+    {
+      "id": "r-rainfall",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [
+        "Reading scores (covers 2,917 counties)"
+      ],
+      "error": "the loaded data does not measure what this question asks about",
+      "seconds": 36.4
+    },
+    {
+      "id": "r-snowfall",
+      "expect": "refuse",
+      "outcome": "answered",
+      "correct": false,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Adverse Climate Events"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.6
+    },
+    {
+      "id": "r-dogs",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 15.8
+    },
+    {
+      "id": "r-milk",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 35.7
+    },
+    {
+      "id": "r-mars",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 39.7
+    },
+    {
+      "id": "r-sharks",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 15.9
+    },
+    {
+      "id": "r-bitcoin",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 24.5
+    },
+    {
+      "id": "r-football",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 33.0
+    },
+    {
+      "id": "r-sourdough",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 36.5
+    },
+    {
+      "id": "r-latin",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "no analysis could be built from the available data",
+      "seconds": 17.0
+    }
+  ]
+}

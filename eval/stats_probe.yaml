@@ -1,0 +1,55 @@
+queries:
+- id: hotspot-poverty#1
+  query: where are the hot spots of poverty
+  expect_op: hotspot
+  forbid_op: select_features
+- id: hotspot-clusters#1
+  query: show me clusters of counties with high uninsured rates
+  expect_op: hotspot
+- id: outlier-income#1
+  query: which counties are outliers for median household income
+  expect_op: outlier
+  forbid_op: rank
+- id: combine-difference#1
+  query: the difference between the poverty rate and the unemployment rate
+  expect_op: combine
+- id: stats-control-rank#1
+  query: the 10 counties with the highest poverty rate
+  expect_op: rank
+  forbid_op: hotspot
+- id: hotspot-poverty#2
+  query: where are the hot spots of poverty
+  expect_op: hotspot
+  forbid_op: select_features
+- id: hotspot-clusters#2
+  query: show me clusters of counties with high uninsured rates
+  expect_op: hotspot
+- id: outlier-income#2
+  query: which counties are outliers for median household income
+  expect_op: outlier
+  forbid_op: rank
+- id: combine-difference#2
+  query: the difference between the poverty rate and the unemployment rate
+  expect_op: combine
+- id: stats-control-rank#2
+  query: the 10 counties with the highest poverty rate
+  expect_op: rank
+  forbid_op: hotspot
+- id: hotspot-poverty#3
+  query: where are the hot spots of poverty
+  expect_op: hotspot
+  forbid_op: select_features
+- id: hotspot-clusters#3
+  query: show me clusters of counties with high uninsured rates
+  expect_op: hotspot
+- id: outlier-income#3
+  query: which counties are outliers for median household income
+  expect_op: outlier
+  forbid_op: rank
+- id: combine-difference#3
+  query: the difference between the poverty rate and the unemployment rate
+  expect_op: combine
+- id: stats-control-rank#3
+  query: the 10 counties with the highest poverty rate
+  expect_op: rank
+  forbid_op: hotspot

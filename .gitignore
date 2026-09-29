@@ -7,7 +7,7 @@ venv/
 myEnv/
 env/
 geospatial_database_data/
-
+searchImprovement/
 # ---- secrets ----
 .env
 .env.local

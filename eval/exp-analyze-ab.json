@@ -1,0 +1,185 @@
+{
+ "exp-chd|False": {
+  "ops": [
+   "load",
+   "output"
+  ],
+  "used": [
+   "pri:Coronary heart disease among adults (crude pr"
+  ],
+  "n_expanded_candidates": 0,
+  "error": null
+ },
+ "exp-chd|True": {
+  "ops": [
+   "load",
+   "output"
+  ],
+  "used": [
+   "pri:Coronary heart disease among adults (crude pr"
+  ],
+  "n_expanded_candidates": 4,
+  "error": null
+ },
+ "exp-asthma|False": {
+  "ops": [
+   "load",
+   "output"
+  ],
+  "used": [
+   "pri:Current asthma among adults (age-adjusted pre"
+  ],
+  "n_expanded_candidates": 0,
+  "error": null
+ },
+ "exp-asthma|True": {
+  "ops": [
+   "load",
+   "output"
+  ],
+  "used": [
+   "pri:Current asthma among adults (age-adjusted pre"
+  ],
+  "n_expanded_candidates": 4,
+  "error": null
+ },
+ "exp-copd|False": {
+  "ops": [
+   "load",
+   "rank",
+   "output"
+  ],
+  "used": [
+   "pri:Chronic obstructive pulmonary disease among a"
+  ],
+  "n_expanded_candidates": 0,
+  "error": null
+ },
+ "exp-copd|True": {
+  "ops": [
+   "load",
+   "rank",
+   "output"
+  ],
+  "used": [
+   "pri:Chronic obstructive pulmonary disease among a"
+  ],
+  "n_expanded_candidates": 4,
+  "error": null
+ },
+ "exp-diabetes|False": {
+  "ops": [
+   "load",
+   "filter_area",
+   "output"
+  ],
+  "used": [
+   "pri:Diabetes prevalence"
+  ],
+  "n_expanded_candidates": 0,
+  "error": null
+ },
+ "exp-diabetes|True": {
+  "ops": [
+   "load",
+   "filter_area",
+   "output"
+  ],
+  "used": [
+   "pri:Diabetes prevalence"
+  ],
+  "n_expanded_candidates": 2,
+  "error": null
+ },
+ "exp-stroke|False": {
+  "ops": [
+   "load",
+   "output"
+  ],
+  "used": [
+   "pri:Stroke among adults (crude prevalence) (cover"
+  ],
+  "n_expanded_candidates": 0,
+  "error": null
+ },
+ "exp-stroke|True": {
+  "ops": [
+   "load",
+   "output"
+  ],
+  "used": [
+   "pri:Stroke among adults (crude prevalence) (cover"
+  ],
+  "n_expanded_candidates": 4,
+  "error": null
+ },
+ "exp-obesity|False": {
+  "ops": [
+   "load",
+   "filter_area",
+   "output"
+  ],
+  "used": [
+   "pri:Obesity among adults (crude prevalence) (cove"
+  ],
+  "n_expanded_candidates": 0,
+  "error": null
+ },
+ "exp-obesity|True": {
+  "ops": [
+   "load",
+   "filter_area",
+   "output"
+  ],
+  "used": [
+   "pri:Obesity among adults (crude prevalence) (cove"
+  ],
+  "n_expanded_candidates": 5,
+  "error": null
+ },
+ "exp-lung-cancer|False": {
+  "ops": [
+   "load",
+   "output"
+  ],
+  "used": [
+   "pri:Cancer (non-skin) or melanoma among adults (c"
+  ],
+  "n_expanded_candidates": 0,
+  "error": null
+ },
+ "exp-lung-cancer|True": {
+  "ops": [
+   "load",
+   "filter_attr",
+   "output"
+  ],
+  "used": [
+   "pri:Cancer (non-skin) or melanoma among adults (c"
+  ],
+  "n_expanded_candidates": 1,
+  "error": null
+ },
+ "exp-hypertension|False": {
+  "ops": [
+   "load",
+   "output"
+  ],
+  "used": [
+   "pri:High blood pressure among adults (crude preva"
+  ],
+  "n_expanded_candidates": 0,
+  "error": null
+ },
+ "exp-hypertension|True": {
+  "ops": [
+   "load",
+   "output"
+  ],
+  "used": [
+   "pri:High blood pressure among adults (crude preva"
+  ],
+  "n_expanded_candidates": 4,
+  "error": null
+ }
+}

@@ -138,3 +138,45 @@ queries:
   - id: filtered-locations
     query: "where are the open critical access hospitals in Missouri"
     expect_op: select_features
+
+  # ---------------------------------------------------------------- statistics
+  #
+  # These four are the op-budget test as much as a correctness test. hotspot,
+  # outlier and combine are all gated on the question's PHRASING, so they are
+  # absent from the decision space for every query above this block -- which is
+  # the design that is supposed to let them be added without moving the earlier
+  # numbers. If op_appropriateness falls on the pre-existing queries, the gate
+  # leaked; if it falls only here, the ops are offered but not understood. The
+  # two failures need different fixes, which is why it is worth telling them
+  # apart.
+  - id: hotspot-poverty
+    query: "where are the hot spots of poverty"
+    expect_op: hotspot
+    forbid_op: select_features
+
+  # KNOWN RETRIEVAL FAILURE, kept deliberately. 0/3 on repeat, and the cause is
+  # not the planner: retrieval returns six facility layers (biodiesel plants,
+  # crushed stone operations) and no health-insurance attribute at all, so the
+  # model correctly emits no steps. The same question as
+  # "where are the hot spots of people without health insurance" retrieves 10
+  # correct ACS attributes and plans load -> hotspot -> output every time.
+  # The word "clusters" is what derails it. Same family as density-per-area.
+  - id: hotspot-clusters
+    query: "show me clusters of counties with high uninsured rates"
+    expect_op: hotspot
+
+  - id: outlier-income
+    query: "which counties are outliers for median household income"
+    expect_op: outlier
+    forbid_op: rank
+
+  - id: combine-difference
+    query: "the difference between the poverty rate and the unemployment rate"
+    expect_op: combine
+
+  # The control. Ordinary phrasing that must NOT reach for a statistics op just
+  # because one now exists: "highest" is rank, not hotspot, and not outlier.
+  - id: stats-control-rank
+    query: "the 10 counties with the highest poverty rate"
+    expect_op: rank
+    forbid_op: hotspot
