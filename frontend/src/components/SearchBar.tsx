@@ -43,7 +43,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Describe the geospatial data you need in plain English..."
-            className="w-full pl-12 pr-32 py-4 text-lg border-2 border-slate-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-200 bg-white shadow-lg"
+            className="w-full pl-12 pr-32 py-4 text-lg border-2 border-slate-200 rounded-2xl focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none transition-all duration-200 bg-white shadow-lg"
             disabled={isLoading}
           />
           
@@ -51,7 +51,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => {
             <button
               type="submit"
               disabled={!query.trim() || isLoading}
-              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-xl hover:from-blue-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+              className="px-6 py-2 bg-gradient-to-r from-brand-600 to-brand-500 text-white rounded-xl hover:from-brand-700 hover:to-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
             >
               {isLoading ? 'Searching...' : 'Search'}
             </button>
@@ -61,7 +61,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => {
 
       {/* AI-Powered Search Badge */}
       <div className="flex items-center justify-center mb-6">
-        <div className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-100 to-blue-100 text-purple-700 rounded-full text-sm font-medium">
+        <div className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-100 to-brand-100 text-purple-700 rounded-full text-sm font-medium">
           <Sparkles className="w-4 h-4" />
           <span>AI-powered natural language search</span>
         </div>

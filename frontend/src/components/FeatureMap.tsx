@@ -5,7 +5,9 @@ import type { LeafletMouseEvent, PathOptions } from 'leaflet';
 import type { Feature, Geometry } from 'geojson';
 import 'leaflet/dist/leaflet.css';
 import type { MappedFeature } from '../types';
-import { BaseLayers, MapToolbar } from './MapControls';
+import {
+  BaseLayers, MapToolbar, StageZoom, fitOptions, type FitPadding, type MapVariant,
+} from './MapControls';
 import { basemapById, loadBasemapId, saveBasemapId } from '../lib/basemaps';
 import { useIsDark } from '../hooks/useIsDark';
 
@@ -33,6 +35,9 @@ interface Props {
   features: MappedFeature[];
   /** Names the layer, so the map says what it is showing. */
   intent: string;
+  /** `stage` fills the parent and floats its controls; see MapVariant. */
+  variant?: MapVariant;
+  fitPadding?: FitPadding;
 }
 
 /**
@@ -45,7 +50,8 @@ interface Props {
 const FitToFeatures: React.FC<{
   data: GeoJSON.FeatureCollection;
   signature: string;
-}> = ({ data, signature }) => {
+  padding?: FitPadding;
+}> = ({ data, signature, padding }) => {
   const map = useMap();
   const fitted = useRef<string | null>(null);
 
@@ -55,10 +61,10 @@ const FitToFeatures: React.FC<{
     // A single point yields a zero-area bounds that fitBounds would zoom to
     // maximum; pad it to something readable instead.
     if (bounds.isValid()) {
-      map.fitBounds(bounds.pad(0.15), { maxZoom: 13 });
+      map.fitBounds(bounds.pad(0.15), { maxZoom: 13, ...fitOptions(padding, 0) });
       fitted.current = signature;
     }
-  }, [data, signature, map]);
+  }, [data, signature, map, padding]);
 
   return null;
 };
@@ -67,7 +73,11 @@ const escapeHtml = (s: string): string =>
   s.replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
-const FeatureMap: React.FC<Props> = ({ features, intent }) => {
+const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fitPadding }) => {
+  const stage = variant === 'stage';
+  const mapRef = useRef<L.Map | null>(null);
+  // Bumped by the stage's reset button; see ChoroplethMap.
+  const [refit, setRefit] = useState(0);
   const isDark = useIsDark();
   const accent = isDark ? ACCENT_DARK : ACCENT;
   const surface = isDark ? SURFACE_DARK : SURFACE;
@@ -90,8 +100,8 @@ const FeatureMap: React.FC<Props> = ({ features, intent }) => {
   }, [features]);
 
   const fitSignature = useMemo(
-    () => `${features.length}:${JSON.stringify(features[0]?.geometry ?? null).slice(0, 60)}`,
-    [features]);
+    () => `${features.length}:${JSON.stringify(features[0]?.geometry ?? null).slice(0, 60)}:${refit}`,
+    [features, refit]);
 
   const style = useCallback((): PathOptions => ({
     color: accent,
@@ -181,8 +191,8 @@ const FeatureMap: React.FC<Props> = ({ features, intent }) => {
 
   if (!features.length) {
     return (
-      <div className="h-[420px] flex items-center justify-center text-sm
-                      text-slate-500 bg-slate-50 rounded-lg">
+      <div className={`${stage ? 'absolute inset-0' : 'h-[420px] rounded-lg'} flex items-center
+                       justify-center text-sm text-slate-500 bg-slate-50`}>
         No locations matched.
       </div>
     );
@@ -192,66 +202,106 @@ const FeatureMap: React.FC<Props> = ({ features, intent }) => {
     ? Object.entries(hovered).filter(([, v]) => v !== null && v !== '')
     : [];
 
+  const toolbar = (className?: string) => (
+    <MapToolbar
+      basemapId={basemapId}
+      onBasemap={chooseBasemap}
+      opacity={opacity}
+      onOpacity={setOpacity}
+      opacityLabel="Location marker"
+      className={className}
+    />
+  );
+
+  const map = (
+    <MapContainer
+      ref={mapRef}
+      center={[39.5, -98.35]}
+      zoom={4}
+      scrollWheelZoom
+      zoomControl={!stage}
+      style={{ height: '100%', width: '100%' }}
+    >
+      <BaseLayers basemap={basemap} />
+      <GeoJSON
+        key={`${features.length}-${isDark}`}
+        ref={geoRef as never}
+        data={collection}
+        style={style}
+        pointToLayer={pointToLayer}
+        onEachFeature={onEachFeature}
+        eventHandlers={{ mouseover: onMouseOver, mouseout: clearHover }}
+      />
+      <FitToFeatures data={collection} signature={fitSignature} padding={fitPadding} />
+    </MapContainer>
+  );
+
+  const readoutBox = readout.length > 0 && (
+    <div className={`pointer-events-none px-3 py-2 max-w-[15rem] ${stage
+      ? 'glass glass-raised rounded-xl'
+      : 'absolute top-2.5 right-2.5 z-[500] bg-white/95 backdrop-blur-sm border border-slate-200 rounded-lg shadow-sm'}`}>
+      {hovered?.name && (
+        <p className="text-sm font-semibold text-slate-800 leading-tight mb-0.5">
+          {hovered.name}
+        </p>
+      )}
+      {readout.filter(([k]) => k !== 'name').slice(0, 4).map(([k, v]) => (
+        <p key={k} className="text-xs leading-snug text-slate-600">
+          <span className="text-slate-400 capitalize">{k}: </span>{v}
+        </p>
+      ))}
+      <p className="text-[11px] text-slate-400 mt-1">Click for all details</p>
+    </div>
+  );
+
+  const caption = (
+    <>
+      <p className="text-xs font-medium text-slate-700">{intent}</p>
+      <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+        <span className="inline-block w-3 h-3 rounded-full border border-white shadow-sm"
+              style={{ backgroundColor: accent }} />
+        {features.length.toLocaleString()} location{features.length === 1 ? '' : 's'}
+        {kinds.length ? ` · ${kinds.join(', ').toLowerCase()}` : ''}
+      </span>
+    </>
+  );
+
+  if (stage) {
+    return (
+      <div className="absolute inset-0" onMouseLeave={clearHover}>
+        {map}
+        <div className="absolute right-3 z-[600] flex flex-col items-end gap-2 pointer-events-none
+                        max-w-[calc(100vw-1.5rem)]"
+             style={{ top: 'var(--header-offset)' }}>
+          <div className="pointer-events-auto glass glass-raisable glass-floor rounded-2xl px-3 py-2">
+            {toolbar('flex flex-wrap items-center justify-end gap-x-3 gap-y-2')}
+          </div>
+          <StageZoom mapRef={mapRef} onReset={() => setRefit(n => n + 1)} />
+          {readoutBox}
+        </div>
+        <div className="absolute right-3 z-[600] glass glass-raisable glass-floor rounded-2xl px-3.5 py-2.5
+                        flex flex-col gap-1 max-w-[min(28rem,calc(100vw-1.5rem))]"
+             style={{ bottom: 'calc(var(--stage-bottom-inset, 0px) + 1.75rem)' }}>
+          {caption}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <MapToolbar
-        basemapId={basemapId}
-        onBasemap={chooseBasemap}
-        opacity={opacity}
-        onOpacity={setOpacity}
-        opacityLabel="Location marker"
-      />
+      {toolbar()}
 
       <div
         className="relative h-[420px] rounded-lg overflow-hidden border border-slate-200"
         onMouseLeave={clearHover}
       >
-        <MapContainer
-          center={[39.5, -98.35]}
-          zoom={4}
-          scrollWheelZoom
-          style={{ height: '100%', width: '100%' }}
-        >
-          <BaseLayers basemap={basemap} />
-          <GeoJSON
-            key={`${features.length}-${isDark}`}
-            ref={geoRef as never}
-            data={collection}
-            style={style}
-            pointToLayer={pointToLayer}
-            onEachFeature={onEachFeature}
-            eventHandlers={{ mouseover: onMouseOver, mouseout: clearHover }}
-          />
-          <FitToFeatures data={collection} signature={fitSignature} />
-        </MapContainer>
-
-        {readout.length > 0 && (
-          <div className="absolute top-2.5 right-2.5 z-[500] pointer-events-none
-                          bg-white/95 backdrop-blur-sm border border-slate-200
-                          rounded-lg shadow-sm px-3 py-2 max-w-[15rem]">
-            {hovered?.name && (
-              <p className="text-sm font-semibold text-slate-800 leading-tight mb-0.5">
-                {hovered.name}
-              </p>
-            )}
-            {readout.filter(([k]) => k !== 'name').slice(0, 4).map(([k, v]) => (
-              <p key={k} className="text-xs leading-snug text-slate-600">
-                <span className="text-slate-400 capitalize">{k}: </span>{v}
-              </p>
-            ))}
-            <p className="text-[11px] text-slate-400 mt-1">Click for all details</p>
-          </div>
-        )}
+        {map}
+        {readoutBox}
       </div>
 
       <div className="mt-3 flex items-center gap-x-4 gap-y-1.5 flex-wrap">
-        <p className="text-xs font-medium text-slate-600">{intent}</p>
-        <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
-          <span className="inline-block w-3 h-3 rounded-full border border-white shadow-sm"
-                style={{ backgroundColor: accent }} />
-          {features.length.toLocaleString()} location{features.length === 1 ? '' : 's'}
-          {kinds.length ? ` · ${kinds.join(', ').toLowerCase()}` : ''}
-        </span>
+        {caption}
       </div>
     </div>
   );

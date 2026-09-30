@@ -44,9 +44,9 @@ const Chip: React.FC<{
     title={title}
     className={`inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border transition-colors
       disabled:opacity-40 disabled:cursor-not-allowed
-      ${active ? 'bg-blue-600 border-blue-600 text-white'
+      ${active ? 'bg-brand-600 border-brand-600 text-white'
         : tone === 'remove' ? 'bg-slate-50 border-slate-300 text-slate-700 hover:border-red-300 hover:text-red-700'
-        : 'bg-white border-slate-200 text-slate-700 hover:border-blue-400 hover:text-blue-700'}`}
+        : 'bg-white border-slate-200 text-slate-700 hover:border-brand-400 hover:text-brand-700'}`}
   >
     {children}
   </button>
@@ -75,7 +75,7 @@ const FollowUpBar: React.FC<Props> = ({
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
       <div className="flex items-baseline gap-2 flex-wrap">
         <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-blue-600" /> Keep going
+          <Sparkles className="w-4 h-4 text-brand-600" /> Keep going
         </h3>
         <span className="text-xs text-slate-500">
           {result
@@ -236,7 +236,7 @@ const MiniButton: React.FC<{ onClick: () => void; disabled?: boolean; children: 
   ({ onClick, disabled, children }) => (
     <button type="button" onClick={onClick} disabled={disabled}
             className="text-xs px-2.5 py-1 rounded-md border border-slate-300 bg-white text-slate-700
-                       hover:border-blue-400 hover:text-blue-700 disabled:opacity-40">
+                       hover:border-brand-400 hover:text-brand-700 disabled:opacity-40">
       {children}
     </button>
   );
@@ -269,7 +269,7 @@ const AreaPicker: React.FC<{ onPick: (states: string[]) => void; onClose: () => 
         <div className="flex flex-col gap-2">
           <span className="text-xs text-slate-500">Ctrl/⌘-click for several.</span>
           <button type="button" disabled={!chosen.length} onClick={() => onPick(chosen)}
-                  className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 text-white disabled:bg-slate-300">
+                  className="text-sm px-3 py-1.5 rounded-lg bg-brand-600 text-white disabled:bg-slate-300">
             Restrict to {chosen.length ? `${chosen.length} state${chosen.length > 1 ? 's' : ''}` : '…'}
           </button>
         </div>
@@ -400,7 +400,7 @@ const MeasurePanel: React.FC<{
         <input value={q} onChange={e => setQ(e.target.value)}
                placeholder="Search the catalog, e.g. unemployment rate"
                className="flex-1 min-w-0 text-sm px-3 py-1.5 rounded-lg border border-slate-300
-                          focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          focus:outline-none focus:ring-2 focus:ring-brand-500" />
         <button type="submit" disabled={searching || !q.trim()}
                 className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 bg-white
                            hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1.5">

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Globe, Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 
 /**
  * Access gate.
@@ -85,15 +85,9 @@ const LoginGate: React.FC<Props> = ({ children }) => {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-11 h-11 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg
-                          flex items-center justify-center">
-            <Globe className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-800">GeoARK</h1>
-            <p className="text-xs text-slate-500">Geospatial Data Platform</p>
-          </div>
+        <div className="mb-6">
+          <h1><img src="/brand/geoark-dark.webp" alt="GeoARK" className="h-9 w-auto" /></h1>
+          <p className="text-xs text-slate-500 mt-2">Geospatial analysis from plain-language questions</p>
         </div>
 
         <form
@@ -113,7 +107,7 @@ const LoginGate: React.FC<Props> = ({ children }) => {
               disabled={submitting}
               autoFocus
               className="w-full px-3 py-2 rounded-lg border border-slate-300
-                         focus:outline-none focus:ring-2 focus:ring-blue-500
+                         focus:outline-none focus:ring-2 focus:ring-brand-500
                          focus:border-transparent disabled:bg-slate-50"
             />
             <p className="text-xs text-slate-500 mt-1.5">
@@ -132,8 +126,8 @@ const LoginGate: React.FC<Props> = ({ children }) => {
           <button
             type="submit"
             disabled={submitting || !code.trim()}
-            className="w-full py-2.5 rounded-lg bg-blue-600 text-white font-medium
-                       hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed
+            className="w-full py-2.5 rounded-lg bg-brand-600 text-white font-medium
+                       hover:bg-brand-700 disabled:bg-slate-300 disabled:cursor-not-allowed
                        transition-colors flex items-center justify-center gap-2"
           >
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}

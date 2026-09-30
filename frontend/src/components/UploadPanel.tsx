@@ -133,7 +133,7 @@ const UploadPanel: React.FC<Props> = ({ onAdd, onClose }) => {
           onDrop={onDrop}
           className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed
                       px-4 py-8 cursor-pointer transition-colors
-                      ${dragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-blue-400'}`}
+                      ${dragging ? 'border-brand-500 bg-brand-50' : 'border-slate-300 hover:border-brand-400'}`}
         >
           {busy ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
                 : <Upload className="w-6 h-6 text-slate-400" />}
@@ -165,7 +165,7 @@ const UploadPanel: React.FC<Props> = ({ onAdd, onClose }) => {
               const on = draft.selected.has(col);
               const rate = p.fips.length ? p.matched / p.fips.length : 0;
               return (
-                <li key={col} className={`rounded-lg border p-3 ${on ? 'border-blue-300 bg-blue-50/40' : 'border-slate-200'}`}>
+                <li key={col} className={`rounded-lg border p-3 ${on ? 'border-brand-300 bg-brand-50/40' : 'border-slate-200'}`}>
                   <label className="flex items-start gap-2">
                     <input type="checkbox" checked={on} className="mt-1"
                            onChange={() => setDraft(d => {
@@ -210,7 +210,7 @@ const UploadPanel: React.FC<Props> = ({ onAdd, onClose }) => {
               Choose another file
             </button>
             <button type="button" onClick={commit} disabled={!draft.selected.size}
-                    className="text-sm px-4 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700
+                    className="text-sm px-4 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700
                                disabled:bg-slate-300">
               Add {draft.selected.size > 1 ? `${draft.selected.size} measures` : 'measure'}
             </button>

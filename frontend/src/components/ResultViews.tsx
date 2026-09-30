@@ -30,9 +30,11 @@ export const ViewTabs: React.FC<{
   active: ViewKind;
   suggested: ViewKind;
   onChange: (v: ViewKind) => void;
-}> = ({ active, suggested, onChange }) => (
+  /** Views not offered here, e.g. the map when it is already full-screen. */
+  omit?: ViewKind[];
+}> = ({ active, suggested, onChange, omit }) => (
   <div className="flex rounded-lg border border-slate-300 overflow-hidden w-fit">
-    {TABS.map(({ id, label, icon: Icon }) => (
+    {TABS.filter(t => !omit?.includes(t.id)).map(({ id, label, icon: Icon }) => (
       <button
         key={id}
         type="button"
@@ -41,7 +43,7 @@ export const ViewTabs: React.FC<{
         title={id === suggested ? `${label} — what the plan asked for` : label}
         className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors
                     border-r border-slate-300 last:border-r-0 ${
-          active === id ? 'bg-blue-600 text-white'
+          active === id ? 'bg-brand-600 text-white'
                         : 'bg-white text-slate-600 hover:bg-slate-50'
         }`}
       >
@@ -50,7 +52,7 @@ export const ViewTabs: React.FC<{
         {/* Marks the planner's own choice, so a user can tell what the
             analysis intended from what they are currently looking at. */}
         {id === suggested && active !== id && (
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" aria-hidden />
+          <span className="w-1.5 h-1.5 rounded-full bg-brand-500" aria-hidden />
         )}
       </button>
     ))}
@@ -189,7 +191,7 @@ export const ChartView: React.FC<{
               <span className="flex-1 relative h-4 bg-slate-100 rounded-sm overflow-hidden">
                 <span
                   className={`absolute top-0 bottom-0 rounded-sm ${
-                    n < 0 ? 'bg-rose-500' : 'bg-blue-600'}`}
+                    n < 0 ? 'bg-rose-500' : 'bg-brand-600'}`}
                   style={{ left: `${left}%`, width: `${Math.max(w, 0.6)}%` }}
                 />
               </span>

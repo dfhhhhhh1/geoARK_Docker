@@ -14,7 +14,7 @@ import type { AnalysisResponse, FollowUpEdit, MappedFeature } from '../types';
 import {
   download, slug, toCsv, toGeoJson, toMarkdownReport, toBundle,
 } from '../lib/exports';
-import { deriveSeries } from '../lib/series';
+import { deriveSeries, outcomeLabelOf, stripCoverage } from '../lib/series';
 import { OP_LABEL } from '../lib/ops';
 import {
   ViewTabs, ChartView, StatisticsView, suggestedView, type ViewKind,
@@ -28,18 +28,26 @@ import {
  *
  * `view` is owned by the caller so a tab the user picked survives across turns.
  */
-/** "(covers 2,957 counties)" rides on every PLACES name; the table says it already. */
-const stripCoverage = (d: string) => d.replace(/\s*\(covers [\d,]+ counties\)/i, '');
-
 interface Props {
   result: AnalysisResponse;
   view: ViewKind | null;
   onViewChange: (v: ViewKind) => void;
   /** Apply a follow-up edit to this result. */
   onEdit: (edit: FollowUpEdit, userText?: string) => void;
+  /**
+   * The map is drawn full-screen behind the page (MapStage) rather than in
+   * here. This block then carries everything else -- tables, chart, summary,
+   * exports, the report -- in one narrow column, and a county picked in a
+   * table is handed up so the stage map can zoom to it.
+   */
+  stage?: boolean;
+  onPick?: (fips: string) => void;
+  selectedFips?: string | null;
 }
 
-const ResultBlock: React.FC<Props> = ({ result, view, onViewChange, onEdit }) => {
+const ResultBlock: React.FC<Props> = ({
+  result, view, onViewChange, onEdit, stage = false, onPick, selectedFips = null,
+}) => {
   const [exporting, setExporting] = useState(false);
   const setView = onViewChange;
   // A county picked in the table, for the map to zoom to.
@@ -71,9 +79,13 @@ const ResultBlock: React.FC<Props> = ({ result, view, onViewChange, onEdit }) =>
   const layers = result.layers ?? [];
   // The user's tab wins once they have chosen one; otherwise follow the plan.
   const activeView: ViewKind = view ?? suggestedView(result);
+  // On the stage the map is always showing, behind everything, so it is not a
+  // tab: "map" reads as the county list that goes with it.
+  const shownView: ViewKind = stage && activeView === 'map' ? 'table' : activeView;
+  const selected = stage ? selectedFips : focus?.fips ?? null;
 
   /** Table click: show the map if another tab is up, then zoom to the county. */
-  const pick = (fips: string) => {
+  const pick = stage ? (fips: string) => onPick?.(fips) : (fips: string) => {
     if (countyViews && activeView !== 'map') setView('map');
     setFocus({ fips, nonce: Date.now() });
     // After the tab switch has rendered, or the map box may still be hidden.
@@ -82,23 +94,7 @@ const ResultBlock: React.FC<Props> = ({ result, view, onViewChange, onEdit }) =>
   // Any county map can be zoomed from the table; a feature layer has no counties.
   const canFocus = !isFeatures;
 
-  // explain: name the OUTCOME, walking back from the explain step to the
-  // attribute it loads. The generic series label falls back to the plan's
-  // whole intent, which reads as a sentence about factors, not a measure.
-  const outcomeLabel = React.useMemo(() => {
-    if (!isFactors) return null;
-    const steps = result.plan.steps;
-    let st = steps.find(x => x.op === 'explain');
-    const seen = new Set<string>();
-    while (st && !st.attr_id && st.inputs?.[0] && !seen.has(st.id)) {
-      seen.add(st.id);
-      st = steps.find(x => x.id === st!.inputs[0]);
-    }
-    const id = st?.attr_id;
-    const desc = result.provenance?.attribute_origins.find(o => o.attr_id === id)?.description
-      ?? result.candidates?.find(c => c.attr_id === id)?.attr_desc;
-    return desc ? stripCoverage(desc) : null;
-  }, [isFactors, result]);
+  const outcomeLabel = React.useMemo(() => outcomeLabelOf(result), [result]);
 
   /**
    * GeoJSON export joins values to the local county boundaries, the same source
@@ -135,8 +131,8 @@ const ResultBlock: React.FC<Props> = ({ result, view, onViewChange, onEdit }) =>
         />
       )}
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <div className={stage ? 'space-y-4' : 'grid lg:grid-cols-2 gap-6'}>
+        <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${stage ? 'p-4' : 'p-6'}`}>
           <div className="flex items-start justify-between mb-4 gap-3">
             <h3 className="text-lg font-semibold text-slate-800 shrink-0">Result</h3>
             {/* Every export carries the provenance block: the CSV as `#`
@@ -173,9 +169,10 @@ const ResultBlock: React.FC<Props> = ({ result, view, onViewChange, onEdit }) =>
           {countyViews && (
             <div className="mb-4">
               <ViewTabs
-                active={activeView}
-                suggested={suggestedView(result)}
+                active={shownView}
+                suggested={stage && suggestedView(result) === 'map' ? 'table' : suggestedView(result)}
                 onChange={setView}
+                omit={stage ? ['map'] : undefined}
               />
             </div>
           )}
@@ -184,16 +181,16 @@ const ResultBlock: React.FC<Props> = ({ result, view, onViewChange, onEdit }) =>
               not. Unmounting it destroys the Leaflet instance, and coming
               back rebuilds it at the default national zoom -- so it stays
               mounted and hides itself via the `visible` prop. */}
-          {countyViews && activeView === 'chart' && (
+          {countyViews && shownView === 'chart' && (
             <ChartView rows={rows} series={series}
                        valueLabel={result.value_label ?? null} />
           )}
-          {countyViews && activeView === 'statistics' && (
+          {countyViews && shownView === 'statistics' && (
             <StatisticsView rows={rows} series={series} />
           )}
-          {countyViews && activeView === 'table' && (
-            <CountyTable rows={rows} series={series} heightClass="max-h-[420px]"
-                         onPick={canFocus ? pick : undefined} selected={focus?.fips ?? null} />
+          {countyViews && shownView === 'table' && (
+            <CountyTable rows={rows} series={series} heightClass={stage ? 'max-h-80' : 'max-h-[420px]'}
+                         onPick={canFocus ? pick : undefined} selected={selected} />
           )}
           {proxies.length > 0 && (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5
@@ -224,17 +221,21 @@ const ResultBlock: React.FC<Props> = ({ result, view, onViewChange, onEdit }) =>
                   <h4 className="text-sm font-semibold text-slate-800">
                     Where it is: {outcomeLabel ?? 'the outcome'}
                   </h4>
-                  <ErrorBoundary label="the map">
-                    <div ref={mapBoxRef}>
-                    <ChoroplethMap rows={rows} intent={outcomeLabel ?? result.plan.intent}
-                                   result={result} focus={focus} />
-                    </div>
-                  </ErrorBoundary>
+                  {!stage && (
+                    <ErrorBoundary label="the map">
+                      <div ref={mapBoxRef}>
+                      <ChoroplethMap rows={rows} intent={outcomeLabel ?? result.plan.intent}
+                                     result={result} focus={focus} />
+                      </div>
+                    </ErrorBoundary>
+                  )}
                   <CountyTable rows={rows} series={[{ key: 'value', label: outcomeLabel ?? 'Value' }]} onPick={pick}
-                               selected={focus?.fips ?? null} />
+                               selected={selected} />
                 </div>
               )}
             </>
+          ) : hasRows && stage ? (
+            <StageExtras result={result} />
           ) : hasRows ? (
             <ErrorBoundary label="the map">
               {/* A plan with several `output` steps returns several layers,
@@ -287,13 +288,13 @@ const ResultBlock: React.FC<Props> = ({ result, view, onViewChange, onEdit }) =>
               {countyViews && activeView === 'map' && (
                 <div className="mt-4">
                   <CountyTable rows={rows} series={series}
-                               onPick={canFocus ? pick : undefined} selected={focus?.fips ?? null} />
+                               onPick={canFocus ? pick : undefined} selected={selected} />
                 </div>
               )}
             </ErrorBoundary>
           ) : (
-            <div className="h-[420px] flex items-center justify-center text-sm
-                            text-slate-500 bg-slate-50 rounded-lg">
+            <div className={`${stage ? 'py-8' : 'h-[420px]'} flex items-center justify-center text-sm
+                            text-slate-500 bg-slate-50 rounded-lg`}>
               {isFeatures ? 'No locations matched.' : 'No rows to map.'}
             </div>
           )}
@@ -305,7 +306,7 @@ const ResultBlock: React.FC<Props> = ({ result, view, onViewChange, onEdit }) =>
       </div>
 
       {hasRows && isFeatures && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${stage ? 'p-4' : 'p-6'}`}>
           <h3 className="text-lg font-semibold text-slate-800 mb-3">
             Locations
             <span className="ml-2 text-sm font-normal text-slate-500">
@@ -318,6 +319,46 @@ const ResultBlock: React.FC<Props> = ({ result, view, onViewChange, onEdit }) =>
 
     </div>
   );
+};
+
+/**
+ * What a stage result still needs inside the panel once its map is behind it.
+ *
+ * Only the map moved. A multi-layer plan can carry feature layers beside the
+ * values layers the stage draws, and those have their own geometry, so they
+ * keep an inline map here rather than being silently dropped.
+ */
+const StageExtras: React.FC<{ result: AnalysisResponse }> = ({ result }) => {
+  const layers = result.layers ?? [];
+  if (layers.length > 1) {
+    const hasValues = layers.some(l => l.mode === 'values');
+    const featureLayers = layers.filter(l => l.mode === 'features');
+    // With no values layer, MapStage draws the first non-empty feature layer.
+    const onStage = hasValues ? null
+      : featureLayers.find(l => (l.features?.length ?? 0) > 0)?.id ?? null;
+    return (
+      <div className="space-y-4">
+        {featureLayers.filter(l => l.id !== onStage).map(l => (
+          <div key={l.id}>
+            <p className="text-xs font-medium text-slate-500 mb-1.5">
+              Locations · {l.row_count.toLocaleString()}
+            </p>
+            <ErrorBoundary label="the map">
+              <FeatureMap features={l.features ?? []} intent={result.plan.intent} />
+            </ErrorBoundary>
+          </div>
+        ))}
+        {hasValues && (
+          <p className="text-xs text-slate-500">
+            {layers.filter(l => l.mode === 'values').length} county layers are on the map behind
+            this panel; the layer list there sets each one's visibility and opacity.
+          </p>
+        )}
+      </div>
+    );
+  }
+  // A single-layer result's county list is the Table tab.
+  return null;
 };
 
 /**

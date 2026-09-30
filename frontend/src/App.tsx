@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import Header from './components/Header';
 import SearchBar from './components/SearchBar';
 import SearchResults from './components/SearchResults';
@@ -7,6 +7,7 @@ import { Dataset, UnifiedSearchResponse } from './types';
 import ReportPage from './components/ReportPage';
 import AnalysisPage from './components/AnalysisPage';
 import LoginGate from './components/LoginGate';
+import { IdleMap } from './components/MapStage';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 function MainGeospatialPage({
@@ -36,7 +37,7 @@ function MainGeospatialPage({
         {unifiedResponse && unifiedResponse.decomposition && (
           <div className="mb-8 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <h3 className="text-lg font-semibold text-slate-800 mb-3 flex items-center gap-2">
-              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
               Query Intelligence
@@ -46,7 +47,7 @@ function MainGeospatialPage({
                 <span className="font-medium text-slate-600">Primary Concepts:</span>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {unifiedResponse.decomposition.primary_concepts.map((c: string, i: number) => (
-                    <span key={i} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">{c}</span>
+                    <span key={i} className="px-2 py-0.5 bg-brand-100 text-brand-700 rounded-full text-xs">{c}</span>
                   ))}
                 </div>
               </div>
@@ -97,7 +98,7 @@ function MainGeospatialPage({
                 <span className="text-sm text-slate-500">
                   {searchResults.length} dataset{searchResults.length !== 1 ? 's' : ''} found
                   {searchResults.length > 0 && (
-                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                    <span className="ml-2 text-xs bg-brand-100 text-brand-700 px-2 py-1 rounded-full">
                       Sorted by relevance
                     </span>
                   )}
@@ -129,8 +130,8 @@ function MainGeospatialPage({
         {searchResults.length === 0 && !searchQuery && (
           <div className="grid md:grid-cols-3 gap-8 mt-16">
             <div className="text-center p-6">
-              <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-16 h-16 mx-auto mb-4 bg-brand-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
@@ -274,60 +275,65 @@ function App() {
   return (
     <LoginGate>
     <BrowserRouter>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-        
-        <div className="fixed inset-0 opacity-5">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.1'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3Ccircle cx='53' cy='53' r='1'/%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }} />
-        </div>
+      <Header />
 
-        <div className="relative z-10">
+      <Routes>
+        {/* Analysis is the front door: it is the thing that answers a
+            question. Browsing the catalog is how you find out what can be
+            asked about. */}
+        <Route path="/" element={<Navigate replace to="/analysis" />} />
 
-          <Header />
+        {/* Full-screen: the map is the page, and everything floats over it. */}
+        <Route path="/analysis" element={<AnalysisPage />} />
 
-          <Routes>
-            {/* Analysis is the front door: it is the thing that answers a
-                question. Browsing the catalog is how you find out what can be
-                asked about. */}
-            <Route path="/" element={<Navigate replace to="/analysis" />} />
+        <Route
+          path="/data-search"
+          element={
+            <BackdropPage>
+              <MainGeospatialPage
+                searchQuery={searchQuery}
+                searchResults={searchResults}
+                isLoading={isLoading}
+                handleSearch={handleSearch}
+                setSelectedDataset={setSelectedDataset}
+                unifiedResponse={unifiedResponse}
+              />
+            </BackdropPage>
+          }
+        />
 
-            <Route path="/analysis" element={<AnalysisPage />} />
+        <Route path="/csv-report" element={<BackdropPage><ReportPage /></BackdropPage>} />
 
-            <Route
-              path="/data-search"
-              element={
-                <MainGeospatialPage
-                  searchQuery={searchQuery}
-                  searchResults={searchResults}
-                  isLoading={isLoading}
-                  handleSearch={handleSearch}
-                  setSelectedDataset={setSelectedDataset}
-                  unifiedResponse={unifiedResponse}
-                />
-              }
-            />
+        {/* /map-explorer is deliberately absent: it plotted datasets at
+            coordinates derived from a hash of their id. Anything still
+            linking to it lands on the analysis page rather than a blank. */}
+        <Route path="*" element={<Navigate replace to="/analysis" />} />
+      </Routes>
 
-            <Route path="/csv-report" element={<ReportPage />} />
-
-            {/* /map-explorer is deliberately absent: it plotted datasets at
-                coordinates derived from a hash of their id. Anything still
-                linking to it lands on the analysis page rather than a blank. */}
-            <Route path="*" element={<Navigate replace to="/analysis" />} />
-          </Routes>
-
-          {selectedDataset && (
-            <DatasetModal
-              dataset={selectedDataset}
-              onClose={() => setSelectedDataset(null)}
-            />
-          )}
-
-        </div>
-      </div>
+      {selectedDataset && (
+        <DatasetModal
+          dataset={selectedDataset}
+          onClose={() => setSelectedDataset(null)}
+        />
+      )}
     </BrowserRouter>
     </LoginGate>
   );
 }
+
+/**
+ * The pages that are documents rather than maps scroll normally, over the same
+ * map held still and washed out, so moving between them and the analysis does
+ * not feel like leaving the product.
+ */
+const BackdropPage: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <>
+    <div className="fixed inset-0 z-0 map-stage" aria-hidden>
+      <IdleMap decorative />
+      <div className="absolute inset-0 bg-[#f3f1ec]/85" />
+    </div>
+    <div className="relative z-10 pt-[var(--header-offset)] min-h-full">{children}</div>
+  </>
+);
 
 export default App;

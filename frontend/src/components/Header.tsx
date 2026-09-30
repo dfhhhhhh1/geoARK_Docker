@@ -1,9 +1,10 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Globe, Sparkles, Search, BarChart2 } from 'lucide-react';
+import { Contrast } from 'lucide-react';
+import { useLegibility } from '../hooks/useLegibility';
 
 /**
- * Site navigation.
+ * Site navigation, floating over the map as a glass bar.
  *
  * Ordered by what the product actually is: Analysis is the front door, because
  * it is the thing that answers a question. Catalog search is a way of finding
@@ -18,60 +19,67 @@ import { Globe, Sparkles, Search, BarChart2 } from 'lucide-react';
  * ones.
  */
 const NAV = [
-  { to: '/analysis', label: 'Analysis', icon: Sparkles,
-    hint: 'Ask a question, get a map' },
-  { to: '/data-search', label: 'Browse data', icon: Search,
-    hint: 'What is in the catalog' },
-  { to: '/csv-report', label: 'CSV tools', icon: BarChart2,
-    hint: 'Analyze your own file' },
+  { to: '/analysis', label: 'Analysis', short: 'Analysis', hint: 'Ask a question, get a map' },
+  { to: '/data-search', label: 'Browse data', short: 'Data', hint: 'What is in the catalog' },
+  { to: '/csv-report', label: 'CSV tools', short: 'CSV', hint: 'Analyze your own file' },
 ];
 
 const Header: React.FC = () => {
   const { pathname } = useLocation();
+  const [legible, setLegible] = useLegibility();
 
   return (
-    <header className="bg-white shadow-sm border-b border-slate-200">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <Link to="/analysis" className="flex items-center space-x-3 group">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg
-                            flex items-center justify-center">
-              <Globe className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-800 group-hover:text-blue-700
-                             transition-colors">
-                GeoARK
-              </h1>
-              <p className="text-xs text-slate-500">Geospatial Data Platform</p>
-            </div>
-          </Link>
+    <header className="fixed top-3 inset-x-3 z-[1150] h-14 rounded-2xl glass glass-raisable glass-floor
+                       flex items-center gap-2 sm:gap-3 pl-3 sm:pl-4 pr-2">
+      <Link to="/analysis" className="shrink-0 flex items-center" aria-label="GeoARK home">
+        <img src="/brand/geoark-dark.webp" alt="GeoARK" className="h-5 sm:h-7 w-auto select-none"
+             draggable={false} />
+      </Link>
 
-          <nav className="flex items-center gap-1">
-            {NAV.map(({ to, label, icon: Icon, hint }) => {
-              const active = pathname === to;
-              return (
-                <Link
-                  key={to}
-                  to={to}
-                  title={hint}
-                  aria-current={active ? 'page' : undefined}
-                  className={
-                    'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ' +
-                    'transition-colors ' +
-                    (active
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50')
-                  }
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-      </div>
+      <nav className="flex items-center gap-0.5 sm:gap-1 ml-auto sm:ml-4 min-w-0">
+        {NAV.map(({ to, label, short, hint }) => {
+          const active = pathname === to;
+          return (
+            <Link
+              key={to}
+              to={to}
+              title={hint}
+              aria-current={active ? 'page' : undefined}
+              className={
+                'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap ' +
+                'transition-colors ' +
+                (active
+                  ? 'bg-ink text-white'
+                  : 'text-slate-700 hover:text-ink hover:bg-white/60')
+              }
+            >
+              <span className="sm:hidden">{short}</span>
+              <span className="hidden sm:inline">{label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Readable mode. Glass is a real legibility cost for some people, and
+          on satellite imagery for everybody, so the way out is one click and
+          labelled, not buried in a settings page. */}
+      <button
+        type="button"
+        onClick={() => setLegible(!legible)}
+        aria-pressed={legible}
+        title={legible
+          ? 'Readable mode is on: panels are solid. Click to return to glass.'
+          : 'Readable mode: make every panel solid and higher-contrast'}
+        className={`sm:ml-auto shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium
+                    border transition-colors ${
+          legible
+            ? 'bg-ink text-white border-ink'
+            : 'border-slate-300 text-slate-700 hover:bg-white/60'}`}
+      >
+        <Contrast className="w-4 h-4" aria-hidden />
+        <span className="hidden md:inline">Readable</span>
+        <span className="sr-only md:hidden">Readable mode</span>
+      </button>
     </header>
   );
 };

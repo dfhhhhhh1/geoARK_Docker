@@ -22,13 +22,13 @@ interface Props {
 }
 
 const AmbiguityNotice: React.FC<Props> = ({ ambiguity, onNarrow }) => (
-  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
-    <HelpCircle className="w-5 h-5 shrink-0 mt-0.5 text-blue-600" />
+  <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 flex gap-3">
+    <HelpCircle className="w-5 h-5 shrink-0 mt-0.5 text-brand-600" />
     <div className="min-w-0">
-      <p className="text-sm font-medium text-blue-900">
+      <p className="text-sm font-medium text-brand-900">
         “{ambiguity.city}” exists in {ambiguity.state_count} states
       </p>
-      <p className="text-sm text-blue-800 mt-0.5">
+      <p className="text-sm text-brand-800 mt-0.5">
         These results cover all of them. Narrow to one:
       </p>
       <div className="flex flex-wrap gap-2 mt-2">
@@ -36,8 +36,8 @@ const AmbiguityNotice: React.FC<Props> = ({ ambiguity, onNarrow }) => (
           <button
             key={state}
             onClick={() => onNarrow(state)}
-            className="text-xs px-2.5 py-1 rounded-full bg-white border border-blue-300
-                       text-blue-800 hover:bg-blue-100 transition-colors"
+            className="text-xs px-2.5 py-1 rounded-full bg-white border border-brand-300
+                       text-brand-800 hover:bg-brand-100 transition-colors"
           >
             {state} <span className="opacity-60">({count})</span>
           </button>

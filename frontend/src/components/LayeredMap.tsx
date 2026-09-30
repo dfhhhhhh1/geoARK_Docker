@@ -6,7 +6,9 @@ import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import { Eye, EyeOff } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import type { AnalysisLayer, AnalysisRow } from '../types';
-import { BaseLayers } from './MapControls';
+import {
+  BaseLayers, StageZoom, fitOptions, type FitPadding, type MapVariant,
+} from './MapControls';
 import { Layers as LayersIcon } from 'lucide-react';
 import {
   basemapById, loadBasemapId, saveBasemapId, BASEMAPS,
@@ -47,6 +49,9 @@ interface Props {
   describe?: (layer: AnalysisLayer, index: number) => string;
   /** Zoom to and outline one county, e.g. from a click in the results table. */
   focus?: { fips: string; nonce: number } | null;
+  /** `stage` fills the parent and floats its controls; see MapVariant. */
+  variant?: MapVariant;
+  fitPadding?: FitPadding;
 }
 
 /**
@@ -54,8 +59,10 @@ interface Props {
  * Independent of the hover highlight, which belongs to whichever layer is on
  * top and changes as layers are toggled.
  */
-const FocusOutline: React.FC<{ counties: FeatureCollection | null; focus: Props['focus'] }> =
-  ({ counties, focus }) => {
+const FocusOutline: React.FC<{
+  counties: FeatureCollection | null; focus: Props['focus']; padding?: FitPadding;
+}> =
+  ({ counties, focus, padding }) => {
     const map = useMap();
     const feature = useMemo(() => (focus && counties
       ? counties.features.find(f => (f.properties as { GEOID?: string } | null)?.GEOID === focus.fips) ?? null
@@ -63,8 +70,8 @@ const FocusOutline: React.FC<{ counties: FeatureCollection | null; focus: Props[
     useEffect(() => {
       if (!feature) return;
       const b = L.geoJSON(feature as never).getBounds();
-      if (b.isValid()) map.fitBounds(b, { maxZoom: 8, padding: [60, 60] });
-    }, [feature, focus?.nonce, map]);
+      if (b.isValid()) map.fitBounds(b, { maxZoom: 8, ...fitOptions(padding, 60) });
+    }, [feature, focus?.nonce, map, padding]);
     if (!feature) return null;
     return (
       <GeoJSON key={`focus-${focus!.fips}-${focus!.nonce}`} data={feature as never} interactive={false}
@@ -110,7 +117,8 @@ function useLayerScale(layer: AnalysisLayer, ramp: Ramp, isDark: boolean) {
 const FitToLayers: React.FC<{
   features: Feature<Geometry>[];
   signature: string;
-}> = ({ features, signature }) => {
+  padding?: FitPadding;
+}> = ({ features, signature, padding }) => {
   const map = useMap();
   const fitted = useRef<string | null>(null);
   useEffect(() => {
@@ -125,10 +133,10 @@ const FitToLayers: React.FC<{
       type: 'FeatureCollection', features: fitTo.length ? fitTo : features,
     } as never).getBounds();
     if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [16, 16] });
+      map.fitBounds(bounds, fitOptions(padding, 16));
       fitted.current = signature;
     }
-  }, [features, signature, map]);
+  }, [features, signature, map, padding]);
   return null;
 };
 
@@ -187,7 +195,13 @@ const ValuesLayer: React.FC<{
   );
 };
 
-const LayeredMap: React.FC<Props> = ({ layers, intent, describe, focus = null }) => {
+const LayeredMap: React.FC<Props> = ({
+  layers, intent, describe, focus = null, variant = 'inline', fitPadding,
+}) => {
+  const stage = variant === 'stage';
+  const mapRef = useRef<L.Map | null>(null);
+  // Bumped by the stage's reset button; see ChoroplethMap.
+  const [refit, setRefit] = useState(0);
   const isDark = useIsDark();
   const [basemapId, setBasemapId] = useState(() => loadBasemapId('light'));
   const [counties, setCounties] = useState<FeatureCollection | null>(null);
@@ -236,7 +250,7 @@ const LayeredMap: React.FC<Props> = ({ layers, intent, describe, focus = null })
   }, [counties, valueLayers]);
 
   const fitSignature = useMemo(
-    () => layers.map(l => `${l.id}:${l.row_count}`).join('|'), [layers]);
+    () => `${layers.map(l => `${l.id}:${l.row_count}`).join('|')}:${refit}`, [layers, refit]);
 
   const onHover = useCallback((e: LeafletMouseEvent) => {
     const layer = ((e as unknown as { propagatedFrom?: L.Path; layer?: L.Path })
@@ -252,141 +266,179 @@ const LayeredMap: React.FC<Props> = ({ layers, intent, describe, focus = null })
   const setLayer = (i: number, patch: Partial<LayerState>) =>
     setStates(prev => prev.map((s, j) => (j === i ? { ...s, ...patch } : s)));
 
-  if (!counties) return <div className="h-[460px] bg-slate-100 rounded-lg animate-pulse" />;
+  if (!counties) {
+    return <div className={stage ? 'absolute inset-0 bg-[#e7e5df]'
+                                 : 'h-[460px] bg-slate-100 rounded-lg animate-pulse'} />;
+  }
 
   const basemap = basemapById(basemapId);
   const label = (l: AnalysisLayer, i: number) =>
     describe?.(l, i) ?? `${OP_LABEL[l.op] ?? l.op}${l.part ? ' (component)' : ''}`;
 
+  const basemapPicker = (
+    <div className="flex items-center gap-1.5">
+      <LayersIcon className="w-4 h-4 text-slate-400" aria-hidden />
+      <div className="flex rounded-lg border border-slate-300 overflow-hidden">
+        {BASEMAPS.map(b => (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => { setBasemapId(b.id); saveBasemapId(b.id); }}
+            aria-pressed={basemapId === b.id}
+            className={`px-2.5 py-1 text-xs border-r border-slate-300 last:border-r-0 ${
+              basemapId === b.id ? 'bg-brand-600 text-white'
+                                 : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+          >
+            {b.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // One row per layer. Drawn top-first, which is the order they stack.
+  const layerRows = (
+    <div className="space-y-1.5">
+      {layers.map((l, i) => {
+        const st = states[i];
+        if (!st) return null;
+        const choices = rampsFor(l.diverging === true);
+        const ramp = choices.find(r => r.id === st.rampId) ?? choices[0];
+        return (
+          <div key={l.id}
+               className="flex items-center gap-2 text-xs bg-slate-50 border
+                          border-slate-200 rounded-lg px-2.5 py-1.5">
+            <button
+              type="button"
+              onClick={() => setLayer(i, { visible: !st.visible })}
+              title={st.visible ? 'Hide this layer' : 'Show this layer'}
+              className="text-slate-500 hover:text-slate-800 shrink-0"
+            >
+              {st.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
+            <span className={`flex-1 truncate ${
+              st.visible ? 'text-slate-700' : 'text-slate-400'}`} title={label(l, i)}>
+              {i === 0 && <span className="text-slate-400">top · </span>}
+              {label(l, i)}
+              <span className="text-slate-400"> · {l.row_count.toLocaleString()}</span>
+            </span>
+
+            <select
+              value={st.rampId}
+              onChange={e => setLayer(i, { rampId: e.target.value })}
+              className="text-xs border border-slate-300 rounded px-1.5 py-0.5 bg-white"
+            >
+              {choices.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
+            <span className="flex rounded-sm overflow-hidden border border-slate-300 shrink-0">
+              {(isDark ? ramp.dark : ramp.light).map((c, k) => (
+                <span key={k} className="w-2 h-3.5" style={{ backgroundColor: c }} />
+              ))}
+            </span>
+
+            <input
+              type="range" min={5} max={100} step={5}
+              value={Math.round(st.opacity * 100)}
+              onChange={e => setLayer(i, { opacity: Number(e.target.value) / 100 })}
+              aria-label={`${label(l, i)} opacity`}
+              className="w-20 accent-brand-600 cursor-pointer shrink-0"
+            />
+            <span className="w-8 text-right tabular-nums text-slate-500 shrink-0">
+              {Math.round(st.opacity * 100)}%
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const map = (
+    <MapContainer ref={mapRef} center={[39.5, -98.35]} zoom={4} scrollWheelZoom
+                  zoomControl={!stage} style={{ height: '100%', width: '100%' }}>
+      <BaseLayers basemap={basemap} />
+      {/* Reversed: the last drawn is painted on top, and layers[0] is the
+          answer. */}
+      {layers.map((l, i) => ({ l, i })).reverse().map(({ l, i }) => {
+        const st = states[i];
+        if (!st?.visible || l.mode !== 'values') return null;
+        const choices = rampsFor(l.diverging === true);
+        return (
+          <ValuesLayer
+            key={l.id}
+            layer={l}
+            counties={counties}
+            state={st}
+            ramp={choices.find(r => r.id === st.rampId) ?? choices[0]}
+            isDark={isDark}
+            onHover={onHover}
+            onLeave={clearHover}
+            interactive={i === topVisible}
+          />
+        );
+      })}
+      <FitToLayers features={withData} signature={fitSignature} padding={fitPadding} />
+      <FocusOutline counties={counties} focus={focus} padding={fitPadding} />
+    </MapContainer>
+  );
+
+  // Every visible layer's value for the hovered county, so a stack can
+  // actually be compared rather than just looked at.
+  const readout = hovered && (
+    <div className={`pointer-events-none px-3 py-2 max-w-[17rem] ${stage
+      ? 'glass glass-raised rounded-xl'
+      : 'absolute top-2.5 right-2.5 z-[500] bg-white/95 backdrop-blur-sm border border-slate-200 rounded-lg shadow-sm'}`}>
+      <p className="text-sm font-semibold text-slate-800 leading-tight">
+        {hovered.name}
+      </p>
+      {layers.map((l, i) => {
+        if (!states[i]?.visible || l.mode !== 'values') return null;
+        const row = (l.rows ?? []).find(
+          r => String(r.fips).padStart(5, '0') === hovered.fips);
+        return (
+          <p key={l.id} className="mt-1 text-xs leading-tight">
+            <span className="text-slate-500">{label(l, i)}</span><br />
+            <span className="tabular-nums text-slate-900 font-medium">
+              {row?.value === null || row?.value === undefined
+                ? 'no data' : fmt(row.value)}
+            </span>
+          </p>
+        );
+      })}
+    </div>
+  );
+
+  if (stage) {
+    return (
+      <div className="absolute inset-0" onMouseLeave={clearHover}>
+        {map}
+        <div className="absolute right-3 z-[600] flex flex-col items-end gap-2 pointer-events-none
+                        w-[min(30rem,calc(100vw-1.5rem))]"
+             style={{ top: 'var(--header-offset)' }}>
+          <div className="pointer-events-auto glass glass-raisable glass-floor rounded-2xl p-2.5 space-y-2 w-full">
+            {basemapPicker}
+            {layerRows}
+          </div>
+          <StageZoom mapRef={mapRef} onReset={() => setRefit(n => n + 1)} />
+          {readout}
+        </div>
+        <p className="absolute right-3 z-[600] glass glass-raisable glass-floor rounded-xl px-3 py-2
+                      text-xs font-medium text-slate-700 max-w-[min(28rem,calc(100vw-1.5rem))]"
+           style={{ bottom: 'calc(var(--stage-bottom-inset, 0px) + 1.75rem)' }}>
+          {intent}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-2.5">
-        <LayersIcon className="w-4 h-4 text-slate-400" aria-hidden />
-        <div className="flex rounded-lg border border-slate-300 overflow-hidden">
-          {BASEMAPS.map(b => (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => { setBasemapId(b.id); saveBasemapId(b.id); }}
-              aria-pressed={basemapId === b.id}
-              className={`px-2.5 py-1 text-xs border-r border-slate-300 last:border-r-0 ${
-                basemapId === b.id ? 'bg-blue-600 text-white'
-                                   : 'bg-white text-slate-600 hover:bg-slate-50'}`}
-            >
-              {b.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* One row per layer. Drawn top-first, which is the order they stack. */}
-      <div className="mb-3 space-y-1.5">
-        {layers.map((l, i) => {
-          const st = states[i];
-          if (!st) return null;
-          const choices = rampsFor(l.diverging === true);
-          const ramp = choices.find(r => r.id === st.rampId) ?? choices[0];
-          return (
-            <div key={l.id}
-                 className="flex items-center gap-2 text-xs bg-slate-50 border
-                            border-slate-200 rounded-lg px-2.5 py-1.5">
-              <button
-                type="button"
-                onClick={() => setLayer(i, { visible: !st.visible })}
-                title={st.visible ? 'Hide this layer' : 'Show this layer'}
-                className="text-slate-500 hover:text-slate-800 shrink-0"
-              >
-                {st.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              </button>
-              <span className={`flex-1 truncate ${
-                st.visible ? 'text-slate-700' : 'text-slate-400'}`} title={label(l, i)}>
-                {i === 0 && <span className="text-slate-400">top · </span>}
-                {label(l, i)}
-                <span className="text-slate-400"> · {l.row_count.toLocaleString()}</span>
-              </span>
-
-              <select
-                value={st.rampId}
-                onChange={e => setLayer(i, { rampId: e.target.value })}
-                className="text-xs border border-slate-300 rounded px-1.5 py-0.5 bg-white"
-              >
-                {choices.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
-              </select>
-              <span className="flex rounded-sm overflow-hidden border border-slate-300 shrink-0">
-                {(isDark ? ramp.dark : ramp.light).map((c, k) => (
-                  <span key={k} className="w-2 h-3.5" style={{ backgroundColor: c }} />
-                ))}
-              </span>
-
-              <input
-                type="range" min={5} max={100} step={5}
-                value={Math.round(st.opacity * 100)}
-                onChange={e => setLayer(i, { opacity: Number(e.target.value) / 100 })}
-                aria-label={`${label(l, i)} opacity`}
-                className="w-20 accent-blue-600 cursor-pointer shrink-0"
-              />
-              <span className="w-8 text-right tabular-nums text-slate-500 shrink-0">
-                {Math.round(st.opacity * 100)}%
-              </span>
-            </div>
-          );
-        })}
-      </div>
+      <div className="mb-2.5">{basemapPicker}</div>
+      <div className="mb-3">{layerRows}</div>
 
       <div className="relative h-[460px] rounded-lg overflow-hidden border border-slate-200"
            onMouseLeave={clearHover}>
-        <MapContainer center={[39.5, -98.35]} zoom={4} scrollWheelZoom
-                      style={{ height: '100%', width: '100%' }}>
-          <BaseLayers basemap={basemap} />
-          {/* Reversed: the last drawn is painted on top, and layers[0] is the
-              answer. */}
-          {layers.map((l, i) => ({ l, i })).reverse().map(({ l, i }) => {
-            const st = states[i];
-            if (!st?.visible || l.mode !== 'values') return null;
-            const choices = rampsFor(l.diverging === true);
-            return (
-              <ValuesLayer
-                key={l.id}
-                layer={l}
-                counties={counties}
-                state={st}
-                ramp={choices.find(r => r.id === st.rampId) ?? choices[0]}
-                isDark={isDark}
-                onHover={onHover}
-                onLeave={clearHover}
-                interactive={i === topVisible}
-              />
-            );
-          })}
-          <FitToLayers features={withData} signature={fitSignature} />
-          <FocusOutline counties={counties} focus={focus} />
-        </MapContainer>
-
-        {/* Every visible layer's value for the hovered county, so a stack can
-            actually be compared rather than just looked at. */}
-        {hovered && (
-          <div className="absolute top-2.5 right-2.5 z-[500] pointer-events-none
-                          bg-white/95 backdrop-blur-sm border border-slate-200
-                          rounded-lg shadow-sm px-3 py-2 max-w-[17rem]">
-            <p className="text-sm font-semibold text-slate-800 leading-tight">
-              {hovered.name}
-            </p>
-            {layers.map((l, i) => {
-              if (!states[i]?.visible || l.mode !== 'values') return null;
-              const row = (l.rows ?? []).find(
-                r => String(r.fips).padStart(5, '0') === hovered.fips);
-              return (
-                <p key={l.id} className="mt-1 text-xs leading-tight">
-                  <span className="text-slate-500">{label(l, i)}</span><br />
-                  <span className="tabular-nums text-slate-900 font-medium">
-                    {row?.value === null || row?.value === undefined
-                      ? 'no data' : fmt(row.value)}
-                  </span>
-                </p>
-              );
-            })}
-          </div>
-        )}
+        {map}
+        {readout}
       </div>
 
       <p className="text-xs font-medium text-slate-600 mt-3">{intent}</p>

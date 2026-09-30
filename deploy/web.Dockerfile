@@ -3,6 +3,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY . .
+# .env is dockerignored, so build-time config comes in as an argument.
+# Vite inlines VITE_-prefixed environment variables into the bundle.
+ARG VITE_CARTO_KEY=
+ENV VITE_CARTO_KEY=$VITE_CARTO_KEY
 RUN npm run build
 
 FROM nginx:alpine

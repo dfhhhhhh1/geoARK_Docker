@@ -121,7 +121,7 @@ const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, h
                   onKeyDown={onPick ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(r.fips); } } : undefined}
                   tabIndex={onPick ? 0 : undefined}
                   title={onPick ? 'Show on the map' : undefined}
-                  className={`border-t border-slate-100 ${onPick ? 'cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none' : ''}
+                  className={`border-t border-slate-100 ${onPick ? 'cursor-pointer hover:bg-brand-50 focus:bg-brand-50 focus:outline-none' : ''}
                               ${isSel ? 'bg-amber-50' : ''}`}
                 >
                   <td className="py-1 pl-3 pr-2 text-xs text-slate-400 tabular-nums">{rankOf.get(r.fips) ?? ''}</td>

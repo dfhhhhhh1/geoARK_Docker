@@ -67,7 +67,7 @@ function Row({ f, onMap }: { f: ExplainFactor; onMap?: (f: ExplainFactor) => voi
         {shortName(f.description ?? f.attr_id)}
         {onMap && (
           <button type="button" onClick={() => onMap(f)}
-                  className="block mt-0.5 text-xs text-blue-700 hover:underline">
+                  className="block mt-0.5 text-xs text-brand-700 hover:underline">
             Map this factor
           </button>
         )}</td>

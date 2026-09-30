@@ -23,7 +23,7 @@ const DatasetCard: React.FC<DatasetCardProps> = ({ dataset, onSelect }) => {
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center space-x-2 mb-2">
-            <h3 className="text-lg font-semibold text-slate-800 hover:text-blue-600 cursor-pointer" 
+            <h3 className="text-lg font-semibold text-slate-800 hover:text-brand-600 cursor-pointer" 
                 onClick={() => onSelect(dataset)}>
               {dataset.title}
             </h3>
@@ -60,7 +60,7 @@ const DatasetCard: React.FC<DatasetCardProps> = ({ dataset, onSelect }) => {
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                 dataset.entityType === 'STATE' 
                   ? 'bg-purple-100 text-purple-700' 
-                  : 'bg-blue-100 text-blue-700'
+                  : 'bg-brand-100 text-brand-700'
               }`}>
                 {dataset.entityType} Level Data
               </span>
@@ -94,7 +94,7 @@ const DatasetCard: React.FC<DatasetCardProps> = ({ dataset, onSelect }) => {
               .slice(0, 3)
               .map((variable) => (
               <div key={variable.id} className="flex items-start space-x-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0"></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-2 flex-shrink-0"></div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-slate-700 font-medium truncate">
                     {variable.description}
@@ -124,7 +124,7 @@ const DatasetCard: React.FC<DatasetCardProps> = ({ dataset, onSelect }) => {
             {dataset.fields.slice(0, 3).map((field, index) => (
               <span 
                 key={index}
-                className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md font-medium"
+                className="px-2 py-1 bg-brand-50 text-brand-700 text-xs rounded-md font-medium"
               >
                 {field.length > 40 ? field.substring(0, 40) + '...' : field}
               </span>
@@ -185,7 +185,7 @@ const DatasetCard: React.FC<DatasetCardProps> = ({ dataset, onSelect }) => {
           <Link
             to={`/analysis?q=${encodeURIComponent(dataset.source || dataset.title)}`}
             className="flex items-center space-x-1 px-4 py-1.5 rounded-lg text-sm font-medium
-                       bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md transition-all"
+                       bg-brand-600 text-white hover:bg-brand-700 hover:shadow-md transition-all"
           >
             <Sparkles className="w-4 h-4" />
             <span>Use in analysis</span>

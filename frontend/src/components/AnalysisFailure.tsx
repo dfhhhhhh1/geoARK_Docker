@@ -66,13 +66,13 @@ const AnalysisFailurePanel: React.FC<Props> = ({ failure, message, onPick }) => 
                 <button
                   onClick={() => onPick(s.query)}
                   className="w-full text-left group flex items-start gap-2 px-3 py-2
-                             rounded-lg border border-slate-200 hover:border-blue-400
-                             hover:bg-blue-50/50 transition-colors"
+                             rounded-lg border border-slate-200 hover:border-brand-400
+                             hover:bg-brand-50/50 transition-colors"
                 >
                   <ArrowRight className="w-4 h-4 mt-0.5 shrink-0 text-slate-400
-                                         group-hover:text-blue-600" />
+                                         group-hover:text-brand-600" />
                   <span className="min-w-0">
-                    <span className="block text-sm text-slate-800 group-hover:text-blue-800">
+                    <span className="block text-sm text-slate-800 group-hover:text-brand-800">
                       {s.query}
                     </span>
                     <span className="block text-xs text-slate-500 mt-0.5">{s.why}</span>

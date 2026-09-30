@@ -5,7 +5,9 @@ import type { LeafletMouseEvent, PathOptions } from 'leaflet';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import 'leaflet/dist/leaflet.css';
 import type { AnalysisResponse, AnalysisRow } from '../types';
-import { BaseLayers, MapToolbar } from './MapControls';
+import {
+  BaseLayers, MapToolbar, StageZoom, fitOptions, type FitPadding, type MapVariant,
+} from './MapControls';
 import {
   basemapById, loadBasemapId, saveBasemapId,
   rampsFor, loadRampId, saveRampId,
@@ -69,6 +71,10 @@ interface Props {
    * panning away still brings it back.
    */
   focus?: { fips: string; nonce: number } | null;
+  /** `stage` fills the parent and floats its controls; see MapVariant. */
+  variant?: MapVariant;
+  /** Where the data may be framed, clear of chrome drawn over the map. */
+  fitPadding?: FitPadding;
 }
 
 /**
@@ -149,7 +155,8 @@ export const fmt = (n: number | null | undefined): string => {
 const FitToData: React.FC<{
   features: Feature<Geometry>[];
   signature: string;
-}> = ({ features, signature }) => {
+  padding?: FitPadding;
+}> = ({ features, signature, padding }) => {
   const map = useMap();
   const fitted = useRef<string | null>(null);
 
@@ -167,16 +174,17 @@ const FitToData: React.FC<{
       type: 'FeatureCollection', features: fitTo.length ? fitTo : features,
     } as never).getBounds();
     if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [16, 16] });
+      map.fitBounds(bounds, fitOptions(padding, 16));
       fitted.current = signature;
     }
-  }, [features, signature, map]);
+  }, [features, signature, map, padding]);
 
   return null;
 };
 
 const ChoroplethMap: React.FC<Props> = ({
   rows, intent, result, diverging = false, valueLabel = null, visible = true, focus = null,
+  variant = 'inline', fitPadding,
 }) => {
   const isDark = useIsDark();
   // Sequential and diverging selections are remembered separately, because a
@@ -361,22 +369,29 @@ const ChoroplethMap: React.FC<Props> = ({
       target.setStyle(HIGHLIGHT);
       target.bringToFront();
       hoveredLayerRef.current = target;
-      map.fitBounds((target as L.Polygon).getBounds(), { maxZoom: 8, padding: [60, 60] });
+      map.fitBounds((target as L.Polygon).getBounds(), { maxZoom: 8, ...fitOptions(fitPadding, 60) });
       setHovered(byFips.get(focus.fips) ?? null);
     }, 80);
     return () => window.clearTimeout(id);
-  }, [focus, byFips]);
+  }, [focus, byFips, fitPadding]);
+
+  // Bumped by the stage's reset button; part of the fit signature, so the
+  // fit-once guard lets exactly one more fit through.
+  const [refit, setRefit] = useState(0);
+  const stage = variant === 'stage';
 
   if (loadError) {
     return (
-      <div className="h-[420px] flex items-center justify-center text-sm text-slate-500 bg-slate-50 rounded-lg">
+      <div className={`${stage ? 'absolute inset-0' : 'h-[420px] rounded-lg'}
+                       flex items-center justify-center text-sm text-slate-500 bg-slate-50`}>
         Could not load county boundaries, {loadError}
       </div>
     );
   }
 
   if (!counties) {
-    return <div className="h-[420px] bg-slate-100 rounded-lg animate-pulse" />;
+    return <div className={stage ? 'absolute inset-0 bg-[#e7e5df]'
+                                 : 'h-[420px] bg-slate-100 rounded-lg animate-pulse'} />;
   }
 
   return (
@@ -408,6 +423,10 @@ const ChoroplethMap: React.FC<Props> = ({
       rampId={chosen.id}
       rampChoices={rampChoices}
       onRamp={chooseRamp}
+      stage={stage}
+      fitPadding={fitPadding}
+      refit={refit}
+      onRefit={() => setRefit(n => n + 1)}
     />
   );
 };
@@ -445,13 +464,17 @@ interface BodyProps {
   rampId: string;
   rampChoices: ReturnType<typeof rampsFor>;
   onRamp: (id: string) => void;
+  stage: boolean;
+  fitPadding?: FitPadding;
+  refit: number;
+  onRefit: () => void;
 }
 
 const ChoroplethBody: React.FC<BodyProps> = ({
   counties, byFips, rows, series, active, seriesIdx, onSeries, breaks, binColours,
   noData, intent, style, geoRef, mapRef, basemapId, onBasemap, opacity, onOpacity,
   hovered, onMouseOver, clearHover, isDark, valueLabel, visible,
-  rampId, rampChoices, onRamp,
+  rampId, rampChoices, onRamp, stage, fitPadding, refit, onRefit,
 }) => {
   const basemap = basemapById(basemapId);
 
@@ -465,8 +488,8 @@ const ChoroplethBody: React.FC<BodyProps> = ({
   // Identifies the RESULT, not the render. Changing basemap, opacity or series
   // must not refit the view the user has set.
   const fitSignature = useMemo(
-    () => `${rows.length}:${rows[0]?.fips ?? ''}:${rows[rows.length - 1]?.fips ?? ''}`,
-    [rows]);
+    () => `${rows.length}:${rows[0]?.fips ?? ''}:${rows[rows.length - 1]?.fips ?? ''}:${refit}`,
+    [rows, refit]);
 
   // Built from the bins that exist, never from ramp.length. Reading breaks[i-1]
   // past the end produced `undefined.toFixed` and took the whole page down.
@@ -483,6 +506,174 @@ const ChoroplethBody: React.FC<BodyProps> = ({
     return { color, label };
   });
 
+  const toolbarControls = (
+    <>
+      <label className="flex items-center gap-1.5 text-xs text-slate-600">
+        <Palette className="w-4 h-4 text-slate-400" aria-hidden />
+        <span className="sr-only">Color scale</span>
+        <select
+          value={rampId}
+          onChange={e => onRamp(e.target.value)}
+          className="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white
+                     text-slate-700 cursor-pointer"
+        >
+          {rampChoices.map(r => (
+            <option key={r.id} value={r.id}>{r.label}</option>
+          ))}
+        </select>
+        {/* The ramp itself, so the name is not the only clue. */}
+        <span className="flex rounded-sm overflow-hidden border border-slate-300">
+          {(isDark ? (rampChoices.find(r => r.id === rampId) ?? rampChoices[0]).dark
+                   : (rampChoices.find(r => r.id === rampId) ?? rampChoices[0]).light
+           ).map((c, i) => (
+            <span key={i} className="w-2.5 h-4" style={{ backgroundColor: c }} />
+          ))}
+        </span>
+      </label>
+      {series.length > 1 && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-500">Color by</span>
+          <div className="flex rounded-lg border border-slate-300 overflow-hidden">
+            {series.map((s, i) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => onSeries(i)}
+                aria-pressed={seriesIdx === i}
+                title={s.label}
+                className={`px-2.5 py-1 text-xs max-w-[13rem] truncate transition-colors
+                            border-r border-slate-300 last:border-r-0 ${
+                  seriesIdx === i
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  const map = (
+    <MapContainer
+      ref={mapRef}
+      center={[39.5, -98.35]}
+      zoom={4}
+      scrollWheelZoom
+      zoomControl={!stage}
+      style={{ height: '100%', width: '100%' }}
+    >
+      <BaseLayers basemap={basemap} />
+      <GeoJSON
+        // Remount when the values, bins, series or theme change: Leaflet
+        // caches the style function per layer, so without this the fills
+        // stay on the previous result. Opacity is deliberately NOT in this
+        // key -- it is applied by setStyle instead, so dragging the slider
+        // does not rebuild every polygon.
+        key={`${rows.length}-${breaks.join(',')}-${isDark}-${active.key}`}
+        ref={geoRef as never}
+        data={counties}
+        style={style}
+        eventHandlers={{ mouseover: onMouseOver, mouseout: clearHover }}
+      />
+      <FitToData features={withData} signature={fitSignature} padding={fitPadding} />
+      <InvalidateOnShow visible={visible} />
+    </MapContainer>
+  );
+
+  // pointer-events-none matters: a readout that can itself receive the
+  // pointer steals the mouseout from the county underneath it, which is one
+  // of the ways the old tooltip got stuck.
+  const readout = hovered && (
+    <div className={`pointer-events-none px-3 py-2 max-w-[15rem] ${stage
+      ? 'glass glass-raised rounded-xl'
+      : 'absolute top-2.5 right-2.5 z-[500] bg-white/95 backdrop-blur-sm border border-slate-200 rounded-lg shadow-sm'}`}>
+      <p className="text-sm font-semibold text-slate-800 leading-tight">
+        {hovered.name ?? 'Unknown'}
+      </p>
+      {series.map(s => (
+        <p key={s.key} className="mt-1 text-xs leading-tight">
+          <span className="text-slate-500">{series.length > 1 ? s.label : 'Value'}</span>
+          <br />
+          <span className={`tabular-nums ${
+            s.key === active.key ? 'text-slate-900 font-medium' : 'text-slate-600'
+          }`}>
+            {hovered[s.key] === null || hovered[s.key] === undefined
+              ? 'no data'
+              : fmt(hovered[s.key])}
+          </span>
+        </p>
+      ))}
+    </div>
+  );
+
+  const legend = (
+    <>
+      <p className="text-xs font-medium text-slate-700 mb-1.5">
+        {series.length > 1 ? `${intent} · colored by ${active.label}` : intent}
+        {/* Names the unit for a derived statistic. "14.2" means nothing on
+            its own; "14.2 Gi* z-score" is checkable. */}
+        {valueLabel && (
+          <span className="font-normal text-slate-500"> · {valueLabel}</span>
+        )}
+      </p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        {legendBins.map(({ color, label }, i) => (
+          <span key={i} className="inline-flex items-center gap-1.5 text-xs text-slate-700">
+            <span
+              className="inline-block w-3.5 h-3.5 rounded-sm border border-slate-300"
+              style={{ backgroundColor: color }}
+            />
+            {label}
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+          <span
+            className="inline-block w-3.5 h-3.5 rounded-sm border border-slate-300"
+            style={{ backgroundColor: noData }}
+          />
+          no data
+        </span>
+      </div>
+    </>
+  );
+
+  if (stage) {
+    return (
+      // mouseleave on the wrapper is the backstop for a missed Leaflet
+      // mouseout; see the note on clearHover.
+      <div className="absolute inset-0" onMouseLeave={clearHover}>
+        {map}
+        <div className="absolute right-3 z-[600] flex flex-col items-end gap-2 pointer-events-none
+                        max-w-[calc(100vw-1.5rem)]"
+             style={{ top: 'var(--header-offset)' }}>
+          <div className="pointer-events-auto glass glass-raisable glass-floor rounded-2xl px-3 py-2">
+            <MapToolbar
+              basemapId={basemapId}
+              onBasemap={onBasemap}
+              opacity={opacity}
+              onOpacity={onOpacity}
+              opacityLabel="County fill"
+              className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2"
+            >
+              {toolbarControls}
+            </MapToolbar>
+          </div>
+          <StageZoom mapRef={mapRef} onReset={onRefit} />
+          {readout}
+        </div>
+        <div className="absolute right-3 z-[600] glass glass-raisable glass-floor rounded-2xl px-3.5 py-2.5
+                        max-w-[min(28rem,calc(100vw-1.5rem))]"
+             style={{ bottom: 'calc(var(--stage-bottom-inset, 0px) + 1.75rem)' }}>
+          {legend}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={visible ? undefined : 'hidden'}>
       <MapToolbar
@@ -492,52 +683,7 @@ const ChoroplethBody: React.FC<BodyProps> = ({
         onOpacity={onOpacity}
         opacityLabel="County fill"
       >
-        <label className="flex items-center gap-1.5 text-xs text-slate-600">
-          <Palette className="w-4 h-4 text-slate-400" aria-hidden />
-          <span className="sr-only">Color scale</span>
-          <select
-            value={rampId}
-            onChange={e => onRamp(e.target.value)}
-            className="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white
-                       text-slate-700 cursor-pointer"
-          >
-            {rampChoices.map(r => (
-              <option key={r.id} value={r.id}>{r.label}</option>
-            ))}
-          </select>
-          {/* The ramp itself, so the name is not the only clue. */}
-          <span className="flex rounded-sm overflow-hidden border border-slate-300">
-            {(isDark ? (rampChoices.find(r => r.id === rampId) ?? rampChoices[0]).dark
-                     : (rampChoices.find(r => r.id === rampId) ?? rampChoices[0]).light
-             ).map((c, i) => (
-              <span key={i} className="w-2.5 h-4" style={{ backgroundColor: c }} />
-            ))}
-          </span>
-        </label>
-        {series.length > 1 && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-slate-500">Color by</span>
-            <div className="flex rounded-lg border border-slate-300 overflow-hidden">
-              {series.map((s, i) => (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => onSeries(i)}
-                  aria-pressed={seriesIdx === i}
-                  title={s.label}
-                  className={`px-2.5 py-1 text-xs max-w-[13rem] truncate transition-colors
-                              border-r border-slate-300 last:border-r-0 ${
-                    seriesIdx === i
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {toolbarControls}
       </MapToolbar>
 
       {/* mouseleave on the wrapper is the backstop for a missed Leaflet
@@ -547,85 +693,11 @@ const ChoroplethBody: React.FC<BodyProps> = ({
         className="relative h-[420px] rounded-lg overflow-hidden border border-slate-200"
         onMouseLeave={clearHover}
       >
-        <MapContainer
-          ref={mapRef}
-          center={[39.5, -98.35]}
-          zoom={4}
-          scrollWheelZoom
-          style={{ height: '100%', width: '100%' }}
-        >
-          <BaseLayers basemap={basemap} />
-          <GeoJSON
-            // Remount when the values, bins, series or theme change: Leaflet
-            // caches the style function per layer, so without this the fills
-            // stay on the previous result. Opacity is deliberately NOT in this
-            // key -- it is applied by setStyle instead, so dragging the slider
-            // does not rebuild every polygon.
-            key={`${rows.length}-${breaks.join(',')}-${isDark}-${active.key}`}
-            ref={geoRef as never}
-            data={counties}
-            style={style}
-            eventHandlers={{ mouseover: onMouseOver, mouseout: clearHover }}
-          />
-          <FitToData features={withData} signature={fitSignature} />
-          <InvalidateOnShow visible={visible} />
-        </MapContainer>
-
-        {/* pointer-events-none matters: a readout that can itself receive the
-            pointer steals the mouseout from the county underneath it, which is
-            one of the ways the old tooltip got stuck. */}
-        {hovered && (
-          <div className="absolute top-2.5 right-2.5 z-[500] pointer-events-none
-                          bg-white/95 backdrop-blur-sm border border-slate-200
-                          rounded-lg shadow-sm px-3 py-2 max-w-[15rem]">
-            <p className="text-sm font-semibold text-slate-800 leading-tight">
-              {hovered.name ?? 'Unknown'}
-            </p>
-            {series.map(s => (
-              <p key={s.key} className="mt-1 text-xs leading-tight">
-                <span className="text-slate-500">{series.length > 1 ? s.label : 'Value'}</span>
-                <br />
-                <span className={`tabular-nums ${
-                  s.key === active.key ? 'text-slate-900 font-medium' : 'text-slate-600'
-                }`}>
-                  {hovered[s.key] === null || hovered[s.key] === undefined
-                    ? 'no data'
-                    : fmt(hovered[s.key])}
-                </span>
-              </p>
-            ))}
-          </div>
-        )}
+        {map}
+        {readout}
       </div>
 
-      <div className="mt-3">
-        <p className="text-xs font-medium text-slate-600 mb-1.5">
-          {series.length > 1 ? `${intent} · colored by ${active.label}` : intent}
-          {/* Names the unit for a derived statistic. "14.2" means nothing on
-              its own; "14.2 Gi* z-score" is checkable. */}
-          {valueLabel && (
-            <span className="font-normal text-slate-500"> · {valueLabel}</span>
-          )}
-        </p>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          {legendBins.map(({ color, label }, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 text-xs text-slate-600">
-              <span
-                className="inline-block w-3.5 h-3.5 rounded-sm border border-slate-300"
-                style={{ backgroundColor: color }}
-              />
-              {label}
-            </span>
-          ))}
-          <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-            <span
-              className="inline-block w-3.5 h-3.5 rounded-sm border border-slate-300"
-              style={{ backgroundColor: noData }}
-            />
-            no data
-          </span>
-        </div>
-      </div>
+      <div className="mt-3">{legend}</div>
     </div>
   );
 };

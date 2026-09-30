@@ -96,3 +96,26 @@ export function deriveSeries(result: AnalysisResponse, rows: AnalysisRow[]): Ser
     },
   ];
 }
+
+/** "(covers 2,957 counties)" rides on every PLACES name; the table says it already. */
+export const stripCoverage = (d: string) => d.replace(/\s*\(covers [\d,]+ counties\)/i, '');
+
+/**
+ * explain: name the OUTCOME, walking back from the explain step to the
+ * attribute it loads. The generic series label falls back to the plan's whole
+ * intent, which reads as a sentence about factors, not a measure.
+ */
+export function outcomeLabelOf(result: AnalysisResponse): string | null {
+  if (!result.explain) return null;
+  const steps = result.plan.steps;
+  let st = steps.find(x => x.op === 'explain');
+  const seen = new Set<string>();
+  while (st && !st.attr_id && st.inputs?.[0] && !seen.has(st.id)) {
+    seen.add(st.id);
+    st = steps.find(x => x.id === st!.inputs[0]);
+  }
+  const id = st?.attr_id;
+  const desc = result.provenance?.attribute_origins.find(o => o.attr_id === id)?.description
+    ?? result.candidates?.find(c => c.attr_id === id)?.attr_desc;
+  return desc ? stripCoverage(desc) : null;
+}

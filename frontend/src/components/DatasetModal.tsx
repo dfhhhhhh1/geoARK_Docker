@@ -118,7 +118,7 @@ const DatasetModal: React.FC<DatasetModalProps> = ({ dataset, onClose }) => {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {dataset.fields.map((field, index) => (
                     <div key={index} className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
+                      <div className="w-2 h-2 bg-brand-500 rounded-full flex-shrink-0" />
                       <span className="text-slate-700 text-sm font-medium">
                         {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                       </span>
@@ -135,7 +135,7 @@ const DatasetModal: React.FC<DatasetModalProps> = ({ dataset, onClose }) => {
                 {dataset.tags.map((tag, index) => (
                   <span 
                     key={index}
-                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
+                    className="px-3 py-1 bg-brand-100 text-brand-700 rounded-full text-sm font-medium"
                   >
                     #{tag}
                   </span>
@@ -169,7 +169,7 @@ const DatasetModal: React.FC<DatasetModalProps> = ({ dataset, onClose }) => {
               to={`/analysis?q=${encodeURIComponent(dataset.source || dataset.title)}`}
               onClick={onClose}
               className="flex items-center space-x-2 px-6 py-2.5 rounded-lg font-medium
-                         bg-blue-600 text-white hover:bg-blue-700 shadow-lg
+                         bg-brand-600 text-white hover:bg-brand-700 shadow-lg
                          hover:shadow-xl transition-all"
             >
               <Sparkles className="w-5 h-5" />

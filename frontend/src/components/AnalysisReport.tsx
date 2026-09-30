@@ -178,7 +178,7 @@ const AnalysisReport: React.FC<Props> = ({ result }) => {
           <p className="text-sm text-slate-500 mb-2">Concepts identified</p>
           <div className="flex flex-wrap gap-1.5">
             {decomposition.primary_concepts.map(c => (
-              <span key={c} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs">
+              <span key={c} className="px-2 py-0.5 bg-brand-50 text-brand-700 rounded-full text-xs">
                 {c}
               </span>
             ))}

@@ -1,6 +1,6 @@
 import React from 'react';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
-import { Check, Loader2, AlertTriangle, Circle, Users } from 'lucide-react';
+import 'react-loading-skeleton/dist/skeleton.css';
 import type { AnalysisEvent, AnalysisStage } from '../types';
 
 /**
@@ -86,21 +86,32 @@ const AnalysisProgress: React.FC<Props> = ({ stage, events, elapsedMs, onCancel 
     return null;
   };
 
+  const stateOf = (phase: typeof PHASES[number]): 'done' | 'active' | 'failed' | 'pending' => {
+    if (phase.reached.includes(stage as never)) return 'done';
+    // The stream does not say which phase a failure happened in, so every
+    // unfinished segment is marked and the heading carries the message.
+    if (failed) return 'failed';
+    return activePhase === phase.key ? 'active' : 'pending';
+  };
+  const STATUS: Record<ReturnType<typeof stateOf>, string> = {
+    done: 'Done', active: 'In progress', failed: '', pending: '',
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-semibold text-slate-800">
-            {failed ? 'Analysis failed' : stage === 'queued' ? 'Waiting to start' : 'Analyzing'}
+    <div className="space-y-4" aria-live="polite">
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="flex items-baseline justify-between gap-3 mb-4">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            {failed ? 'Analysis stopped' : stage === 'queued' ? 'Waiting to start' : 'Analysis in progress'}
           </h3>
-          <div className="flex items-center gap-3">
-            <span className="text-sm tabular-nums text-slate-500">
+          <div className="flex items-baseline gap-3">
+            <span className="text-sm font-mono tabular-nums text-ink">
               {(elapsedMs / 1000).toFixed(1)}s
             </span>
             {!failed && (
               <button
                 onClick={onCancel}
-                className="text-sm text-slate-500 hover:text-slate-800 underline underline-offset-2"
+                className="text-xs font-medium text-slate-500 hover:text-ink underline underline-offset-2"
               >
                 Cancel
               </button>
@@ -108,50 +119,44 @@ const AnalysisProgress: React.FC<Props> = ({ stage, events, elapsedMs, onCancel 
           </div>
         </div>
 
+        {/* One segment per phase: a glance says how far along, without an icon
+            per row doing the same job four times. */}
+        <div className="grid grid-cols-4 gap-1.5 mb-5" aria-hidden>
+          {PHASES.map(p => <div key={p.key} className="rail-seg" data-state={stateOf(p)} />)}
+        </div>
+
         {/* The GPU runs one analysis at a time, so a wait here is a real queue
             rather than a slow step. Saying which place you are in is the
             difference between a queue and an unexplained delay. */}
         {stage === 'queued' && (
-          <div className="mb-4 flex gap-2 bg-blue-50 border border-blue-200
-                          text-blue-900 rounded-lg p-3 text-sm">
-            <Users className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>
-              {queuePosition && queuePosition > 1
-                ? <>Position <strong>{queuePosition}</strong> in the queue. Each analysis takes roughly 20 seconds.</>
-                : <>Next in line, starting shortly.</>}
-            </span>
-          </div>
+          <p className="mb-4 border-l-2 border-brand-400 pl-3 text-sm text-slate-700">
+            {queuePosition && queuePosition > 1
+              ? <>Position <strong className="text-ink">{queuePosition}</strong> in the queue. Each analysis takes roughly 20 seconds.</>
+              : <>Next in line, starting shortly.</>}
+          </p>
         )}
 
-        <ol className="space-y-3">
-          {PHASES.map(phase => {
-            const done = phase.reached.includes(stage as never);
-            const active = activePhase === phase.key && !failed;
+        <ol className="space-y-2.5">
+          {PHASES.map((phase, i) => {
+            const st = stateOf(phase);
             const detail = detailFor(phase.key);
-
             return (
-              <li key={phase.key} className="flex items-start gap-3">
-                <span className="mt-0.5 shrink-0">
-                  {done ? (
-                    <Check className="w-5 h-5 text-emerald-600" aria-hidden />
-                  ) : active ? (
-                    <Loader2 className="w-5 h-5 text-blue-600 animate-spin" aria-hidden />
-                  ) : failed ? (
-                    <AlertTriangle className="w-5 h-5 text-amber-500" aria-hidden />
-                  ) : (
-                    <Circle className="w-5 h-5 text-slate-300" aria-hidden />
-                  )}
+              <li key={phase.key} className="grid grid-cols-[1.75rem_1fr_auto] gap-x-2 items-baseline">
+                <span className={`font-mono text-xs tabular-nums ${
+                  st === 'active' ? 'text-brand-700 font-semibold'
+                    : st === 'done' ? 'text-ink' : 'text-slate-400'}`}>
+                  {String(i + 1).padStart(2, '0')}
                 </span>
-                <div className="min-w-0">
-                  <p className={
-                    done ? 'text-slate-800 font-medium'
-                      : active ? 'text-slate-800 font-medium'
-                      : 'text-slate-400'
-                  }>
-                    {phase.label}
-                  </p>
-                  {detail && <p className="text-sm text-slate-500 mt-0.5">{detail}</p>}
-                </div>
+                <p className={`text-sm ${st === 'pending' || st === 'failed' ? 'text-slate-400' : 'text-ink font-medium'}`}>
+                  {phase.label}
+                </p>
+                <span className={`text-[11px] uppercase tracking-wider ${
+                  st === 'active' ? 'text-brand-700' : 'text-slate-400'}`}>
+                  {STATUS[st]}
+                </span>
+                {detail && (
+                  <p className="col-start-2 col-span-2 text-xs text-slate-500 mt-0.5">{detail}</p>
+                )}
               </li>
             );
           })}
@@ -160,15 +165,15 @@ const AnalysisProgress: React.FC<Props> = ({ stage, events, elapsedMs, onCancel 
         {/* Planning is the one phase that can sit silent for 30s+ inside a single
             LLM call, so it gets an explicit reassurance rather than a stalled bar. */}
         {(stage === 'planning' || stage === 'plan_invalid') && elapsedMs > 12000 && (
-          <p className="mt-4 text-sm text-slate-500 border-t border-slate-100 pt-3">
+          <p className="mt-4 text-xs text-slate-500 border-t border-slate-200 pt-3">
             The planner runs a 14B model locally. Thirty seconds or so is normal.
           </p>
         )}
 
         {adjustments.length > 0 && (
-          <ul className="mt-4 border-t border-slate-100 pt-3 space-y-1">
+          <ul className="mt-4 border-t border-slate-200 pt-3 space-y-1">
             {[...new Set(adjustments)].map(a => (
-              <li key={a} className="text-sm text-amber-800">{a}</li>
+              <li key={a} className="text-xs text-amber-800">{a}</li>
             ))}
           </ul>
         )}
@@ -179,19 +184,37 @@ const AnalysisProgress: React.FC<Props> = ({ stage, events, elapsedMs, onCancel 
   );
 };
 
-/** Placeholder in the shape of the real result, so the layout does not jump. */
+/**
+ * Placeholder in the shape of the real result, so the panel does not jump when
+ * it lands: a title and export row, the view tabs, a run of table rows, then
+ * the report. Warm neutrals with a pale gold sweep, translucent so it sits in
+ * the glass rather than on it.
+ */
 const ResultSkeleton: React.FC = () => (
-  <SkeletonTheme baseColor="#e9eef5" highlightColor="#f6f8fb">
-    <div className="grid lg:grid-cols-2 gap-6">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <Skeleton height={22} width="45%" />
-        <div className="mt-4"><Skeleton height={340} /></div>
+  <SkeletonTheme baseColor="rgba(28, 25, 20, 0.07)" highlightColor="rgba(255, 244, 214, 0.75)"
+                 borderRadius="0.375rem" duration={1.6}>
+    <div className="space-y-4" aria-hidden>
+      <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <Skeleton width={72} height={16} />
+          <div className="flex gap-1.5">
+            {[0, 1, 2].map(i => <Skeleton key={i} width={56} height={24} />)}
+          </div>
+        </div>
+        <div className="mt-4"><Skeleton width={190} height={26} /></div>
+        <div className="mt-4 space-y-2">
+          {[92, 78, 85, 70, 88, 64].map((w, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <Skeleton width={18} height={10} />
+              <div className="flex-1"><Skeleton width={`${w}%`} height={10} /></div>
+              <Skeleton width={44} height={10} />
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-        <Skeleton height={22} width="35%" />
-        <Skeleton count={3} height={14} />
-        <div className="pt-2"><Skeleton height={18} width="30%" /></div>
-        <Skeleton count={4} height={40} />
+      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5">
+        <Skeleton width="40%" height={14} />
+        <Skeleton count={3} height={10} />
       </div>
     </div>
   </SkeletonTheme>
