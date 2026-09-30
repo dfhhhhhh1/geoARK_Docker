@@ -1032,11 +1032,26 @@ async function executePlan(plan, resolved, pool, { timeoutMs = 30000 } = {}) {
       if (out.mode === "factors") {
         const neighbors = await countyNeighbors(client);
         const computed = opsRegistry.byName(out.op).compute(res.rows, { factors: out.factors, neighbors });
+        // The OUTCOME per county, which the query already fetched to rank
+        // factors against. It used to be discarded, so "what causes cancer in
+        // the South" answered with a table and no way to see where the cancer
+        // rates actually are. Returned as ordinary (fips, name, value) rows so
+        // the same choropleth draws it.
+        const fipsList = res.rows.map(r => r.fips);
+        const names = fipsList.length
+          ? new Map((await client.query(
+              "SELECT fips, name FROM county_geom WHERE fips = ANY($1)", [fipsList]))
+              .rows.map(r => [r.fips, r.name]))
+          : new Map();
+        const outcomeRows = res.rows
+          .map(r => ({ fips: r.fips, name: names.get(r.fips) ?? null, state_fp: String(r.fips).slice(0, 2),
+                       value: r.y === null ? null : Number(r.y) }))
+          .sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
         layers.push({
           id: out.id, step: out.step, mode: "factors", op: out.op,
           sql: out.sql, params: out.params,
           row_count: computed.factors.length, ms: Date.now() - t0,
-          rows: [], ...computed,
+          rows: outcomeRows, ...computed,
         });
         continue;
       }

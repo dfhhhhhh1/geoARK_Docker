@@ -63,6 +63,12 @@ interface Props {
    * came back.
    */
   visible?: boolean;
+  /**
+   * Zoom to and outline one county, e.g. from a click in the results table.
+   * `nonce` changes on every request, so clicking the same row twice after
+   * panning away still brings it back.
+   */
+  focus?: { fips: string; nonce: number } | null;
 }
 
 /**
@@ -149,8 +155,16 @@ const FitToData: React.FC<{
 
   useEffect(() => {
     if (fitted.current === signature || !features.length) return;
+    // Aleutians West (02016) spans -179 to +179 longitude, so a bounding box
+    // that includes it wraps the whole globe and every national result opened
+    // at minimum zoom over empty ocean. Features that cross the antimeridian
+    // still draw; they just do not decide the view.
+    const fitTo = features.filter(f => {
+      const b = L.geoJSON(f as never).getBounds();
+      return !b.isValid() || b.getEast() - b.getWest() < 180;
+    });
     const bounds = L.geoJSON({
-      type: 'FeatureCollection', features,
+      type: 'FeatureCollection', features: fitTo.length ? fitTo : features,
     } as never).getBounds();
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [16, 16] });
@@ -162,7 +176,7 @@ const FitToData: React.FC<{
 };
 
 const ChoroplethMap: React.FC<Props> = ({
-  rows, intent, result, diverging = false, valueLabel = null, visible = true,
+  rows, intent, result, diverging = false, valueLabel = null, visible = true, focus = null,
 }) => {
   const isDark = useIsDark();
   // Sequential and diverging selections are remembered separately, because a
@@ -320,6 +334,39 @@ const ChoroplethMap: React.FC<Props> = ({
     });
   }, [byFips]);
 
+  const mapRef = useRef<L.Map | null>(null);
+  // Focus from outside the map. Deferred a moment because the caller may have
+  // just switched to the map tab, and a hidden container has no size to fit.
+  // The county is highlighted through the same ref the hover uses, so the next
+  // mouseover or the wrapper's mouseleave restores it like any other.
+  useEffect(() => {
+    if (!focus) return;
+    const id = window.setTimeout(() => {
+      const map = mapRef.current;
+      const geo = geoRef.current;
+      if (!map || !geo) return;
+      map.invalidateSize();
+      const found: L.Path[] = [];
+      geo.eachLayer(l => {
+        const f = (l as L.Path & { feature?: Feature<Geometry> }).feature;
+        if ((f?.properties as { GEOID?: string } | undefined)?.GEOID === focus.fips) found.push(l as L.Path);
+      });
+      const target = found[0];
+      if (!target) return;
+      const previous = hoveredLayerRef.current;
+      if (previous && previous !== target) {
+        const pf = (previous as L.Path & { feature?: Feature<Geometry> }).feature;
+        previous.setStyle(styleRef.current(pf));
+      }
+      target.setStyle(HIGHLIGHT);
+      target.bringToFront();
+      hoveredLayerRef.current = target;
+      map.fitBounds((target as L.Polygon).getBounds(), { maxZoom: 8, padding: [60, 60] });
+      setHovered(byFips.get(focus.fips) ?? null);
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [focus, byFips]);
+
   if (loadError) {
     return (
       <div className="h-[420px] flex items-center justify-center text-sm text-slate-500 bg-slate-50 rounded-lg">
@@ -347,6 +394,7 @@ const ChoroplethMap: React.FC<Props> = ({
       intent={intent}
       style={style}
       geoRef={geoRef}
+      mapRef={mapRef}
       basemapId={basemapId}
       onBasemap={chooseBasemap}
       opacity={opacity}
@@ -383,6 +431,7 @@ interface BodyProps {
   intent: string;
   style: (f?: Feature<Geometry>) => PathOptions;
   geoRef: React.MutableRefObject<L.GeoJSON | null>;
+  mapRef: React.MutableRefObject<L.Map | null>;
   basemapId: string;
   onBasemap: (id: string) => void;
   opacity: number;
@@ -400,7 +449,7 @@ interface BodyProps {
 
 const ChoroplethBody: React.FC<BodyProps> = ({
   counties, byFips, rows, series, active, seriesIdx, onSeries, breaks, binColours,
-  noData, intent, style, geoRef, basemapId, onBasemap, opacity, onOpacity,
+  noData, intent, style, geoRef, mapRef, basemapId, onBasemap, opacity, onOpacity,
   hovered, onMouseOver, clearHover, isDark, valueLabel, visible,
   rampId, rampChoices, onRamp,
 }) => {
@@ -499,6 +548,7 @@ const ChoroplethBody: React.FC<BodyProps> = ({
         onMouseLeave={clearHover}
       >
         <MapContainer
+          ref={mapRef}
           center={[39.5, -98.35]}
           zoom={4}
           scrollWheelZoom

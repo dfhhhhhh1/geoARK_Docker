@@ -245,6 +245,8 @@ export interface AttributeOrigin {
   start_date: string | null;
   end_date: string | null;
   srid: number | null;
+  /** Present only for the user's own upload: how many rows it carried. */
+  user_rows?: number;
 }
 
 export interface AnalysisProvenance {
@@ -269,6 +271,10 @@ export interface AnalysisPlan {
   output_type: 'map' | 'table' | 'chart' | 'statistics';
   entity_type: 'COUNTY' | 'STATE';
   steps: PlanStep[];
+  /** Set once the user has edited the plan: the planner's own intent. */
+  base_intent?: string;
+  /** Edits applied on top of the planner's plan, as title fragments. */
+  revisions?: Array<{ kind: string; label: string }>;
 }
 
 export interface AnalysisRow {
@@ -324,6 +330,10 @@ export interface AnalysisResponse {
   relevance?: RelevanceVerdict[] | null;
   /** Present when the result is a ranked factor table (explain). */
   explain?: ExplainResult;
+  /** What can be done next with this plan (backend/followup.js). */
+  followups?: FollowUps | null;
+  /** Present when this result is an edit of an earlier one, not a planned question. */
+  revision?: Revision;
   ms: number;
 }
 
@@ -346,7 +356,7 @@ export interface ExplainFactor {
   attr_id: string;
   role: 'factor' | 'control';
   description: string | null;
-  source: 'literature' | 'question' | 'default' | 'control';
+  source: 'literature' | 'question' | 'default' | 'control' | 'user' | 'added';
   literature?: {
     concept: string; seed: string; papers: number; predicates: string[];
     papers_as_cause: number | null; papers_as_effect: number | null;
@@ -434,4 +444,62 @@ export interface AnalysisEvent {
   total?: number;
   /** plan_adjusted: what was corrected deterministically. */
   detail?: string;
+}
+// ---------------------------------------------------------------------------
+// Follow-ups
+// ---------------------------------------------------------------------------
+
+/** One structural change to a plan that already ran. Applied server-side. */
+export type FollowUpEdit =
+  | { kind: 'restrict_area'; states: string[]; keep_city?: boolean }
+  | { kind: 'clear_area' }
+  | { kind: 'rank'; direction: 'asc' | 'desc'; limit: number }
+  | { kind: 'remove_step'; step_id: string }
+  | { kind: 'swap_measure'; from: string; to: string }
+  | { kind: 'add_measure'; attr_id: string; mode: 'compare' | 'correlate' }
+  | { kind: 'add_stat'; op: 'hotspot' | 'outlier' }
+  | { kind: 'map_measure'; attr_id: string }
+  | { kind: 'add_factor'; attr_id: string };
+
+export interface FollowUpMeasure {
+  attr_id: string;
+  label: string;
+  kind: 'value' | 'feature';
+  step_id?: string;
+  op?: string;
+  dataset?: string | null;
+  purpose?: string | null;
+  description?: string | null;
+}
+
+/** Which follow-ups apply to a result. Decided server-side by trying each. */
+export interface FollowUps {
+  can: {
+    restrict_area: boolean; clear_area: boolean; rank: boolean;
+    hotspot: boolean; outlier: boolean; compare: boolean; correlate: boolean;
+    add_factor: boolean; swap: boolean;
+  };
+  in_use: FollowUpMeasure[];
+  alternatives: FollowUpMeasure[];
+  removable: Array<{ step_id: string; op: string; label: string }>;
+}
+
+export interface Revision {
+  from_query: string | null;
+  edit: FollowUpEdit;
+  note: string;
+}
+
+/** A county series the user uploaded. Lives in the browser; sent per request. */
+export interface UserSeries {
+  id: string;
+  name: string;
+  file: string;
+  column: string;
+  fips: string[];
+  values: (number | null)[];
+  /** Rows whose FIPS is a county on the map. */
+  matched: number;
+  /** A few FIPS codes that are not, for the upload summary. */
+  unmatched: string[];
 }

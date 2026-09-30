@@ -720,6 +720,35 @@ the CI bound nearest zero. Computed in Node (`planner/stats.js`), the first
 - **After fixing temperature + context** (traps table): plan_probe 92.3% op
   appropriateness unchanged, validity 96.2%, mean latency 25.5s.
 
+### Follow-ups and user data (2026-09-29)
+
+`docs/FOLLOWUPS.md`, `backend/followup.js`. The analysis page is a thread.
+
+- **Edits never touch the planner.** "what about Texas", "top 10", swap a
+  measure, add one side by side or as a correlation, hot spots, map your data:
+  applied to the last plan in code, re-run through `validatePlan` and the
+  compiler, 30-600 ms. Snapshot byte-identical across 48 contexts. The browser
+  sends the plan back, so it is untrusted exactly like a model plan (24-step cap).
+- **UI offers come from trying each edit server-side** (`availableFollowups`),
+  not from browser rules. Keep it that way.
+- **Free-text follow-ups are rewritten by gemma3:4b and SHOWN.** Two code guards
+  exist because the model failed without them, 3 of 3 each: a complete question
+  skips the model (it put "Ohio" into an unrelated airport question), and a
+  rewrite that drops a word the user typed is discarded ("Texas hospitals" ->
+  poverty by Texas county). `eval/followup_probe.py`: questions 71.4% -> 95.2%,
+  held-out 8/8, 0% questions misread as edits, 3 repeats.
+- **Never abbreviate a place list in text a model will read.** "Alabama,
+  Arkansas and 14 more" in a title reached the rewrite and the planner guessed
+  the 14 wrong. The rewrite now gets the plan's exact states and the on-screen
+  measure, and an operation-only follow-up ("normalize by population") that
+  loses either falls back to `"<measure>: <text> in <area>"` built in code.
+- **User CSVs are never stored.** FIPS + values ride along per request, bound
+  into `unnest(...)` in `load` (`source_kind: "inline"`), READ ONLY transaction.
+  Provenance says `user_upload`.
+- **Pre-existing, fixed on the way:** every national map opened at world zoom
+  because Aleutians West crosses the antimeridian; correlation results showed a
+  one-row "Summary" tab.
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence

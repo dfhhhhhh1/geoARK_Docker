@@ -75,6 +75,17 @@ PLAN: {"intent":"Total population in each county",
       return `${ctx.name} AS (SELECT fips, ${src.value_column}::double precision AS value ` +
              `FROM ${src.table_name})`;
     }
+    if (src.source_kind === "inline") {
+      // A series the user uploaded, sent with the request (backend/followup.js).
+      // Both arrays are BOUND, never interpolated, and nothing is written: the
+      // transaction stays READ ONLY and the values are gone when it ends.
+      if (!Array.isArray(src.fips) || !Array.isArray(src.values)) {
+        throw new CompileError(`inline source ${step.attr_id} carries no values`);
+      }
+      return `${ctx.name} AS (SELECT u.fips, u.value FROM ` +
+             `unnest(${ctx.bind(src.fips)}::char(5)[], ${ctx.bind(src.values)}::float8[]) ` +
+             `AS u(fips, value))`;
+    }
     throw new CompileError(`unknown source_kind ${src.source_kind}`);
   },
 };

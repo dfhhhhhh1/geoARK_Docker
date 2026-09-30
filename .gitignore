@@ -23,6 +23,7 @@ build/
 .vite/
 
 # ---- runtime junk ----
+*.dump
 nohup.out
 *.log
 geospatial_etl.log

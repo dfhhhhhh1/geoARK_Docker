@@ -1,0 +1,1145 @@
+{
+  "summary": {
+    "cases": 28,
+    "repeat": 3,
+    "overall_pct": 100.0,
+    "edit_pct": 100.0,
+    "question_pct": 100.0,
+    "heldout_pct": 100.0,
+    "tuned_pct": 100.0,
+    "false_edit_pct": 0.0,
+    "unstable_cases": [
+      "q-replace-measure"
+    ],
+    "p50_question_s": 0.24,
+    "p50_edit_s": 0.0
+  },
+  "rows": [
+    {
+      "id": "edit-state",
+      "kind": "edit",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.02,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "Texas"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "Texas"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "Texas"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        }
+      ]
+    },
+    {
+      "id": "edit-region-same-thing",
+      "kind": "edit",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "West"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "West"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "West"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        }
+      ]
+    },
+    {
+      "id": "edit-postal",
+      "kind": "edit",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "Texas"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "Texas"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.01,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "Texas"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        }
+      ]
+    },
+    {
+      "id": "edit-top",
+      "kind": "edit",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.01,
+          "kind": "edit",
+          "edit": {
+            "kind": "rank",
+            "direction": "desc",
+            "limit": 10
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "rank",
+            "direction": "desc",
+            "limit": 10
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "rank",
+            "direction": "desc",
+            "limit": 10
+          },
+          "question": null,
+          "rewritten": null
+        }
+      ]
+    },
+    {
+      "id": "edit-bottom",
+      "kind": "edit",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "rank",
+            "direction": "asc",
+            "limit": 5
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "rank",
+            "direction": "asc",
+            "limit": 5
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "rank",
+            "direction": "asc",
+            "limit": 5
+          },
+          "question": null,
+          "rewritten": null
+        }
+      ]
+    },
+    {
+      "id": "edit-whole-country",
+      "kind": "edit",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "clear_area"
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "clear_area"
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "clear_area"
+          },
+          "question": null,
+          "rewritten": null
+        }
+      ]
+    },
+    {
+      "id": "q-add-measure",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.28,
+          "kind": "question",
+          "edit": null,
+          "question": "unemployment rate for Ohio counties",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.2,
+          "kind": "question",
+          "edit": null,
+          "question": "unemployment rate for Ohio counties",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.18,
+          "kind": "question",
+          "edit": null,
+          "question": "unemployment rate for Ohio counties",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-replace-measure",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": false,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.3,
+          "kind": "question",
+          "edit": null,
+          "question": "what about the unemployment rate for Missouri counties?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.22,
+          "kind": "question",
+          "edit": null,
+          "question": "what about the unemployment rate for counties in Missouri?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.2,
+          "kind": "question",
+          "edit": null,
+          "question": "what about the unemployment rate for counties in Missouri?",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-relationship",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.31,
+          "kind": "question",
+          "edit": null,
+          "question": "is obesity among adults related to diabetes in US county data?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.23,
+          "kind": "question",
+          "edit": null,
+          "question": "is obesity among adults related to diabetes in US county data?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.22,
+          "kind": "question",
+          "edit": null,
+          "question": "is obesity among adults related to diabetes in US county data?",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-replace-layer",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.25,
+          "kind": "question",
+          "edit": null,
+          "question": "fire stations per county",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.17,
+          "kind": "question",
+          "edit": null,
+          "question": "fire stations per county",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.18,
+          "kind": "question",
+          "edit": null,
+          "question": "fire stations per county",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-hotspots",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.3,
+          "kind": "question",
+          "edit": null,
+          "question": "Poverty rate by county clusters where?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.21,
+          "kind": "question",
+          "edit": null,
+          "question": "Poverty rate by county clusters where?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.2,
+          "kind": "question",
+          "edit": null,
+          "question": "Poverty rate by county clusters where?",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-explain",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.29,
+          "kind": "question",
+          "edit": null,
+          "question": "what explains diagnosed diabetes among adults by county?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.21,
+          "kind": "question",
+          "edit": null,
+          "question": "what explains diagnosed diabetes among adults by county?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.25,
+          "kind": "question",
+          "edit": null,
+          "question": "what explains diagnosed diabetes among adults by county?",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-change-radius",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.34,
+          "kind": "question",
+          "edit": null,
+          "question": "Hospitals within five miles of a transmission line, per county?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.33,
+          "kind": "question",
+          "edit": null,
+          "question": "Hospitals within five miles of a transmission line, per county?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.31,
+          "kind": "question",
+          "edit": null,
+          "question": "Hospitals within five miles of a transmission line, per county?",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-change-year",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.39,
+          "kind": "question",
+          "edit": null,
+          "question": "unemployment rate by county in 2020?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.26,
+          "kind": "question",
+          "edit": null,
+          "question": "unemployment rate by county in 2020?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.24,
+          "kind": "question",
+          "edit": null,
+          "question": "unemployment rate by county in 2020?",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-two-turns-back",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.34,
+          "kind": "question",
+          "edit": null,
+          "question": "what about child poverty rate for Ohio counties?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.25,
+          "kind": "question",
+          "edit": null,
+          "question": "what about child poverty rate for Ohio counties?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.22,
+          "kind": "question",
+          "edit": null,
+          "question": "what about child poverty rate for Ohio counties?",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-city-layer",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.29,
+          "kind": "question",
+          "edit": null,
+          "question": "police stations in Springfield, Missouri",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.18,
+          "kind": "question",
+          "edit": null,
+          "question": "police stations in Springfield, Missouri",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.25,
+          "kind": "question",
+          "edit": null,
+          "question": "police stations in Springfield, Missouri",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-compare",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.28,
+          "kind": "question",
+          "edit": null,
+          "question": "compare median household income by county with educational attainment",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.23,
+          "kind": "question",
+          "edit": null,
+          "question": "compare median household income by county with educational attainment",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.2,
+          "kind": "question",
+          "edit": null,
+          "question": "compare median household income by county with educational attainment",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-new-topic",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "question",
+          "edit": null,
+          "question": "how far is each county from the nearest airport",
+          "rewritten": false
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.01,
+          "kind": "question",
+          "edit": null,
+          "question": "how far is each county from the nearest airport",
+          "rewritten": false
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "question",
+          "edit": null,
+          "question": "how far is each county from the nearest airport",
+          "rewritten": false
+        }
+      ]
+    },
+    {
+      "id": "q-not-edit-state-plus",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.5,
+          "kind": "question",
+          "edit": null,
+          "question": "poverty rate by Texas hospitals",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.2,
+          "kind": "question",
+          "edit": null,
+          "question": "poverty rate by Texas hospitals",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.18,
+          "kind": "question",
+          "edit": null,
+          "question": "poverty rate by Texas hospitals",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "q-not-edit-county",
+      "kind": "question",
+      "heldout": false,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.29,
+          "kind": "question",
+          "edit": null,
+          "question": "poverty rate by county Washington County?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.23,
+          "kind": "question",
+          "edit": null,
+          "question": "poverty rate by county Washington County?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.22,
+          "kind": "question",
+          "edit": null,
+          "question": "poverty rate by county Washington County?",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "h-edit-and-in",
+      "kind": "edit",
+      "heldout": true,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "Arizona"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "Arizona"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "edit",
+          "edit": {
+            "kind": "restrict_area",
+            "states": [
+              "Arizona"
+            ]
+          },
+          "question": null,
+          "rewritten": null
+        }
+      ]
+    },
+    {
+      "id": "h-swap-measure-keep-state",
+      "kind": "question",
+      "heldout": true,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.45,
+          "kind": "question",
+          "edit": null,
+          "question": "what about household size for Colorado counties?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.24,
+          "kind": "question",
+          "edit": null,
+          "question": "what about household size for Colorado counties?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.2,
+          "kind": "question",
+          "edit": null,
+          "question": "what about household size for Colorado counties?",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "h-year",
+      "kind": "question",
+      "heldout": true,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.33,
+          "kind": "question",
+          "edit": null,
+          "question": "poverty rate by county in 2022",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.26,
+          "kind": "question",
+          "edit": null,
+          "question": "poverty rate by county in 2022",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.28,
+          "kind": "question",
+          "edit": null,
+          "question": "poverty rate by county in 2022",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "h-radius",
+      "kind": "question",
+      "heldout": true,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.36,
+          "kind": "question",
+          "edit": null,
+          "question": "fire stations within 10 miles of a hospital, per county",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.26,
+          "kind": "question",
+          "edit": null,
+          "question": "fire stations within 10 miles of a hospital, per county",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.23,
+          "kind": "question",
+          "edit": null,
+          "question": "fire stations within 10 miles of a hospital, per county",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "h-relationship-keep-state",
+      "kind": "question",
+      "heldout": true,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.36,
+          "kind": "question",
+          "edit": null,
+          "question": "does the uninsured rate in Texas go with poverty?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.23,
+          "kind": "question",
+          "edit": null,
+          "question": "does the uninsured rate in Texas go with poverty?",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.24,
+          "kind": "question",
+          "edit": null,
+          "question": "does the uninsured rate in Texas go with poverty?",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "h-city-keep",
+      "kind": "question",
+      "heldout": true,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.27,
+          "kind": "question",
+          "edit": null,
+          "question": "nursing homes in Columbus, Ohio",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.19,
+          "kind": "question",
+          "edit": null,
+          "question": "nursing homes in Columbus, Ohio",
+          "rewritten": true
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.2,
+          "kind": "question",
+          "edit": null,
+          "question": "nursing homes in Columbus, Ohio",
+          "rewritten": true
+        }
+      ]
+    },
+    {
+      "id": "h-standalone",
+      "kind": "question",
+      "heldout": true,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.01,
+          "kind": "question",
+          "edit": null,
+          "question": "which counties have the most wind turbines",
+          "rewritten": false
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "question",
+          "edit": null,
+          "question": "which counties have the most wind turbines",
+          "rewritten": false
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.0,
+          "kind": "question",
+          "edit": null,
+          "question": "which counties have the most wind turbines",
+          "rewritten": false
+        }
+      ]
+    },
+    {
+      "id": "h-not-edit",
+      "kind": "question",
+      "heldout": true,
+      "passes": 3,
+      "of": 3,
+      "stable": true,
+      "runs": [
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.42,
+          "kind": "question",
+          "edit": null,
+          "question": "Ohio hospitals near highways",
+          "rewritten": false
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.21,
+          "kind": "question",
+          "edit": null,
+          "question": "Ohio hospitals near highways",
+          "rewritten": false
+        },
+        {
+          "ok": true,
+          "problems": [],
+          "secs": 0.25,
+          "kind": "question",
+          "edit": null,
+          "question": "Ohio hospitals near highways",
+          "rewritten": false
+        }
+      ]
+    }
+  ]
+}

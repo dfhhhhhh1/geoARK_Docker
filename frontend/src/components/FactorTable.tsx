@@ -58,13 +58,19 @@ function Bar({ value }: { value: number }) {
 // already says it; the full text stays in the tooltip.
 const shortName = (d: string) => d.replace(/\s*\(covers [\d,]+ counties\)/i, '');
 
-function Row({ f }: { f: ExplainFactor }) {
+function Row({ f, onMap }: { f: ExplainFactor; onMap?: (f: ExplainFactor) => void }) {
   const significant = (f.importance ?? 0) > 0;
   return (
     <tr className="border-b border-slate-100 align-top">
       <td className="py-2 pr-3 tabular-nums text-slate-500">{f.rank ?? ''}</td>
       <td className="py-2 pr-3 min-w-[11rem] text-slate-900" title={f.description ?? f.attr_id}>
-        {shortName(f.description ?? f.attr_id)}</td>
+        {shortName(f.description ?? f.attr_id)}
+        {onMap && (
+          <button type="button" onClick={() => onMap(f)}
+                  className="block mt-0.5 text-xs text-blue-700 hover:underline">
+            Map this factor
+          </button>
+        )}</td>
       <td className="py-2 pr-3 hidden md:table-cell"><Bar value={f.partial_rho ?? 0} /></td>
       <td className={`py-2 pr-3 tabular-nums ${significant ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
         {fmt(f.partial_rho)}
@@ -83,7 +89,14 @@ function Row({ f }: { f: ExplainFactor }) {
   );
 }
 
-export default function FactorTable({ result }: { result: AnalysisResponse }) {
+/**
+ * `onMap` puts a "Map this factor" link on each row. A ranked table says how
+ * strongly a factor tracks the outcome; only a map says where.
+ */
+export default function FactorTable({ result, onMap }: {
+  result: AnalysisResponse;
+  onMap?: (f: ExplainFactor) => void;
+}) {
   const ex = result.explain!;
   const outcome = shortName(result.provenance?.attribute_origins?.[0]?.description ?? 'the outcome');
   const fitted = ex.factors.filter(f => f.status === 'ok');
@@ -119,7 +132,7 @@ export default function FactorTable({ result }: { result: AnalysisResponse }) {
       {drivers.length ? (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">{head}
-            <tbody>{drivers.map(f => <Row key={f.attr_id} f={f} />)}</tbody>
+            <tbody>{drivers.map(f => <Row key={f.attr_id} f={f} onMap={onMap} />)}</tbody>
           </table>
         </div>
       ) : (
@@ -135,7 +148,7 @@ export default function FactorTable({ result }: { result: AnalysisResponse }) {
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">{head}
-              <tbody>{context.map(f => <Row key={f.attr_id} f={f} />)}</tbody>
+              <tbody>{context.map(f => <Row key={f.attr_id} f={f} onMap={onMap} />)}</tbody>
             </table>
           </div>
         </div>

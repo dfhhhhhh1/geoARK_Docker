@@ -210,6 +210,25 @@ wrong: a `join` where `normalize` was needed, or one poverty percentage divided
 by another. Judging *correctness* needs expected-value assertions on the output,
 which is the next thing this harness should grow.
 
+## Measuring follow-ups
+
+`followup_probe.py` + `followup.yaml` score `POST /api/analyze/followup`: was
+the message classified as an edit or a question, and did the rewritten question
+keep the context it needed (measure, place, year) and drop what the follow-up
+replaced. It does NOT plan the rewrite; whether that then plans well is
+`plan_probe.py`'s question.
+
+    python eval/followup_probe.py --repeat 3 --save eval/followup-run3.json --compare eval/followup-run2.json
+
+Cases marked `heldout: true` were written after the prompt was revised and
+before the revision was measured, and are reported separately; the others
+shaped the prompt and read optimistic. Numbers and the two guards that moved
+them are in [docs/FOLLOWUPS.md](../docs/FOLLOWUPS.md).
+
+The first run of this probe hit the search rate limiter (burst 30) and scored
+nine cases 0/3 on HTTP 429 -- a harness failure that looked like a model
+failure. The probe now waits out a 429 instead of scoring it.
+
 ## The tag ablation, and a wrong answer, corrected
 
 **An earlier version of this file claimed tags contribute nothing to retrieval.

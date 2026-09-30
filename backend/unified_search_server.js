@@ -29,6 +29,8 @@ const { callGoogle, googleConfigured } = require("./llm_google");
 const {
   buildSuggestions, unavailableDatasets, cityAmbiguity, shortLabel,
 } = require("./suggestions");
+const followup = require("./followup");
+const { validatePlan } = require("./planner/validate");
 
 console.log("  Starting Unified Geospatial Search Server...");
 
@@ -1920,178 +1922,219 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       }
     }
 
-    const usedAttrIds = [...new Set(planning.plan.steps.flatMap(
-      s => [s.attr_id, s.near_attr_id, ...(s.factors || []).map(f => f.attr_id)]
-        .filter(Boolean)))];
-    const byId = new Map(executable.map(c => [c.attr_id, c]));
-    const origins = usedAttrIds.map(id => {
-      const src = planning.resolved.get(id) || {};
-      const cand = byId.get(id) || {};
-      const isFeature = src.source_kind === "feature_table";
-      return {
-        attr_id: id,
-        description: cand.attr_desc || src.description || null,
-        dataset: cand.dataset_clean || null,
-        original_name: cand.attr_orig || null,
-        source_kind: src.source_kind || null,
-        table_name: src.table_name || null,
-        // A feature dataset is read for its GEOMETRY -- counted, or measured
-        // against. attribute_source still carries whichever column retrieval
-        // happened to match ("website", "objectid"), and reporting that as the
-        // source of the number is simply wrong, so it is dropped here rather
-        // than in each of the three places that render provenance.
-        value_column: isFeature ? null : (src.value_column || null),
-        geometry_column: isFeature ? (src.geom_column || "geom") : null,
-        census_code: src.census_code || null,
-        entity_type: cand.entity_type || src.entity_type || null,
-        start_date: cand.start_date || null,
-        end_date: cand.end_date || null,
-        srid: src.srid ?? null,
-      };
+    return await finishAnalysis({
+      query, started, planning, executable, candidates, search,
+      execute, includeGeometry, emit,
     });
-
-    const body = {
-      query,
-      decomposition: search.decomposition,
-      expansion: search.expansion,
-      plan: planning.plan,
-      repairs: planning.repairs,
-      // Deterministic corrections applied to the model's plan. Surfaced because
-      // a filter that could not be applied silently widens the answer.
-      adjustments: planning.adjustments || [],
-      // How each attribute the plan uses relates to the question. A "proxy"
-      // is kept but should be shown: "median household income" answers "the
-      // wealthiest" only by stand-in, and the reader deserves to know that.
-      relevance: planning.relevance,
-      // ALL executable candidates, not the top 10. A plan may load an attribute
-      // ranked below 10th, and the UI's step-by-step report has to be able to
-      // name what each step operates on. The list is ~25 small rows.
-      candidates: executable,
-      provenance: {
-        generated_at: new Date().toISOString(),
-        query,
-        intent: planning.plan.intent,
-        models: {
-          decomposition: CONFIG.llm.model,
-          planner: CONFIG.llm.planModel || CONFIG.llm.model,
-          embedding: CONFIG.embedder.model,
-        },
-        retrieval: {
-          corpus_cache_key: corpusCacheKey ?? null,
-          catalog_rows: variables.length,
-          retrieved: candidates.length,
-          executable: executable.length,
-          plan_repairs: planning.repairs,
-          // Which candidates came from the literature rather than the question,
-          // and from which SemMedDB release. null when expansion was off.
-          expansion: search.expansion ? {
-            source: search.expansion.source || null,
-            seeds: search.expansion.seeds,
-            concepts: search.expansion.concepts.filter(c => c.kept).map(c => c.name),
-          } : null,
-        },
-        database: CONFIG.database.database,
-        attribute_origins: origins,
-        // Units are not derivable from the numbers and are wrong to guess at.
-        units_note:
-          "per_area yields value per square mile of LAND area (water excluded); " +
-          "nearest_distance yields miles; normalize yields numerator/denominator " +
-          "times the step's scale.",
-      },
-      ms: Date.now() - started
-    };
-
-    // 3. Execute, unless the caller only wanted the plan.
-    if (execute) {
-      emit({ stage: "executing" });
-      try {
-        const result = await executePlan(planning.plan, planning.resolved, pool);
-        body.sql = result.sql;
-        body.params = result.params;
-        body.row_count = result.row_count;
-        body.rows = result.rows;
-        body.execution_ms = result.ms;
-        body.output_mode = result.mode;
-        // Two-series results carry `value_b` on every row. Announced explicitly
-        // so the UI can offer a series switch without having to sniff the rows.
-        if (result.series === 2) body.series = 2;
-        // Signed measures (hotspot, outlier) must be drawn on a diverging ramp.
-        // Declared by the op that produced the layer, not guessed from the
-        // numbers: an all-positive run of a diverging measure is still one.
-        if (result.diverging) {
-          body.diverging = true;
-          body.value_label = result.valueLabel ?? null;
-        }
-        // A one-row statistic (correlate): its figures, named. Also marks the
-        // result as a statistic rather than a county layer, so the UI shows a
-        // summary instead of a map of one NULL-fips row.
-        if (result.stats) {
-          body.stats = result.stats;
-          body.value_label = result.valueLabel ?? null;
-        }
-        // explain: the ranked factor table, the controls it used, and how many
-        // counties had the outcome at all.
-        if (result.mode === "factors") {
-          body.explain = {
-            factors: result.factors,
-            controls: result.controls,
-            outcome_counties: result.outcome_counties,
-          };
-        }
-        // A plan with several `output` steps returns several layers. The first
-        // is ALSO surfaced flat above, so a client that knows nothing about
-        // layers still gets an answer rather than an empty result.
-        if (result.layer_count > 1) {
-          body.layers = result.layers.map(l => ({
-            id: l.id,
-            step: l.step,
-            op: l.op,
-            // A component of an arithmetic result rather than the answer, so
-            // the UI can label it as such instead of calling it "Layer 2".
-            part: l.part === true,
-            mode: l.mode,
-            series: l.series,
-            diverging: l.diverging === true,
-            value_label: l.valueLabel ?? null,
-            stats: l.stats ?? null,
-            row_count: l.row_count,
-            ...(l.mode === "features" ? { features: l.features } : { rows: l.rows }),
-          }));
-          body.layer_count = result.layer_count;
-        }
-        // A successful result can still be the wrong ANSWER: a city filter with
-        // no state quietly spans the country. Report the spread so the UI can
-        // offer to narrow, rather than presenting 25 states as one city.
-        const ambiguity = cityAmbiguity(planning.plan, result.features);
-        if (ambiguity) body.ambiguity = ambiguity;
-        if (result.mode === "features") {
-          // Feature geometry is the ANSWER here, not an optional overlay, so
-          // include_geometry does not apply -- withholding it would leave the
-          // caller with nothing. Bounded instead by MAX_FEATURES.
-          body.features = result.features;
-        } else if (includeGeometry) {
-          // County geometry is ~6.6 MB for a 1,000-row result. Callers that
-          // already have county boundaries locally ask for it to be left out.
-          body.geometry = result.geometry;
-        }
-      } catch (err) {
-        // A plan that validates can still fail at execution. Return the plan
-        // and the reason rather than swallowing both.
-        console.error("   Execution failed:", err.message);
-        body.execution_error = err.message;
-        body.http_status = 500;
-      }
-    }
-
-    body.ms = Date.now() - started;
-    console.log(`   done in ${body.ms}ms (${body.row_count ?? 0} rows)`);
-    return body;
-
   } catch (error) {
     if (error instanceof AnalyzeError) throw error;
     console.error("Analyze error:", error);
     throw new AnalyzeError(500, { error: "analyze failed", details: error.message });
   }
+}
+
+/**
+ * Provenance, execution and response shaping for a plan that has validated.
+ *
+ * Split out of runAnalysis so that a REVISED plan (POST /api/analyze/revise,
+ * backend/followup.js) produces exactly the same response as a planned one:
+ * same provenance block, same layers, same failure reporting. Two copies of
+ * this would drift, and the UI renders both through one component.
+ *
+ * `revision` is present only for an edited plan and is recorded in provenance,
+ * because a result the user reshaped by hand is not the result the planner
+ * produced, and an export has to be able to say so.
+ */
+async function finishAnalysis({ query, started, planning, executable, candidates, search,
+                                execute = true, includeGeometry = false, emit = () => {},
+                                revision = null }) {
+  const usedAttrIds = [...new Set(planning.plan.steps.flatMap(
+    s => [s.attr_id, s.near_attr_id, ...(s.factors || []).map(f => f.attr_id)]
+      .filter(Boolean)))];
+  const byId = new Map(executable.map(c => [c.attr_id, c]));
+  const origins = usedAttrIds.map(id => {
+    const src = planning.resolved.get(id) || {};
+    const cand = byId.get(id) || {};
+    const isFeature = src.source_kind === "feature_table";
+    // The user's own upload. Named as such in every export: a number the user
+    // supplied must never read as though it came from the catalog.
+    if (src.source_kind === "inline") {
+      return {
+        attr_id: id, description: src.description, dataset: src.dataset,
+        original_name: src.file, source_kind: "user_upload", table_name: null,
+        value_column: null, geometry_column: null, census_code: null,
+        entity_type: "COUNTY", start_date: null, end_date: null, srid: null,
+        user_rows: src.row_count,
+      };
+    }
+    return {
+      attr_id: id,
+      description: cand.attr_desc || src.description || null,
+      dataset: cand.dataset_clean || null,
+      original_name: cand.attr_orig || null,
+      source_kind: src.source_kind || null,
+      table_name: src.table_name || null,
+      // A feature dataset is read for its GEOMETRY -- counted, or measured
+      // against. attribute_source still carries whichever column retrieval
+      // happened to match ("website", "objectid"), and reporting that as the
+      // source of the number is simply wrong, so it is dropped here rather
+      // than in each of the three places that render provenance.
+      value_column: isFeature ? null : (src.value_column || null),
+      geometry_column: isFeature ? (src.geom_column || "geom") : null,
+      census_code: src.census_code || null,
+      entity_type: cand.entity_type || src.entity_type || null,
+      start_date: cand.start_date || null,
+      end_date: cand.end_date || null,
+      srid: src.srid ?? null,
+    };
+  });
+
+  const body = {
+    query,
+    decomposition: search.decomposition,
+    expansion: search.expansion,
+    plan: planning.plan,
+    repairs: planning.repairs,
+    // Deterministic corrections applied to the model's plan. Surfaced because
+    // a filter that could not be applied silently widens the answer.
+    adjustments: planning.adjustments || [],
+    // How each attribute the plan uses relates to the question. A "proxy"
+    // is kept but should be shown: "median household income" answers "the
+    // wealthiest" only by stand-in, and the reader deserves to know that.
+    relevance: planning.relevance,
+    // ALL executable candidates, not the top 10. A plan may load an attribute
+    // ranked below 10th, and the UI's step-by-step report has to be able to
+    // name what each step operates on. The list is ~25 small rows.
+    candidates: executable,
+    provenance: {
+      generated_at: new Date().toISOString(),
+      query,
+      intent: planning.plan.intent,
+      models: {
+        decomposition: CONFIG.llm.model,
+        planner: CONFIG.llm.planModel || CONFIG.llm.model,
+        embedding: CONFIG.embedder.model,
+      },
+      retrieval: {
+        corpus_cache_key: corpusCacheKey ?? null,
+        catalog_rows: variables.length,
+        retrieved: candidates.length,
+        executable: executable.length,
+        plan_repairs: planning.repairs,
+        // Which candidates came from the literature rather than the question,
+        // and from which SemMedDB release. null when expansion was off.
+        expansion: search.expansion ? {
+          source: search.expansion.source || null,
+          seeds: search.expansion.seeds,
+          concepts: search.expansion.concepts.filter(c => c.kept).map(c => c.name),
+        } : null,
+      },
+      database: CONFIG.database.database,
+      attribute_origins: origins,
+      // Present when the user reshaped an earlier result by hand rather than
+      // the planner producing this plan from the question.
+      ...(revision ? { revision } : {}),
+      // Units are not derivable from the numbers and are wrong to guess at.
+      units_note:
+        "per_area yields value per square mile of LAND area (water excluded); " +
+        "nearest_distance yields miles; normalize yields numerator/denominator " +
+        "times the step's scale.",
+    },
+    // What the user can do next with THIS plan (backend/followup.js). Worked
+    // out here rather than in the browser so a button is offered exactly when
+    // the server would accept the edit it sends.
+    followups: followup.availableFollowups(planning.plan, {
+      candidates: executable, hasNeighbors: await countyNeighborsLoaded(),
+    }),
+    ...(revision ? { revision } : {}),
+    ms: Date.now() - started
+  };
+
+  // 3. Execute, unless the caller only wanted the plan.
+  if (execute) {
+    emit({ stage: "executing" });
+    try {
+      const result = await executePlan(planning.plan, planning.resolved, pool);
+      body.sql = result.sql;
+      body.params = result.params;
+      body.row_count = result.row_count;
+      body.rows = result.rows;
+      body.execution_ms = result.ms;
+      body.output_mode = result.mode;
+      // Two-series results carry `value_b` on every row. Announced explicitly
+      // so the UI can offer a series switch without having to sniff the rows.
+      if (result.series === 2) body.series = 2;
+      // Signed measures (hotspot, outlier) must be drawn on a diverging ramp.
+      // Declared by the op that produced the layer, not guessed from the
+      // numbers: an all-positive run of a diverging measure is still one.
+      if (result.diverging) {
+        body.diverging = true;
+        body.value_label = result.valueLabel ?? null;
+      }
+      // A one-row statistic (correlate): its figures, named. Also marks the
+      // result as a statistic rather than a county layer, so the UI shows a
+      // summary instead of a map of one NULL-fips row.
+      if (result.stats) {
+        body.stats = result.stats;
+        body.value_label = result.valueLabel ?? null;
+      }
+      // explain: the ranked factor table, the controls it used, and how many
+      // counties had the outcome at all.
+      if (result.mode === "factors") {
+        body.explain = {
+          factors: result.factors,
+          controls: result.controls,
+          outcome_counties: result.outcome_counties,
+        };
+      }
+      // A plan with several `output` steps returns several layers. The first
+      // is ALSO surfaced flat above, so a client that knows nothing about
+      // layers still gets an answer rather than an empty result.
+      if (result.layer_count > 1) {
+        body.layers = result.layers.map(l => ({
+          id: l.id,
+          step: l.step,
+          op: l.op,
+          // A component of an arithmetic result rather than the answer, so
+          // the UI can label it as such instead of calling it "Layer 2".
+          part: l.part === true,
+          mode: l.mode,
+          series: l.series,
+          diverging: l.diverging === true,
+          value_label: l.valueLabel ?? null,
+          stats: l.stats ?? null,
+          row_count: l.row_count,
+          ...(l.mode === "features" ? { features: l.features } : { rows: l.rows }),
+        }));
+        body.layer_count = result.layer_count;
+      }
+      // A successful result can still be the wrong ANSWER: a city filter with
+      // no state quietly spans the country. Report the spread so the UI can
+      // offer to narrow, rather than presenting 25 states as one city.
+      const ambiguity = cityAmbiguity(planning.plan, result.features);
+      if (ambiguity) body.ambiguity = ambiguity;
+      if (result.mode === "features") {
+        // Feature geometry is the ANSWER here, not an optional overlay, so
+        // include_geometry does not apply -- withholding it would leave the
+        // caller with nothing. Bounded instead by MAX_FEATURES.
+        body.features = result.features;
+      } else if (includeGeometry) {
+        // County geometry is ~6.6 MB for a 1,000-row result. Callers that
+        // already have county boundaries locally ask for it to be left out.
+        body.geometry = result.geometry;
+      }
+    } catch (err) {
+      // A plan that validates can still fail at execution. Return the plan
+      // and the reason rather than swallowing both.
+      console.error("   Execution failed:", err.message);
+      body.execution_error = err.message;
+      body.http_status = 500;
+    }
+  }
+
+  body.ms = Date.now() - started;
+  console.log(`   done in ${body.ms}ms (${body.row_count ?? 0} rows)`);
+  return body;
 }
 
 app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
@@ -2199,6 +2242,252 @@ app.get("/api/analyze/stream", auth.requireAuth, limitAnalyze, async (req, res) 
   } finally {
     clearInterval(heartbeat);
     if (open) res.end();
+  }
+});
+
+// =============================================================================
+// Follow-ups: refine an answer, add data, ask the next question
+// =============================================================================
+//
+// backend/followup.js has the reasoning. In short: a structural change to the
+// last plan is applied in code and re-validated, never re-planned; free text is
+// rewritten into a standalone question the user can see, then runs normally.
+
+// Catalog rows by attr_id, for naming attributes a revise request cites. Built
+// on first use, because `variables` is filled asynchronously at startup.
+let variablesById = null;
+function catalogRow(attrId) {
+  if (!variablesById || variablesById.size !== variables.length) {
+    variablesById = new Map(variables.map(v => [v.attr_id, v]));
+  }
+  return variablesById.get(attrId) || null;
+}
+
+/**
+ * Hydrate attr_ids into the candidate rows the response carries, from the
+ * SERVER's catalog and attribute_source -- never from anything the browser
+ * sent. Provenance a client fills in for itself is worth very little.
+ */
+async function hydrateCandidates(attrIds, resolver) {
+  const ids = [...new Set(attrIds.filter(id => typeof id === "string" && id))];
+  const resolved = await resolver(ids);
+  const out = [];
+  for (const id of ids) {
+    const src = resolved.get(id);
+    if (!src) continue;
+    if (src.source_kind === "inline") { out.push(followup.userCandidate(src)); continue; }
+    const row = catalogRow(id) || { attr_id: id, attr_desc: src.description || id };
+    out.push(src.source_kind === "feature_table"
+      ? { ...row, attr_desc: `${row.dataset_clean || src.table_name} (mapped locations)`,
+          is_feature_table: true, filter_values: src.filter_values || {} }
+      : row);
+  }
+  return { candidates: out, resolved };
+}
+
+/**
+ * POST /api/analyze/followup
+ *
+ * Body: { text, history: [{query, intent, measures[]}], plan? }
+ * Returns either { kind: "edit", edit } -- apply it with /api/analyze/revise --
+ * or { kind: "question", question, rewritten } -- run it with /api/analyze.
+ *
+ * Cheap on purpose. An edit is recognised in code with no model call; only a
+ * genuine new question pays for one short gemma rewrite, and never a plan.
+ */
+app.post("/api/analyze/followup", auth.requireAuth, limitSearch, async (req, res) => {
+  const started = Date.now();
+  const text = String(req.body?.text ?? "").trim();
+  if (!text) return res.status(400).json({ error: "field 'text' is required" });
+  if (text.length > 500) return res.status(400).json({ error: "follow-up is too long (500 characters)" });
+  const history = Array.isArray(req.body?.history) ? req.body.history.slice(-3) : [];
+  const plan = req.body?.plan;
+
+  const quick = followup.parseQuickEdit(text);
+  if (quick && plan) {
+    try {
+      followup.applyEdit(plan, quick, { hasNeighbors: await countyNeighborsLoaded() });
+      console.log(`   follow-up "${text}" -> edit ${JSON.stringify(quick)}`);
+      return res.json({ kind: "edit", edit: quick, ms: Date.now() - started });
+    } catch (err) {
+      // Recognised, but it does not fit this result (a rank on a correlation,
+      // say). The model may still make sense of it as a question.
+      console.log(`   follow-up "${text}" parsed as ${quick.kind} but does not apply: ${err.message}`);
+    }
+  }
+
+  const rewrite = await followup.rewriteFollowUp({
+    text, history,
+    // The exact states the answer on screen is restricted to, read from its
+    // plan rather than from a title, which may only give a count.
+    area: followup.areaOf(plan),
+    // The measure the answer on screen is about, named from the catalog, so a
+    // follow-up like "normalize by population" cannot lose it.
+    measure: (() => {
+      const id = followup.primaryAttr(plan);
+      const desc = id && !followup.isUserAttr(id) ? catalogRow(id)?.attr_desc : null;
+      const label = desc ? followup.measureLabel(desc) : null;
+      return label ? label.replace(/\s*\(covers [\d,]+ counties\)/i, "").replace(/\s*›\s*/g, " ") : null;
+    })(),
+    callLLM: (sys, usr, temp, schema) => callLLM(sys, usr, temp, schema),
+  });
+  if (rewrite.discarded) console.log(`   follow-up rewrite discarded: "${rewrite.discarded}" (${rewrite.note})`);
+  console.log(`   follow-up "${text}" -> question "${rewrite.question}"` +
+              `${rewrite.rewritten ? "" : " (unchanged)"}`);
+  return res.json({ kind: "question", ...rewrite, ms: Date.now() - started });
+});
+
+/**
+ * POST /api/analyze/revise
+ *
+ * Body: { query, plan, edit, candidate_ids?, user_series?, decomposition? }
+ *
+ * Applies one edit to a plan that already ran, re-validates it with the same
+ * validator a planned query passes, and executes it. No model call, so a
+ * refinement takes the database's time, not the planner's ~20s.
+ *
+ * The plan comes from the browser and is treated exactly like a plan from the
+ * model -- untrusted. Grounding, shape rules and compilation are unchanged: no
+ * field of it is ever interpolated into SQL, and a user series is bound as two
+ * arrays. The step cap bounds how much work one request can describe.
+ */
+const MAX_REVISE_STEPS = 24;
+app.post("/api/analyze/revise", auth.requireAuth, limitSearch, async (req, res) => {
+  const started = Date.now();
+  const { plan, edit } = req.body || {};
+  const query = String(req.body?.query ?? "").slice(0, 500);
+  if (!edit || typeof edit !== "object") {
+    return res.status(400).json({ error: "field 'edit' is required" });
+  }
+  // Every edit but map_measure changes an existing plan and needs one.
+  const needsPlan = edit.kind !== "map_measure";
+  if (needsPlan && (!plan || !Array.isArray(plan.steps))) {
+    return res.status(400).json({ error: "field 'plan' is required" });
+  }
+  if (Array.isArray(plan?.steps) && plan.steps.length > MAX_REVISE_STEPS) {
+    return res.status(400).json({ error: `plan has more than ${MAX_REVISE_STEPS} steps` });
+  }
+
+  const { sources: userSources, errors: userErrors } =
+    followup.validateUserSeries(req.body?.user_series);
+  if (userErrors.length) {
+    return res.status(400).json({ error: "uploaded data is not usable", detail: userErrors.join("; ") });
+  }
+  const resolver = followup.withUserSeries(resolveAttributes, userSources);
+
+  try {
+    console.log(`\n${"=".repeat(70)}\nREVISE: "${query}" ${JSON.stringify(edit).slice(0, 200)}\n${"=".repeat(70)}`);
+    const candidateIds = (Array.isArray(req.body?.candidate_ids) ? req.body.candidate_ids : []).slice(0, 60);
+    const editIds = [edit.attr_id, edit.from, edit.to].filter(Boolean);
+    const planIds = (plan?.steps || []).flatMap(s => [s.attr_id, s.near_attr_id]).filter(Boolean);
+    const { candidates: executable, resolved } =
+      await hydrateCandidates([...planIds, ...editIds, ...candidateIds, ...userSources.keys()], resolver);
+    const byId = new Map(executable.map(c => [c.attr_id, c]));
+
+    const hasNeighbors = await countyNeighborsLoaded();
+    let applied;
+    try {
+      applied = followup.applyEdit(plan, edit, {
+        hasNeighbors,
+        label: (id) => {
+          const c = byId.get(id);
+          return (c && (followup.measureLabel(c.attr_desc) || c.dataset_clean)) || id;
+        },
+        kindOf: (id) => {
+          const src = resolved.get(id);
+          return !src ? null : src.source_kind === "feature_table" ? "feature" : "value";
+        },
+      });
+    } catch (err) {
+      if (!(err instanceof followup.FollowUpError)) throw err;
+      return res.status(422).json({ error: "that change does not apply to this result", detail: err.message });
+    }
+
+    // explain factors are attached by code, not grounded through `grounds`, so
+    // they are resolved here the way runAnalysis resolves them.
+    const explainStep = applied.plan.steps.find(s => s.op === "explain");
+    if (explainStep) {
+      const extra = await resolver((explainStep.factors || []).map(f => f.attr_id));
+      explainStep.factors = (explainStep.factors || [])
+        .filter(f => extra.get(f.attr_id) && extra.get(f.attr_id).source_kind !== "feature_table");
+      for (const [k, v] of extra) resolved.set(k, v);
+    }
+
+    const check = await validatePlan(applied.plan, resolver);
+    if (!check.ok) {
+      console.log(`   revised plan invalid: ${check.errors.join(" | ")}`);
+      return res.status(422).json({
+        error: "the changed analysis is not valid",
+        detail: check.errors.join(" "),
+        validation_errors: check.errors,
+      });
+    }
+    for (const [k, v] of check.resolved) resolved.set(k, v);
+
+    const body = await finishAnalysis({
+      query: query || applied.plan.intent,
+      started,
+      planning: {
+        plan: applied.plan, resolved, repairs: 0,
+        adjustments: [applied.note],
+        // The relevance check judges a plan against the QUESTION. An edit the
+        // user chose is not a reading of the question, so it is not re-judged.
+        relevance: null,
+      },
+      executable,
+      candidates: executable,
+      search: { decomposition: req.body?.decomposition ?? null, expansion: null },
+      execute: true,
+      includeGeometry: false,
+      revision: { from_query: query || null, edit, note: applied.note },
+    });
+    delete body.http_status;
+    return res.json(body);
+  } catch (err) {
+    if (err instanceof AnalyzeError) return res.status(err.status).json(err.payload);
+    console.error("Revise error:", err);
+    return res.status(500).json({ error: "revise failed", details: err.message });
+  }
+});
+
+/**
+ * POST /api/measures/search
+ *
+ * Body: { q }. "Add more data": a plain catalog search, no LLM, filtered to
+ * attributes that RESOLVE, so anything offered can actually be loaded. The
+ * catalog holds 6,860 entries of which 4,893 carry data; offering the other
+ * 1,967 would be offering failures.
+ */
+app.post("/api/measures/search", auth.requireAuth, limitSearch, async (req, res) => {
+  try {
+    if (!isEmbeddingsReady) return res.status(503).json({ error: "search index not ready" });
+    const q = String(req.body?.q ?? "").trim().slice(0, 200);
+    if (!q) return res.json({ results: [] });
+    const hits = await performHybridSearch(q, 40);
+    const resolved = await resolveAttributes(hits.map(h => h.attr_id));
+    const seenTable = new Set();
+    const results = [];
+    for (const h of hits) {
+      const src = resolved.get(h.attr_id);
+      if (!src) continue;
+      const isFeature = src.source_kind === "feature_table";
+      if (isFeature) {
+        if (seenTable.has(src.table_name)) continue;   // one row per layer
+        seenTable.add(src.table_name);
+      }
+      results.push({
+        attr_id: h.attr_id,
+        label: isFeature ? (h.dataset_clean || src.table_name) : (followup.measureLabel(h.attr_desc) || h.attr_id),
+        description: h.attr_desc || null,
+        dataset: h.dataset_clean || null,
+        kind: isFeature ? "feature" : "value",
+      });
+      if (results.length >= 12) break;
+    }
+    return res.json({ results });
+  } catch (err) {
+    console.error("Measure search error:", err);
+    return res.status(500).json({ error: "search failed", details: err.message });
   }
 });
 

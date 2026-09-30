@@ -1,0 +1,252 @@
+# Follow-up interpretation suite (backend/followup.js, POST /api/analyze/followup).
+#
+# WHAT THIS MEASURES
+# ------------------
+# Two decisions the follow-up path makes before anything is planned:
+#
+#   kind      Is the message an EDIT to the previous plan (applied in code, no
+#             model) or a QUESTION (rewritten by the small model, then planned)?
+#             Getting this wrong in the edit direction is the dangerous one: it
+#             silently applies a filter the user did not ask for.
+#   rewrite   For questions: does the standalone question keep what the
+#             follow-up left implicit (the measure, the place, the year) and
+#             drop what it replaced?
+#
+# WHAT IT CANNOT SEE
+# ------------------
+# Whether the rewritten question then PLANS well. That is plan_probe.py's job,
+# and a rewrite that reads correctly can still retrieve the wrong attribute.
+# This suite scores the text handed to the planner, nothing downstream.
+#
+# SCORING
+#   must:      a list of groups; EVERY group must match, and a group matches if
+#              ANY of its alternatives appears (case-insensitive substring).
+#   must_not:  none of these may appear.
+#   edit:      for kind: edit, the fields the edit must carry.
+#
+# `plan: area` sends a plan restricted to Missouri, so "the whole country" has
+# something to clear; otherwise a plain load -> output plan is sent.
+#
+#   python eval/followup_probe.py --repeat 3 --save eval/followup-run1.json
+
+cases:
+  # --- edits: recognised in code, never sent to the model ----------------------
+  - id: edit-state
+    history: [{query: "median household income for counties in Missouri",
+               intent: "Median household income for Missouri counties"}]
+    text: "what about Texas?"
+    kind: edit
+    edit: {kind: restrict_area, states: [Texas]}
+
+  - id: edit-region-same-thing
+    history: [{query: "population density per square mile in the Midwest",
+               intent: "Population per square mile of land, Midwest counties"}]
+    text: "same thing but for the West"
+    kind: edit
+    edit: {kind: restrict_area, states: [West]}
+
+  - id: edit-postal
+    history: [{query: "poverty rate by county", intent: "Poverty rate by county"}]
+    text: "what about TX"
+    kind: edit
+    edit: {kind: restrict_area, states: [Texas]}
+
+  - id: edit-top
+    history: [{query: "median household income by county", intent: "Median household income by county"}]
+    text: "top 10"
+    kind: edit
+    edit: {kind: rank, direction: desc, limit: 10}
+
+  - id: edit-bottom
+    history: [{query: "median household income by county", intent: "Median household income by county"}]
+    text: "show me the lowest 5 counties"
+    kind: edit
+    edit: {kind: rank, direction: asc, limit: 5}
+
+  - id: edit-whole-country
+    history: [{query: "median household income for counties in Missouri",
+               intent: "Median household income for Missouri counties"}]
+    plan: area
+    text: "the whole country"
+    kind: edit
+    edit: {kind: clear_area}
+
+  # --- questions: the model rewrites, and must carry the context ---------------
+  - id: q-add-measure
+    history: [{query: "poverty rate in Ohio", intent: "Poverty rate for Ohio counties",
+               measures: ["Poverty rate"]}]
+    text: "and unemployment?"
+    kind: question
+    must: [[unemployment], [ohio]]
+
+  - id: q-replace-measure
+    history: [{query: "median household income for counties in Missouri",
+               intent: "Median household income for Missouri counties",
+               measures: ["Median household income"]}]
+    text: "what about the unemployment rate instead?"
+    kind: question
+    must: [[unemployment], [missouri]]
+    must_not: [income]
+
+  - id: q-relationship
+    history: [{query: "obesity rates by county", intent: "Adult obesity by county",
+               measures: ["Obesity among adults"]}]
+    text: "is it related to diabetes?"
+    kind: question
+    must: [[obesity], [diabetes], [relat, correlat, associat, link]]
+
+  - id: q-replace-layer
+    history: [{query: "how many hospitals are in each county", intent: "Hospitals per county",
+               measures: ["Hospitals"]}]
+    text: "what about fire stations?"
+    kind: question
+    must: [[fire station]]
+    must_not: [hospital]
+
+  - id: q-hotspots
+    history: [{query: "poverty rate by county", intent: "Poverty rate by county",
+               measures: ["Poverty rate"]}]
+    text: "where does it cluster?"
+    kind: question
+    must: [[poverty], [cluster, hot spot, hotspot]]
+
+  - id: q-explain
+    history: [{query: "diabetes rates by county", intent: "Diagnosed diabetes among adults by county",
+               measures: ["Diagnosed diabetes among adults"]}]
+    text: "what explains it?"
+    kind: question
+    must: [[diabetes], [explain, drive, factor, why, cause]]
+
+  - id: q-change-radius
+    history: [{query: "hospitals within 10 miles of electric power transmission lines",
+               intent: "Hospitals within ten miles of a transmission line, per county",
+               measures: ["Hospitals", "Electric Power Transmission Lines"]}]
+    text: "and within 5 miles?"
+    kind: question
+    must: [[hospital], [transmission], ["5 mile", "five mile"]]
+    must_not: ["10 mile", "ten mile"]
+
+  - id: q-change-year
+    history: [{query: "unemployment rate by county in 2015", intent: "Unemployment rate by county, 2015",
+               measures: ["Unemployment rate"]}]
+    text: "and in 2020?"
+    kind: question
+    must: [[unemployment], ["2020"]]
+    must_not: ["2015"]
+
+  - id: q-two-turns-back
+    history:
+      - {query: "poverty rate in Ohio", intent: "Poverty rate for Ohio counties", measures: ["Poverty rate"]}
+      - {query: "poverty rate in Ohio", intent: "Poverty rate for Ohio counties · top 10", measures: ["Poverty rate"]}
+    text: "what about child poverty?"
+    kind: question
+    must: [[child], [poverty], [ohio]]
+
+  - id: q-city-layer
+    history: [{query: "fire stations in Springfield, Missouri",
+               intent: "Fire stations in Springfield, Missouri", measures: ["Fire Stations"]}]
+    text: "and police stations?"
+    kind: question
+    must: [[police], [springfield], [missouri, " mo"]]
+    must_not: [fire]
+
+  - id: q-compare
+    history: [{query: "median household income by county", intent: "Median household income by county",
+               measures: ["Median household income"]}]
+    text: "compare it with educational attainment"
+    kind: question
+    must: [[income], [education, bachelor, attainment]]
+
+  # --- a new topic must pass through untouched in substance ---------------------
+  - id: q-new-topic
+    history: [{query: "poverty rate in Ohio", intent: "Poverty rate for Ohio counties",
+               measures: ["Poverty rate"]}]
+    text: "how far is each county from the nearest airport"
+    kind: question
+    must: [[airport]]
+    must_not: [ohio, poverty]
+
+  # --- things that must NOT be read as edits ------------------------------------
+  - id: q-not-edit-state-plus
+    history: [{query: "poverty rate by county", intent: "Poverty rate by county", measures: ["Poverty rate"]}]
+    text: "Texas hospitals"
+    kind: question
+    must: [[texas], [hospital]]
+
+  - id: q-not-edit-county
+    history: [{query: "poverty rate by county", intent: "Poverty rate by county", measures: ["Poverty rate"]}]
+    text: "what about Washington County?"
+    kind: question
+    must: [[washington county]]
+
+  # --- HELD OUT ------------------------------------------------------------------
+  # Written after the prompt rules and worked examples were revised in response
+  # to the first run, and before that revision was measured. The cases above
+  # shaped those revisions, so their score after the change is optimistic; these
+  # are reported separately (`heldout_pct`) as the honest number.
+  - id: h-edit-and-in
+    heldout: true
+    history: [{query: "diabetes rates by county", intent: "Diagnosed diabetes among adults by county"}]
+    text: "and in Arizona?"
+    kind: edit
+    edit: {kind: restrict_area, states: [Arizona]}
+
+  - id: h-swap-measure-keep-state
+    heldout: true
+    history: [{query: "median age in Colorado", intent: "Median age for Colorado counties",
+               measures: ["Median age"]}]
+    text: "what about household size?"
+    kind: question
+    must: [[household size], [colorado]]
+    must_not: [median age]
+
+  - id: h-year
+    heldout: true
+    history: [{query: "poverty rate by county in 2019", intent: "Poverty rate by county, 2019",
+               measures: ["Poverty rate"]}]
+    text: "how about 2022"
+    kind: question
+    must: [[poverty], ["2022"]]
+    must_not: ["2019"]
+
+  - id: h-radius
+    heldout: true
+    history: [{query: "fire stations within 2 miles of a hospital",
+               intent: "Fire stations within two miles of a hospital, per county",
+               measures: ["Fire Stations", "Hospitals"]}]
+    text: "and 10 miles?"
+    kind: question
+    must: [[fire station], [hospital], ["10 mile", "ten mile"]]
+    must_not: ["2 mile", "two mile"]
+
+  - id: h-relationship-keep-state
+    heldout: true
+    history: [{query: "uninsured rate in Texas", intent: "Share without health insurance, Texas counties",
+               measures: ["No health insurance"]}]
+    text: "does that go with poverty?"
+    kind: question
+    must: [[uninsur, insurance], [poverty], [texas]]
+
+  - id: h-city-keep
+    heldout: true
+    history: [{query: "hospitals in Columbus, Ohio", intent: "Hospitals in Columbus, Ohio",
+               measures: ["Hospitals"]}]
+    text: "what about nursing homes?"
+    kind: question
+    must: [[nursing home], [columbus], [ohio]]
+    must_not: [hospital]
+
+  - id: h-standalone
+    heldout: true
+    history: [{query: "obesity by county", intent: "Adult obesity by county", measures: ["Obesity"]}]
+    text: "which counties have the most wind turbines"
+    kind: question
+    must: [[wind turbine]]
+    must_not: [obesity]
+
+  - id: h-not-edit
+    heldout: true
+    history: [{query: "poverty rate by county", intent: "Poverty rate by county", measures: ["Poverty rate"]}]
+    text: "Ohio hospitals near highways"
+    kind: question
+    must: [[ohio], [hospital], [highway]]

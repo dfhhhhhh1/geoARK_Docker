@@ -45,7 +45,32 @@ interface Props {
   intent: string;
   /** Names each layer, so the control list reads as more than "Layer 2". */
   describe?: (layer: AnalysisLayer, index: number) => string;
+  /** Zoom to and outline one county, e.g. from a click in the results table. */
+  focus?: { fips: string; nonce: number } | null;
 }
+
+/**
+ * The focused county as its own outline, drawn above every values layer.
+ * Independent of the hover highlight, which belongs to whichever layer is on
+ * top and changes as layers are toggled.
+ */
+const FocusOutline: React.FC<{ counties: FeatureCollection | null; focus: Props['focus'] }> =
+  ({ counties, focus }) => {
+    const map = useMap();
+    const feature = useMemo(() => (focus && counties
+      ? counties.features.find(f => (f.properties as { GEOID?: string } | null)?.GEOID === focus.fips) ?? null
+      : null), [counties, focus]);
+    useEffect(() => {
+      if (!feature) return;
+      const b = L.geoJSON(feature as never).getBounds();
+      if (b.isValid()) map.fitBounds(b, { maxZoom: 8, padding: [60, 60] });
+    }, [feature, focus?.nonce, map]);
+    if (!feature) return null;
+    return (
+      <GeoJSON key={`focus-${focus!.fips}-${focus!.nonce}`} data={feature as never} interactive={false}
+               style={{ color: '#1a1a19', weight: 3, fill: false, opacity: 1 }} />
+    );
+  };
 
 interface LayerState {
   visible: boolean;
@@ -90,7 +115,15 @@ const FitToLayers: React.FC<{
   const fitted = useRef<string | null>(null);
   useEffect(() => {
     if (fitted.current === signature || !features.length) return;
-    const bounds = L.geoJSON({ type: 'FeatureCollection', features } as never).getBounds();
+    // Same antimeridian exclusion as ChoroplethMap's FitToData: Aleutians West
+    // would otherwise make every national view the whole globe.
+    const fitTo = features.filter(f => {
+      const b = L.geoJSON(f as never).getBounds();
+      return !b.isValid() || b.getEast() - b.getWest() < 180;
+    });
+    const bounds = L.geoJSON({
+      type: 'FeatureCollection', features: fitTo.length ? fitTo : features,
+    } as never).getBounds();
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [16, 16] });
       fitted.current = signature;
@@ -154,7 +187,7 @@ const ValuesLayer: React.FC<{
   );
 };
 
-const LayeredMap: React.FC<Props> = ({ layers, intent, describe }) => {
+const LayeredMap: React.FC<Props> = ({ layers, intent, describe, focus = null }) => {
   const isDark = useIsDark();
   const [basemapId, setBasemapId] = useState(() => loadBasemapId('light'));
   const [counties, setCounties] = useState<FeatureCollection | null>(null);
@@ -326,6 +359,7 @@ const LayeredMap: React.FC<Props> = ({ layers, intent, describe }) => {
             );
           })}
           <FitToLayers features={withData} signature={fitSignature} />
+          <FocusOutline counties={counties} focus={focus} />
         </MapContainer>
 
         {/* Every visible layer's value for the hovered county, so a stack can

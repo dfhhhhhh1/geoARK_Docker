@@ -40,6 +40,16 @@ export const isStale = (s: { isRunning: boolean; result: unknown }) =>
 
 const TERMINAL: AnalysisStage[] = ['done', 'failed'];
 
+/**
+ * How one run ended. `run` resolves with this, so a caller that keeps several
+ * answers (the conversation thread) can file each result under the turn that
+ * asked for it instead of watching shared state change and guessing.
+ */
+export type AnalyzeOutcome =
+  | { status: 'done'; result: AnalysisResponse }
+  | { status: 'failed'; error: string; failure: AnalysisFailure | null }
+  | { status: 'cancelled' };
+
 export function useAnalyzeStream() {
   const [state, setState] = useState<AnalyzeStreamState>({
     stage: 'idle', events: [], result: null,
@@ -48,6 +58,14 @@ export function useAnalyzeStream() {
 
   const sourceRef = useRef<EventSource | null>(null);
   const startedAtRef = useRef<number>(0);
+  // Resolves the promise the current run() returned. Replaced per run; a run
+  // superseded by a newer one resolves as cancelled rather than hanging.
+  const settleRef = useRef<((o: AnalyzeOutcome) => void) | null>(null);
+  const settle = useCallback((o: AnalyzeOutcome) => {
+    const fn = settleRef.current;
+    settleRef.current = null;
+    fn?.(o);
+  }, []);
 
   const close = useCallback(() => {
     sourceRef.current?.close();
@@ -72,12 +90,15 @@ export function useAnalyzeStream() {
 
   const cancel = useCallback(() => {
     close();
+    settle({ status: 'cancelled' });
     setState(s => ({ ...s, isRunning: false, stage: 'idle' }));
-  }, [close]);
+  }, [close, settle]);
 
-  const run = useCallback((query: string) => {
-    if (!query.trim()) return;
+  const run = useCallback((query: string): Promise<AnalyzeOutcome> => {
+    if (!query.trim()) return Promise.resolve({ status: 'cancelled' });
     close();
+    settle({ status: 'cancelled' });
+    const outcome = new Promise<AnalyzeOutcome>(resolve => { settleRef.current = resolve; });
 
     startedAtRef.current = Date.now();
     // The PREVIOUS result is deliberately kept until a new one replaces it.
@@ -137,6 +158,8 @@ export function useAnalyzeStream() {
         isRunning: false,
         elapsedMs: Date.now() - startedAtRef.current,
       }));
+      settle(result ? { status: 'done', result }
+                    : { status: 'failed', error: 'the server sent a result that could not be parsed', failure: null });
     });
 
     es.addEventListener('failed', (e: MessageEvent) => {
@@ -160,6 +183,7 @@ export function useAnalyzeStream() {
         ...s, stage: 'failed', error: message, failure, isRunning: false,
         elapsedMs: Date.now() - startedAtRef.current,
       }));
+      settle({ status: 'failed', error: message, failure });
     });
 
     // Fires on a genuine transport failure. Because every terminal event above
@@ -168,6 +192,7 @@ export function useAnalyzeStream() {
     es.onerror = () => {
       if (!sourceRef.current) return;   // already finished; nothing to report
       close();
+      settle({ status: 'failed', error: 'lost connection to the analysis stream', failure: null });
       setState(s => (TERMINAL.includes(s.stage) ? s : {
         ...s,
         stage: 'failed',
@@ -175,7 +200,8 @@ export function useAnalyzeStream() {
         isRunning: false,
       }));
     };
-  }, [close]);
+    return outcome;
+  }, [close, settle]);
 
   return { ...state, run, cancel };
 }
