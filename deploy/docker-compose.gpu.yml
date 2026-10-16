@@ -22,10 +22,16 @@ services:
               count: all
               capabilities: [gpu]
     environment:
-      # With VRAM to spare there is no reason to unload between requests, and
-      # two resident models enables the small-router / large-planner split.
+      # With VRAM to spare there is no reason to unload between requests.
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
-      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-2}
+      # ONE resident model, not two. qwen3:14b + gemma3:4b is ~12.6 GB, and
+      # with an ordinary Windows desktop on the same 16 GB card that leaves
+      # under 0.5 GB: WDDM then pages VRAM to system RAM instead of failing,
+      # generation drops to ~0.05 tokens/s, and every planner call times out
+      # at 90s with ollama ps still reading "100% GPU" (CLAUDE.md, traps).
+      # At 1, a request swaps models (seconds) and never stalls; measured over
+      # every 2026-10-15/16 eval run.
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
       # The api asks for an 8,192-token window for the planner (LLM_NUM_CTX)
       # and 4,096 for the small model (LLM_SMALL_NUM_CTX). The planner prompt
       # plus reasoning overflows 4,096, and overflow silently drops the START of
@@ -33,6 +39,14 @@ services:
       # attention) is what lets both models stay resident on 16 GB.
       OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
       OLLAMA_KV_CACHE_TYPE: ${OLLAMA_KV_CACHE_TYPE:-q8_0}
+
+  # The planner settings every GPU deployment shares, so a pull gives everyone
+  # the measured configuration (CLAUDE.md, "Reasoning off, or capped"). A
+  # machine's own deploy/.env still wins over these if it sets them.
+  api:
+    environment:
+      PLAN_MODEL: ${PLAN_MODEL:-qwen3:14b}
+      PLAN_THINK: ${PLAN_THINK:-on}
 
   embedder:
     build:

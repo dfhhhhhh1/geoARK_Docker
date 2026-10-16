@@ -1,0 +1,2 @@
+== api qwen3:14b on
+== q14-off plan_correctness
