@@ -41,6 +41,37 @@ export const BaseLayers: React.FC<{ basemap: Basemap }> = ({ basemap }) => (
   </>
 );
 
+/**
+ * The basemap buttons on their own. The toolbar uses them, and so does the
+ * empty map before a first question, which has no fill to set an opacity for.
+ */
+export const BasemapPicker: React.FC<{
+  basemapId: string;
+  onBasemap: (id: string) => void;
+}> = ({ basemapId, onBasemap }) => (
+  <div className="flex items-center gap-1.5">
+    <Layers className="w-4 h-4 text-slate-400" aria-hidden />
+    <div className="flex rounded-lg border border-slate-300 overflow-hidden">
+      {BASEMAPS.map(b => (
+        <button
+          key={b.id}
+          type="button"
+          onClick={() => onBasemap(b.id)}
+          aria-pressed={basemapId === b.id}
+          className={`px-2.5 py-1 text-xs transition-colors border-r border-slate-300
+                      last:border-r-0 ${
+            basemapId === b.id
+              ? 'bg-brand-600 text-white'
+              : 'bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          {b.label}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
 interface ToolbarProps {
   basemapId: string;
   onBasemap: (id: string) => void;
@@ -60,27 +91,7 @@ export const MapToolbar: React.FC<ToolbarProps> = ({
   <div className={className}>
     {children}
 
-    <div className="flex items-center gap-1.5">
-      <Layers className="w-4 h-4 text-slate-400" aria-hidden />
-      <div className="flex rounded-lg border border-slate-300 overflow-hidden">
-        {BASEMAPS.map(b => (
-          <button
-            key={b.id}
-            type="button"
-            onClick={() => onBasemap(b.id)}
-            aria-pressed={basemapId === b.id}
-            className={`px-2.5 py-1 text-xs transition-colors border-r border-slate-300
-                        last:border-r-0 ${
-              basemapId === b.id
-                ? 'bg-brand-600 text-white'
-                : 'bg-white text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            {b.label}
-          </button>
-        ))}
-      </div>
-    </div>
+    <BasemapPicker basemapId={basemapId} onBasemap={onBasemap} />
 
     <label className="flex items-center gap-1.5 text-xs text-slate-600">
       <Droplet className="w-4 h-4 text-slate-400" aria-hidden />

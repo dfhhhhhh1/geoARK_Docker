@@ -1,0 +1,364 @@
+== deploy split-reasoning build
+ Container geoark-api-1 Started 
+  api up qwen3.5:9b on
+== q35-off-512 plan_correctness
+         attrs: Fire Stations (mapped locations)
+         narrowed by: city=Springfield, state=Missouri
+  OK     filtered-count             count_features->output  (16.9s)
+         intent: Count of critical access hospitals in each county
+         attrs: Hospitals (mapped locations)
+         narrowed by: type=CRITICAL ACCESS
+  OK     filtered-locations         select_features->output  (18.0s)
+         intent: Locations of open critical access hospitals in Missouri
+         attrs: Hospitals (mapped locations)
+         narrowed by: type=CRITICAL ACCESS, status=OPEN, state=Missouri
+  OK     hotspot-poverty            load->hotspot->output  (17.9s)
+         intent: Identify spatial clusters of high and low poverty rates by county
+         attrs: Estimate|Percent|Households|POVERTY STATUS IN THE 
+  OK     hotspot-clusters           load->hotspot->output  (17.7s)
+         intent: Identify spatial clusters of high uninsured rates by county
+         attrs: Uninsured
+  OK     outlier-income             load->outlier->output  (17.3s)
+         intent: Identify counties with unusual median household income values
+         attrs: Median household income
+  OK     combine-difference         load->load->combine->output  (18.8s)
+         intent: Calculate the difference between the poverty rate and the unemployment rate by county
+         attrs: Estimate|Percent|Households|POVERTY STATUS IN THE ; Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian lab
+  OK     stats-control-rank         load->rank->output  (17.6s)
+         intent: Identify the 10 counties with the highest poverty rate
+         attrs: Estimate|Percent|Households|POVERTY STATUS IN THE 
+
+==============================================================
+  plan correctness  n=26
+==============================================================
+  plan validity        100.0%   (a plan came back -- what run.py measures)
+  op appropriateness   100.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.62   (1.00 = every question got its own shape)
+  mean latency           18.2s
+
+  distinct op sequences produced:
+    count_features->output
+    count_near->output
+    load->aggregate->output
+    load->filter_area->output
+    load->filter_attr->output
+    load->filter_place->output
+    load->hotspot->output
+    load->load->combine->output
+    load->load->join->output
+    load->load->normalize->output
+    load->outlier->output
+    load->output
+    load->per_area->output
+    load->rank->output
+    nearest_distance->output
+    select_features->output
+
+vs baseline
+  plan_validity        100.0% -> 100.0%   +0.00
+  op_appropriateness   100.0% -> 100.0%   +0.00
+  forbidden_op_rate    0.0% -> 0.0%   +0.00
+  op_diversity         0.65 -> 0.62   -0.04
+
+  saved -> den\q35-off-512-pc.json
+== q35-off-512 denominator run 1
+  OK     fire-per-person            count_features->load->normalize->rank->output  (19.1s)
+         intent: Counties with the highest number of fire stations per person
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (17.5s)
+         intent: Calculate the density of hospitals per square mile by county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (18.1s)
+         intent: Median household income for counties in Missouri
+         attrs: Median household income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity        100.0%   (a plan came back -- what run.py measures)
+  op appropriateness   100.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.75   (1.00 = every question got its own shape)
+  attr appropriateness 100.0%   (the plan loads the measure expect_attr names)
+  mean latency           18.1s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->load->normalize->rank->output
+    count_features->per_area->output
+    load->filter_area->output
+    load->filter_area->per_area->output
+    load->per_area->output
+
+  saved -> den\q35-off-512-denominator-1.json
+== q35-off-512 denominator run 2
+  OK     fire-per-person            count_features->load->normalize->rank->output  (18.9s)
+         intent: Counties with the highest number of fire stations per person
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (17.4s)
+         intent: Calculate the density of hospitals per square mile by county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (17.7s)
+         intent: Median household income for counties in Missouri
+         attrs: Median household income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity        100.0%   (a plan came back -- what run.py measures)
+  op appropriateness   100.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.75   (1.00 = every question got its own shape)
+  attr appropriateness 100.0%   (the plan loads the measure expect_attr names)
+  mean latency           18.1s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->load->normalize->rank->output
+    count_features->per_area->output
+    load->filter_area->output
+    load->filter_area->per_area->output
+    load->per_area->output
+
+  saved -> den\q35-off-512-denominator-2.json
+== q35-off-512 denominator run 3
+         attrs: Hospitals (mapped locations); Population
+  OK     fire-per-person            count_features->load->normalize->output  (18.5s)
+         intent: Calculate the number of fire stations per person for each county
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (17.5s)
+         intent: Calculate the density of hospitals per square mile by county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (17.8s)
+         intent: Median household income for counties in Missouri
+         attrs: Median household income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity        100.0%   (a plan came back -- what run.py measures)
+  op appropriateness   100.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.62   (1.00 = every question got its own shape)
+  attr appropriateness 100.0%   (the plan loads the measure expect_attr names)
+  mean latency           17.9s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->per_area->output
+    load->filter_area->output
+    load->filter_area->per_area->output
+    load->per_area->output
+
+  saved -> den\q35-off-512-denominator-3.json
+== q35-off-512 answerability run 1
+  ok   a-expl-obesity answer -> answered  18.1s  load->explain->output                    direct:Obesity among adults (crude prevalence) 
+  ok   a-expl-heart  answer -> answered  17.4s  load->explain->output                    unchecked:Coronary heart disease among adults (age
+  ok   a-expl-unemp  answer -> answered  17.2s  load->explain->output                    direct:Unemployment_rate
+
+  catch rate          100%  (10 must-refuse; not answered)
+  honest refusals     90%  (refused with a reason, not a crash)
+  false refusals      0%  (20 answerable)
+
+  vs q14fix-ans.json: catch 100% -> 100%, false refusals 0% -> 0%
+    r-mars        refused -> failed
+
+  saved -> den\q35-off-512-ans-1.json
+== q35-off-512 answerability run 2
+
+  catch rate          70%  (10 must-refuse; not answered)
+  honest refusals     60%  (refused with a reason, not a crash)
+  false refusals      0%  (20 answerable)
+
+  vs q14fix-ans.json: catch 100% -> 70%, false refusals 0% -> 0%
+    r-milk        refused -> answered
+    r-mars        refused -> failed
+    r-bitcoin     refused -> answered
+    r-latin       refused -> answered
+
+  saved -> den\q35-off-512-ans-2.json
+== q35-off-on plan_correctness
+         attrs: Fire Stations (mapped locations)
+         narrowed by: city=Springfield, state=Missouri
+  OK     filtered-count             count_features->output  (75.8s)
+         intent: Count of critical access hospitals in each county
+         attrs: Hospitals (mapped locations)
+         narrowed by: type=CRITICAL ACCESS
+  OK     filtered-locations         select_features->output  (66.0s)
+         intent: Locate open critical access hospitals in Missouri
+         attrs: Hospitals (mapped locations)
+         narrowed by: type=CRITICAL ACCESS, status=OPEN, state=Missouri
+  OK     hotspot-poverty            load->hotspot->output  (42.8s)
+         intent: Identify spatial clusters of high and low poverty rates by county
+         attrs: Estimate|Percent|Households|POVERTY STATUS IN THE 
+  OK     hotspot-clusters           load->hotspot->output  (30.0s)
+         intent: Identify spatial clusters of high uninsured rates by county
+         attrs: Uninsured
+  OK     outlier-income             load->outlier->output  (23.6s)
+         intent: Identify counties whose median household income is unusual relative to the distribution
+         attrs: Median household income
+  OK     combine-difference         load->load->combine->output  (48.4s)
+         intent: Calculate the difference between the poverty rate and the unemployment rate by county
+         attrs: Estimate|Percent|Households|POVERTY STATUS IN THE ; Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian lab
+  OK     stats-control-rank         load->rank->output  (27.7s)
+         intent: Identify the 10 counties with the highest poverty rate
+         attrs: Estimate|Percent|Households|POVERTY STATUS IN THE 
+
+==============================================================
+  plan correctness  n=26
+==============================================================
+  plan validity        100.0%   (a plan came back -- what run.py measures)
+  op appropriateness   100.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.62   (1.00 = every question got its own shape)
+  mean latency           46.1s
+
+  distinct op sequences produced:
+    count_features->output
+    count_near->output
+    load->aggregate->output
+    load->filter_area->output
+    load->filter_attr->output
+    load->filter_place->output
+    load->hotspot->output
+    load->load->combine->output
+    load->load->join->output
+    load->load->normalize->output
+    load->outlier->output
+    load->output
+    load->per_area->output
+    load->rank->output
+    nearest_distance->output
+    select_features->output
+
+vs baseline
+  plan_validity        100.0% -> 100.0%   +0.00
+  op_appropriateness   100.0% -> 100.0%   +0.00
+  forbidden_op_rate    0.0% -> 0.0%   +0.00
+  op_diversity         0.65 -> 0.62   -0.04
+
+  saved -> den\q35-off-on-pc.json
+== q35-off-on denominator run 1
+  OK     fire-per-person            count_features->load->normalize->rank->output  (47.6s)
+         intent: Counties with the highest number of fire stations per person
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (55.6s)
+         intent: Calculate the density of hospitals per square mile by county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (28.3s)
+         intent: Median household income for counties in Missouri
+         attrs: Median household income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity        100.0%   (a plan came back -- what run.py measures)
+  op appropriateness   100.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.75   (1.00 = every question got its own shape)
+  attr appropriateness 100.0%   (the plan loads the measure expect_attr names)
+  mean latency           61.3s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->load->normalize->rank->output
+    count_features->per_area->output
+    load->filter_area->output
+    load->filter_area->per_area->output
+    load->per_area->output
+
+  saved -> den\q35-off-on-denominator-1.json
+== q35-off-on denominator run 2
+         attrs: Hospitals (mapped locations); Population
+  OK     fire-per-person            count_features->load->normalize->output  (71.5s)
+         intent: Calculate the number of fire stations per person in each county
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (55.8s)
+         intent: Calculate the density of hospitals per square mile by county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (28.7s)
+         intent: Median household income for counties in Missouri
+         attrs: Median household income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity        100.0%   (a plan came back -- what run.py measures)
+  op appropriateness   100.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.62   (1.00 = every question got its own shape)
+  attr appropriateness 100.0%   (the plan loads the measure expect_attr names)
+  mean latency           69.2s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->per_area->output
+    load->filter_area->output
+    load->filter_area->per_area->output
+    load->per_area->output
+
+  saved -> den\q35-off-on-denominator-2.json
+== q35-off-on denominator run 3
+  OK     fire-per-person            count_features->load->normalize->rank->output  (48.2s)
+         intent: Counties with the highest number of fire stations per person
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (44.3s)
+         intent: Calculate the density of hospitals per square mile by county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (28.6s)
+         intent: Median household income for counties in Missouri
+         attrs: Median household income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity        100.0%   (a plan came back -- what run.py measures)
+  op appropriateness   100.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.75   (1.00 = every question got its own shape)
+  attr appropriateness 100.0%   (the plan loads the measure expect_attr names)
+  mean latency           59.7s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->load->normalize->rank->output
+    count_features->per_area->output
+    load->filter_area->output
+    load->filter_area->per_area->output
+    load->per_area->output
+
+  saved -> den\q35-off-on-denominator-3.json
+== q35-off-on answerability run 1
+
+  catch rate          90%  (10 must-refuse; not answered)
+  honest refusals     60%  (refused with a reason, not a crash)
+  false refusals      0%  (20 answerable)
+
+  vs q14fix-ans.json: catch 100% -> 90%, false refusals 0% -> 0%
+    r-milk        refused -> answered
+    r-mars        refused -> failed
+    r-football    refused -> failed
+    r-latin       refused -> failed
+
+  saved -> den\q35-off-on-ans-1.json
+== q35-off-on answerability run 2
+  catch rate          80%  (10 must-refuse; not answered)
+  honest refusals     50%  (refused with a reason, not a crash)
+  false refusals      0%  (20 answerable)
+
+  vs q14fix-ans.json: catch 100% -> 80%, false refusals 0% -> 0%
+    r-rainfall    refused -> failed
+    r-milk        refused -> answered
+    r-mars        refused -> failed
+    r-bitcoin     refused -> failed
+    r-latin       refused -> answered
+
+  saved -> den\q35-off-on-ans-2.json
+== ALL DONE

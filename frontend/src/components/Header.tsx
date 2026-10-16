@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Contrast } from 'lucide-react';
+import { Contrast, ClipboardList } from 'lucide-react';
 import { useLegibility } from '../hooks/useLegibility';
+import { SURVEY_URL } from './SurveyPrompt';
 
 /**
  * Site navigation, floating over the map as a glass bar.
@@ -60,6 +61,21 @@ const Header: React.FC = () => {
         })}
       </nav>
 
+      {/* The study survey, always reachable here even after the prompt under
+          an answer has been dismissed. */}
+      <a
+        href={SURVEY_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Tell us how useful GeoARK was (under 5 minutes)"
+        className="sm:ml-auto shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium
+                   border border-slate-300 text-slate-700 hover:bg-white/60 transition-colors"
+      >
+        <ClipboardList className="w-4 h-4" aria-hidden />
+        <span className="hidden md:inline">Survey</span>
+        <span className="sr-only md:hidden">Take the survey</span>
+      </a>
+
       {/* Readable mode. Glass is a real legibility cost for some people, and
           on satellite imagery for everybody, so the way out is one click and
           labelled, not buried in a settings page. */}
@@ -70,7 +86,7 @@ const Header: React.FC = () => {
         title={legible
           ? 'Readable mode is on: panels are solid. Click to return to glass.'
           : 'Readable mode: make every panel solid and higher-contrast'}
-        className={`sm:ml-auto shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium
+        className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium
                     border transition-colors ${
           legible
             ? 'bg-ink text-white border-ink'

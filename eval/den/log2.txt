@@ -1,0 +1,327 @@
+== den no-denominator run 1  2030 MiB, 38 %
+plan correctness probe  8 queries, execute=false
+
+  NOPLAN density-midwest            no analysis could be built from the available data  (101.9s)
+  NOPLAN density-bare               no analysis could be built from the available data  (74.8s)
+  NOPLAN density-texas              no analysis could be built from the available data  (68.1s)
+  NOPLAN people-per-sqmi            could not produce a valid plan  (156.9s)
+  OK     hospitals-per-100k         count_features->load->normalize->output  (64.6s)
+         intent: Number of hospitals per 100,000 people in each county
+         attrs: Hospitals (mapped locations); Population
+  OK     fire-per-person            count_features->load->normalize->rank->output  (76.5s)
+         intent: Counties with the highest number of fire stations per person
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (58.4s)
+         intent: Number of hospitals per square mile of land in each county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (42.6s)
+         intent: Median household income for counties in Missouri
+         attrs: Median_Household_Income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity         50.0%   (a plan came back -- what run.py measures)
+  op appropriateness    50.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.50   (1.00 = every question got its own shape)
+  attr appropriateness  33.3%   (the plan loads the measure expect_attr names)
+  mean latency           80.5s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->load->normalize->rank->output
+    count_features->per_area->output
+    load->filter_area->output
+
+  saved -> den\q14-no-denominator-1.json
+== den denominator run 1  13407 MiB, 96 %
+plan correctness probe  8 queries, execute=false
+
+  OK     density-midwest            load->per_area->filter_area->output  (116.0s)
+         intent: Population density per square mile in the Midwest counties
+         attrs: Estimate|Total|Total population
+         narrowed by: state=Illinois, state=Indiana, state=Iowa, state=Kansas, state=Michigan, state=Minnesota, state=Missouri, state=Nebraska, state=North Dakota, state=Ohio, state=South Dakota, state=Wisconsin
+  OK     density-bare               load->per_area->output  (31.3s)
+         intent: Population per square mile of land in each county
+         attrs: Estimate|Total|Total population
+  NOPLAN density-texas              the loaded data does not measure what this question asks about  (87.1s)
+  NOPLAN people-per-sqmi            the loaded data does not measure what this question asks about  (84.7s)
+  OK     hospitals-per-100k         count_features->load->normalize->output  (61.4s)
+         intent: Number of hospitals per 100,000 people in each county
+         attrs: Hospitals (mapped locations); Population
+  OK     fire-per-person            count_features->load->normalize->rank->output  (68.4s)
+         intent: Counties ranked by the number of fire stations per person, highest first
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (67.2s)
+         intent: Number of hospitals per square mile of land in each county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (42.9s)
+         intent: Median household income for Missouri counties
+         attrs: Median_Household_Income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity         75.0%   (a plan came back -- what run.py measures)
+  op appropriateness    75.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.75   (1.00 = every question got its own shape)
+  attr appropriateness  66.7%   (the plan loads the measure expect_attr names)
+  mean latency           69.9s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->load->normalize->rank->output
+    count_features->per_area->output
+    load->filter_area->output
+    load->per_area->filter_area->output
+    load->per_area->output
+
+  saved -> den\q14-denominator-1.json
+== den no-denominator run 2  13885 MiB, 95 %
+plan correctness probe  8 queries, execute=false
+
+  NOPLAN density-midwest            the loaded data does not measure what this question asks about  (137.7s)
+  NOPLAN density-bare               no analysis could be built from the available data  (93.2s)
+  NOPLAN density-texas              the loaded data does not measure what this question asks about  (176.1s)
+  NOPLAN people-per-sqmi            the loaded data does not measure what this question asks about  (134.5s)
+  OK     hospitals-per-100k         count_features->load->normalize->output  (49.2s)
+         intent: Number of hospitals per 100,000 people in each county
+         attrs: Hospitals (mapped locations); Population
+  OK     fire-per-person            count_features->load->normalize->rank->output  (66.3s)
+         intent: Counties ranked by the number of fire stations per person, highest first
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (63.9s)
+         intent: Number of hospitals per square mile of land in each county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (44.0s)
+         intent: Median household income for Missouri counties
+         attrs: Median_Household_Income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity         50.0%   (a plan came back -- what run.py measures)
+  op appropriateness    50.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.50   (1.00 = every question got its own shape)
+  attr appropriateness  33.3%   (the plan loads the measure expect_attr names)
+  mean latency           95.6s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->load->normalize->rank->output
+    count_features->per_area->output
+    load->filter_area->output
+
+  saved -> den\q14-no-denominator-2.json
+== den denominator run 2  13970 MiB, 98 %
+plan correctness probe  8 queries, execute=false
+
+  NOPLAN density-midwest            the loaded data does not measure what this question asks about  (107.3s)
+  OK     density-bare               load->per_area->output  (31.7s)
+         intent: Population per square mile of land in each county
+         attrs: Estimate|Total|Total population
+  NOPLAN density-texas              the loaded data does not measure what this question asks about  (77.0s)
+  NOPLAN people-per-sqmi            the loaded data does not measure what this question asks about  (85.8s)
+  OK     hospitals-per-100k         count_features->load->normalize->output  (67.6s)
+         intent: Number of hospitals per 100,000 people in each county
+         attrs: Hospitals (mapped locations); Population
+  OK     fire-per-person            count_features->load->normalize->rank->output  (66.1s)
+         intent: Counties ranked by the number of fire stations per person, highest first
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (68.9s)
+         intent: Number of hospitals per square mile of land in each county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (45.1s)
+         intent: Median household income for counties in Missouri
+         attrs: Median_Household_Income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity         62.5%   (a plan came back -- what run.py measures)
+  op appropriateness    62.5%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.62   (1.00 = every question got its own shape)
+  attr appropriateness  50.0%   (the plan loads the measure expect_attr names)
+  mean latency           68.7s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->load->normalize->rank->output
+    count_features->per_area->output
+    load->filter_area->output
+    load->per_area->output
+
+  saved -> den\q14-denominator-2.json
+== den no-denominator run 3  13999 MiB, 60 %
+plan correctness probe  8 queries, execute=false
+
+  NOPLAN density-midwest            the loaded data does not measure what this question asks about  (111.0s)
+  NOPLAN density-bare               no analysis could be built from the available data  (136.2s)
+  WRONG  density-texas              load->filter_area->per_area->output  (81.2s)
+         intent: Population density (using housing units as proxy) for counties in Texas
+         attrs: Estimate!!HOUSING OCCUPANCY!!Total housing units
+         narrowed by: state=Texas
+  NOPLAN people-per-sqmi            the loaded data does not measure what this question asks about  (127.7s)
+  OK     hospitals-per-100k         count_features->load->normalize->output  (58.7s)
+         intent: Number of hospitals per 100,000 people in each county
+         attrs: Hospitals (mapped locations); Population
+  OK     fire-per-person            count_features->load->normalize->rank->output  (65.7s)
+         intent: Counties ranked by the number of fire stations per person, highest first
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (65.4s)
+         intent: Number of hospitals per square mile of land in each county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (45.0s)
+         intent: Median household income for Missouri counties
+         attrs: Median_Household_Income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity         62.5%   (a plan came back -- what run.py measures)
+  op appropriateness    62.5%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.62   (1.00 = every question got its own shape)
+  attr appropriateness  33.3%   (the plan loads the measure expect_attr names)
+  mean latency           86.4s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->load->normalize->rank->output
+    count_features->per_area->output
+    load->filter_area->output
+    load->filter_area->per_area->output
+
+  saved -> den\q14-no-denominator-3.json
+== den denominator run 3  14024 MiB, 94 %
+plan correctness probe  8 queries, execute=false
+
+  NOPLAN density-midwest            the loaded data does not measure what this question asks about  (66.2s)
+  OK     density-bare               load->per_area->output  (42.8s)
+         intent: Population per square mile of land in each county
+         attrs: Estimate|Total|Total population
+  NOPLAN density-texas              the loaded data does not measure what this question asks about  (72.3s)
+  NOPLAN people-per-sqmi            the loaded data does not measure what this question asks about  (126.7s)
+  OK     hospitals-per-100k         count_features->load->normalize->output  (58.1s)
+         intent: Number of hospitals per 100,000 people in each county
+         attrs: Hospitals (mapped locations); Population
+  OK     fire-per-person            count_features->load->normalize->rank->output  (75.6s)
+         intent: Counties with the highest number of fire stations per person
+         attrs: Fire Stations (mapped locations); Population
+  OK     control-land-area          count_features->per_area->output  (118.6s)
+         intent: Number of hospitals per square mile in each county
+         attrs: Hospitals (mapped locations)
+  OK     control-plain              load->filter_area->output  (45.1s)
+         intent: Median household income for counties in Missouri
+         attrs: Median_Household_Income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity         62.5%   (a plan came back -- what run.py measures)
+  op appropriateness    62.5%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.62   (1.00 = every question got its own shape)
+  attr appropriateness  50.0%   (the plan loads the measure expect_attr names)
+  mean latency           75.7s
+
+  distinct op sequences produced:
+    count_features->load->normalize->output
+    count_features->load->normalize->rank->output
+    count_features->per_area->output
+    load->filter_area->output
+    load->per_area->output
+
+  saved -> den\q14-denominator-3.json
+== plan_correctness qwen3:14b denominator-on  13986 MiB
+         narrowed by: zcta=63101
+  OK     proximity-count            count_near->output  (51.1s)
+         intent: Number of hospitals within ten miles of electric power transmission lines, by county
+         attrs: Hospitals (mapped locations)
+  OK     distance-to-nearest        nearest_distance->output  (33.4s)
+         intent: Distance in miles from each county to its nearest hospital
+         attrs: Hospitals (mapped locations)
+  OK     density-per-area           load->per_area->output  (35.7s)
+         intent: Population per square mile of land in each county
+         attrs: Estimate|Total|Total population
+  OK     locations-in-state         select_features->output  (34.8s)
+         intent: Locations of hospitals in Missouri
+         attrs: Hospitals (mapped locations)
+         narrowed by: state=Missouri
+  OK     locations-in-city          select_features->output  (32.5s)
+         intent: Locations of fire stations in Springfield, Missouri
+         attrs: Fire Stations (mapped locations)
+         narrowed by: city=Springfield, state=Missouri
+  OK     filtered-count             count_features->output  (33.1s)
+         intent: Number of critical access hospitals in each county
+         attrs: Hospitals (mapped locations)
+         narrowed by: type=CRITICAL ACCESS
+  OK     filtered-locations         select_features->output  (40.2s)
+         intent: Locations of open critical access hospitals in Missouri
+         attrs: Hospitals (mapped locations)
+         narrowed by: type=CRITICAL ACCESS, status=OPEN, state=Missouri
+  OK     hotspot-poverty            load->hotspot->output  (81.0s)
+         intent: Spatial clusters of high and low poverty rates, by county
+         attrs: Estimate|Percent|Households|POVERTY STATUS IN THE 
+  OK     hotspot-clusters           load->hotspot->output  (31.5s)
+         intent: Spatial clusters of counties with high uninsured rates
+         attrs: Uninsured
+  OK     outlier-income             load->outlier->output  (34.3s)
+         intent: Counties whose median household income is unusual for the distribution
+         attrs: Median_Household_Income
+  OK     combine-difference         load->load->combine->output  (40.2s)
+         intent: Poverty rate minus unemployment rate, by county
+         attrs: Estimate|Percent|Households|POVERTY STATUS IN THE ; Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian lab
+  OK     stats-control-rank         load->rank->output  (69.3s)
+         intent: The ten counties ranked highest on the poverty rate
+         attrs: Estimate|Percent|Households|POVERTY STATUS IN THE 
+
+==============================================================
+  plan correctness  n=26
+==============================================================
+  plan validity        100.0%   (a plan came back -- what run.py measures)
+  op appropriateness   100.0%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.62   (1.00 = every question got its own shape)
+  mean latency           46.1s
+
+  distinct op sequences produced:
+    count_features->output
+    count_near->output
+    load->aggregate->output
+    load->filter_area->output
+    load->filter_attr->output
+    load->filter_place->output
+    load->hotspot->output
+    load->load->combine->output
+    load->load->join->output
+    load->load->normalize->output
+    load->outlier->output
+    load->output
+    load->per_area->output
+    load->rank->output
+    nearest_distance->output
+    select_features->output
+
+vs baseline
+  plan_validity        96.2% -> 100.0%   +0.04
+  op_appropriateness   92.3% -> 100.0%   +0.08
+  forbidden_op_rate    0.0% -> 0.0%   +0.00
+  op_diversity         0.62 -> 0.62   +0.00
+
+  queries that flipped
+    place-metro                now correct
+    density-per-area           now correct
+
+  saved -> den\q14-pc.json
+== ALL DONE

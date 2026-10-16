@@ -49,6 +49,8 @@ metric *can* move. See the correction in [eval/README.md](eval/README.md).
 | **Top-level `temperature` is ignored by Ollama** (fixed 2026-09-29) | Run-to-run flakiness that every probe had to average over | `callLLM` sent `temperature` beside `messages`; Ollama reads only `options.temperature` and says nothing. Every call ran at the model default: **qwen3:14b 0.6, gemma3:4b 1.0**, not the 0.1-0.2 recorded throughout this file. Verified in the ollama log (`temp = 1.000` vs `0.000`). Every planner number before 2026-09-29 was measured at those defaults |
 | **4,096-token context overflow** (fixed 2026-09-29) | "Plan invalid" retries; ollama log shows `slot context shift ... n_discard = 2045` | The planner prompt is ~3,600 tokens; qwen3's reasoning pushed past 4,096 and Ollama silently discarded the first half of the prompt, i.e. the system instructions, mid-answer. Now `num_ctx` 8,192 for the planner and 4,096 for gemma, with `OLLAMA_KV_CACHE_TYPE=q8_0` + flash attention so both stay resident on 16 GB (at 8,192 each, Ollama evicted one per switch). Check `ollama ps` shows both, 100% GPU |
 
+| **VRAM stall on Windows: no error, just a crawl** (2026-10-15) | Planner calls time out at 90s; `ollama ps` still says `100% GPU`, `OOMKilled=false`, DeviceRequests fine. Ollama log shows `tg_3s` falling from ~22 t/s to 0.05 t/s | qwen3:14b (9.8 GB) + gemma3:4b (2.8 GB) resident + ~2.9 GB of desktop (launchers, browsers, Spotify, iCUE all draw on the GPU) is ~15.5 GB of 16. WDDM pages VRAM to system RAM instead of failing. `nvidia-smi` reads ~15.9 GB at ~100% util with nothing running. `docker restart geoark-ollama-1` clears it and keeps the GPU. The 2026-10-15 measurements ran at `OLLAMA_MAX_LOADED_MODELS=1` for this reason: zero stalls, at the cost of a model swap per step |
+
 ## Measured facts (do not re-derive)
 
 - **Tags are load-bearing.** Removing them costs 41.7pp of known-item recall@1
@@ -748,6 +750,113 @@ the CI bound nearest zero. Computed in Node (`planner/stats.js`), the first
 - **Pre-existing, fixed on the way:** every national map opened at world zoom
   because Aleutians West crosses the antimeridian; correlation results showed a
   one-row "Summary" tab.
+
+### Density and per-person questions need a total population (2026-10-15)
+
+`backend/population.js`, `eval/denominator.yaml`. "population density per square
+mile in the Midwest" decomposed into "population density", "square mile",
+"Midwest"; none retrieves a population count, so the planner divided domestic
+migration by land area. This is the `density-per-area` flake, and
+`plan_correctness.yaml` could never see it: the migration plan contains
+`per_area` too. `plan_probe.py` now takes `expect_attr` (a regex on the loaded
+attribute) and reports **attr appropriateness**.
+
+Two fixes, both gated on phrasing (`needsPopulation`), neither touching the
+prompt:
+
+1. **Retrieval** adds a `"total population"` normalization sub-query when the
+   question asks for a density or per-person rate. Fires on 3 of 138 existing
+   eval questions and 0 of 18 known-item ones. `population_denominator: false`
+   per request for A/B.
+2. **Relevance check** does not reject a whole-population count for those
+   questions. With (1) alone, qwen3 refused Total population for "densely
+   populated" and "people per square mile": `sharedWords` treats "people" and
+   "population" as generic, so even "population density" could not save it.
+
+Measured, qwen3:14b, `OLLAMA_MAX_LOADED_MODELS=1`, 3 runs per arm, 8 queries:
+
+| | off | (1) only | (1) + (2) |
+|---|--:|--:|--:|
+| attr appropriateness | 33 / 33 / 33% | 67 / 50 / 50% | **100 / 100 / 100%** |
+| op appropriateness | 50 / 50 / 63% | 75 / 63 / 63% | **100 / 100 / 100%** |
+
+Guards: answerability **10/10 refused, 0/20 false refusals** (v3 baseline
+9/10, 0/20), so the exemption costs no real catch. Full `plan_correctness`
+100% op appropriateness / 100% validity on one run (92.3 / 96.2 recorded);
+only `density-per-area` is touched by the rule, so the rest is run variance
+plus no stalls. `queries.yaml` 97.8 / 97.3, unmoved. `known_item.yaml`
+(search endpoint) 91.7% recall@1, MRR 0.958 -> 0.944: `ki-persistent-poverty`
+rank 2 -> 3, on a path this change does not reach, so pre-existing drift.
+
+A reporting bug this exposed: the relevance check called itself "unmatched"
+and `skipped` whenever every verdict was `unchecked`, which an OVERRULED
+rejection also is. Single-attribute density plans therefore logged as skipped
+and never printed why they passed. It now tests for "no verdict carries a
+fit".
+
+**Open: the population series it picks covers half the country.** Every
+density plan chose `S0102_C01_001E` (1,524 counties), which ranks first for
+"total population", over `DP05_0001E` (3,221) and `POP_ESTIMATE` (3,211).
+"How densely populated are the counties in Texas" maps 98 of 254 counties.
+
+### qwen3.5:9b as planner (2026-10-15)
+
+Same suites, same build, `MAX_LOADED_MODELS=1`, model defaults as shipped
+(including its `presence_penalty 1.5`, which `callLLM` does not override):
+
+| | qwen3:14b | qwen3.5:9b |
+|---|--:|--:|
+| plan_correctness op appropriateness | 100% | 100% |
+| plan validity | 100% | 100% |
+| op diversity | 0.62 | 0.65 |
+| denominator suite (3 runs) | 100% x3 | 100% x3 |
+| mean latency, plan suite | **46.1s** | 77.9s |
+| resident size | 9.8 GB | **5.7 GB** |
+
+Generates ~60 t/s vs ~22, but thinks past 2,000 tokens per plan, so it is
+slower end to end. 6 of 26 plans chose different attributes; mixed, e.g. ERS
+`Unemployment_rate` (better) but "Children in poverty" for a general poverty
+question (narrower than asked). One run of the plan suite. Its real advantage
+is memory: with gemma3:4b it is ~8.5 GB, which leaves room for the desktop
+that stalls qwen3:14b.
+
+### Reasoning off, or capped (2026-10-16)
+
+`PLAN_THINK` (and `plan_think` per request): `on` | `off` | a token budget |
+`planner/relevance`, e.g. `off/512`. Ollama has no reasoning budget, and
+qwen3.5:9b accepts `think:"low"` but ignores it (more reasoning, not less), so
+`budgetedChat` streams, counts reasoning tokens, and past the budget aborts and
+re-asks with `think:false` plus the partial reasoning. The relevance check tags
+its call `role: "relevance"` so the two can be set apart.
+
+qwen3.5:9b, `MAX_LOADED_MODELS=1`. Plan suite = 26 queries x1; density =
+`denominator.yaml` x3; refusal = answerability's 10 must-refuse questions,
+counted as **answered** (the failure that matters) out of 10:
+
+| setting | plan op | density attr | s / question | nonsense answered | false refusals |
+|---|--:|--:|--:|--:|--:|
+| qwen3:14b on | 100% | 100 x3 | 46 | **0** | 0/20 |
+| on | 100% | 100 x3 | 78 | 2 | 0/20 |
+| off | 100% | 100 x3 | **14** | **5** | 0/20 |
+| 1024 | 100% | 100 x3 | 37 | 2 | 0/20 |
+| 512 | 100% | 100 x3 | 30 | 1 | 0/20 |
+| off/512 | 100% | 100 x3 | 18 | 0, 3 | 0/20 x2 |
+| off/on | 100% | 100 x3 | 46 | 1, 2 | 0/20 x2 |
+
+- **Planning does not need reasoning.** Every setting scored 100% on both plan
+  suites; `off` is 5.5x faster than `on` for identical plans.
+- **The relevance check does.** With reasoning off it passed "pet dogs" (total
+  population as a "denominator"), shark attacks (wildfire perimeters), bitcoin,
+  sourdough and Latin. The repair loop then had nothing to stop it.
+- **The refusal suite is too small to rank 9b settings.** `off/512` read 0
+  then 3 answered on identical settings. Across all reasoning-on 9b runs the
+  rate is ~1-2 in 10, and qwen3:14b is 0. That gap is the model, not the
+  budget: bitcoin and Latin get through qwen3.5:9b at every setting.
+- Unbounded reasoning in the relevance check alone (`off/on`) costs nearly what
+  reasoning everywhere does, so if 9b is used, `off/512` is the setting.
+
+Not yet measured: qwen3:14b at `off/512`. Its relevance check is the one that
+caught 10/10, and planning measured indifferent to reasoning on 9b.
 
 ## Two things generated and then thrown away
 

@@ -51,6 +51,8 @@ services:
       # a larger model (qwen3:14b) and leave LLM_MODEL small; it falls back to
       # LLM_MODEL when unset. See docs/AI-PIPELINE.md.
       PLAN_MODEL: ${PLAN_MODEL:-}
+      # Planner reasoning: on (model default) | off | a token budget, e.g. 512.
+      PLAN_THINK: ${PLAN_THINK:-on}
       PLAN_MAX_REPAIRS: ${PLAN_MAX_REPAIRS:-2}
       # Context window per model: planner / small model. See numCtx in
       # unified_search_server.js for why they differ.

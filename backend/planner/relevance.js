@@ -30,6 +30,8 @@
  * plan back, never remove a candidate.
  */
 
+const { needsPopulation, isTotalPopulation } = require("../population");
+
 const VERDICTS = ["direct", "proxy", "denominator", "unrelated"];
 
 // What the model is asked for. Deliberately NOT a verdict.
@@ -183,7 +185,10 @@ async function checkRelevance({ query, plan, candidates, refs, callLLM, log = ()
   try {
     raw = await callLLM(SYSTEM,
       `QUESTION: ${query}\nPLAN INTENT: ${plan.intent || ""}\nATTRIBUTES:\n${lines.join("\n")}`,
-      0, RELEVANCE_SCHEMA);
+      0, RELEVANCE_SCHEMA,
+      // Lets PLAN_THINK set this call's reasoning apart from the planner's:
+      // without reasoning, qwen3.5:9b passed 5 of 10 nonsense questions.
+      { role: "relevance" });
     if (!raw) throw new Error("the model returned nothing");
     parsed = JSON.parse(raw);
   } catch (err) {
@@ -221,10 +226,17 @@ async function checkRelevance({ query, plan, candidates, refs, callLLM, log = ()
     const shared = fit === "none" ? sharedWords(`${desc} ${byId.get(u.attr_id)?.dataset_clean || ""}`, query) : [];
     // A rejection must survive the lexical cross-check (sharedWords above).
     if (fit === "none" && shared.length) verdict = "unchecked";
+    // ...and the population rule. A density or per-person question is ABOUT a
+    // population count even when it says "densely populated" or "people", which
+    // sharedWords cannot see ("people" and "population" are generic there).
+    // See backend/population.js for the two refusals this prevents.
+    const popRule = fit === "none" && !shared.length && needsPopulation(query) && isTotalPopulation(desc);
+    if (popRule) verdict = "unchecked";
     const measures = String(v?.measures || "").trim();
     const reason = !fit ? null
       : fit === "none" && shared.length
         ? `model said it measures nothing asked about, overruled: it shares "${shared.join(", ")}" with the question`
+      : popRule ? `model said it measures nothing asked about, overruled: a density or per-person question is defined by a total population`
       : fit === "none" ? `measures ${measures || "something else"}, which the question does not name`
       : fit === "denominator" ? `scales the result (${measures})`
       : fit === "same" ? `measures ${phrase ? `"${phrase}"` : measures}`
@@ -236,7 +248,12 @@ async function checkRelevance({ query, plan, candidates, refs, callLLM, log = ()
       measures: measures || null, reason,
     };
   });
-  if (verdicts.every(v => v.verdict === "unchecked")) {
+  // "Matched nothing" means no verdict carries a fit. It used to test
+  // verdict === "unchecked", which an OVERRULED rejection also is (the shared-
+  // word and population rules), so a one-attribute plan whose rejection was
+  // overruled was logged as "unmatched", its reason never printed, and the
+  // response said `skipped`. Seen on every density plan, 2026-10-15.
+  if (verdicts.every(v => !v.fit)) {
     // Never report a check that matched nothing as though it had passed.
     log(`   relevance check unmatched, raw response: ${String(raw).slice(0, 300)}`);
     return { errors: [], verdicts, skipped: "no verdict matched an attribute" };

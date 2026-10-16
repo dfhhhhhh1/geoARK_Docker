@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 import urllib.error
@@ -46,9 +47,14 @@ GREEN, RED, YELLOW, DIM, BOLD, OFF = (
 
 
 def call_analyze(base: str, query: str, timeout: int,
-                 expand: bool | None = None) -> tuple[dict, float]:
+                 expand: bool | None = None,
+                 denominator: bool | None = None,
+                 plan_think: str | None = None) -> tuple[dict, float]:
     body = json.dumps({"q": query, "execute": False,
-                       **({} if expand is None else {"expand": expand})}).encode()
+                       **({} if expand is None else {"expand": expand}),
+                       **({} if denominator is None
+                          else {"population_denominator": denominator}),
+                       **({} if plan_think is None else {"plan_think": plan_think})}).encode()
     req = urllib.request.Request(
         f"{base}/api/analyze", data=body,
         headers={"Content-Type": "application/json"}, method="POST")
@@ -66,10 +72,11 @@ def call_analyze(base: str, query: str, timeout: int,
         return {"error": str(e)}, time.time() - t0
 
 
-def probe(base: str, queries: list[dict], timeout: int, expand: bool | None = None) -> dict:
+def probe(base: str, queries: list[dict], timeout: int, expand: bool | None = None,
+          denominator: bool | None = None, plan_think: str | None = None) -> dict:
     rows = []
     for q in queries:
-        payload, secs = call_analyze(base, q["query"], timeout, expand)
+        payload, secs = call_analyze(base, q["query"], timeout, expand, denominator, plan_think)
         plan = payload.get("plan") or {}
         steps = plan.get("steps") or []
         ops = [s.get("op") for s in steps]
@@ -113,8 +120,20 @@ def probe(base: str, queries: list[dict], timeout: int, expand: bool | None = No
             for st_name in s.get("states") or []:
                 narrowing.append(f"state={st_name}")
 
+        # expect_attr: a regex one of the plan's attributes must match. The op
+        # check cannot see WHICH series a plan divides by: a density plan over
+        # domestic migration and one over total population both contain
+        # per_area. Only a planned query can pass.
+        expect_attr = q.get("expect_attr")
+        attr_ok = None
+        if expect_attr:
+            attr_ok = planned and any(
+                re.search(expect_attr, a["desc"], re.I) for a in attrs)
+
         rows.append({
             "id": q["id"],
+            "expect_attr": expect_attr,
+            "expect_attr_present": attr_ok,
             "query": q["query"],
             "planned": planned,
             "intent": plan.get("intent"),
@@ -131,20 +150,25 @@ def probe(base: str, queries: list[dict], timeout: int, expand: bool | None = No
 
         if not planned:
             mark, note = RED + "NOPLAN" + OFF, payload.get("error", "?")
-        elif has_expect is False or has_forbid:
+        elif has_expect is False or has_forbid or attr_ok is False:
             mark, note = RED + "WRONG " + OFF, rows[-1]["ops"]
         else:
             mark, note = GREEN + "OK    " + OFF, rows[-1]["ops"]
         print(f"  {mark} {q['id']:<26} {note}  {DIM}({secs:.1f}s){OFF}")
         if planned:
             print(f"         {DIM}intent: {plan.get('intent')}{OFF}")
+            print(f"         {DIM}attrs: {'; '.join(a['desc'][:50] for a in attrs)}{OFF}")
             if narrowing:
                 print(f"         {DIM}narrowed by: {', '.join(narrowing)}{OFF}")
 
     n = len(rows) or 1
     scored = [r for r in rows if r["expect_op"] is not None]
     seqs = {r["ops"] for r in rows if r["planned"]}
+    attr_scored = [r for r in rows if r["expect_attr"]]
     return {
+        "attr_appropriateness": (
+            sum(1 for r in attr_scored if r["expect_attr_present"]) / len(attr_scored)
+            if attr_scored else None),
         "queries": len(rows),
         "plan_validity": sum(r["planned"] for r in rows) / n,
         "op_appropriateness": (
@@ -170,6 +194,9 @@ def show(res: dict) -> None:
           f"{DIM}(lower is better){OFF}")
     print(f"  op diversity         {res['op_diversity']:6.2f}   "
           f"{DIM}(1.00 = every question got its own shape){OFF}")
+    if res.get("attr_appropriateness") is not None:
+        print(f"  attr appropriateness {res['attr_appropriateness']:6.1%}   "
+              f"{DIM}(the plan loads the measure expect_attr names){OFF}")
     print(f"  mean latency         {res['latency_mean']:6.1f}s")
     print(f"\n  distinct op sequences produced:")
     for s in res["distinct_op_sequences"]:
@@ -215,6 +242,13 @@ def main() -> int:
     # candidates are offered to the planner.
     ap.add_argument("--expand", dest="expand", action="store_const", const=True, default=None)
     ap.add_argument("--no-expand", dest="expand", action="store_const", const=False)
+    # The total-population search for density / per-person questions.
+    ap.add_argument("--denominator", dest="denominator", action="store_const",
+                    const=True, default=None)
+    ap.add_argument("--no-denominator", dest="denominator", action="store_const",
+                    const=False)
+    # Reasoning for the planner model: "on", "off", or a token budget.
+    ap.add_argument("--plan-think")
     args = ap.parse_args()
 
     suite = yaml.safe_load(args.suite_file.read_text(encoding="utf-8"))
@@ -222,7 +256,8 @@ def main() -> int:
     print(f"{BOLD}plan correctness probe{OFF}  {DIM}{len(queries)} queries, "
           f"execute=false{OFF}\n")
 
-    res = probe(args.base, queries, args.timeout, args.expand)
+    res = probe(args.base, queries, args.timeout, args.expand, args.denominator,
+                args.plan_think)
     show(res)
 
     if args.compare:

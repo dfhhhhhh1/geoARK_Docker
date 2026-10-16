@@ -1,0 +1,494 @@
+{
+  "relevance_check": null,
+  "catch_rate": 0.7,
+  "honest_refusal_rate": 0.6,
+  "false_refusal_rate": 0.0,
+  "rows": [
+    {
+      "id": "r-rainfall",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [
+        "Population",
+        "Population"
+      ],
+      "error": "the loaded data does not measure what this question asks about",
+      "seconds": 26.3
+    },
+    {
+      "id": "r-snowfall",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [
+        "Population"
+      ],
+      "error": "the loaded data does not measure what this question asks about",
+      "seconds": 18.6
+    },
+    {
+      "id": "r-dogs",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [
+        "Population"
+      ],
+      "error": "the loaded data does not measure what this question asks about",
+      "seconds": 17.9
+    },
+    {
+      "id": "r-milk",
+      "expect": "refuse",
+      "outcome": "answered",
+      "correct": false,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "unchecked:Child Care Cost Burden"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 26.5
+    },
+    {
+      "id": "r-mars",
+      "expect": "refuse",
+      "outcome": "failed",
+      "correct": false,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [],
+      "error": "could not produce a valid plan",
+      "seconds": 11.3
+    },
+    {
+      "id": "r-sharks",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [
+        "Public Nifs Perimeters (mapped locations)"
+      ],
+      "error": "the loaded data does not measure what this question asks about",
+      "seconds": 18.1
+    },
+    {
+      "id": "r-bitcoin",
+      "expect": "refuse",
+      "outcome": "answered",
+      "correct": false,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "unchecked:Estimate!!INDUSTRY!!Civilian employed po"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 16.5
+    },
+    {
+      "id": "r-football",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [
+        "Major Sport Venues (mapped locations)"
+      ],
+      "error": "the loaded data does not measure what this question asks about",
+      "seconds": 18.6
+    },
+    {
+      "id": "r-sourdough",
+      "expect": "refuse",
+      "outcome": "refused",
+      "correct": true,
+      "ops": [],
+      "verdicts": [],
+      "rejected": [
+        "Estimate|Percent households receiving food stamps/"
+      ],
+      "error": "the loaded data does not measure what this question asks about",
+      "seconds": 17.2
+    },
+    {
+      "id": "r-latin",
+      "expect": "refuse",
+      "outcome": "answered",
+      "correct": false,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "unchecked:Estimate|WORLD REGION OF BIRTH OF FOREIG"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 15.9
+    },
+    {
+      "id": "a-income",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Median_Household_Income"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 16.6
+    },
+    {
+      "id": "a-poorest",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "rank",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Estimate|Percent|Households|POVERTY STAT"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.7
+    },
+    {
+      "id": "a-wealthiest",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "rank",
+        "output"
+      ],
+      "verdicts": [
+        "proxy:Estimate!!INCOME AND BENEFITS (IN 2018 I"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.3
+    },
+    {
+      "id": "a-hosp-pc",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "count_features",
+        "load",
+        "normalize",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Hospitals (mapped locations)",
+        "denominator:Population"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.7
+    },
+    {
+      "id": "a-uninsured",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "rank",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Uninsured"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 18.0
+    },
+    {
+      "id": "a-doctor",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "rank",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Visits to doctor for routine checkup wit"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.6
+    },
+    {
+      "id": "a-texas",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "filter_area",
+        "rank",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Unemployment_rate"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 18.2
+    },
+    {
+      "id": "a-compare",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "load",
+        "join",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Obesity among adults (crude prevalence) ",
+        "direct:Estimate|Percent|Households|POVERTY STAT"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.6
+    },
+    {
+      "id": "a-diabetes",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "outlier",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Diabetes prevalence"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.7
+    },
+    {
+      "id": "a-fire",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "select_features",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Fire Stations (mapped locations)"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.1
+    },
+    {
+      "id": "a-detroit",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "load",
+        "filter_place",
+        "normalize",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Estimate|Percent|Households|POVERTY STAT",
+        "denominator:Population"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 19.3
+    },
+    {
+      "id": "a-florida",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "filter_area",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Estimate!!HEALTH INSURANCE COVERAGE!!Civ"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.5
+    },
+    {
+      "id": "a-corr-ob",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "load",
+        "correlate",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Adult obesity",
+        "direct:Diagnosed diabetes among adults (crude p"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 18.5
+    },
+    {
+      "id": "a-corr-inc",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "load",
+        "correlate",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Median_Household_Income",
+        "direct:Current asthma among adults (age-adjuste"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 18.6
+    },
+    {
+      "id": "a-renters",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Severe housing cost burden"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.2
+    },
+    {
+      "id": "a-seniors",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Estimate!!Total!!Medicare coverage alone"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 16.8
+    },
+    {
+      "id": "a-expl-asthma",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "explain",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Current asthma among adults (age-adjuste"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.5
+    },
+    {
+      "id": "a-expl-obesity",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "explain",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Obesity among adults (crude prevalence) "
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.3
+    },
+    {
+      "id": "a-expl-heart",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "explain",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Coronary heart disease among adults (age"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.3
+    },
+    {
+      "id": "a-expl-unemp",
+      "expect": "answer",
+      "outcome": "answered",
+      "correct": true,
+      "ops": [
+        "load",
+        "explain",
+        "output"
+      ],
+      "verdicts": [
+        "direct:Unemployment_rate"
+      ],
+      "rejected": [],
+      "error": null,
+      "seconds": 17.0
+    }
+  ]
+}

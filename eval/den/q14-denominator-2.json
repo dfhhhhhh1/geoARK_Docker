@@ -1,0 +1,196 @@
+{
+  "attr_appropriateness": 0.5,
+  "queries": 8,
+  "plan_validity": 0.625,
+  "op_appropriateness": 0.625,
+  "forbidden_op_rate": 0.0,
+  "op_diversity": 0.625,
+  "distinct_op_sequences": [
+    "count_features->load->normalize->output",
+    "count_features->load->normalize->rank->output",
+    "count_features->per_area->output",
+    "load->filter_area->output",
+    "load->per_area->output"
+  ],
+  "latency_mean": 68.7,
+  "detail": [
+    {
+      "id": "density-midwest",
+      "expect_attr": "^(Estimate[|!]+(?!60 years)[^|!]+[|!]+Total population|(Estimate[|!]+)?Total population|POP_ESTIMATE|Population)$",
+      "expect_attr_present": false,
+      "query": "population density per square mile in the Midwest",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "narrowing": [],
+      "expect_op": "per_area",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [],
+      "error": "the loaded data does not measure what this question asks about",
+      "seconds": 107.3
+    },
+    {
+      "id": "density-bare",
+      "expect_attr": "^(Estimate[|!]+(?!60 years)[^|!]+[|!]+Total population|(Estimate[|!]+)?Total population|POP_ESTIMATE|Population)$",
+      "expect_attr_present": true,
+      "query": "population density per square mile",
+      "planned": true,
+      "intent": "Population per square mile of land in each county",
+      "ops": "load->per_area->output",
+      "narrowing": [],
+      "expect_op": "per_area",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_08_01_04",
+          "purpose": "normalization",
+          "desc": "Estimate|Total|Total population"
+        }
+      ],
+      "error": null,
+      "seconds": 31.7
+    },
+    {
+      "id": "density-texas",
+      "expect_attr": "^(Estimate[|!]+(?!60 years)[^|!]+[|!]+Total population|(Estimate[|!]+)?Total population|POP_ESTIMATE|Population)$",
+      "expect_attr_present": false,
+      "query": "how densely populated are the counties in Texas",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "narrowing": [],
+      "expect_op": "per_area",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [],
+      "error": "the loaded data does not measure what this question asks about",
+      "seconds": 77.0
+    },
+    {
+      "id": "people-per-sqmi",
+      "expect_attr": "^(Estimate[|!]+(?!60 years)[^|!]+[|!]+Total population|(Estimate[|!]+)?Total population|POP_ESTIMATE|Population)$",
+      "expect_attr_present": false,
+      "query": "people per square mile by county",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "narrowing": [],
+      "expect_op": "per_area",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [],
+      "error": "the loaded data does not measure what this question asks about",
+      "seconds": 85.8
+    },
+    {
+      "id": "hospitals-per-100k",
+      "expect_attr": "^(Estimate[|!]+(?!60 years)[^|!]+[|!]+Total population|(Estimate[|!]+)?Total population|POP_ESTIMATE|Population)$",
+      "expect_attr_present": true,
+      "query": "hospitals per 100,000 people by county",
+      "planned": true,
+      "intent": "Number of hospitals per 100,000 people in each county",
+      "ops": "count_features->load->normalize->output",
+      "narrowing": [],
+      "expect_op": "count_features",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "443ff20b_01_01_24",
+          "purpose": "primary",
+          "desc": "Hospitals (mapped locations)"
+        },
+        {
+          "attr_id": "CHR_V051_RAWVALUE",
+          "purpose": "normalization",
+          "desc": "Population"
+        }
+      ],
+      "error": null,
+      "seconds": 67.6
+    },
+    {
+      "id": "fire-per-person",
+      "expect_attr": "^(Estimate[|!]+(?!60 years)[^|!]+[|!]+Total population|(Estimate[|!]+)?Total population|POP_ESTIMATE|Population)$",
+      "expect_attr_present": true,
+      "query": "which counties have the most fire stations per person",
+      "planned": true,
+      "intent": "Counties ranked by the number of fire stations per person, highest first",
+      "ops": "count_features->load->normalize->rank->output",
+      "narrowing": [],
+      "expect_op": "count_features",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "964c8e3d_01_01_19",
+          "purpose": "primary",
+          "desc": "Fire Stations (mapped locations)"
+        },
+        {
+          "attr_id": "CHR_V051_RAWVALUE",
+          "purpose": "normalization",
+          "desc": "Population"
+        }
+      ],
+      "error": null,
+      "seconds": 66.1
+    },
+    {
+      "id": "control-land-area",
+      "expect_attr": null,
+      "expect_attr_present": null,
+      "query": "hospitals per square mile by county",
+      "planned": true,
+      "intent": "Number of hospitals per square mile of land in each county",
+      "ops": "count_features->per_area->output",
+      "narrowing": [],
+      "expect_op": "per_area",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "443ff20b_01_01_24",
+          "purpose": "primary",
+          "desc": "Hospitals (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 68.9
+    },
+    {
+      "id": "control-plain",
+      "expect_attr": null,
+      "expect_attr_present": null,
+      "query": "median household income for counties in Missouri",
+      "planned": true,
+      "intent": "Median household income for counties in Missouri",
+      "ops": "load->filter_area->output",
+      "narrowing": [
+        "state=Missouri"
+      ],
+      "expect_op": "load",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "MEDIAN_HOUSEHOLD_INCOME",
+          "purpose": "primary",
+          "desc": "Median_Household_Income"
+        }
+      ],
+      "error": null,
+      "seconds": 45.1
+    }
+  ]
+}

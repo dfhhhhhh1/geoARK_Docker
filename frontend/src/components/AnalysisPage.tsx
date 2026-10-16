@@ -11,6 +11,7 @@ import AnalysisFailurePanel from './AnalysisFailure';
 import ErrorBoundary from './ErrorBoundary';
 import ResultBlock from './ResultBlock';
 import FollowUpBar from './FollowUpBar';
+import SurveyPrompt from './SurveyPrompt';
 import UploadPanel from './UploadPanel';
 import MapStage from './MapStage';
 import type { FitPadding } from './MapControls';
@@ -493,6 +494,9 @@ const TurnView: React.FC<{
             onUpload={onUpload}
             onRemoveUpload={convo.removeUpload}
           />
+          {/* Only under an answer that ran: the survey asks about the data
+              layers recommended, which a failed or empty answer has none of. */}
+          {!r.execution_error && <SurveyPrompt />}
         </div>
       )}
     </section>

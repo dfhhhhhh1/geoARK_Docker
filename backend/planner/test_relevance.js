@@ -163,6 +163,39 @@ const load = (id) => ({ id: "s1", op: "load", attr_id: id, inputs: [] });
     assert.deepStrictEqual(r.errors, []);
   });
 
+  // backend/population.js. Measured: qwen3:14b refused Total population for
+  // both of these, though density is defined by it.
+  await test("density: a total-population count is not rejected as unnamed", async () => {
+    for (const query of ["how densely populated are the counties in Texas",
+                         "people per square mile by county"]) {
+      const r = await checkRelevance({
+        query, plan: plan(load("POP")), candidates, refs,
+        callLLM: scripted([v("a2", "none", "", "total population")]),
+      });
+      assert.deepStrictEqual(r.errors, [], query);
+      assert.match(r.verdicts[0].reason, /defined by a total population/);
+      // An overruled rejection is a check that RAN, not one that matched
+      // nothing; it was reported as `skipped` before.
+      assert.strictEqual(r.skipped, undefined, "overruled must not read as skipped");
+    }
+  });
+
+  await test("density: the population rule exempts ONLY a total-population count", async () => {
+    const r = await checkRelevance({
+      query: "how densely populated are the counties in Texas", plan: plan(load("READ")),
+      candidates, refs, callLLM: scripted([v("a1", "none", "", "student reading test scores")]),
+    });
+    assert.strictEqual(r.errors.length, 1, "reading scores must still be refused");
+  });
+
+  await test("density: no exemption when the question is not about density or per-person", async () => {
+    const r = await checkRelevance({
+      query: "average rainfall by county", plan: plan(load("POP")),
+      candidates, refs, callLLM: scripted([v("a2", "none", "", "total population")]),
+    });
+    assert.strictEqual(r.errors.length, 1);
+  });
+
   console.log(`\n${pass}/${pass + fail} passed`);
   process.exit(fail ? 1 : 0);
 })();

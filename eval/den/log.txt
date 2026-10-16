@@ -1,0 +1,72 @@
+== known_item
+  top_sem=0.5     ab-recipe            Source
+  top_sem=0.474   ab-latin             Feattype
+
+==============================================================
+  known-item retrieval  n=12
+  recall@1    41.7%   the exact attribute ranked first
+  recall@5    91.7%
+  recall@20  100.0%
+  MRR         0.601
+  mean rank when found  2.9
+
+  absent queries  n=6
+  mean top semantic score  0.545
+  max  top semantic score  0.608
+  compare against an answerable query (~0.7-0.8). Low separation
+  means the system cannot tell it has no answer.
+
+vs baseline
+  concept_recall   0.0% -> 0.0%   =0.0%
+  query_success    0.0% -> 0.0%   =0.0%
+  mrr              0.000 -> 0.000   =0.000
+  latency_p50      0.03s -> 1.26s   +1.23s
+  latency_p95      0.00s -> 0.00s   =0.00s
+
+  saved -> den\ki.json
+== queries
+==============================================================
+  concept recall   97.8%   (found / required)
+  query success    97.3%   (all concepts found)
+  MRR              0.741
+  latency         p50 1.31s   p95 1.73s
+
+  by suite
+    single_concept         recall 100.0%   success 100.0%
+    facilities_via_tags    recall 100.0%   success 100.0%
+    multi_concept          recall  93.8%   success  87.5%
+    geographic_level       recall 100.0%   success 100.0%
+    paraphrase             recall 100.0%   success 100.0%
+    temporal               recall 100.0%   success 100.0%
+
+  saved -> den\q.json
+== den no-denominator run 1  7644 MiB, 87 %
+plan correctness probe  8 queries, execute=false
+
+  NOPLAN density-midwest            no analysis could be built from the available data  (50.5s)
+  NOPLAN density-bare               no analysis could be built from the available data  (51.7s)
+  NOPLAN density-texas              the loaded data does not measure what this question asks about  (163.7s)
+  NOPLAN people-per-sqmi            the loaded data does not measure what this question asks about  (143.9s)
+  NOPLAN hospitals-per-100k         could not produce a valid plan  (272.2s)
+  NOPLAN fire-per-person            could not produce a valid plan  (296.0s)
+  NOPLAN control-land-area          could not produce a valid plan  (276.5s)
+  OK     control-plain              load->filter_area->output  (89.2s)
+         intent: Median household income for Missouri counties
+         attrs: Median_Household_Income
+         narrowed by: state=Missouri
+
+==============================================================
+  plan correctness  n=8
+==============================================================
+  plan validity         12.5%   (a plan came back -- what run.py measures)
+  op appropriateness    12.5%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.12   (1.00 = every question got its own shape)
+  attr appropriateness   0.0%   (the plan loads the measure expect_attr names)
+  mean latency          168.0s
+
+  distinct op sequences produced:
+    load->filter_area->output
+
+  saved -> den\no-denominator-1.json
+== den denominator run 1  14476 MiB, 96 %

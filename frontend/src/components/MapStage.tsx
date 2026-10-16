@@ -7,8 +7,8 @@ import ChoroplethMap from './ChoroplethMap';
 import LayeredMap from './LayeredMap';
 import FeatureMap from './FeatureMap';
 import ErrorBoundary from './ErrorBoundary';
-import { BaseLayers, StageZoom, fitOptions, type FitPadding } from './MapControls';
-import { basemapById, loadBasemapId } from '../lib/basemaps';
+import { BaseLayers, BasemapPicker, StageZoom, fitOptions, type FitPadding } from './MapControls';
+import { basemapById, loadBasemapId, saveBasemapId } from '../lib/basemaps';
 import { outcomeLabelOf } from '../lib/series';
 import { OP_LABEL } from '../lib/ops';
 
@@ -48,8 +48,12 @@ export const IdleMap: React.FC<{ fitPadding?: FitPadding; decorative?: boolean }
     const mapRef = useRef<L.Map | null>(null);
     const [nonce, setNonce] = React.useState(0);
     // A backdrop is always the quiet basemap; imagery behind a page of text is
-    // noise. The stage follows whatever the user last picked.
-    const basemap = basemapById(decorative ? 'light' : loadBasemapId('light'));
+    // noise. The stage follows whatever the user last picked, and can be
+    // changed here before any question is asked. The choice is saved, so the
+    // answer's map opens on the same basemap.
+    const [basemapId, setBasemapId] = React.useState(() => loadBasemapId('light'));
+    const basemap = basemapById(decorative ? 'light' : basemapId);
+    const chooseBasemap = (id: string) => { setBasemapId(id); saveBasemapId(id); };
     return (
       // z-0 makes this a stacking context, so Leaflet's panes (z-index 400+)
       // cannot paint over anything layered on top of the map.
@@ -72,7 +76,11 @@ export const IdleMap: React.FC<{ fitPadding?: FitPadding; decorative?: boolean }
           <FitConus padding={fitPadding} nonce={nonce} />
         </MapContainer>
         {!decorative && (
-          <div className="absolute right-3 z-[600]" style={{ top: 'var(--header-offset)' }}>
+          <div className="absolute right-3 z-[600] flex flex-col items-end gap-2 pointer-events-none"
+               style={{ top: 'var(--header-offset)' }}>
+            <div className="pointer-events-auto glass glass-raisable glass-floor rounded-2xl px-3 py-2">
+              <BasemapPicker basemapId={basemapId} onBasemap={chooseBasemap} />
+            </div>
             <StageZoom mapRef={mapRef} onReset={() => setNonce(n => n + 1)} />
           </div>
         )}

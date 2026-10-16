@@ -21,8 +21,11 @@ import yaml
 SUITE = Path(__file__).with_name("answerability.yaml")
 
 
-def call(base: str, query: str, check: bool | None, timeout: int) -> dict:
+def call(base: str, query: str, check: bool | None, timeout: int,
+         plan_think: str | None = None) -> dict:
     body = {"q": query, "execute": False}
+    if plan_think is not None:
+        body["plan_think"] = plan_think
     if check is not None:
         body["relevance_check"] = check
     req = urllib.request.Request(f"{base}/api/analyze", data=json.dumps(body).encode(),
@@ -58,6 +61,8 @@ def main() -> int:
     ap.add_argument("--base", default="http://localhost:8080")
     ap.add_argument("--suite-file", type=Path, default=SUITE)
     ap.add_argument("--relevance-check", choices=["on", "off"])
+    # Reasoning for the planner model: "on", "off", or a token budget.
+    ap.add_argument("--plan-think")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--save", type=Path)
     ap.add_argument("--compare", type=Path)
@@ -71,7 +76,7 @@ def main() -> int:
         if args.only and q["expect"] != args.only:
             continue
         t0 = time.time()
-        p = call(args.base, q["query"], check, args.timeout)
+        p = call(args.base, q["query"], check, args.timeout, args.plan_think)
         o = outcome(p)
         rel = p.get("relevance") or []
         rows.append({

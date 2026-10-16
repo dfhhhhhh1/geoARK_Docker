@@ -1,0 +1,56 @@
+# Density and per-person questions: does the plan divide by a TOTAL POPULATION?
+#
+#   python eval/plan_probe.py --suite-file eval/denominator.yaml --no-denominator
+#   python eval/plan_probe.py --suite-file eval/denominator.yaml --denominator
+#
+# Why a separate suite: plan_correctness.yaml's density-per-area only checks
+# for the per_area op, and a plan that divides domestic migration by land area
+# contains per_area too. expect_attr is what sees the difference. It accepts a
+# whole-population count (ACS "Estimate|<table>|Total population", the Census
+# POP_ESTIMATE, County Health Rankings "Population") and rejects percentages,
+# margins of error and sub-populations ("60 years and over").
+#
+# The last two are controls: the rule must not fire on them, so their plans
+# should be what they were before.
+
+total_pop: &total_pop '^(Estimate[|!]+(?!60 years)[^|!]+[|!]+Total population|(Estimate[|!]+)?Total population|POP_ESTIMATE|Population)$'
+
+queries:
+  - id: density-midwest
+    query: "population density per square mile in the Midwest"
+    expect_op: per_area
+    expect_attr: *total_pop
+
+  - id: density-bare
+    query: "population density per square mile"
+    expect_op: per_area
+    expect_attr: *total_pop
+
+  - id: density-texas
+    query: "how densely populated are the counties in Texas"
+    expect_op: per_area
+    expect_attr: *total_pop
+
+  - id: people-per-sqmi
+    query: "people per square mile by county"
+    expect_op: per_area
+    expect_attr: *total_pop
+
+  - id: hospitals-per-100k
+    query: "hospitals per 100,000 people by county"
+    expect_op: count_features
+    expect_attr: *total_pop
+
+  - id: fire-per-person
+    query: "which counties have the most fire stations per person"
+    expect_op: count_features
+    expect_attr: *total_pop
+
+  # Controls: no population in the question, so the rule must stay silent.
+  - id: control-land-area
+    query: "hospitals per square mile by county"
+    expect_op: per_area
+
+  - id: control-plain
+    query: "median household income for counties in Missouri"
+    expect_op: load

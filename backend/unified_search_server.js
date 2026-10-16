@@ -38,6 +38,7 @@ const auth = require("./auth");
 const { createLimiter, rateLimit } = require("./ratelimit");
 const { createQueue, QueueFullError } = require("./queue");
 const { expandQuery, EXPANSION_CONFIG, indexLoaded: expansionIndexLoaded } = require("./expansion");
+const { needsPopulation } = require("./population");
 
 const app = express();
 
@@ -129,7 +130,10 @@ const CONFIG = {
     // prompts are a few hundred tokens and never needed the larger window.
     // A model always gets the same num_ctx, so no call forces a reload.
     numCtx: Number(process.env.LLM_NUM_CTX ?? 8192),
-    smallNumCtx: Number(process.env.LLM_SMALL_NUM_CTX ?? 4096)
+    smallNumCtx: Number(process.env.LLM_SMALL_NUM_CTX ?? 4096),
+    // Reasoning for PLAN_MODEL calls (the planner and the relevance check).
+    // See planThinkExtra. "on" is the model's own default, unchanged.
+    planThink: process.env.PLAN_THINK || "on"
   },
   embedder: {
     url: EMBEDDER_URL,
@@ -261,7 +265,7 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
     // Measured before the fix (eval/plan_probe.py, PLAN_MODEL=qwen3:14b):
     // op appropriateness 50.0%, and 8 of 8 intents describing something the
     // user had not asked about.
-    const response = await llmFetch({
+    const body = {
       model,
       messages: [
         { role: "system", content: systemPrompt },
@@ -277,7 +281,9 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
       // options.temperature 0 logged "temp = 0.000".
       options: { temperature, num_ctx: numCtxFor(model), ...(extra.options || {}) },
       ...(extra.think !== undefined ? { think: extra.think } : {}),
-    });
+    };
+    if (extra.thinkBudget > 0) return await budgetedChat(body, extra.thinkBudget);
+    const response = await llmFetch(body);
     
     if (!response.ok) {
       throw new Error(`LLM returned ${response.status}: ${response.statusText}`);
@@ -293,6 +299,93 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
     console.error(`   LLM call failed: ${error.message}`);
     return null;
   }
+}
+
+/**
+ * Reasoning for PLAN_MODEL calls, from PLAN_THINK or a per-request override:
+ *   "on"   the model's default (qwen3 / qwen3.5 reason before answering)
+ *   "off"  think:false -- answer directly
+ *   N      reason for at most N tokens (budgetedChat)
+ *
+ * Ollama has no reasoning budget of its own, and qwen3.5:9b accepts
+ * think:"low" but ignores it: measured 3,473 reasoning chars for "low" vs
+ * 2,618 for true on the same prompt.
+ *
+ * "planner/relevance" sets the two separately, e.g. "off/on". A single value
+ * applies to both. They differ for a measured reason: with reasoning off,
+ * qwen3.5:9b planned as well as with it on, but its relevance check passed 5
+ * of 10 questions about data that does not exist.
+ */
+function planThinkExtra(setting, role = "planner") {
+  const parts = String(setting ?? "on").split("/");
+  const s = String((role === "relevance" ? parts[1] : parts[0]) ?? parts[0]).trim().toLowerCase();
+  if (s === "off" || s === "false" || s === "0") return { think: false };
+  const n = Number(s);
+  if (Number.isFinite(n) && n > 0) return { think: true, thinkBudget: Math.floor(n) };
+  return {};
+}
+
+/**
+ * A chat call whose reasoning is capped at `budget` tokens.
+ *
+ * Streams with reasoning on and counts reasoning chunks (one per token). If
+ * the model stops reasoning within budget, its answer is used as is. If not,
+ * the stream is aborted and a second call with think:false writes the answer,
+ * given the partial reasoning so the tokens already spent are not wasted.
+ * The deadline covers the WHOLE call, not just the headers, because a stream
+ * that stalls mid-body would otherwise hang forever.
+ */
+async function budgetedChat(body, budget) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CONFIG.llm.timeoutMs);
+  let thinking = "", content = "", thinkTokens = 0, overBudget = false;
+  try {
+    const res = await fetch(CONFIG.llm.endpoint, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, stream: true, think: true }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`LLM returned ${res.status}: ${res.statusText}`);
+    const decoder = new TextDecoder();
+    let buf = "";
+    reading: for await (const chunk of res.body) {
+      buf += decoder.decode(chunk, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        const m = JSON.parse(line).message || {};
+        if (m.thinking) { thinking += m.thinking; thinkTokens++; }
+        if (m.content) content += m.content;
+        if (!content && thinkTokens >= budget) { overBudget = true; break reading; }
+      }
+    }
+  } catch (err) {
+    if (err.name === "AbortError" && !overBudget) {
+      throw new Error(`LLM did not respond within ${CONFIG.llm.timeoutMs}ms (budgeted reasoning)`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    controller.abort();   // closes the stream, which makes Ollama cancel the task
+  }
+  if (!overBudget) {
+    console.log(`   LLM response: ${content.length} chars (reasoned ${thinkTokens} tokens, within budget ${budget})`);
+    return content;
+  }
+
+  // Over budget: answer now, without further reasoning.
+  const msgs = body.messages.map(x => ({ ...x }));
+  const last = msgs[msgs.length - 1];
+  last.content += `\n\nYOUR REASONING SO FAR (cut off at the reasoning budget; ` +
+    `it may be incomplete):\n${thinking}\n\nNow give the final answer.`;
+  const res = await llmFetch({ ...body, messages: msgs, stream: false, think: false });
+  if (!res.ok) throw new Error(`LLM returned ${res.status}: ${res.statusText}`);
+  const data = await res.json();
+  const out = data.message?.content || "";
+  console.log(`   LLM response: ${out.length} chars (reasoning cut at ${budget} tokens, answered without it)`);
+  return out;
 }
 
 /**
@@ -934,6 +1027,39 @@ async function verifyResultsWithLLM(originalQuery, decomposition, allResults) {
 // =============================================================================
 
 /**
+ * A density or per-person question needs a TOTAL POPULATION series, and the
+ * decomposer does not reliably ask for one.
+ *
+ * Measured 2026-10-15 on "population density per square mile in the Midwest":
+ * gemma3:4b split it into "population density", "square mile" and "Midwest".
+ * None of those retrieves a total-population count -- they return housing
+ * occupancy and migration columns -- so the planner divided domestic
+ * migration by land area, the relevance check rejected it, and the repairs had
+ * nothing better to reach for. A direct "total population" search ranks real
+ * totals first.
+ *
+ * Added in code rather than as a decomposition-prompt rule, so every question
+ * that does not ask for a density or a rate sees exactly the decomposition it
+ * saw before. Gated on PHRASING (backend/population.js), the same lever as
+ * `offered(ctx)`.
+ */
+const POPULATION_DENOMINATOR_ENABLED = process.env.POPULATION_DENOMINATOR !== "0";
+
+function addPopulationDenominator(query, decomposition) {
+  if (!needsPopulation(query)) return false;
+  const queries = decomposition.search_queries || [];
+  if (queries.some(q => /^\s*(?:total\s+)?population\s*$/i.test(q.query || ""))) return false;
+  queries.push({ query: "total population", purpose: "normalization" });
+  decomposition.search_queries = queries;
+  if (!(decomposition.normalization_concepts || []).includes("total population")) {
+    decomposition.normalization_concepts = [...(decomposition.normalization_concepts || []), "total population"];
+  }
+  decomposition.population_denominator_added = true;
+  console.log(`   Added "total population" (normalization): the question asks for a density or rate`);
+  return true;
+}
+
+/**
  * Main search pipeline combining all three approaches
  */
 async function unifiedSearch(query, options = {}) {
@@ -942,7 +1068,9 @@ async function unifiedSearch(query, options = {}) {
     topKPerConcept = CONFIG.search.topK,
     // Literature expansion (backend/expansion.js). Defaults to EXPAND_ENABLED;
     // requests may override it, so an A/B needs no container recreate.
-    expand = EXPANSION_CONFIG.enabled
+    expand = EXPANSION_CONFIG.enabled,
+    // addPopulationDenominator, above. Per-request override for the A/B.
+    populationDenominator = POPULATION_DENOMINATOR_ENABLED
   } = options;
   
   const startTime = Date.now();
@@ -956,6 +1084,7 @@ async function unifiedSearch(query, options = {}) {
   // STEP 1: Decompose Query
   console.log(`\n[STEP 1] Query Decomposition`);
   const decomposition = await decomposeQuery(query);
+  if (populationDenominator) addPopulationDenominator(query, decomposition);
   const queryCount = decomposition.search_queries.length; //# of queries
 
   const calculatedLimit = Math.max(1, Math.floor(topKPerConcept / queryCount));
@@ -1536,7 +1665,11 @@ async function runAnalysis({ query, top_k = 25, execute = true,
                              // Literature expansion override; null = EXPAND_ENABLED.
                              expand = null,
                              // Relevance check override; null = RELEVANCE_CHECK.
-                             relevanceCheck = null }) {
+                             relevanceCheck = null,
+                             // addPopulationDenominator override; null = POPULATION_DENOMINATOR.
+                             populationDenominator = null,
+                             // planThinkExtra override ("on" | "off" | N); null = PLAN_THINK.
+                             planThink = null }) {
   const started = Date.now();
   try {
     if (!query || !query.trim()) {
@@ -1568,7 +1701,8 @@ async function runAnalysis({ query, top_k = 25, execute = true,
     const search = await unifiedSearch(query, {
       useLLMFilter: false,            // measured in Phase 2: costs 10pp recall
       topKPerConcept: Math.max(top_k, RETRIEVAL_BUDGET),
-      ...(typeof expand === "boolean" ? { expand } : {})
+      ...(typeof expand === "boolean" ? { expand } : {}),
+      ...(typeof populationDenominator === "boolean" ? { populationDenominator } : {})
     });
     const candidates = search.all_results || [];
     emit({ stage: "decomposed", decomposition: search.decomposition,
@@ -1801,8 +1935,12 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       query,
       candidates: executable,
       // Bind the planner to PLAN_MODEL, leaving decomposition on the small one.
+      // Reasoning is set here so it covers every PLAN_MODEL call in the
+      // analysis: the planner, its repairs, and the relevance check.
       callLLM: (sys, usr, temp, schema, extra) =>
-        callLLM(sys, usr, temp, schema, CONFIG.llm.planModel, extra),
+        callLLM(sys, usr, temp, schema, CONFIG.llm.planModel,
+                { ...planThinkExtra(planThink ?? CONFIG.llm.planThink, extra?.role),
+                  ...(extra || {}) }),
       resolve: resolveAttributes,
       // Whether named boundaries are loaded. filter_place is useless without
       // them, and offering an op that can only fail costs a repair round.
@@ -2154,6 +2292,10 @@ app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
         expand: typeof req.body?.expand === "boolean" ? req.body.expand : null,
         relevanceCheck: typeof req.body?.relevance_check === "boolean"
           ? req.body.relevance_check : null,
+        populationDenominator: typeof req.body?.population_denominator === "boolean"
+          ? req.body.population_denominator : null,
+        planThink: ["string", "number"].includes(typeof req.body?.plan_think)
+          ? String(req.body.plan_think) : null,
       }),
       { isAbandoned: () => closed },
     );
@@ -2506,6 +2648,7 @@ app.get("/api/health", async (req, res) => {
     // because "local-only" is a property people rely on, and a config flag that
     // silently changes it should be visible from outside.
     llm_provider: process.env.LLM_PROVIDER || "ollama",
+    plan_think: CONFIG.llm.planThink,
     google_available: googleConfigured(),
     database: CONFIG.database.database,
     resolvable_attributes: resolvableCount,

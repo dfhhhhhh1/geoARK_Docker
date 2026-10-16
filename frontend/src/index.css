@@ -133,17 +133,24 @@ body {
 
   /* ---- Resting heights ------------------------------------------------ */
 
+  /* FLAT STATE -- the tuning knobs for how see-through the chat panel is when
+     the pointer is elsewhere. Raised values are in the :hover rule below.
+       --g-alpha  panel tint, 0 (clear) to 1 (solid white)
+       --g-blur   how much the map behind is blurred
+       --g-card   tint of the white cards inside the panel (tables, results)
+     0.05 / 1.5px / 0.08 read as "map shows through"; the text was too hard
+     to read, so these sit about a third of the way to raised. */
   .glass-raisable {
-    --g-alpha: 0.05;
-    --g-blur: 1.5px;
+    --g-alpha: 0.3;
+    --g-blur: 3px;
     --g-lift: 0px;
     --g-shadow-a: 0.1;
     --g-shadow-y: 4px;
     --g-shadow-blur: 12px;
-    --g-card: 0.08;
+    --g-card: 0.3;
     /* A faint halo while flat, so text lying on a busy map still separates
        from it. Dropped once raised, where the frost does that job. */
-    text-shadow: 0 0 1px rgb(255 255 255 / 0.9), 0 0 10px rgb(255 255 255 / 0.75);
+    /*text-shadow: 0 0 1px rgb(255 255 255 / 0.9), 0 0 4px rgb(255 255 255 / 0.75);*/
   }
 
   /* Small chrome -- the header, map controls, the legend -- never goes fully
