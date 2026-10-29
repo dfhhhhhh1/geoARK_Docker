@@ -230,6 +230,14 @@ def build_attribute_source(conn, catalog_csv: Path, dry_run: bool,
         code = (r.get("attr_orig") or "").strip()
         if not attr_id:
             continue
+        # Two catalog conventions point at acs_county_values. ACS rows carry
+        # the census code in attr_orig. Rows written by load_county_values.py
+        # (ERS, PLACES, CHR) and by load_table.py carry it in attr_label and put
+        # the human label in attr_orig. Matching attr_orig alone meant every
+        # relink -- which `make ingest` runs -- silently unlinked those 229
+        # measures: 3,526 resolvable acs_long attributes became 3,297.
+        if code not in known and attr_id in known:
+            code = attr_id
         if code and code in known:
             resolved.append((
                 attr_id, r.get("dataset_id", ""), r.get("attr_desc", ""),

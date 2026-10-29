@@ -3,7 +3,7 @@ COMPOSE := docker compose
 GPU     := docker compose -f docker-compose.yml -f docker-compose.gpu.yml
 DEV     := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 
-.PHONY: help up up-gpu down dev build logs ps health provenance models automl county-values county-values-dry semmed semmed-dry add-year neighbors boundaries boundaries-dry inspect ingest load-geo load-reference load-reference-dry relink relink-features validate-catalog shell-api shell-embed shell-db reindex psql clean
+.PHONY: help up up-gpu down dev build logs ps health provenance models automl county-values county-values-dry semmed semmed-dry add-year neighbors boundaries boundaries-dry inspect ingest reload-corpus ledger replay replay-dry dump-dataset raster-export geo-units geo-units-dry crosswalks geo-verify load-geo load-reference load-reference-dry relink relink-features validate-catalog shell-api shell-embed shell-db reindex psql clean
 
 help:            ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -113,17 +113,77 @@ boundaries-dry:  ## Report what load_boundaries would load, writing nothing
 	$(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
 	  /app/etl/load_boundaries.py --source-dir /incoming
 
-inspect:         ## Inspect a dataset without loading it. FILE=... NAME="..."
-	$(COMPOSE) --profile etl run --rm etl-geo \
-	  python3 /app/etl/ingest.py --file "$(FILE)" --name "$(NAME)" $(ARGS)
+# A dataset is a FOLDER under deploy/incoming/ (data + optional *.meta.yaml +
+# optional XML), named relative to it: DIR=svi_2022. Relative on purpose: Git
+# Bash rewrites an argument like /incoming/x into C:/Program Files/Git/...
+# before make ever sees it. FILE=/incoming/... NAME="..." still works for a
+# single file. See etl/templates/dataset.meta.yaml and docs/RUNBOOK.md §5a.
+INGEST_SRC = $(if $(DIR),--dir "/incoming/$(DIR)",--file "$(FILE)" $(if $(NAME),--name "$(NAME)")) \
+             $(if $(ENTITY),--entity-type $(ENTITY))
+INGEST     = MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
+             /app/etl/ingest.py $(INGEST_SRC)
 
-ingest:          ## Load a dataset end to end. FILE=... NAME="..." [ENTITY=COUNTY]
-	$(COMPOSE) --profile etl run --rm etl-geo \
-	  python3 /app/etl/ingest.py --file "$(FILE)" --name "$(NAME)" \
-	    --entity-type "$(or $(ENTITY),COUNTY)" --commit $(ARGS)
+inspect:         ## Show what a dataset would load as, writing nothing. DIR=<folder in incoming/>
+	$(INGEST) $(ARGS)
+
+ingest:          ## Load a dataset end to end. DIR=<folder in incoming/> [ARGS=--replace]
+	$(INGEST) --commit $(ARGS)
 	$(MAKE) relink
 	$(MAKE) reindex
-	@echo "  Restart the API to pick up the new corpus:  make up"
+	$(MAKE) reload-corpus
+	python3 ../etl/validate_catalog.py --new ../backend/geoark_attributes.csv || true
+
+# The API holds the corpus it read at startup. POST /api/reload-corpus swaps it
+# without a restart. If that is refused (ACCESS_CODE set), fall back to
+# restarting ONLY the api container: `restart` does not recreate, so it cannot
+# drop the GPU the way a plain `docker compose up` does (CLAUDE.md, traps).
+reload-corpus:   ## Make the API pick up a re-embedded catalog (no recreate; keeps the GPU)
+	@$(COMPOSE) exec -T api node -e \
+	  "fetch('http://localhost:4000/api/reload-corpus',{method:'POST'}).then(async r=>{console.log('  reload-corpus', r.status, (await r.text()).slice(0,200));process.exit(r.ok?0:1)}).catch(e=>{console.error(e.message);process.exit(1)})" \
+	  || { echo "  reload refused; restarting the api container instead"; $(COMPOSE) restart api; }
+
+REPLAY = MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
+         /app/etl/replay.py
+
+# The data half of every ingest, repeated from the raw files in incoming/ (or
+# from dumps/). Never tags, never writes the catalog: those came through git.
+replay-dry:      ## What the ledger says should be loaded, and what this database has
+	$(REPLAY) $(if $(ID),--only $(ID))
+
+replay:          ## Load every stale ledger entry here (server side), then relink + reindex
+	$(REPLAY) --commit $(if $(ID),--only $(ID)) $(ARGS)
+	$(MAKE) relink
+	$(MAKE) reindex
+	$(MAKE) reload-corpus
+
+dump-dataset:    ## Dump one loaded dataset to deploy/dumps/ for the server. ID=<ledger id>
+	@test -n "$(ID)" || { echo "usage: make dump-dataset ID=<ledger id>   (see make ledger)"; exit 2; }
+	$(REPLAY) --dump "$(ID)"
+
+raster-export:   ## A raster as GeoJSON cells for an area. RASTER=worldpop STATE=29|COUNTY=29077|BBOX=w,s,e,n KM=2
+	@test -n "$(RASTER)" || { echo "usage: make raster-export RASTER=<id> STATE=29 KM=2"; exit 2; }
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
+	  /app/etl/raster_export.py --raster $(RASTER) --cell-km $(or $(KM),1) \
+	  $(if $(STATE),--state $(STATE))$(if $(COUNTY),--county $(COUNTY))$(if $(BBOX),--bbox $(BBOX))
+	@echo "  written under deploy/dumps/exports/"
+
+ledger:          ## List what has been loaded (etl/data_manifest.yaml)
+	@python3 -c "import re;t=open('../etl/data_manifest.yaml').read();[print('  '+m) for m in re.findall(r'^- id: (.+)$$',t,re.M)]" 2>/dev/null || echo "  nothing recorded yet"
+
+GEO = MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
+      /app/etl/load_geo_units.py --source-dir $(or $(SRC),/data/tiger)
+
+geo-units-dry:   ## Report what geo_unit would load (tract, block group, ZCTA, place ...)
+	$(GEO) $(if $(LEVELS),--levels $(LEVELS)) $(if $(STATES),--states $(STATES))
+
+geo-units:       ## Load analysis geography into geo_unit. [LEVELS=tract,bg] [STATES=29]
+	$(GEO) --commit $(if $(LEVELS),--levels $(LEVELS)) $(if $(STATES),--states $(STATES))
+
+crosswalks:      ## Build zcta<->county and zcta<->tract area weights (after geo-units)
+	$(GEO) --crosswalks --commit $(if $(STATES),--states $(STATES))
+
+geo-verify:      ## Check geo_unit and the crosswalks, changing nothing
+	$(GEO) --verify
 
 relink:          ## Rebuild attribute_source only (no re-import of the 10.8M ACS rows)
 	$(COMPOSE) --profile etl run --rm etl \

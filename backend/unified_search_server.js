@@ -540,67 +540,17 @@ function createSmartFallback(query) {
 // Step 2: CSV Loading and BGE Embeddings (from multi_search_server.js)
 // =============================================================================
 
-/**
- * Create embedding text from CSV row
- */
-function createEmbeddingText(row) {
-  const parts = [];
-  
-  // Include dataset context
-  if (row.dataset_clean) parts.push(row.dataset_clean.trim());
-  if (row.source_folder) parts.push(row.source_folder.trim());
-  
-  // Include attribute info
-  if (row.attr_desc) parts.push(row.attr_desc.trim());
-  // The generated one-sentence description, for rows whose attr_desc is a bare
-  // column name. 392 facility rows have an attr_desc of "Name" or "Objectid",
-  // and about a third of the county-measure rows are two words; those carry
-  // almost no text for retrieval to match on. The generator has existed in
-  // etl/ingest.py all along and its output was discarded -- see
-  // etl/backfill_gen_desc.py. Placed next to attr_desc because it is the same
-  // KIND of signal, and only present where the real description was thin, so
-  // rows with a good attr_desc are unaffected.
-  // The lead-in is stripped. Every generated sentence opens "This column
-  // contains the ..." -- identical across all 2,642 of them -- and including it
-  // adds the same tokens to thousands of rows, which makes them LESS
-  // distinguishable rather than more. Measured: with the boilerplate in,
-  // known-item MRR fell 0.958 -> 0.944 while recall@1 held, which is the
-  // signature of a diluted vector space rather than a wrong one.
-  if (row.gen_desc) {
-    const cleaned = row.gen_desc
-      .replace(/^\s*(this|the)\s+(column|field|attribute)\s+(contains|holds|represents|stores|indicates|provides)\s+(the|a|an)?\s*/i, '')
-      .trim();
-    if (cleaned) parts.push(cleaned);
-  }
-  if (row.attr_orig) parts.push(row.attr_orig.replace(/_/g, ' ').trim());
-  
-  // Include tags (most important for search)
-  if (row.tags) {
-    try {
-      const cleanTags = row.tags
-        .replace(/[\[\]'\"]/g, '')
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(tag => tag.length > 0);
-      parts.push(...cleanTags);
-    } catch (e) {
-      parts.push(row.tags.trim());
-    }
-  }
-  
-  // Include entity type
-  if (row.entity_type) parts.push(row.entity_type.trim());
-
-  // Include the temporal range in words. Users routinely ask for "2015" or
-  // "recent" data, and without this the years are invisible to both the
-  // embedding and BM25.
-  const start = (row.start_date || '').trim();
-  const end = (row.end_date || '').trim();
-  if (start && end && start !== end) parts.push(`${start} to ${end}`);
-  else if (start) parts.push(start);
-
-  return parts.join(' ').toLowerCase();
-}
+// Catalog SEARCH TEXT is built in exactly one place: embedding_text() in
+// deploy/embedder/app.py. Both the dense vectors and the text the BM25 index
+// scores (`processed_texts`) come from /corpus/vectors, so this process never
+// builds its own.
+//
+// A copy used to live here, createEmbeddingText(), described as "in lockstep"
+// with the embedder's. It was not: it had gained gen_desc and the embedder had
+// not, and its output (an `embeddingText` field) was never read, so gen_desc
+// was in neither retrieval path while this file's comments said otherwise.
+// Measured once it was actually wired in (EMBED_GEN_DESC, 2026-10-16), it
+// costs known-item recall; see CLAUDE.md.
 
 /**
  * Load variables from CSV (compatible with attr_gen_copy.py format)
@@ -612,8 +562,6 @@ async function loadVariablesFromCSV(csvFilePath) {
     fs.createReadStream(csvFilePath)
       .pipe(csv())
       .on('data', (row) => {
-        const embeddingText = createEmbeddingText(row);
-        
         results.push({
           // IDs for database lookup
           dataset_id: row.dataset_id || '',
@@ -632,9 +580,6 @@ async function loadVariablesFromCSV(csvFilePath) {
           spatial_rep: row.spatial_rep || '',
           start_date: row.start_date || '',
           end_date: row.end_date || '',
-          
-          // For embedding
-          embeddingText: embeddingText
         });
       })
       .on('end', () => {
@@ -2685,8 +2630,9 @@ async function initializeEmbeddings() {
     variables = await loadVariablesFromCSV(CONFIG.search.csvPath);
     if (variables.length === 0) throw new Error("No variables loaded");
 
-    // The embedder owns the corpus: it reads the same CSV, builds the same
-    // embedding text, and caches the matrix to disk keyed by a content hash.
+    // The embedder owns the corpus: it reads the same CSV, builds the ONLY
+    // search text (vectors and BM25 both use it), and caches the matrix to disk
+    // keyed by a content hash. These rows are for display and lookup only.
     // After the first run this is a disk read on their side and one HTTP call
     // on ours -- seconds, not minutes.
     console.log("  Fetching corpus vectors from embedder...");

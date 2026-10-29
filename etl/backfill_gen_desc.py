@@ -16,6 +16,12 @@ The generator for this has existed all along inside etl/ingest.py -- it asks the
 tagger for tags AND a one-sentence description, then throws the sentence away.
 This writes it into a column the embedder reads, which is the whole change.
 
+CORRECTION (2026-10-16): the embedder did NOT read it; only a dead copy of the
+text builder in the API did. Wired in for real (EMBED_GEN_DESC=stripped), it
+cost 25pp of known-item recall@1, because every column of a dataset gets a
+sentence about the same dataset and siblings start outranking each other. The
+column is kept, the default is off. See CLAUDE.md.
+
 SAME MODEL, SAME SETTINGS. gemma3:4b at temperature 0.1 with constrained JSON,
 which is what PROVENANCE.md records for the existing catalog. Using a different
 tagger produces a catalog that is internally inconsistent in a way retrieval

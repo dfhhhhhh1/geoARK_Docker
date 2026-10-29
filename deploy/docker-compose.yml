@@ -132,6 +132,9 @@ services:
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}      # flip to 1 once the cache is warm
       EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-base-en-v1.5}
       EMBED_INCLUDE_TAGS: ${EMBED_INCLUDE_TAGS:-1}
+      # off | stripped | raw: whether the generated column description is
+      # embedded. See embedding_text() in embedder/app.py and CLAUDE.md.
+      EMBED_GEN_DESC: ${EMBED_GEN_DESC:-off}
       EMBED_CACHE_DIR: /data/embeddings         # persisted corpus matrices
       OMP_NUM_THREADS: ${OMP_NUM_THREADS:-4}
     volumes:
@@ -264,6 +267,9 @@ services:
       # Somewhere to drop a file for ingest, separate from the read-only HSIP
       # source so an admin upload can never overwrite it.
       - ${INGEST_DIR:-./incoming}:/incoming:ro
+      # Dataset dumps for `make dump-dataset` / `make replay`: the shortcut for
+      # data that is slow to rebuild from raw files. Writable, unlike incoming.
+      - ${DUMP_DIR:-./dumps}:/dumps
       # NOT read-only: ingest.py appends catalog rows here. It takes a
       # timestamped backup before every write.
       - ../backend/geoark_attributes.csv:/app/backend/geoark_attributes.csv

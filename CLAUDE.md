@@ -855,8 +855,161 @@ counted as **answered** (the failure that matters) out of 10:
 - Unbounded reasoning in the relevance check alone (`off/on`) costs nearly what
   reasoning everywhere does, so if 9b is used, `off/512` is the setting.
 
-Not yet measured: qwen3:14b at `off/512`. Its relevance check is the one that
-caught 10/10, and planning measured indifferent to reasoning on 9b.
+**qwen3:14b, same suites** (answerability runs that the web container's
+rebuild or concurrent app use contaminated were discarded and rerun):
+
+| setting | plan op | density attr | s / question | nonsense answered | answerable missed |
+|---|--:|--:|--:|--:|--:|
+| on | 100% | 100 x3 | 46-52 | 0 | 0 |
+| off | 96% | 100 x3 | **13** | 0, 0 | 0, 2, **+1 wrong each run** |
+| off/512 | 96% | 100 x3 | 19-20 | 0, 1, 1 | 3, 2, 3 |
+
+The 96% is `place-metro`, the known flake, in both. qwen3:14b refuses nonsense
+without reasoning (the 9b did not), but planner reasoning is NOT free on
+loosely worded questions, which the plan suites do not contain:
+
+- "What are the poverty rates around Detroit?" planned **poverty percent /
+  total population** with reasoning off, in both runs: valid, executable,
+  meaningless, and the non-reasoning relevance check passed Population as a
+  "denominator". `answerability_probe.py` scores it as answered, so its false-
+  refusal rate cannot see it. With reasoning on: load the rate, filter_place.
+- `off/512` plans the same bad Detroit plan, but its reasoning relevance check
+  rejects Population, so it REFUSES instead (3 runs). Stricter check, same
+  planner: more false refusals, not better answers. Not worth its 7s over off.
+- "where do seniors live" and "Which are the poorest counties in America?"
+  fail or refuse intermittently with planner reasoning off.
+
+So the speed is real (3.5-4x) and the cost is real: about one confidently wrong
+answer per 20 loosely worded questions, of the percent-divided-by-population
+kind. That specific shape is deterministic and could be refused by the
+validator; not yet done.
+
+### Drop-in loading and multi-level geography (2026-10-16)
+
+`docs/DATA_LOADING_PLAN.md` (phases), RUNBOOK §5a (usage). Phase 1 and 2 built.
+
+- **A dataset is a folder**: data + optional `*.meta.yaml` + optional XML.
+  `make inspect|ingest DIR=<folder in deploy/incoming>`. Precedence sidecar >
+  XML (FGDC, ISO 19115, ISO 19110, ArcGIS, parsed by local name) > model, per
+  FIELD for columns. Template: `etl/templates/dataset.meta.yaml`.
+- **Every committed load goes in `etl/data_manifest.yaml`** (sha256 of every
+  file, table, catalog labels, metadata). It is what `make replay` (Phase 3)
+  will read on the server, which never runs the tagger: the 8 GB server card
+  cannot hold it beside a planner, so tags travel through git.
+- **Nothing that existed changed behaviour**: catalog bytes identical (corpus
+  cache key `70babb1adc83ecdf` before and after), snapshot identical across 48
+  contexts, no backend file touched. So the eval suites were not re-run.
+- Defects fixed on the way: `CATALOG_COLUMNS` was hardcoded and predated
+  `gen_desc`, so ingested rows lacked it; a second ingest of the same dataset
+  appended duplicate `attr_label`s (now refused without `--replace`); CSVs
+  with lat/lon never got geometry (no `X/Y_POSSIBLE_NAMES`); `make ingest`
+  advised `make up` (the GPU trap), now `make reload-corpus`.
+- **DBF truncates column names to 10 chars**: a sidecar entry for `OBJNAM`
+  matches nothing when the column is `Object_Nam`. The HSIP ISO "abstract" is
+  often just a download link; the dry run shows each field's origin for this.
+- **`geo_unit`** (partitioned by level) holds state 56, county 3,233 (copied
+  from county_geom), tract 85,529, bg 242,748, zcta 33,791, place 32,642: all
+  equal to the TIGER feature counts, 0 invalid. **4.7 GB**, not the "<1 GB" the
+  plan guessed: full-resolution TIGER geometry is ~85% of it, the display tiers
+  ~13%. bg alone is 2.1 GB. Blocks (8M) were NOT loaded: they need a per-state
+  TIGER download, and are ~33x as many units as bg.
+- **county_geom is an older county vintage than TIGER 2026.** 883 tracts and
+  2,722 block groups carry a county code county_geom lacks: Connecticut's
+  planning regions (091xx, 2022) and Valdez-Cordova's split (02063/02066,
+  2019). They are assigned to the old county they overlap most, and **fit at
+  >= 98.2% every time**, so 2026 tracts still nest in the counties the values
+  are keyed on. The first fit measure read 0-36% for coastal tracts: county_geom
+  is shoreline-clipped and TIGER tracts include water. Measure fit as a share
+  of overlap with ANY county, not of the unit's area. The 4 tracts with no
+  county are water-only (aland 0).
+- **Crosswalk shares are normalised over the covered area** for the same
+  reason (a coastal ZCTA's raw shares summed to ~0.97), and pairs under 0.5%
+  of both units are dropped as slivers. Spot-checked: 63101 -> St. Louis city
+  100%; 65721 (Ozark) -> Christian 98% / Greene 2%. `w_pop` is NULL until block
+  population exists. National: zcta->county 46,683 pairs (7 min), zcta->tract
+  165,583 (15 min); every ZCTA covered, shares sum to 1 within 7e-16.
+- **Nothing reads geo_unit, geo_values or geo_crosswalk yet.** County values
+  stay in acs_county_values; `geo_values` deliberately has no county partition
+  and `geo_values_all` is the union view.
+
+### Correction: `gen_desc` was never in retrieval, and embedding it hurts (2026-10-16)
+
+`backend/unified_search_server.js` had `createEmbeddingText()`, "in lockstep"
+with the embedder's `embedding_text()`, and it read `gen_desc` (lead-in
+stripped). **Its output was never used.** The API takes BOTH the dense vectors
+AND the text its BM25 index scores from the embedder (`processed_texts` on
+`/corpus/vectors`), and the embedder never read `gen_desc`. So the 2,642
+generated descriptions (1,476 of them facility rows) were in neither path,
+while two comments said otherwise. The Node copy is deleted; the embedder is
+now the only search-text builder.
+
+Its comment also claimed a measurement: "with the boilerplate in, known-item
+MRR fell 0.958 -> 0.944". That cannot have measured gen_desc, which reached no
+ranking code. 0.958 -> 0.944 is exactly the `ki-persistent-poverty` rank 2 -> 3
+drift recorded under the density work.
+
+Wired in for real behind `EMBED_GEN_DESC=off|stripped|raw` (default `off`,
+whose cache key is the pre-existing `70babb1adc83ecdf`, so nothing re-embeds).
+Measured one run per arm; the `off` arm was repeated and is deterministic:
+
+| arm | known-item recall@1 (12) | known-item MRR | dataset recall@1 (8) | concept recall / success | concept MRR |
+|---|--:|--:|--:|--:|--:|
+| **off** | **91.7%** | **0.944** | **100%** | 97.8 / 97.3% | 0.739, 0.740 |
+| stripped | 66.7% | 0.792 | 87.5% | 100 / 100% | 0.717 |
+| raw | 66.7% | 0.785 | 87.5% | 100 / 100% | 0.735 |
+
+- **The mechanism is sibling dilution.** The right dataset still comes first
+  for the tag-vocabulary queries; what moves is the column. Every column of
+  Ethanol Plants gets a sentence about ethanol plants, so Type, Epafacid and
+  Platform now outrank Name. The one dataset-level loss is real confusion:
+  Ferrous and Nonferrous Metal Mines get near-identical sentences, and
+  "metal ore mining site name" flips to Nonferrous.
+- **The concept-suite gain is one query** (`veterans-disability-income`: the
+  "veterans" concept is only findable through gen_desc). A coverage-style
+  suite, so it cannot see the ranking cost; that is the eval-suite lesson at
+  the top of this file, again.
+- **Stripping the lead-in does not matter** (0.792 vs 0.785).
+- So `off` stays the default. If gen_desc is used, it should be where
+  siblings do not compete: once per DATASET, or only for rows the known-item
+  suite does not cover, measured with a dataset-grain metric alongside the
+  attribute one. Results: `eval/gendesc/`.
+
+### Tables at any level, rasters, replay (2026-10-16)
+
+Phases 3-4 of `docs/DATA_LOADING_PLAN.md` (measurements under "Progress");
+usage in RUNBOOK §5a. `etl/load_table.py`, `etl/load_raster.py`,
+`etl/replay.py`, `etl/raster_export.py`; 41 unit tests across `etl/test_*.py`.
+
+- **`make relink` was silently unlinking 229 county measures**, and `make ingest`
+  runs relink. `build_attribute_source` matched the code in `attr_orig`; the
+  ERS/PLACES/CHR rows from `load_county_values.py` keep it in `attr_label`.
+  A dry run read 3,297 resolvable acs_long against 3,526 live. Fixed (falls back
+  to `attr_label`); now 3,496, the other 30 being CHR measures deliberately
+  withheld from the catalog. It had not been run since 2026-09-10, so nothing
+  was lost.
+- **Non-county measures get NO catalog row**, by design: nothing can plan over a
+  tract value yet, and a catalog row the planner cannot use competes with ones
+  it can. `geo_measure` lists every (measure, level).
+- **A current county file has the newer county vintage** (CT 091xx, AK
+  02063/02066) and those rows are skipped with a message. The tract file of the
+  same release fills them: SVI 2022 tract population rolled up to county matched
+  the county file EXACTLY for all 3,133 shared counties and filled the other 9.
+- **5-digit codes refuse unless decided** (column name, or lopsided membership
+  against county_geom vs ZCTAs). A ZIP file loaded as counties is wrong
+  everywhere with nothing visibly wrong.
+- **Rasters: sub-pixel weighting, conservation as the check.** 4x4 sub-pixels
+  per 30" pixel, because a third of urban tracts are smaller than one pixel.
+  WorldPop: every pyramid level sums to the raster total (346,373,570) within
+  1e-4; grid16k = sum of its grid4k children to 6e-16 relative; county zonal vs
+  ACS population Pearson 0.997. Tiny units filled from their interior pixel
+  over-count by 0.008% (tracts), reported by the loader, not hidden.
+- **Pyramid factors come from pixel HEIGHT.** Width at the raster's
+  mid-latitude (45N, pulled north by Alaska) made "4 km" cells 8x8 pixels.
+- **Reloads leave dead rows**: three replace/restore cycles left grid4k at
+  742 MB for 251 MB live. `VACUUM FULL ANALYZE <partition>`.
+- **Sources moved**: the Census API now requires a key (302 to
+  missing_key.html), and FEMA's NRI download URLs redirect to a landing page.
+  CDC SVI (svi.cdc.gov) and PLACES (data.cdc.gov Socrata, no key) work.
 
 ## Two things generated and then thrown away
 
@@ -864,6 +1017,8 @@ caught 10/10, and planning measured indifferent to reasoning on 9b.
    description of every column alongside its tags, and no downstream artifact
    carries it. For the 392 bare-`"Name"` facility rows that is exactly the
    signal they lack. Likely the cheapest retrieval win left.
+   **Measured 2026-10-16, and it is not** as a per-column embedding: -25pp
+   known-item recall@1. See the correction above.
 2. **`table_name`**, dropped by `merge_geospatial_attrs.py`. Already recovered
    into `etl/facility_table_map.csv`.
 

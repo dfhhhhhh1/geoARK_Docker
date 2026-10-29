@@ -1,0 +1,79 @@
+# Dataset sidecar. Copy next to the data as <anything>.meta.yaml, fill in what
+# you know, delete the rest. EVERY field is optional except that the dataset
+# needs a name from somewhere (here, the XML title, or --name).
+#
+# Precedence: this file > official XML (FGDC / ISO 19115 / ISO 19110 / ArcGIS)
+# > what the model generates. Per column it is per FIELD: you can add `units`
+# to a column the XML already describes without retyping its description.
+#
+#   cd deploy
+#   make inspect DIR=<folder>      # what would load, and where each field came from
+#   make ingest  DIR=<folder>      # load, tag, register, re-embed, record in the ledger
+
+# Short and specific: it becomes dataset_clean, the text a question has to match.
+name: CDC Social Vulnerability Index
+
+# Stable id. Becomes the catalog dataset_id (ing_<id>_01) and the table name,
+# so set it once and keep it; renaming the dataset later then does not orphan
+# the old rows. Default: derived from name.
+id: svi2022
+
+# features   points / lines / polygons, one row per thing (hospitals, wells)
+# table      values per geographic unit, no geometry (CSV, XLSX, TSV, Census-API JSON)
+# raster     a single-band GeoTIFF in EPSG:4326
+# Default: inferred from the file.
+kind: features
+
+# COUNTY or STATE: the catalog's geographic level for these attributes.
+entity_type: COUNTY
+
+# For a multi-layer source (.gdb, .gpkg); default is the first layer.
+# layer: Hospitals
+
+# For a folder with more than one data file.
+# file: SVI_2022_US.shp
+
+# A year, or a range "2018-2022". Written to the catalog as start/end date,
+# which retrieval reads: users ask for "2020" or "recent".
+vintage: 2022
+
+description: Relative social vulnerability of every census tract, from 16 census variables.
+originator: CDC/ATSDR
+source_url: https://www.atsdr.cdc.gov/place-health/php/svi/
+license: public domain
+
+# Wide releases bloat the search corpus, and corpus size is what limits
+# retrieval quality. `include` is an allowlist of column globs; `exclude`
+# removes from whatever is left. Case-insensitive.
+include: [RPL_*, EP_*]
+exclude: [EP_*_MOE]
+
+# Per column. A bare string is shorthand for {desc: ...}.
+columns:
+  RPL_THEMES: {desc: Overall social vulnerability percentile, units: percentile}
+  EP_POV150: Percent of persons below 150% of the poverty line
+  FID: {skip: true}
+
+# A question someone would ask that should find this dataset. Recorded in the
+# ledger; it becomes a known-item check (Phase 1 records it, the automatic rank
+# check comes with the eval hook).
+probe: "which counties are most socially vulnerable"
+
+# ---- kind: table ----
+# level: tract           # county | tract | bg | block | zcta | place | state.
+#                        # Usually decided by code width; REQUIRED when 5-digit
+#                        # codes could be counties or ZIPs and nothing else says.
+# geo_column: FIPS       # the code column, when it is not FIPS/GEOID/ZCTA5/...
+# year_column: YEAR      # a per-row year, instead of vintage
+# missing: [-1]          # extra missing-value sentinels (-999 and ACS's
+#                        # -666666666 family are already missing)
+# code_rewrite:          # map columns onto measure codes that already exist,
+#   - ['^(.*)_CrudePrev$', 'PLACES_\1_CrdPrv']   # so one measure spans levels
+
+# ---- kind: raster ----
+# aggregate: sum         # REQUIRED. sum (counts) | mean (rates, fields)
+# measure: pop           # the code becomes <ID>_<MEASURE>
+# measure_label: Estimated population
+# zonal_levels: [county, tract, zcta]   # default: county
+# columns:
+#   pop: {units: persons}

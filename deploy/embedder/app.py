@@ -61,6 +61,23 @@ PREPROC_VERSION = "v2"   # v2: added temporal range to embedding text
 # to MEASURE that exposure, not as a normal operating mode.
 INCLUDE_TAGS = os.environ.get("EMBED_INCLUDE_TAGS", "1") not in ("0", "false", "False")
 
+# gen_desc: the model's one-sentence description, written by
+# etl/backfill_gen_desc.py and etl/ingest.py for rows whose attr_desc is thin
+# (2,642 rows; 1,476 of them facility rows whose attr_desc is "Name",
+# "Objectid"...). Until this switch existed it was in NEITHER retrieval path:
+# createEmbeddingText() in unified_search_server.js read it, but its output was
+# never used -- the API takes both the vectors and the BM25 text from here.
+#   off       not embedded (the behaviour before this switch)
+#   stripped  embedded, minus the "This column contains the ..." lead-in that
+#             2,610 of the 2,642 sentences open with
+#   raw       embedded as written
+GEN_DESC_MODE = os.environ.get("EMBED_GEN_DESC", "off").strip().lower()
+if GEN_DESC_MODE not in ("off", "stripped", "raw"):
+    raise SystemExit(f"EMBED_GEN_DESC={GEN_DESC_MODE!r}; expected off, stripped or raw")
+_GEN_DESC_LEAD = re.compile(
+    r"^\s*(this|the)\s+(column|field|attribute)\s+"
+    r"(contains|holds|represents|stores|indicates|provides)\s+(the|a|an)?\s*", re.I)
+
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 log.info("loading %s ...", MODEL_NAME)
@@ -122,6 +139,7 @@ def provenance() -> dict:
         "dimension": DIM,
         "preproc_version": PREPROC_VERSION,
         "include_tags": INCLUDE_TAGS,
+        "gen_desc": GEN_DESC_MODE,
         "lemmatizer": _LEMMATIZER is not None,
         "sentence_transformers": sentence_transformers.__version__,
         **_torch_info(),
@@ -175,14 +193,24 @@ def embedding_text(row: dict) -> str:
     """
     Build the string that gets embedded for one catalog row.
 
-    This MUST stay in lockstep with createEmbeddingText() in
-    unified_search_server.js: the Node side scores keyword overlap against the
-    same text, so a divergence here silently degrades hybrid search.
+    This is the ONLY place catalog search text is built. The API takes both the
+    dense vectors and the text its BM25 index scores (`processed_texts` from
+    /corpus/vectors) from this service. A second builder used to exist in
+    unified_search_server.js, "in lockstep" with this one; it had drifted (it
+    read gen_desc, this did not) and its output was never used.
     """
     parts: list[str] = []
     for key in ("dataset_clean", "source_folder", "attr_desc"):
         if row.get(key):
             parts.append(row[key].strip())
+    # Next to attr_desc: the same KIND of signal, present only where the real
+    # description was thin, so rows with a good attr_desc are unaffected.
+    if GEN_DESC_MODE != "off" and (row.get("gen_desc") or "").strip():
+        desc = row["gen_desc"].strip()
+        if GEN_DESC_MODE == "stripped":
+            desc = _GEN_DESC_LEAD.sub("", desc).strip()
+        if desc:
+            parts.append(desc)
     if row.get("attr_orig"):
         parts.append(row["attr_orig"].replace("_", " ").strip())
     if INCLUDE_TAGS and row.get("tags"):
@@ -229,6 +257,10 @@ def cache_key(payload: bytes) -> str:
     h.update(MODEL_NAME.encode())
     h.update(PREPROC_VERSION.encode())
     h.update(b"tags=1" if INCLUDE_TAGS else b"tags=0")
+    # Only when on, so the default ("off") keeps the key every existing cached
+    # matrix was written under, and nothing re-embeds just for upgrading.
+    if GEN_DESC_MODE != "off":
+        h.update(f"gen_desc={GEN_DESC_MODE}".encode())
     return h.hexdigest()[:16]
 
 

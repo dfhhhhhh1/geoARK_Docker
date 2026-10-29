@@ -1,0 +1,328 @@
+# What has been loaded, from which bytes. Written by etl/ingest.py;
+# read by `make replay` on another machine. See docs/DATA_LOADING_PLAN.md.
+version: 1
+datasets:
+- loaded_at: 2026-10-16T21:25Z
+  id: ing_svi_01@tract
+  dataset_id: ing_svi_01
+  name: CDC Social Vulnerability Index
+  kind: table
+  level: tract
+  files:
+  - path: svi_tract/SVI_2022_US.csv
+    sha256: 58df3dca3d4194879ffbd4b5e753eae48676ef691da1fa669f5fc40c3f79bc6a
+    bytes: 61102059
+  - path: svi_tract/svi.meta.yaml
+    sha256: d2a538262be36c465d186912ad87ec8360e90d7a70bbdebcd92f24c563e0578c
+    bytes: 2423
+  rows: 2505539
+  units: 84120
+  unmatched_units: 0
+  codes:
+  - SVI_EP_AFAM
+  - SVI_EP_AGE17
+  - SVI_EP_AGE65
+  - SVI_EP_AIAN
+  - SVI_EP_ASIAN
+  - SVI_EP_CROWD
+  - SVI_EP_DISABL
+  - SVI_EP_GROUPQ
+  - SVI_EP_HBURD
+  - SVI_EP_HISP
+  - SVI_EP_LIMENG
+  - SVI_EP_MINRTY
+  - SVI_EP_MOBILE
+  - SVI_EP_MUNIT
+  - SVI_EP_NHPI
+  - SVI_EP_NOHSDP
+  - SVI_EP_NOINT
+  - SVI_EP_NOVEH
+  - SVI_EP_OTHERRACE
+  - SVI_EP_POV150
+  - SVI_EP_SNGPNT
+  - SVI_EP_TWOMORE
+  - SVI_EP_UNEMP
+  - SVI_EP_UNINSUR
+  - SVI_E_TOTPOP
+  - SVI_RPL_THEME1
+  - SVI_RPL_THEME2
+  - SVI_RPL_THEME3
+  - SVI_RPL_THEME4
+  - SVI_RPL_THEMES
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: Social vulnerability of every census tract, ranked on 16 census variables in four themes.
+    originator: CDC/ATSDR
+    source_url: https://svi.cdc.gov/Documents/Data/2022/csv/states/SVI_2022_US.csv
+    license: public domain
+    start_year: 2022
+    end_year: 2022
+    probe: which areas are most socially vulnerable
+  dump: null
+- loaded_at: 2026-10-16T21:27Z
+  id: ing_svi_01@county
+  dataset_id: ing_svi_01
+  name: CDC Social Vulnerability Index
+  kind: table
+  level: county
+  files:
+  - path: svi_county/SVI_2022_US_county.csv
+    sha256: bc47d244153e359d5c09f621a4bf344a1e593159c16fbd3c28a15461b70a6c0f
+    bytes: 2301480
+  - path: svi_county/svi.meta.yaml
+    sha256: ffc71b3424d872176133bb56a7b13ba090d17db1c2c22334663aaeea18c41257
+    bytes: 2523
+  rows: 93990
+  units: 3133
+  unmatched_units: 11
+  codes:
+  - SVI_EP_AFAM
+  - SVI_EP_AGE17
+  - SVI_EP_AGE65
+  - SVI_EP_AIAN
+  - SVI_EP_ASIAN
+  - SVI_EP_CROWD
+  - SVI_EP_DISABL
+  - SVI_EP_GROUPQ
+  - SVI_EP_HBURD
+  - SVI_EP_HISP
+  - SVI_EP_LIMENG
+  - SVI_EP_MINRTY
+  - SVI_EP_MOBILE
+  - SVI_EP_MUNIT
+  - SVI_EP_NHPI
+  - SVI_EP_NOHSDP
+  - SVI_EP_NOINT
+  - SVI_EP_NOVEH
+  - SVI_EP_OTHERRACE
+  - SVI_EP_POV150
+  - SVI_EP_SNGPNT
+  - SVI_EP_TWOMORE
+  - SVI_EP_UNEMP
+  - SVI_EP_UNINSUR
+  - SVI_E_TOTPOP
+  - SVI_RPL_THEME1
+  - SVI_RPL_THEME2
+  - SVI_RPL_THEME3
+  - SVI_RPL_THEME4
+  - SVI_RPL_THEMES
+  catalog_labels:
+  - SVI_E_TOTPOP
+  - SVI_EP_POV150
+  - SVI_EP_UNEMP
+  - SVI_EP_HBURD
+  - SVI_EP_NOHSDP
+  - SVI_EP_UNINSUR
+  - SVI_EP_AGE65
+  - SVI_EP_AGE17
+  - SVI_EP_DISABL
+  - SVI_EP_SNGPNT
+  - SVI_EP_LIMENG
+  - SVI_EP_MINRTY
+  - SVI_EP_MUNIT
+  - SVI_EP_MOBILE
+  - SVI_EP_CROWD
+  - SVI_EP_NOVEH
+  - SVI_EP_GROUPQ
+  - SVI_RPL_THEME1
+  - SVI_RPL_THEME2
+  - SVI_RPL_THEME3
+  - SVI_RPL_THEME4
+  - SVI_RPL_THEMES
+  - SVI_EP_NOINT
+  - SVI_EP_AFAM
+  - SVI_EP_HISP
+  - SVI_EP_ASIAN
+  - SVI_EP_AIAN
+  - SVI_EP_NHPI
+  - SVI_EP_TWOMORE
+  - SVI_EP_OTHERRACE
+  tag_model: gemma3:4b
+  metadata:
+    description: Social vulnerability of every county, ranked on 16 census variables in four themes.
+    originator: CDC/ATSDR
+    source_url: https://svi.cdc.gov/Documents/Data/2022/csv/states_counties/SVI_2022_US_county.csv
+    license: public domain
+    start_year: 2022
+    end_year: 2022
+    probe: which areas are most socially vulnerable
+  dump:
+    files:
+    - path: ing_svi_01_county/acs_county_values.csv.gz
+      sha256: 3d18e38448b9ddcf07a5c7035b94a9d33cf6b62502f14cdce2c8c3b591e7e32d
+      bytes: 423381
+    - path: ing_svi_01_county/geo_measure.csv.gz
+      sha256: fb9f1c047e947f3d0d5617f5abe6c1f63042974b5c00417e8094e0352cbd568a
+      bytes: 831
+    - path: ing_svi_01_county/manifest.json
+      sha256: 2f1bb669af0e4f280e78b7c2a6b26998b2886b9dda5f8f5530f37e1a036ba49c
+      bytes: 130
+- loaded_at: 2026-10-16T21:26Z
+  id: ing_places_01@zcta
+  dataset_id: ing_places_01
+  name: CDC PLACES
+  kind: table
+  level: zcta
+  files:
+  - path: places_zcta/PLACES_ZCTA_GIS_2025.csv
+    sha256: 92b3c1788bacfb59f455515865f4d4ec72aca1339d8bb72c3ecc943d5bb69881
+    bytes: 24799651
+  - path: places_zcta/places_zcta.meta.yaml
+    sha256: be6ca08f430c206ac57db989a543b9b6682c7ab60dde3a1f39d30053c5c0b6d6
+    bytes: 796
+  rows: 1204083
+  units: 32520
+  unmatched_units: 0
+  codes:
+  - PLACES_ACCESS2_CrdPrv
+  - PLACES_ARTHRITIS_CrdPrv
+  - PLACES_BINGE_CrdPrv
+  - PLACES_BPHIGH_CrdPrv
+  - PLACES_BPMED_CrdPrv
+  - PLACES_CANCER_CrdPrv
+  - PLACES_CASTHMA_CrdPrv
+  - PLACES_CHD_CrdPrv
+  - PLACES_CHECKUP_CrdPrv
+  - PLACES_CHOLSCREEN_CrdPrv
+  - PLACES_COGNITION_CrdPrv
+  - PLACES_COLON_SCREEN_CrdPrv
+  - PLACES_COPD_CrdPrv
+  - PLACES_CSMOKING_CrdPrv
+  - PLACES_DENTAL_CrdPrv
+  - PLACES_DEPRESSION_CrdPrv
+  - PLACES_DIABETES_CrdPrv
+  - PLACES_DISABILITY_CrdPrv
+  - PLACES_EMOTIONSPT_CrdPrv
+  - PLACES_FOODINSECU_CrdPrv
+  - PLACES_FOODSTAMP_CrdPrv
+  - PLACES_GHLTH_CrdPrv
+  - PLACES_HEARING_CrdPrv
+  - PLACES_HIGHCHOL_CrdPrv
+  - PLACES_HOUSINSECU_CrdPrv
+  - PLACES_INDEPLIVE_CrdPrv
+  - PLACES_LACKTRPT_CrdPrv
+  - PLACES_LONELINESS_CrdPrv
+  - PLACES_LPA_CrdPrv
+  - PLACES_MAMMOUSE_CrdPrv
+  - PLACES_MHLTH_CrdPrv
+  - PLACES_MOBILITY_CrdPrv
+  - PLACES_OBESITY_CrdPrv
+  - PLACES_PHLTH_CrdPrv
+  - PLACES_SELFCARE_CrdPrv
+  - PLACES_SHUTUTILITY_CrdPrv
+  - PLACES_SLEEP_CrdPrv
+  - PLACES_STROKE_CrdPrv
+  - PLACES_TEETHLOST_CrdPrv
+  - PLACES_TOTALPOPULATION
+  - PLACES_VISION_CrdPrv
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: Model-based estimates of adult chronic disease, risk behaviours and preventive care,
+      by ZIP code tabulation area.
+    originator: CDC Division of Population Health
+    source_url: https://data.cdc.gov/api/views/kee5-23sr/rows.csv?accessType=DOWNLOAD
+    license: public domain
+    start_year: 2023
+    end_year: 2023
+  dump:
+    files:
+    - path: ing_places_01_zcta/geo_values.csv.gz
+      sha256: a9dcb94e95cf9c689c3dafb30e9776a6e3a2820078cbee85fde8edb9cd992a71
+      bytes: 5361394
+    - path: ing_places_01_zcta/geo_measure.csv.gz
+      sha256: b8286af02837da72205c30e048b5ad356a5c1dfda8b822a23433582d35caa243
+      bytes: 1268
+    - path: ing_places_01_zcta/manifest.json
+      sha256: 6f53e362ccd6a168741b6c56adf219c8ea31eb48723c7c63bde31dca23badee9
+      bytes: 131
+- loaded_at: 2026-10-16T21:39Z
+  id: ing_worldpop_01
+  dataset_id: ing_worldpop_01
+  name: WorldPop population grid
+  kind: raster
+  files:
+  - path: worldpop/usa_pop_2025_CN_1km_R2025A_UA_v1.tif
+    sha256: caff7324ce3bdd042763d479bc7fb9aa8bdbd7b06c53b4f77fae6a0806b0b354
+    bytes: 37039967
+  - path: worldpop/worldpop.meta.yaml
+    sha256: 8906cb3f902b7fde287d88d9ddc08fbb77321ac68d111e226dffdb26308331d9
+    bytes: 584
+  table: raster_worldpop
+  code: WORLDPOP_POP
+  year: 2025
+  aggregate: sum
+  rows: 6083321
+  tiles: 1128
+  total: 346373569.985
+  levels:
+    county:
+      units: 3233
+      covered: 3142
+      tiny_filled: 0
+      tiny: 91
+      outside: 742435.749
+      seconds: 7.845
+      captured: 345631134.235
+      tiny_fill_excess: 0.0
+    tract:
+      units: 85529
+      covered: 84378
+      tiny_filled: 17
+      tiny: 1168
+      outside: 347649.005
+      seconds: 28.884
+      captured: 346052741.842
+      tiny_fill_excess: 26820.863
+    zcta:
+      units: 33791
+      covered: 33631
+      tiny_filled: 80
+      tiny: 240
+      outside: 766635.908
+      seconds: 32.779
+      captured: 345613538.134
+      tiny_fill_excess: 6604.057
+    grid4k:
+      cells: 613889
+      factor: 4
+    grid16k:
+      cells: 48526
+      factor: 16
+    grid64k:
+      cells: 3745
+      factor: 64
+  catalog_labels:
+  - WORLDPOP_POP
+  tag_model: gemma3:4b
+  metadata:
+    description: Gridded population estimate at about 1 km, constrained to built-up areas and adjusted
+      to UN national totals.
+    originator: WorldPop, University of Southampton
+    license: CC BY 4.0
+    start_year: 2025
+    end_year: 2025
+  dump:
+    files:
+    - path: ing_worldpop_01/raster_worldpop.pgdump
+      sha256: bf2e4b33165e2861ebefb6408e28a0a76f00c9c2381e604a2673d2c6a290af78
+      bytes: 29432551
+    - path: ing_worldpop_01/acs_county_values.csv.gz
+      sha256: d23a417302716f2e3ed41f03931c93853624f63ad2a79b6460aa1c889de66caf
+      bytes: 41993
+    - path: ing_worldpop_01/geo_values.csv.gz
+      sha256: d415f9a1d36c61e73e74b93f1ab4546e31b36a96552c6808aba825f8e57c1b84
+      bytes: 10479974
+    - path: ing_worldpop_01/geo_unit.csv.gz
+      sha256: 149b5d277606ff6f2d35f5e953fc12df88595adb9db20f3a13634b380fe9fc3c
+      bytes: 18710536
+    - path: ing_worldpop_01/geo_measure.csv.gz
+      sha256: 4e82591e55fa5ef8296c65efa4ca3863ee24fb80cd0fb986e10f2002c411faba
+      bytes: 212
+    - path: ing_worldpop_01/raster_layer.csv.gz
+      sha256: b246c4a989744e762d0189592ce0e28a940d8c0300a5f1a39d23a664ff196424
+      bytes: 170
+    - path: ing_worldpop_01/manifest.json
+      sha256: 0aeb3d07385592e7ffb2634ee66456896a45ea6da44e3e5b39f0829f8fdfe549
+      bytes: 129

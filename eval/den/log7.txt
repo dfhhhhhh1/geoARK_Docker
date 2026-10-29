@@ -1,0 +1,47 @@
+== queue {'active': 0, 'waiting': 0, 'concurrency': 1, 'maxDepth': 20}
+== q14-off answerability run 2b (redo)
+
+  catch rate          100%  (10 must-refuse; not answered)
+  honest refusals     100%  (refused with a reason, not a crash)
+  false refusals      10%  (20 answerable)
+
+  saved -> den\q14-off-ans-2b.json
+== q14-off-512 plan_correctness redo
+
+==============================================================
+  plan correctness  n=26
+==============================================================
+  plan validity         96.2%   (a plan came back -- what run.py measures)
+  op appropriateness    96.2%   (the required op is present)
+  forbidden op rate      0.0%   (lower is better)
+  op diversity           0.65   (1.00 = every question got its own shape)
+  mean latency           19.2s
+
+  distinct op sequences produced:
+    count_features->output
+    count_near->output
+    load->aggregate->output
+    load->filter_area->output
+    load->filter_attr->output
+    load->filter_place->output
+    load->hotspot->output
+    load->load->combine->output
+    load->load->join->output
+    load->load->normalize->output
+    load->load->normalize->rank->output
+    load->outlier->output
+    load->output
+    load->per_area->output
+    load->rank->output
+    nearest_distance->output
+    select_features->output
+
+  saved -> den\q14-off-512-pc-b.json
+== q14-off-512 answerability run 3
+
+  catch rate          90%  (10 must-refuse; not answered)
+  honest refusals     90%  (refused with a reason, not a crash)
+  false refusals      15%  (20 answerable)
+
+  saved -> den\q14-off-512-ans-3.json
+== REDO DONE

@@ -1,0 +1,34 @@
+{
+ "ki-petrochemical": {
+  "attr": 1,
+  "dataset": 1
+ },
+ "ki-biofuel": {
+  "attr": 1,
+  "dataset": 1
+ },
+ "ki-pipeline-infra": {
+  "attr": 1,
+  "dataset": 1
+ },
+ "ki-emergency-housing": {
+  "attr": 1,
+  "dataset": 1
+ },
+ "ki-metal-recovery": {
+  "attr": 1,
+  "dataset": 1
+ },
+ "ki-health-agency": {
+  "attr": 1,
+  "dataset": 1
+ },
+ "ki-tunnel-transport": {
+  "attr": 1,
+  "dataset": 1
+ },
+ "ki-energy-generation": {
+  "attr": 1,
+  "dataset": 1
+ }
+}

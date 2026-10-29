@@ -314,21 +314,173 @@ make neighbors        # 18,608 pairs, mean 5.79 neighbours
 
 ## 5a. Adding data
 
-Drop a file in `deploy/incoming/`, then:
+A dataset is a **folder** in `deploy/incoming/`: the data, plus an optional
+sidecar `*.meta.yaml`, plus the official XML if the data shipped with one.
 
-```bash
-make inspect FILE=/incoming/hydrants.geojson NAME="Fire Hydrants"   # writes nothing
-make ingest  FILE=/incoming/hydrants.geojson NAME="Fire Hydrants"
+```
+deploy/incoming/hydrants/
+  hydrants.geojson
+  hydrants.meta.yaml        optional: copy etl/templates/dataset.meta.yaml
+  hydrants.xml              optional: FGDC, ISO 19115, ISO 19110 or ArcGIS
 ```
 
-`inspect` reports the driver, layer, geometry type, CRS, feature count and which
-columns become searchable attributes. `ingest` loads via ogr2ogr reprojected to
-4326, builds the GIST index, **ANALYZEs** (without which `reltuples` stays -1 and
-the layer reads as empty to anything checking coverage), tags every column, and
-appends to both catalog CSVs with a backup, then relinks and re-embeds.
+```bash
+make inspect DIR=hydrants             # writes nothing; shows where every field came from
+make ingest  DIR=hydrants             # load, tag, register, re-embed, reload, validate
+make ingest  DIR=hydrants ARGS=--replace   # load it again after fixing its metadata
+make ledger                           # what has been loaded
+```
 
-Vector only: `.shp .geojson .gpkg .gdb .kml`, and CSVs with lat/lon. Rasters are
-refused with the reason. `--layer` selects one layer from a multi-layer source.
+`DIR` is relative to `deploy/incoming/`. The old single-file form,
+`FILE=/incoming/x.geojson NAME="..."`, still works.
+
+**Metadata precedence: sidecar, then XML, then the model.** Per column it is per
+field, so a sidecar can add `units` to a column the XML already describes. The
+dry run prints the origin of each field (`[sidecar]`, `[xml]`, `[column name]`),
+which is how you find out that the XML's "abstract" is a download link (true
+of the HSIP ISO files) and should be overridden. Unknown sidecar keys are
+reported, so a typo does not silently leave the model's text in place.
+
+What lands in the catalog: `dataset_clean` from the name; `attr_desc` from the
+column's description plus units, or the title-cased column name; `gen_desc`
+from the model, always (stored; NOT searched by default, because embedding it
+measured -25pp known-item recall@1, see `EMBED_GEN_DESC`); `start_date`/`end_date` from
+`vintage` or the XML's time period; `spatial_rep` from the geometry. Dataset-
+level fields with no catalog column (description, source URL, licence,
+originator, keywords, the probe question) go to the ledger.
+
+`ingest` then loads via ogr2ogr reprojected to 4326, builds the GIST index,
+**ANALYZEs** (without which `reltuples` stays -1 and the layer reads as empty to
+anything checking coverage), tags every column, writes both catalog CSVs with a
+backup in `etl/_backups/`, records the load in `etl/data_manifest.yaml`, relinks,
+re-embeds, and calls `make reload-corpus` so the API serves it without a
+restart.
+
+Things it refuses, deliberately:
+
+- **A second load of the same dataset** without `--replace`. It used to append a
+  duplicate of every row, and duplicate `attr_label`s silently shadow each other.
+- **Two data files in one folder**, unless the sidecar names one with `file:`.
+- **A sidecar that is not valid YAML**, with the line and column. A regex or a
+  backslash belongs in 'single quotes'.
+
+### Tables of values: `kind: table`
+
+A CSV / TSV / XLSX / Census-API JSON with a geographic code column and numeric
+columns, at ANY level. `etl/load_table.py`.
+
+```yaml
+id: svi                    # shared by the tract and county files: same codes, two levels
+name: CDC Social Vulnerability Index
+vintage: 2022              # a range like 2018-2022 is dated by its END year
+include: [E_TOTPOP, EP_*, RPL_THEME*]
+level: zcta                # only when the codes do not decide it (see below)
+missing: [-1]              # extra missing-value sentinels; -999 and the ACS
+                           # -666666666 family are already treated as missing
+code_rewrite:              # map columns onto EXISTING measure codes
+  - ['^(.*)_CrudePrev$', 'PLACES_\1_CrdPrv']
+```
+
+- **The level** comes from the sidecar, else the code width: 2 state, 5 county
+  or ZCTA, 7 place, 11 tract, 12 block group, 15 block. Codes one digit short (a
+  spreadsheet dropped the leading zero) are padded.
+- **Five digits is refused unless something decides it**: the column name
+  (zcta/zip vs fips/county), or membership (codes matching one level almost
+  entirely and the other clearly less). Loading ZIP values as counties puts every
+  number on the wrong place with nothing visibly wrong.
+- **County** values go to `acs_county_values` plus a catalog row per measure, so
+  the planner can use them. **Every other level** goes to `geo_values` with NO
+  catalog row: nothing can plan over a tract measure until ops are level-aware.
+  `geo_measure` records every (measure, level) either way.
+- **Over 50 measure columns is refused** without `include`/`exclude` or
+  `--allow-wide`: every column is a search entry.
+- **The county vintage**: a current county file carries Connecticut's planning
+  regions (091xx) and 02063/02066, which `county_geom` predates. Those rows are
+  reported and skipped; load the TRACT file of the same release to fill them.
+  For SVI 2022, tract population summed to county matched the county file
+  exactly for all 3,133 counties, and filled the 9 the county file could not.
+
+### Rasters: `kind: raster`
+
+A single-band GeoTIFF in EPSG:4326. `etl/load_raster.py`.
+
+```yaml
+id: worldpop
+name: WorldPop population grid
+kind: raster
+aggregate: sum             # REQUIRED: sum for counts, mean for rates and fields
+vintage: 2025
+measure: pop               # code becomes WORLDPOP_POP
+zonal_levels: [county, tract, zcta]
+```
+
+One load produces three things: the raster itself, tiled in PostGIS
+(`raster_<id>`, only tiles holding data), for `geoark_zonal(raster, geometry,
+'sum'|'mean'|...)` over any polygon on demand; zonal values for each of
+`zonal_levels`; and a **grid pyramid** of real polygons at about 4, 16 and 64 km
+(`geo_unit` levels `grid4k`/`grid16k`/`grid64k`), each cell an exact aggregate of
+whole pixels. Refused: no `aggregate` (there is no default, because the wrong
+one produces a plausible map of nonsense), and any CRS other than 4326 (warp it
+yourself with `-r sum` for counts or `-r average` for rates; reprojecting a
+count raster with the wrong resampling changes its total).
+
+```bash
+make raster-export RASTER=worldpop STATE=29 KM=4      # GeoJSON cells for an area
+make raster-export RASTER=worldpop COUNTY=29077 KM=1
+```
+
+Writes `deploy/dumps/exports/`. Cells are whole-pixel blocks kept by their
+centre; capped at 250,000 cells (California at 1 km is refused; at 4 km it is
+not).
+
+### Repeating loads on the server: replay and dumps
+
+```bash
+make replay-dry                  # ledger vs this database: current / stale / absent
+make replay                      # load what is stale, then relink + reindex + reload
+make dump-dataset ID=ing_worldpop_01      # write deploy/dumps/<id>/ (records it in the ledger)
+```
+
+On the server: `git pull`, `scp` each dataset folder into `deploy/incoming/`
+(and/or each dump folder into `deploy/dumps/`), then `make replay`. Replay loads
+only the data half. It never tags and never writes the catalog: those came
+through git, tagged on this machine. A raw file whose bytes differ from the
+ledger is **refused** (it is not what the catalog rows were written from). With
+no raw files, a dump is restored instead; `--prefer-dump` (`ARGS=--prefer-dump`)
+uses the dump even when both exist. Measured: the WorldPop raster loads from
+raw in 2 minutes and restores from its 56 MB dump in 19 seconds.
+
+**Reloads leave dead rows.** `--replace`, replay and restore delete and
+re-insert; three cycles left the 4 km grid partition at 742 MB for 251 MB of
+live data. `VACUUM FULL ANALYZE <partition>` reclaims it; autovacuum only makes
+the space reusable.
+
+Two traps the first real test hit:
+
+- **DBF truncates column names to 10 characters.** A sidecar entry for `OBJNAM`
+  matches nothing when the shapefile column is `Object_Nam`. Run `inspect`
+  first and copy the names it prints.
+- **Git Bash rewrites `/incoming/x` into `C:/Program Files/Git/incoming/x`**
+  before `make` sees it, which is why `DIR` is relative.
+
+Vector formats: `.shp .geojson .gpkg .gdb .kml .fgb`, and CSVs with lat/lon.
+`--layer` (or `layer:` in the sidecar) selects one layer from a multi-layer
+source.
+
+### Analysis geography: `geo_unit` (Phase 2 of the data plan)
+
+```bash
+make geo-units-dry                         # what would load
+make geo-units                             # state, county, tract, bg, zcta, place
+make geo-units LEVELS=tract STATES=29      # a quick trial on one state
+make crosswalks                            # zcta->county and zcta->tract area weights
+make geo-verify                            # counts, nesting, weights, sizes; changes nothing
+```
+
+Loads the TIGER geodatabases already in the archive into `geo_unit`, keyed
+`(level, geoid)`, with parent keys, TIGER's interior point, and pre-simplified
+display tiers. **Nothing reads these tables yet**; see
+docs/DATA_LOADING_PLAN.md and CLAUDE.md for what was measured.
 
 **It stops if the tagger is unreachable.** Tags are worth 41.7pp of known-item
 recall, and a dataset loaded without them is present but measurably hard to

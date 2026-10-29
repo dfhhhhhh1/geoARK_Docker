@@ -56,3 +56,10 @@ data/embeddings/
 .vscode/
 *.swp
 deploy/incoming/
+
+# ---- ingest working files ----
+etl/_backups/
+etl/_scratch/
+deploy/incoming/*
+!deploy/incoming/.gitkeep
+deploy/dumps/

@@ -1,0 +1,195 @@
+{
+  "endpoint": "search",
+  "llm_filter": false,
+  "top_k": 20,
+  "queries": 0,
+  "errors": [
+    {
+      "id": "poverty-rate",
+      "error": "HTTP Error 500: Internal Server Error"
+    },
+    {
+      "id": "unemployment",
+      "error": "HTTP Error 500: Internal Server Error"
+    },
+    {
+      "id": "median-income",
+      "error": "HTTP Error 500: Internal Server Error"
+    },
+    {
+      "id": "health-insurance",
+      "error": "HTTP Error 500: Internal Server Error"
+    },
+    {
+      "id": "snap-benefits",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "veterans",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "hospital-beds",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "housing-units",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "educational-attainment",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "commuting",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "power-plants",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "oil-refineries",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "emergency-shelters",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "public-health-depts",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "natural-gas",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "volcanic-eruptions",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "poverty-per-capita",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "uninsured-per-capita",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "income-vs-education",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "unemployment-and-snap",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "elderly-and-housing",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "veterans-disability-income",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "race-and-poverty",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "children-food-insecurity",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "tract-level-snap",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "county-unemployment",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "state-hospital-capacity",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "poor-people",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "jobless",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "no-doctor-coverage",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "old-people",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "rent-burden",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "poverty-2015",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "unemployment-2017",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "acs-2018",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "income-2013-2017",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "recent-2020",
+      "error": "HTTP Error 429: Too Many Requests"
+    }
+  ],
+  "concept_recall": 0.0,
+  "query_success": 0.0,
+  "mrr": 0.0,
+  "latency_p50": 0.0,
+  "latency_p95": 0.0,
+  "per_suite": {
+    "single_concept": {
+      "concept_recall": 0.0,
+      "query_success": 0.0
+    },
+    "facilities_via_tags": {
+      "concept_recall": 0.0,
+      "query_success": 0.0
+    },
+    "multi_concept": {
+      "concept_recall": 0.0,
+      "query_success": 0.0
+    },
+    "geographic_level": {
+      "concept_recall": 0.0,
+      "query_success": 0.0
+    },
+    "paraphrase": {
+      "concept_recall": 0.0,
+      "query_success": 0.0
+    },
+    "temporal": {
+      "concept_recall": 0.0,
+      "query_success": 0.0
+    }
+  },
+  "detail": {
+    "single_concept": [],
+    "facilities_via_tags": [],
+    "multi_concept": [],
+    "geographic_level": [],
+    "paraphrase": [],
+    "temporal": []
+  }
+}
