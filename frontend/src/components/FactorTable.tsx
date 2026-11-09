@@ -31,6 +31,9 @@ function Evidence({ f }: { f: ExplainFactor }) {
   const lit = f.literature;
   if (f.source === 'question') return <span>named in the question</span>;
   if (f.source === 'default') return <span>standard covariate</span>;
+  if (f.research) {
+    return <span>"{f.research.keyword}", read from {f.research.source === 'web' ? 'web pages' : 'PubMed abstracts'}</span>;
+  }
   if (!lit) return <span>–</span>;
   const cause = lit.papers_as_cause ?? 0, effect = lit.papers_as_effect ?? 0;
   return (

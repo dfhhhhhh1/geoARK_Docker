@@ -1,0 +1,16 @@
+# SearXNG for research expansion (backend/research.js, source "web").
+# Only started with `--profile research`. It has no host port: the api reaches
+# it at http://searxng:8080 on the compose network, so nothing collides with
+# the web container on :8080. The secret comes from SEARXNG_SECRET in .env,
+# never this file.
+use_default_settings: true
+
+server:
+  # No secret_key here: it comes from SEARXNG_SECRET in deploy/.env.
+  limiter: false
+  image_proxy: false
+
+search:
+  formats:
+    - html
+    - json

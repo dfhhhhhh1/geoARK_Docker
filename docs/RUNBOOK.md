@@ -433,6 +433,23 @@ Writes `deploy/dumps/exports/`. Cells are whole-pixel blocks kept by their
 centre; capped at 250,000 cells (California at 1 km is refused; at 4 km it is
 not).
 
+### Seeing it: the explore map
+
+`/explore` ("Explore map" in the header) draws any loaded measure at the finest
+level whose unit count in the view fits: counties nationally, tracts or ZIP
+areas in a metro, and for a raster its 64/16/4 km grid down to the native 1 km
+pixels. "View as" switches a raster measure between its grid and the areas it
+was summarised to. Links carry the view: `/explore?code=WORLDPOP_POP&at=38.63,-90.25,12`.
+
+Where a level has gaps, or was never loaded, values are ESTIMATED from a finer
+level (`geoark_aggregate` in `etl/schema_geo.sql`) and drawn with a dashed
+outline; the readout says from what. API: `backend/geo_layers.js`
+(`/api/geo/catalog`, `/api/geo/layer`), its own rate limit
+(`RATE_MAP_PER_MIN`, default 600) because panning fires a request per settle.
+
+Any measure loaded by `make ingest` appears there on the API's next catalog
+refresh (60 s); no rebuild needed.
+
 ### Repeating loads on the server: replay and dumps
 
 ```bash
@@ -466,6 +483,45 @@ Two traps the first real test hit:
 Vector formats: `.shp .geojson .gpkg .gdb .kml .fgb`, and CSVs with lat/lon.
 `--layer` (or `layer:` in the sidecar) selects one layer from a multi-layer
 source.
+
+### Literature and research expansion on the server
+
+Two optional retrieval steps, both in `docs/EXPANSION.md`. Neither needs the
+SemMedDB source files on the server: the 3.3 GB `semmedVER43_*.csv.gz` and the
+658 MB UMLS KB are read only to BUILD four small tables, and those travel as a
+2 MB dump instead.
+
+```bash
+# on the dev machine (once; repeat only after `make semmed` rebuilds the index)
+docker exec geoark-db-1 sh -c 'pg_dump -U $POSTGRES_USER -d mygisdb -Fc   -t semmed_relation -t semmed_concept -t semmed_alias -t semmed_meta'   > deploy/dumps/semmed/semmed_index.dump
+scp deploy/dumps/semmed/semmed_index.dump user@server:geoARK_Docker/deploy/dumps/semmed/
+
+# on the server
+cd deploy
+docker compose exec -T db sh -c 'pg_restore -U $POSTGRES_USER -d $POSTGRES_DB --clean --if-exists --no-owner'   < dumps/semmed/semmed_index.dump
+curl -s localhost:8080/api/health | jq .expansion_index      # non-null = literature expansion live
+```
+
+The API re-checks the index at most once a minute, so this needs no restart.
+
+**Research expansion** (`backend/research.js`) is off unless asked for, and it
+needs outbound internet from the `api` container:
+
+- `pubmed` calls NCBI E-utilities with the linked condition's name. Optional
+  `NCBI_API_KEY` in `deploy/.env` raises the rate limit from 3 to 10 req/s.
+- `web` sends the QUESTION to public search engines through SearXNG, a
+  `research` compose profile with no host port. Set `SEARXNG_SECRET` in
+  `deploy/.env` (`openssl rand -hex 32`; it starts without one, but set it)
+  and start the profile:
+
+```bash
+docker compose --profile research up -d searxng      # add -f docker-compose.gpu.yml on a GPU host
+```
+
+Per request: `{"research": ["pubmed"]}`, `["web"]` or both. To make a source the
+default for everyone, set `RESEARCH_SOURCES=pubmed` (or `pubmed,web`) in
+`deploy/.env` and recreate `api`. Keyword extraction runs on `LLM_MODEL`, so it
+adds no model to the GPU.
 
 ### Analysis geography: `geo_unit` (Phase 2 of the data plan)
 

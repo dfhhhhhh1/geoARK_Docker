@@ -1,0 +1,9 @@
+# The plan_correctness questions whose prompt Phase C changes (gate blast radius,
+# docs/CONDITIONS.md). Re-measured 3x against their recorded 100% / 3-of-3.
+queries:
+- id: filter-high-income
+  query: counties where median household income is above 75000
+  expect_op: filter_attr
+- id: hotspot-clusters
+  query: show me clusters of counties with high uninsured rates
+  expect_op: hotspot

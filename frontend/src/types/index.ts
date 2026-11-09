@@ -356,7 +356,9 @@ export interface ExplainFactor {
   attr_id: string;
   role: 'factor' | 'control';
   description: string | null;
-  source: 'literature' | 'question' | 'default' | 'control' | 'user' | 'added';
+  source: 'literature' | 'research' | 'question' | 'default' | 'control' | 'user' | 'added';
+  /** A keyword read out of PubMed abstracts or web pages (backend/research.js). */
+  research?: { keyword: string; source: 'pubmed' | 'web' };
   literature?: {
     concept: string; seed: string; papers: number; predicates: string[];
     papers_as_cause: number | null; papers_as_effect: number | null;

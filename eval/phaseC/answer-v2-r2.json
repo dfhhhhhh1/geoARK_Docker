@@ -1,0 +1,125 @@
+{
+  "suite": "research.yaml",
+  "queries": 4,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "phase_c": {
+      "pass": 0,
+      "n": 4,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "WRONG_MEASURE": 4
+  },
+  "latency_mean": 57.4,
+  "api_container_created": "2026-11-09T16:40:45.60172456Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "detail": [
+    {
+      "id": "r-rural-poor-no-hospital",
+      "tier": "phase_c",
+      "query": "Which rural counties have a poverty rate above 20% and no hospital?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "poverty_rate"
+        ],
+        "loaded": [
+          "CHR_V058_RAWVALUE | % Rural | County Health Rankings",
+          "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined",
+          "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+        ]
+      },
+      "ops": "load->filter_attr->load->filter_attr->count_features->filter_attr->intersect->intersect->output",
+      "intent": "Rural counties (mostly rural) with poverty rate above 20% and no hospitals",
+      "loaded": [
+        "CHR_V058_RAWVALUE | % Rural | County Health Rankings",
+        "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 111,
+      "error": null,
+      "exec_error": null,
+      "seconds": 82.2
+    },
+    {
+      "id": "r-unemp-decade",
+      "tier": "phase_c",
+      "query": "Which counties' unemployment rate rose the most over the last decade?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "unemployment_yearly"
+        ],
+        "loaded": [
+          "CHR_V023_RAWVALUE | Unemployment | County Health Rankings"
+        ]
+      },
+      "ops": "load->load->combine->rank->output",
+      "intent": "Counties with the highest increase in unemployment rate from 2000 to 2020",
+      "loaded": [
+        "CHR_V023_RAWVALUE | Unemployment | County Health Rankings"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "seconds": 68.5
+    },
+    {
+      "id": "r-south-vs-northeast",
+      "tier": "phase_c",
+      "query": "Is the unemployment rate higher in the South than in the Northeast?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "unemployment_rate"
+        ],
+        "loaded": [
+          "S2101_C02_034E | Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate | ACS_combined"
+        ]
+      },
+      "ops": "load->filter_area->filter_area->compare_groups->output",
+      "intent": "Is the unemployment rate higher in the South than in the Northeast?",
+      "loaded": [
+        "S2101_C02_034E | Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate | ACS_combined"
+      ],
+      "row_count": 1639,
+      "error": null,
+      "exec_error": null,
+      "seconds": 36.7
+    },
+    {
+      "id": "r-access-gap",
+      "tier": "phase_c",
+      "query": "Which counties with above-median poverty rates are more than 30 miles from the nearest hospital?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "poverty_rate"
+        ],
+        "loaded": [
+          "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined",
+          "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+        ]
+      },
+      "ops": "load->filter_attr->nearest_distance->filter_attr->intersect->output",
+      "intent": "Counties with poverty rates above the median and more than 30 miles from the nearest hospital",
+      "loaded": [
+        "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 69,
+      "error": null,
+      "exec_error": null,
+      "seconds": 42.1
+    }
+  ]
+}

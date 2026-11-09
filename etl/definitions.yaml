@@ -1,0 +1,113 @@
+# Published definitions of qualitative terms, as data.
+#
+# "Rural", "high poverty", "nonmetropolitan" are not numbers anyone should guess.
+# Each entry here is a definition SOMEONE PUBLISHED, bound to the exact measure
+# and vintages it was published for, with the citation shown to the user.
+#
+# This file is for measures loaded outside the sidecar path (ERS / CHR / PLACES
+# via load_county_values.py). A dataset loaded with `make ingest` declares its
+# own under `columns: <col>: definitions:` in its *.meta.yaml, and those reach
+# the same table through the ledger. `make definitions` loads both.
+#
+# WHAT THE CODE DOES WITH THESE (backend/definitions.js), and why none of it is
+# a word list:
+#   - A definition is offered to the planner only when retrieval has already
+#     put its measure in front of it. Matching "rural" to a measure is
+#     retrieval's job, which known_item.yaml measures; there is no second,
+#     unmeasured matcher keyed on these terms.
+#   - Before use, every definition is checked against the data actually loaded
+#     (vintage, scale, range, share of counties selected). One that fails is
+#     WITHHELD and the reason is reported on /api/health, never applied.
+#   - A qualifier with no definition here ("counties with many seniors") falls
+#     back to a percentile of the measure's own distribution, labelled as such.
+#     So adding data never requires adding an entry; an entry only replaces
+#     "top quarter" with a citable cut.
+#
+# FIELDS
+#   id        stable, unique
+#   term      what the definition is called, shown to the planner and the user
+#   measures  census_code(s) the rule applies to. Several only when they
+#             measure the same thing on the same scale (checked: `scale`)
+#   vintages  [first, last] year of the measure this definition was published
+#             for. REQUIRED: code schemes change between releases (ERS Urban
+#             Influence Codes went from 12 codes in 2013 to 9 in 2024, with
+#             different meanings), and a range check alone cannot see that.
+#   scale     percent (0-100) | fraction (0-1) | code (integers) | flag (0/1) | count
+#   rule      "<op> <number>", op one of < <= > >= = !=
+#   source    the citation, shown with the answer
+#   url       where to check it
+
+definitions:
+  - id: ers_rucc_nonmetro
+    term: nonmetropolitan (rural)
+    measures: [RURAL_URBAN_CONTINUUM_CODE]
+    vintages: [2013, 2023]
+    scale: code
+    rule: ">= 4"
+    source: "USDA ERS Rural-Urban Continuum Codes: 1-3 metropolitan, 4-9 nonmetropolitan"
+    url: https://www.ers.usda.gov/data-products/rural-urban-continuum-codes/
+
+  - id: ers_rucc_metro
+    term: metropolitan (urban)
+    measures: [RURAL_URBAN_CONTINUUM_CODE]
+    vintages: [2013, 2023]
+    scale: code
+    rule: "<= 3"
+    source: "USDA ERS Rural-Urban Continuum Codes: 1-3 metropolitan, 4-9 nonmetropolitan"
+    url: https://www.ers.usda.gov/data-products/rural-urban-continuum-codes/
+
+  # The ERS metro flag. Agrees with RUCC <= 3 on all 3,210 counties both cover
+  # (2023; checked 2026-11-09), as it should: both encode the OMB delineation.
+  - id: ers_metro_flag_nonmetro
+    term: nonmetropolitan (rural)
+    measures: [METRO]
+    vintages: [2013, 2023]
+    scale: flag
+    rule: "= 0"
+    source: "USDA ERS metro / nonmetro status (OMB delineation): 0 = nonmetro"
+    url: https://www.ers.usda.gov/topics/rural-economy-population/rural-classifications/
+
+  - id: ers_metro_flag_metro
+    term: metropolitan (urban)
+    measures: [METRO]
+    vintages: [2013, 2023]
+    scale: flag
+    rule: "= 1"
+    source: "USDA ERS metro / nonmetro status (OMB delineation): 1 = metro"
+    url: https://www.ers.usda.gov/topics/rural-economy-population/rural-classifications/
+
+  # CHR's % Rural is a FRACTION (0-1), although its name says percent. A planner
+  # writing "% rural > 50" against it selects nothing; the validator repairs
+  # that generically (planner/thresholds.js), and this entry makes it moot.
+  - id: census_mostly_rural
+    term: mostly rural
+    measures: [CHR_V058_RAWVALUE]
+    vintages: [2020, 2025]
+    scale: fraction
+    rule: ">= 0.5"
+    source: "U.S. Census Bureau county classification: mostly rural = at least 50% of residents in rural areas"
+    url: https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural.html
+
+  - id: census_completely_rural
+    term: completely rural
+    measures: [CHR_V058_RAWVALUE]
+    vintages: [2020, 2025]
+    scale: fraction
+    rule: ">= 1"
+    source: "U.S. Census Bureau county classification: completely rural = 100% of residents in rural areas"
+    url: https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural.html
+
+  - id: ers_high_poverty
+    term: high poverty
+    measures: [PCTPOVALL, DP03_0128PE]
+    vintages: [2010, 2025]
+    scale: percent
+    rule: ">= 20"
+    source: "USDA ERS: high-poverty counties have a poverty rate of 20 percent or more"
+    url: https://www.ers.usda.gov/topics/rural-economy-population/rural-poverty-well-being/
+
+  # Deliberately NOT here: Urban Influence Codes. The 2013 rule (3-12 nonmetro)
+  # does not describe the 2024 codes loaded now, and no rule for the 2024
+  # scheme has been checked against its documentation. An entry that is
+  # plausible but unverified is worse than none: the percentile fallback is at
+  # least labelled for what it is.

@@ -32,6 +32,7 @@ import json
 import logging
 import os
 import re
+import time
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -77,6 +78,13 @@ if GEN_DESC_MODE not in ("off", "stripped", "raw"):
 _GEN_DESC_LEAD = re.compile(
     r"^\s*(this|the)\s+(column|field|attribute)\s+"
     r"(contains|holds|represents|stores|indicates|provides)\s+(the|a|an)?\s*", re.I)
+
+# Cross-encoder for reranking a sub-query's fused candidates (POST /rerank).
+# Loaded on FIRST USE, not at boot: the API decides per request whether to
+# rerank, and a deployment that never does should not pay ~1.1 GB of download
+# and ~0.6 GB of VRAM for it. Empty disables the endpoint.
+RERANK_MODEL = os.environ.get("RERANK_MODEL", "BAAI/bge-reranker-base").strip()
+_reranker = None
 
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -229,6 +237,33 @@ def embedding_text(row: dict) -> str:
     return " ".join(parts).lower()
 
 
+def rerank_text(row: dict) -> str:
+    """
+    The passage a cross-encoder reads for one catalog row.
+
+    Not embedding_text(): that is lowercased and flattened for a bi-encoder and
+    BM25. A cross-encoder reads the query and the passage together, so it gets
+    the same signals as readable text, labelled. Tags stay in: 392 facility
+    rows have an attr_desc that is a bare column name, and tags plus the
+    dataset name are all they have (CLAUDE.md, "Tags are load-bearing").
+    """
+    parts: list[str] = []
+    ds, desc = (row.get("dataset_clean") or "").strip(), (row.get("attr_desc") or "").strip()
+    desc = re.sub(r"\s*(?:\|+|!!)\s*", " > ", desc)
+    parts.append(f"{ds}: {desc}" if ds and desc else ds or desc)
+    orig = (row.get("attr_orig") or "").replace("_", " ").strip()
+    if orig and orig.lower() != desc.lower():
+        parts.append(f"column {orig}")
+    if INCLUDE_TAGS and row.get("tags"):
+        tags = [t.strip() for t in re.sub(r"[\[\]'\"]", "", row["tags"]).split(",") if t.strip()]
+        if tags:
+            parts.append("about " + ", ".join(tags))
+    start, end = (row.get("start_date") or "").strip(), (row.get("end_date") or "").strip()
+    if start:
+        parts.append(f"{start} to {end}" if end and end != start else start)
+    return ". ".join(p for p in parts if p)
+
+
 def clean(text: str) -> str:
     """Normalize + lemmatize. Applied identically to corpus text and queries."""
     return " ".join(_lemmatize(_PUNCT.sub(" ", text).lower().split()))
@@ -276,6 +311,11 @@ class EmbedRequest(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 20
+
+
+class RerankRequest(BaseModel):
+    query: str
+    attr_ids: list[str] = Field(..., min_length=1, max_length=500)
 
 
 # --------------------------------------------------------------------------- #
@@ -410,7 +450,7 @@ def build_corpus(force: bool = False):
         _corpus["drift"] = None
         log.info("wrote %s (+ manifest)", npy.name)
 
-    _corpus.update(matrix=matrix, meta=rows, processed=processed, key=key)
+    _corpus.update(matrix=matrix, meta=rows, processed=processed, key=key, by_attr=None)
     return {"rows": len(rows), "dimension": DIM, "cache_key": key, "from_cache": cached}
 
 
@@ -459,4 +499,50 @@ def search(req: SearchRequest):
              "similarity": round(float(scores[i]), 4)}
             for i in idx
         ],
+    }
+
+
+def get_reranker():
+    global _reranker
+    if _reranker is None:
+        if not RERANK_MODEL:
+            raise HTTPException(404, "reranking disabled (RERANK_MODEL is empty)")
+        import torch
+        from sentence_transformers import CrossEncoder
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        log.info("loading reranker %s on %s ...", RERANK_MODEL, device)
+        # Catalog passages are short (p99 well under 128 tokens); 256 leaves
+        # room for the query without truncating a long ACS description.
+        _reranker = CrossEncoder(RERANK_MODEL, max_length=256, device=device)
+        if device == "cuda":
+            _reranker.model.half()        # ~0.6 GB instead of ~1.1 GB of VRAM
+        log.info("reranker ready")
+    return _reranker
+
+
+@app.post("/rerank")
+def rerank(req: RerankRequest):
+    """
+    Score (query, catalog row) pairs with the cross-encoder.
+
+    Rows are named by attr_id and their text is built HERE (rerank_text), so the
+    catalog's search text keeps one home. Unknown ids score None rather than
+    failing the request: the caller ranks what it can.
+    """
+    if _corpus["meta"] is None:
+        build_corpus()
+    index = _corpus.get("by_attr")
+    if index is None:
+        index = {r["attr_id"]: r for r in _corpus["meta"]}
+        _corpus["by_attr"] = index
+    rows = [index.get(a) for a in req.attr_ids]
+    pairs = [(req.query, rerank_text(r)) for r in rows if r is not None]
+    model = get_reranker()
+    t0 = time.perf_counter()
+    scores = model.predict(pairs, batch_size=64, show_progress_bar=False) if pairs else []
+    it = iter(float(s) for s in scores)
+    return {
+        "model": RERANK_MODEL,
+        "scores": [next(it) if r is not None else None for r in rows],
+        "ms": round((time.perf_counter() - t0) * 1000, 1),
     }

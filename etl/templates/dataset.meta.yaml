@@ -53,6 +53,21 @@ columns:
   RPL_THEMES: {desc: Overall social vulnerability percentile, units: percentile}
   EP_POV150: Percent of persons below 150% of the poverty line
   FID: {skip: true}
+  # A PUBLISHED cut on this column, so "highly vulnerable counties" uses the
+  # publisher's threshold instead of a guess. Only what the source documents
+  # says; anything else is left to the percentile fallback, which is labelled.
+  # Recorded in the ledger with the measure code; `make definitions` loads it,
+  # and the API withholds it (reason on /api/health) if it stops fitting the
+  # data: wrong vintage, wrong scale, a value out of range, or selecting
+  # (almost) nothing or everything. etl/definitions.yaml documents the fields.
+  #   RPL_THEMES:
+  #     desc: Overall social vulnerability percentile
+  #     definitions:
+  #       - term: high social vulnerability
+  #         rule: ">= 0.75"          # < <= > >= = !=, then a number
+  #         scale: fraction          # percent | fraction | code | flag | count
+  #         source: "CDC/ATSDR SVI documentation: top quartile = high vulnerability"
+  #         # vintages: [2022, 2022] # default: this dataset's vintage
 
 # A question someone would ask that should find this dataset. Recorded in the
 # ledger; it becomes a known-item check (Phase 1 records it, the automatic rank

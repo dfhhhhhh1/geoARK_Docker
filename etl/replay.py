@@ -300,6 +300,15 @@ def main() -> int:
         return 0
     c = conn()
 
+    if args.commit:
+        # Names and sources for the map, from the ledger. Cheap, idempotent, and
+        # done for every entry, so a database loaded before dataset_info
+        # existed gets it on its next replay.
+        import ingest  # noqa: PLC0415
+        for e in entries:
+            md = dict(e.get("metadata") or {})
+            ingest.record_dataset_info(c, e.get("dataset_id", e["id"]), e["name"], md)
+
     if args.dump:
         entry = next((e for e in entries if e["id"] == args.dump), None)
         if entry is None:

@@ -143,16 +143,26 @@ def validate(suites: list[dict], csv_path: Path) -> int:
 # run loop can record which concepts were linked without changing call_api's
 # return shape.
 LAST_EXPANSION: dict | None = None
+LAST_RESEARCH: dict | None = None
+
+
+RERANK: str | None = None   # --rerank; module-level like LAST_EXPANSION
 
 
 def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
-             llm_filter: bool = False, expand: bool | None = None):
+             llm_filter: bool = False, expand: bool | None = None,
+             research: str | None = None):
     """Return (results, seconds). Normalizes the two endpoints' response shapes."""
-    global LAST_EXPANSION
+    global LAST_EXPANSION, LAST_RESEARCH
     LAST_EXPANSION = None
+    LAST_RESEARCH = None
     started = time.perf_counter()
     # Omitted unless set, so a plain run measures the server's own default.
     extra = {} if expand is None else {"expand": expand}
+    if research is not None:
+        extra["research"] = [s for s in research.split(",") if s]
+    if RERANK is not None:
+        extra["rerank"] = RERANK
     if endpoint == "analyze":
         req = urllib.request.Request(
             f"{base}/api/analyze",
@@ -168,10 +178,12 @@ def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
             # measure, not a transport error, so it is recorded not raised.
             payload = json.load(exc) if exc.headers.get("content-type", "").startswith("application/json") else {"error": str(exc)}
         LAST_EXPANSION = payload.get("expansion")
+        LAST_RESEARCH = payload.get("research")
         return payload, time.perf_counter() - started
 
     if endpoint == "search":
-        url = f"{base}/api/search?" + urllib.parse.urlencode({"q": query})
+        url = f"{base}/api/search?" + urllib.parse.urlencode(
+            {"q": query, **({"rerank": RERANK} if RERANK is not None else {})})
         req = urllib.request.Request(url)
     else:
         req = urllib.request.Request(
@@ -188,6 +200,7 @@ def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
     if isinstance(payload, list):
         return payload, elapsed
     LAST_EXPANSION = payload.get("expansion")
+    LAST_RESEARCH = payload.get("research")
     for key in ("all_results", "results", "top_variables"):
         if isinstance(payload.get(key), list):
             return payload[key], elapsed
@@ -298,7 +311,7 @@ def report_analyze(rows: list[dict]) -> dict:
 
 
 def run(suites, base, endpoint, top_k, timeout, llm_filter=False,
-        expand=None, score_depth=None) -> dict:
+        expand=None, score_depth=None, research=None) -> dict:
     score_depth = score_depth or top_k
     per_suite, latencies, errors = {}, [], []
     for suite in suites:
@@ -308,7 +321,7 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False,
         for q in suite["queries"]:
             try:
                 results, secs = call_api(base, endpoint, q["query"], top_k,
-                                         timeout, llm_filter, expand)
+                                         timeout, llm_filter, expand, research)
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
                 print(f"  {RED}ERROR{OFF} {q['id']}: {exc}")
                 errors.append({"id": q["id"], "error": str(exc)})
@@ -348,6 +361,11 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False,
                 row["expansion_seeds"] = [x.get("name") for x in LAST_EXPANSION.get("seeds") or []]
                 row["expansion_kept"] = [c["name"] for c in LAST_EXPANSION.get("concepts") or []
                                          if c.get("kept")]
+            if LAST_RESEARCH is not None:
+                row["research_kept"] = [f"{k['keyword']} ({k['source']})"
+                                        for k in LAST_RESEARCH.get("keywords") or [] if k.get("kept")]
+                row["research_keywords"] = len(LAST_RESEARCH.get("keywords") or [])
+                row["research_errors"] = LAST_RESEARCH.get("errors") or {}
             rows.append(row)
 
             mark = f"{GREEN}PASS{OFF}" if row["all_found"] else f"{RED}FAIL{OFF}"
@@ -399,6 +417,7 @@ def run(suites, base, endpoint, top_k, timeout, llm_filter=False,
     return {
         "endpoint": endpoint,
         "llm_filter": llm_filter,
+        "rerank": RERANK,
         "top_k": top_k,
         "queries": len(allrows),
         "errors": errors,
@@ -524,15 +543,25 @@ def main() -> int:
                     default=None, help="request literature expansion")
     ap.add_argument("--no-expand", dest="expand", action="store_const", const=False,
                     help="explicitly disable literature expansion")
+    # Research expansion (backend/research.js): "pubmed", "web" or "pubmed,web";
+    # "" sends an explicit empty list (off). Omitted = the server's RESEARCH_SOURCES.
+    ap.add_argument("--research", default=None,
+                    help="research expansion sources: pubmed, web, pubmed,web, or '' for off")
     ap.add_argument("--score-depth", type=int,
                     help="concept suites: score this many results (default --top-k). "
                          "Expanded results are appended last, so an expansion A/B "
                          "needs this larger than --top-k or it cannot see them")
+    # Cross-encoder reranking (unified_search_server.js), per request, so every
+    # arm of the A/B hits the same container. Omitted = the server's RERANK.
+    ap.add_argument("--rerank", choices=["off", "reorder", "replace", "fuse"], default=None,
+                    help="reranking mode to request (default: the server's RERANK)")
     ap.add_argument("--fail-under", type=float,
                     help="exit 1 if concept recall is below this (0-1)")
     args = ap.parse_args()
 
     suites = load_suites(args.suite_file, args.suite)
+    global RERANK
+    RERANK = args.rerank
 
     if not args.skip_validate or args.validate_only:
         if validate(suites, args.csv) and not args.validate_only:
@@ -543,7 +572,8 @@ def main() -> int:
 
     res = run(suites, args.base.rstrip("/"), args.endpoint, args.top_k,
               args.timeout, llm_filter=args.llm_filter,
-              expand=args.expand, score_depth=args.score_depth)
+              expand=args.expand, score_depth=args.score_depth,
+              research=args.research)
     report(res)
 
     if args.compare:

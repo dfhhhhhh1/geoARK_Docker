@@ -480,10 +480,13 @@ def ensure_schema(conn) -> None:
     conn.commit()
 
 
-def record_db_load(entry_id: str, kind: str, files: list[dict], rows: int, via: str) -> None:
+def record_db_load(entry_id: str, kind: str, files: list[dict], rows: int, via: str,
+                   meta: dict | None = None, dataset_id: str | None = None) -> None:
     """What THIS database now holds; `make replay` compares the ledger to it."""
     conn = psycopg2.connect(pg_dsn())
     ensure_schema(conn)
+    if meta is not None:
+        record_dataset_info(conn, dataset_id or entry_id, meta["name"], meta)
     with conn.cursor() as cur:
         cur.execute("""
             INSERT INTO dataset_load (id, kind, files_sha, rows, via) VALUES (%s,%s,%s,%s,%s)
@@ -492,6 +495,23 @@ def record_db_load(entry_id: str, kind: str, files: list[dict], rows: int, via: 
         """, (entry_id, kind, dataset_meta.files_sha(files), rows, via))
     conn.commit()
     conn.close()
+
+
+def record_dataset_info(conn, dataset_id: str, name: str, md: dict) -> None:
+    """Name and source for the map and provenance (schema_geo.sql, dataset_info)."""
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO dataset_info (dataset_id, name, description, originator, source_url,
+                                      license, start_year, end_year)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (dataset_id) DO UPDATE SET name = EXCLUDED.name,
+              description = EXCLUDED.description, originator = EXCLUDED.originator,
+              source_url = EXCLUDED.source_url, license = EXCLUDED.license,
+              start_year = EXCLUDED.start_year, end_year = EXCLUDED.end_year
+        """, (dataset_id, name, md.get("description"), md.get("originator"),
+              md.get("source_url"), md.get("license"), md.get("start_year"),
+              md.get("end_year")))
+    conn.commit()
 
 
 def make_tagger(args, name: str, first_column: str):
@@ -594,7 +614,7 @@ def ingest_table(args, meta: dict, data_path: Path) -> int:
 
     extra = [x for x in (meta["sidecar_path"], meta["xml_path"]) if x]
     files = dataset_meta.file_records(data_path, extra)
-    record_db_load(entry_id, "table", files, result["rows"], "ingest")
+    record_db_load(entry_id, "table", files, result["rows"], "ingest", meta, dsid)
     dataset_meta.record_load({
         "id": entry_id,
         "dataset_id": dsid,
@@ -606,6 +626,9 @@ def ingest_table(args, meta: dict, data_path: Path) -> int:
         "units": len({g for g in p["matched"]}),
         "unmatched_units": len(p["unmatched"]),
         "codes": sorted(result["measures"]),
+        # Published cuts the sidecar declared ("mostly rural" = >= 0.5), keyed
+        # to the code each column became. etl/definitions.py loads them.
+        "definitions": sidecar_definitions(meta, set(result["measures"])),
         "catalog_labels": catalog_added,
         "tag_model": (None if args.no_tags else TAG_MODEL) if level == "county" else None,
         "metadata": {k: meta.get(k) for k in (
@@ -615,6 +638,23 @@ def ingest_table(args, meta: dict, data_path: Path) -> int:
     })
     print(f"  ledger     {dataset_meta.LEDGER.name}: {entry_id} recorded\n")
     return 0
+
+
+def sidecar_definitions(meta: dict, codes: set, code_of=None) -> list:
+    """Definitions declared under the sidecar's columns, or REFUSED if malformed.
+
+    Refused rather than skipped: a definition the author wrote and the loader
+    silently dropped is a cut they believe is applied and is not.
+    """
+    import definitions                                          # noqa: PLC0415
+    out, errs = definitions.from_sidecar(
+        meta, code_of or (lambda c: load_table.code_for(meta, c)), codes)
+    if errs:
+        raise SystemExit("\n  REFUSED: sidecar definitions:\n" +
+                         "\n".join(f"    {e}" for e in errs) + "\n")
+    for d in out:
+        print(f"  definition {d['id']}: {d['measures'][0]} {d['rule']} ({d['term']})")
+    return out
 
 
 def ingest_raster(args, meta: dict, data_path: Path) -> int:
@@ -678,10 +718,11 @@ def ingest_raster(args, meta: dict, data_path: Path) -> int:
 
     extra = [x for x in (meta["sidecar_path"], meta["xml_path"]) if x]
     files = dataset_meta.file_records(data_path, extra)
-    record_db_load(dsid, "raster", files, report["valid_pixels"], "ingest")
+    record_db_load(dsid, "raster", files, report["valid_pixels"], "ingest", meta, dsid)
     dataset_meta.record_load({
         "id": dsid, "dataset_id": dsid, "name": meta["name"], "kind": "raster",
         "files": files, "table": report["table"], "code": code, "year": report["year"],
+        "definitions": sidecar_definitions(meta, {code}, lambda _c: code),
         "aggregate": meta["aggregate"], "rows": report["valid_pixels"],
         "tiles": report["tiles"], "total": round(report["total"], 3),
         "levels": {k: {kk: (round(vv, 3) if isinstance(vv, float) else vv)
@@ -861,7 +902,7 @@ def main() -> int:
 
     extra = [p for p in (meta["sidecar_path"], meta["xml_path"]) if p]
     files = dataset_meta.file_records(data_path, extra)
-    record_db_load(dsid, "features", files, rows, "ingest")
+    record_db_load(dsid, "features", files, rows, "ingest", meta, dsid)
     dataset_meta.record_load({
         "id": dsid,
         "name": meta["name"],

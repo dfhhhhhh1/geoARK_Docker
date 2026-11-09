@@ -1,0 +1,423 @@
+# Research suite: is the ANSWER right, not just the plan.
+#
+#   python eval/answer_probe.py --check-gold     every gold query runs, non-empty
+#   python eval/answer_probe.py --self-test      the scorer can tell right from wrong
+#   python eval/answer_probe.py --save eval/phaseA/answer-r1.json
+#
+# Every other suite scores something upstream of the answer: retrieval
+# (known_item), op choice (plan_correctness), refusals (answerability). This one
+# executes the question and compares the returned rows against a gold answer
+# computed by HAND-WRITTEN SQL that never goes through the planner or compiler.
+#
+# MEASURES. A question rarely has one correct attribute: there are seven
+# unemployment series. Each question declares the measures it needs as a regex
+# over "<census_code or table> | <description> | <dataset>", and the gold SQL is
+# parameterized by the code the plan ACTUALLY loaded. That separates three
+# failures a single number would blur: the wrong measure (WRONG_MEASURE), the
+# right measure computed wrongly (WRONG_VALUE), and the right numbers for the
+# wrong places (WRONG_GEOGRAPHY / INCOMPLETE).
+#
+# Macros in gold SQL:
+#   {latest:m1}       (SELECT fips, value ...) for m1's latest year, a subquery
+#   {year:m1:2019}    the same for one year
+#   {code:m1}         the code as a quoted literal
+#
+# compare kinds:
+#   top_k     result's top k by value vs gold's top k (ties at k widen gold).
+#             Gold returns the whole DOMAIN, which is also the geography check.
+#   values    per-county values within tolerance; coverage and geography checked
+#   set       the county set (Jaccard)
+#   groups    gold rows carry a `grp`; result values are grouped by gold's
+#             county->group map and the group medians compared
+#   scalar    one number (correlate's rho)
+#   refuse    no answer is the right answer
+#
+# gold may be a list: alternatives that are each defensible ("largest increase"
+# in a rate is percentage points or percent change). Any one passing is a pass.
+#
+# `wrong` lists answers that MUST be scored wrong, each with the class it should
+# get. --self-test runs them; a scorer that passes them measures nothing.
+#
+# tiers: now (one plan can express it today), phase_c (needs an op or concept
+# from RESEARCH_PLAN Phase C), phase_d (needs a multi-step workflow), refuse.
+# A phase_c / phase_d failure is expected and is the baseline, not a bug.
+
+regions:
+  midwest: ['17','18','19','20','26','27','29','31','38','39','46','55']
+  south: ['10','11','12','13','24','37','45','51','54','01','21','28','47','05','22','40','48']
+  northeast: ['09','23','25','33','44','50','34','36','42']
+
+measures:
+  poverty_rate: '^(DP03_0128PE|PCTPOVALL)\b'
+  # CHR_V051 (2025) is the Census estimate: median ratio to POP_ESTIMATE 1.000,
+  # no county off by >10%, 3,133 counties. Added 2026-10-30 after Phase B's
+  # coverage swap chose it and this regex scored that WRONG_MEASURE.
+  population: '^(DP05_0001E|POP_ESTIMATE|CHR_V051_RAWVALUE)\b'
+  # MEDIAN_HOUSEHOLD_INCOME (ERS, 2022): median ratio 0.96 to MEDHHINC, 3% of
+  # counties off >15%. Added after the baseline scored it WRONG_MEASURE.
+  income: '^(DP03_0062E|MEDHHINC|CHR_V063_RAWVALUE|MEDIAN_HOUSEHOLD_INCOME)\b'
+  uninsured_rate: '^(DP03_0099PE|CHR_V085_RAWVALUE)\b'
+  diabetes: '^(PLACES_DIABETES_(CrdPrv|AgeAdjPrv)|CHR_V060_RAWVALUE)\b'
+  obesity: '^(PLACES_OBESITY_(CrdPrv|AgeAdjPrv)|CHR_V011_RAWVALUE)\b'
+  unemployment_yearly: '^UNEMPLOYMENT_RATE\b'
+  unemployment_rate: '^(UNEMPLOYMENT_RATE|DP03_0009PE|SVI_EP_UNEMP)\b'
+  hospitals: '_hospitals\b'
+  fire_stations: '_fire_stations\b'
+
+queries:
+  # ===================================================================== now
+  - id: r-poverty-top-mo
+    tier: now
+    query: "Which ten Missouri counties have the highest share of people living in poverty?"
+    measures: {m1: poverty_rate}
+    gold: |
+      SELECT fips, value FROM {latest:m1} t WHERE LEFT(fips, 2) = '29'
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.8}
+    wrong:
+      # Observed 2026-10-30: the share of HOUSEHOLDS below poverty, from the SNAP
+      # table. A rate, plausible, and not what was asked.
+      - expect: WRONG_MEASURE
+        origins: ['S2201_C02_021E | Households below poverty level | ACS']
+        sql: |
+          SELECT fips, value FROM acs_county_values
+          WHERE census_code = 'S2201_C02_021E' AND LEFT(fips, 2) = '29'
+          ORDER BY value DESC LIMIT 10
+      - expect: WRONG_GEOGRAPHY
+        bind: {m1: DP03_0128PE}
+        sql: |
+          SELECT fips, value FROM {latest:m1} t ORDER BY value DESC NULLS LAST LIMIT 10
+
+  - id: r-hospitals-per-capita-tx
+    tier: now
+    query: "Which Texas counties have the most hospitals per 100,000 residents?"
+    measures: {m1: hospitals, m2: population}
+    gold: |
+      WITH c AS (
+        SELECT g.fips, count(h.geom) AS n
+        FROM county_geom g
+        LEFT JOIN table_7fd78ade6d9847dab7aff72866124f79_hospitals h
+          ON ST_Intersects(g.geom, h.geom)
+        WHERE g.state_fp = '48' GROUP BY g.fips)
+      SELECT c.fips, c.n * 100000.0 / NULLIF(p.value, 0) AS value
+      FROM c JOIN {latest:m2} p USING (fips)
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.7}
+    wrong:
+      - expect: WRONG_VALUE          # raw count: the per-capita step dropped
+        bind: {m2: DP05_0001E}
+        sql: |
+          SELECT g.fips, count(h.geom)::float AS value
+          FROM county_geom g
+          LEFT JOIN table_7fd78ade6d9847dab7aff72866124f79_hospitals h
+            ON ST_Intersects(g.geom, h.geom)
+          WHERE g.state_fp = '48' GROUP BY g.fips
+
+  - id: r-density-midwest
+    tier: now
+    query: "What is the population density, in people per square mile, of each county in the Midwest?"
+    measures: {m1: population}
+    gold: |
+      SELECT p.fips, p.value / (g.aland / 2589988.110336) AS value
+      FROM {latest:m1} p JOIN county_geom g USING (fips)
+      WHERE g.state_fp IN {region:midwest} AND g.aland > 0
+    compare: {kind: values, rel_tol: 0.02}
+    wrong:
+      - expect: WRONG_VALUE          # total area: water counted
+        bind: {m1: DP05_0001E}
+        sql: |
+          SELECT p.fips, p.value / ((g.aland + g.awater) / 2589988.110336) AS value
+          FROM {latest:m1} p JOIN county_geom g USING (fips)
+          WHERE g.state_fp IN {region:midwest} AND g.aland > 0
+      - expect: WRONG_MEASURE        # the half-coverage series, the open defect
+        origins: ['S0102_C01_001E | Estimate|Total|Total population | ACS']
+        sql: |
+          SELECT p.fips, p.value / (g.aland / 2589988.110336) AS value
+          FROM acs_county_values p JOIN county_geom g USING (fips)
+          WHERE p.census_code = 'S0102_C01_001E' AND g.state_fp IN {region:midwest}
+
+  - id: r-income-diabetes
+    tier: now
+    query: "Is there a relationship between median household income and diabetes across US counties?"
+    measures: {m1: income, m2: diabetes}
+    gold: |
+      WITH j AS (
+        SELECT a.value AS x, b.value AS y
+        FROM {latest:m1} a JOIN {latest:m2} b USING (fips)
+        WHERE a.value IS NOT NULL AND b.value IS NOT NULL),
+      r AS (
+        SELECT rank() OVER (ORDER BY x) + (count(*) OVER (PARTITION BY x) - 1) / 2.0 AS rx,
+               rank() OVER (ORDER BY y) + (count(*) OVER (PARTITION BY y) - 1) / 2.0 AS ry
+        FROM j)
+      SELECT NULL AS fips, corr(rx, ry) AS value FROM r
+    compare: {kind: scalar, abs_tol: 0.03}
+    wrong:
+      - expect: WRONG_VALUE          # Pearson on raw values, not Spearman
+        bind: {m1: DP03_0062E, m2: PLACES_DIABETES_CrdPrv}
+        sql: |
+          SELECT NULL AS fips, corr(a.value, b.value) AS value
+          FROM {latest:m1} a JOIN {latest:m2} b USING (fips)
+
+  - id: r-poverty-stl-metro
+    tier: now
+    query: "What are the poverty rates in the counties of the St. Louis metro area?"
+    measures: {m1: poverty_rate}
+    gold: |
+      WITH m AS (SELECT geom FROM place_geom WHERE kind = 'cbsa' AND geoid = '41180'),
+      cs AS (
+        SELECT g.fips FROM county_geom g, m
+        WHERE ST_Intersects(g.geom, m.geom)
+          AND ST_Area(ST_Intersection(g.geom, m.geom))
+              > 0.01 * LEAST(ST_Area(g.geom), ST_Area(m.geom)))
+      SELECT fips, value FROM {latest:m1} t WHERE fips IN (SELECT fips FROM cs)
+    compare: {kind: values, rel_tol: 0.001}
+    wrong:
+      - expect: WRONG_GEOGRAPHY      # plain ST_Intersects: every neighbour clips in
+        bind: {m1: DP03_0128PE}
+        sql: |
+          SELECT t.fips, t.value FROM {latest:m1} t JOIN county_geom g USING (fips)
+          WHERE ST_Intersects(g.geom, (SELECT geom FROM place_geom
+                                       WHERE kind = 'cbsa' AND geoid = '41180'))
+
+  - id: r-poverty-detroit
+    tier: now
+    query: "What are the poverty rates around Detroit?"
+    note: "the loosely worded question that planned poverty % / population with reasoning off"
+    measures: {m1: poverty_rate}
+    gold: |
+      WITH m AS (SELECT geom FROM place_geom WHERE kind = 'cbsa' AND geoid = '19820'),
+      cs AS (
+        SELECT g.fips FROM county_geom g, m
+        WHERE ST_Intersects(g.geom, m.geom)
+          AND ST_Area(ST_Intersection(g.geom, m.geom))
+              > 0.01 * LEAST(ST_Area(g.geom), ST_Area(m.geom)))
+      SELECT fips, value FROM {latest:m1} t WHERE fips IN (SELECT fips FROM cs)
+    compare: {kind: values, rel_tol: 0.001}
+    wrong:
+      # The CLAUDE.md "Detroit" plan: a percentage divided by a head count.
+      # Valid, executable, meaningless. The metric must refuse it.
+      - expect: WRONG_VALUE
+        bind: {m1: DP03_0128PE}
+        origins: ['DP03_0128PE | Percent below poverty level, all people | ACS',
+                  'DP05_0001E | Total population | ACS']
+        sql: |
+          WITH m AS (SELECT geom FROM place_geom WHERE kind = 'cbsa' AND geoid = '19820'),
+          cs AS (SELECT g.fips FROM county_geom g, m WHERE ST_Intersects(g.geom, m.geom)
+                   AND ST_Area(ST_Intersection(g.geom, m.geom))
+                       > 0.01 * LEAST(ST_Area(g.geom), ST_Area(m.geom)))
+          SELECT a.fips, a.value / NULLIF(b.value, 0) AS value
+          FROM {latest:m1} a JOIN (SELECT fips, value FROM acs_county_values
+                                   WHERE census_code = 'DP05_0001E') b USING (fips)
+          WHERE a.fips IN (SELECT fips FROM cs)
+
+  - id: r-unemp-change-2019-2020
+    tier: now
+    query: "Which counties saw the largest increase in unemployment rate between 2019 and 2020?"
+    measures: {m1: unemployment_yearly}
+    gold:
+      - |   # percentage points
+        SELECT a.fips, b.value - a.value AS value
+        FROM {year:m1:2019} a JOIN {year:m1:2020} b USING (fips)
+      - |   # percent change
+        SELECT a.fips, (b.value - a.value) / NULLIF(a.value, 0) * 100 AS value
+        FROM {year:m1:2019} a JOIN {year:m1:2020} b USING (fips)
+    compare: {kind: top_k, k: 25, direction: desc, min_overlap: 0.7}
+    wrong:
+      - expect: WRONG_VALUE          # the 2020 level, not the change
+        bind: {m1: UNEMPLOYMENT_RATE}
+        sql: |
+          SELECT fips, value FROM {year:m1:2020} t
+
+  - id: r-fire-stations-co
+    tier: now
+    query: "How many fire stations are there in each county of Colorado?"
+    measures: {m1: fire_stations}
+    gold: |
+      SELECT g.fips, count(f.geom)::float AS value
+      FROM county_geom g
+      LEFT JOIN d968f276355a41d1bd1451be6ee4dbac_fire_stations f
+        ON ST_Intersects(g.geom, f.geom)
+      WHERE g.state_fp = '08' GROUP BY g.fips
+    compare: {kind: values, rel_tol: 0.0, abs_tol: 0.5}
+    wrong:
+      - expect: INCOMPLETE           # the WHERE-not-ON bug: zero counties vanish
+        sql: |
+          SELECT g.fips, count(f.geom)::float AS value
+          FROM county_geom g
+          JOIN d968f276355a41d1bd1451be6ee4dbac_fire_stations f
+            ON ST_Intersects(g.geom, f.geom)
+          WHERE g.state_fp = '08' GROUP BY g.fips
+          HAVING count(f.geom) > 0 AND g.fips NOT IN (
+            SELECT fips FROM county_geom WHERE state_fp = '08' ORDER BY fips LIMIT 10)
+
+  - id: r-hospital-distance-mo
+    tier: now
+    query: "How far, in miles, is the center of each Missouri county from the nearest hospital?"
+    measures: {m1: hospitals}
+    # Geodesic minimum over the 10 PLANAR-nearest: independent of the op's
+    # single-KNN choice, so a KNN approximation error would show up here.
+    gold: |
+      SELECT g.fips,
+             (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+              FROM (SELECT geom FROM table_7fd78ade6d9847dab7aff72866124f79_hospitals
+                    ORDER BY geom <-> ST_Centroid(g.geom) LIMIT 10) h) / 1609.344 AS value
+      FROM county_geom g WHERE g.state_fp = '29'
+    compare: {kind: values, rel_tol: 0.03, abs_tol: 0.5}
+    wrong:
+      - expect: WRONG_VALUE          # kilometres, not miles
+        sql: |
+          SELECT g.fips,
+                 (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                  FROM (SELECT geom FROM table_7fd78ade6d9847dab7aff72866124f79_hospitals
+                        ORDER BY geom <-> ST_Centroid(g.geom) LIMIT 10) h) / 1000 AS value
+          FROM county_geom g WHERE g.state_fp = '29'
+
+  - id: r-uninsured-big-counties
+    tier: now
+    query: "Among counties with more than 100,000 residents, which ten have the highest share of people without health insurance?"
+    measures: {m1: uninsured_rate, m2: population}
+    gold: |
+      SELECT u.fips, u.value FROM {latest:m1} u JOIN {latest:m2} p USING (fips)
+      WHERE p.value > 100000
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.7}
+    wrong:
+      - expect: WRONG_GEOGRAPHY      # the population filter dropped
+        bind: {m1: DP03_0099PE}
+        sql: |
+          SELECT fips, value FROM {latest:m1} t ORDER BY value DESC NULLS LAST LIMIT 10
+
+  # ================================================================= phase_c
+  - id: r-rural-poor-no-hospital
+    tier: phase_c
+    query: "Which rural counties have a poverty rate above 20% and no hospital?"
+    note: "three clauses; 'rural' needs a definition (RUCC >= 4, or CHR % rural > 50)"
+    measures: {m1: poverty_rate}
+    gold:
+      - |   # rural = nonmetro, RUCC 4-9
+        WITH h AS (SELECT DISTINCT g.fips FROM county_geom g
+                   JOIN table_7fd78ade6d9847dab7aff72866124f79_hospitals x
+                     ON ST_Intersects(g.geom, x.geom)),
+        ru AS (SELECT fips FROM acs_county_values
+               WHERE census_code = 'RURAL_URBAN_CONTINUUM_CODE' AND value >= 4
+                 AND year = (SELECT max(year) FROM acs_county_values
+                             WHERE census_code = 'RURAL_URBAN_CONTINUUM_CODE'))
+        SELECT p.fips, p.value FROM {latest:m1} p
+        WHERE p.value > 20 AND p.fips IN (SELECT fips FROM ru)
+          AND p.fips NOT IN (SELECT fips FROM h)
+      - |   # rural = more than half the population rural (CHR)
+        WITH h AS (SELECT DISTINCT g.fips FROM county_geom g
+                   JOIN table_7fd78ade6d9847dab7aff72866124f79_hospitals x
+                     ON ST_Intersects(g.geom, x.geom)),
+        ru AS (SELECT fips FROM acs_county_values
+               WHERE census_code = 'CHR_V058_RAWVALUE' AND value > 0.5
+                 AND year = (SELECT max(year) FROM acs_county_values
+                             WHERE census_code = 'CHR_V058_RAWVALUE'))
+        SELECT p.fips, p.value FROM {latest:m1} p
+        WHERE p.value > 20 AND p.fips IN (SELECT fips FROM ru)
+          AND p.fips NOT IN (SELECT fips FROM h)
+    compare: {kind: set, min_jaccard: 0.8}
+    wrong:
+      - expect: WRONG_GEOGRAPHY      # the hospital clause ignored
+        bind: {m1: DP03_0128PE}
+        sql: |
+          SELECT fips, value FROM {latest:m1} t WHERE value > 20
+
+  - id: r-unemp-decade
+    tier: phase_c
+    query: "Which counties' unemployment rate rose the most over the last decade?"
+    note: "'last decade' is relative; the latest ERS year is 2023"
+    measures: {m1: unemployment_yearly}
+    gold:
+      - |
+        SELECT a.fips, b.value - a.value AS value
+        FROM {year:m1:2013} a JOIN {year:m1:2023} b USING (fips)
+      - |
+        SELECT a.fips, (b.value - a.value) / NULLIF(a.value, 0) * 100 AS value
+        FROM {year:m1:2013} a JOIN {year:m1:2023} b USING (fips)
+    compare: {kind: top_k, k: 25, direction: desc, min_overlap: 0.6}
+    wrong:
+      - expect: WRONG_VALUE          # the latest level, no time dimension
+        bind: {m1: UNEMPLOYMENT_RATE}
+        sql: |
+          SELECT fips, value FROM {year:m1:2023} t
+
+  - id: r-south-vs-northeast
+    tier: phase_c
+    query: "Is the unemployment rate higher in the South than in the Northeast?"
+    note: "a comparison of two regions; compare_groups does not exist yet"
+    measures: {m1: unemployment_rate}
+    gold: |
+      SELECT fips, value,
+             CASE WHEN LEFT(fips, 2) IN {region:south} THEN 'south' ELSE 'northeast' END AS grp
+      FROM {latest:m1} t
+      WHERE LEFT(fips, 2) IN {region:south} OR LEFT(fips, 2) IN {region:northeast}
+    compare: {kind: groups, abs_tol: 0.3, min_coverage: 0.8}
+    wrong:
+      - expect: INCOMPLETE           # only one side of the comparison
+        bind: {m1: UNEMPLOYMENT_RATE}
+        sql: |
+          SELECT fips, value FROM {latest:m1} t WHERE LEFT(fips, 2) IN {region:south}
+
+  - id: r-access-gap
+    tier: phase_c
+    query: "Which counties with above-median poverty rates are more than 30 miles from the nearest hospital?"
+    measures: {m1: poverty_rate}
+    gold: |
+      WITH p AS {latest:m1},
+      med AS (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY value) AS m FROM p),
+      d AS (
+        SELECT g.fips,
+               (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                FROM (SELECT geom FROM table_7fd78ade6d9847dab7aff72866124f79_hospitals
+                      ORDER BY geom <-> ST_Centroid(g.geom) LIMIT 10) h) / 1609.344 AS mi
+        FROM county_geom g)
+      SELECT p.fips, d.mi AS value FROM p JOIN d USING (fips), med
+      WHERE p.value > med.m AND d.mi > 30
+    compare: {kind: set, min_jaccard: 0.8}
+    wrong:
+      - expect: WRONG_GEOGRAPHY      # distance clause only
+        sql: |
+          SELECT g.fips,
+                 (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                  FROM (SELECT geom FROM table_7fd78ade6d9847dab7aff72866124f79_hospitals
+                        ORDER BY geom <-> ST_Centroid(g.geom) LIMIT 10) h) / 1609.344 AS value
+          FROM county_geom g
+          WHERE (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                 FROM (SELECT geom FROM table_7fd78ade6d9847dab7aff72866124f79_hospitals
+                       ORDER BY geom <-> ST_Centroid(g.geom) LIMIT 10) h) / 1609.344 > 30
+
+  # ================================================================= phase_d
+  - id: r-obesity-top50-income
+    tier: phase_d
+    query: "Take the 50 counties with the highest adult obesity rates. How does their median household income compare with the rest of the country?"
+    measures: {m1: obesity, m2: income}
+    gold: |
+      WITH o AS (SELECT fips, value FROM {latest:m1} t WHERE value IS NOT NULL),
+      top AS (SELECT fips FROM o ORDER BY value DESC LIMIT 50)
+      SELECT i.fips, i.value,
+             CASE WHEN i.fips IN (SELECT fips FROM top) THEN 'top50' ELSE 'rest' END AS grp
+      FROM {latest:m2} i WHERE i.fips IN (SELECT fips FROM o)
+    compare: {kind: groups, rel_tol: 0.03, min_coverage: 0.8}
+    wrong:
+      - expect: INCOMPLETE           # the top 50 alone, no comparison group
+        bind: {m1: PLACES_OBESITY_CrdPrv, m2: DP03_0062E}
+        sql: |
+          WITH top AS (SELECT fips FROM {latest:m1} t ORDER BY value DESC NULLS LAST LIMIT 50)
+          SELECT fips, value FROM {latest:m2} i WHERE fips IN (SELECT fips FROM top)
+
+  # ================================================================== refuse
+  - id: r-refuse-rainfall
+    tier: refuse
+    query: "What is the average annual rainfall in each county?"
+    note: "no climate data loaded"
+    compare: {kind: refuse}
+
+  - id: r-refuse-ckd
+    tier: refuse
+    query: "What drives chronic kidney disease rates across counties?"
+    note: "no kidney data; research expansion once explained diabetes instead"
+    compare: {kind: refuse}
+
+  - id: r-refuse-schools
+    tier: refuse
+    query: "Which counties have the best public schools?"
+    note: "Public Schools is in the catalog but its data was never imported"
+    compare: {kind: refuse}

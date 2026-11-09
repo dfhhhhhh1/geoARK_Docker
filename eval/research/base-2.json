@@ -1,0 +1,415 @@
+{
+  "endpoint": "unified",
+  "llm_filter": false,
+  "top_k": 60,
+  "queries": 20,
+  "errors": [],
+  "concept_recall": 0.7674418604651163,
+  "query_success": 0.5,
+  "mrr": 0.4791667876523856,
+  "latency_p50": 0.879,
+  "latency_p95": 1.13,
+  "per_suite": {
+    "research_related": {
+      "concept_recall": 0.7142857142857143,
+      "query_success": 0.16666666666666666
+    },
+    "research_must_not_fire": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    }
+  },
+  "detail": {
+    "research_related": [
+      {
+        "id": "ho-ckd",
+        "query": "chronic kidney disease by county",
+        "n_results": 69,
+        "concepts": {
+          "related": 13,
+          "environment": null
+        },
+        "n_concepts": 2,
+        "n_found": 1,
+        "all_found": false,
+        "mrr": 0.07692307692307693,
+        "seconds": 0.886,
+        "expansion_seeds": [
+          "Chronic Kidney Diseases"
+        ],
+        "expansion_kept": [
+          "Diabetes",
+          "Obesity",
+          "COVID-19"
+        ]
+      },
+      {
+        "id": "ho-heart-attack",
+        "query": "where do the most heart attacks happen",
+        "n_results": 64,
+        "concepts": {
+          "subject": 1,
+          "related": 61,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.5081967213114754,
+        "seconds": 0.797,
+        "expansion_seeds": [
+          "Myocardial Infarction"
+        ],
+        "expansion_kept": [
+          "Diabetes",
+          "Coronary heart disease"
+        ]
+      },
+      {
+        "id": "ho-depression",
+        "query": "depression rates across counties",
+        "n_results": 72,
+        "concepts": {
+          "subject": 1,
+          "related": 64,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.5078125,
+        "seconds": 1.062,
+        "expansion_seeds": [
+          "Depressive disorder"
+        ],
+        "expansion_kept": [
+          "COVID-19",
+          "Obesity",
+          "Diabetes",
+          "Smoking"
+        ]
+      },
+      {
+        "id": "ho-cancer",
+        "query": "cancer prevalence in Appalachia",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1,
+          "related": 16,
+          "environment": 14
+        },
+        "n_concepts": 3,
+        "n_found": 3,
+        "all_found": true,
+        "mrr": 0.37797619047619047,
+        "seconds": 1.003,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      },
+      {
+        "id": "ho-arthritis",
+        "query": "arthritis by county",
+        "n_results": 67,
+        "concepts": {
+          "subject": 1,
+          "related": 7,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.5714285714285714,
+        "seconds": 0.692,
+        "expansion_seeds": [
+          "Arthritis"
+        ],
+        "expansion_kept": [
+          "Disability",
+          "Obesity",
+          "Chronic disease"
+        ]
+      },
+      {
+        "id": "ho-binge",
+        "query": "binge drinking in the Midwest",
+        "n_results": 61,
+        "concepts": {
+          "subject": 1,
+          "related": 59,
+          "environment": 4
+        },
+        "n_concepts": 3,
+        "n_found": 3,
+        "all_found": true,
+        "mrr": 0.422316384180791,
+        "seconds": 1.043,
+        "expansion_seeds": [
+          "binge drinking"
+        ],
+        "expansion_kept": [
+          "Smoking"
+        ]
+      },
+      {
+        "id": "ho-overdose",
+        "query": "drug overdose deaths by county",
+        "n_results": 56,
+        "concepts": {
+          "subject": 1,
+          "related": 5,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.6,
+        "seconds": 1.145,
+        "expansion_seeds": [
+          "Drug Overdose"
+        ],
+        "expansion_kept": [
+          "Respiratory Distress Syndrome, Adult"
+        ]
+      },
+      {
+        "id": "ho-sugar",
+        "query": "counties where lots of people have sugar diabetes",
+        "n_results": 63,
+        "concepts": {
+          "subject": 1,
+          "related": 9,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.5555555555555556,
+        "seconds": 0.802,
+        "expansion_seeds": [
+          "Diabetes"
+        ],
+        "expansion_kept": [
+          "Cardiovascular Diseases"
+        ]
+      },
+      {
+        "id": "ho-cholesterol",
+        "query": "high cholesterol rates in Ohio",
+        "n_results": 61,
+        "concepts": {
+          "subject": 1,
+          "related": 5,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.6,
+        "seconds": 1.13,
+        "expansion_seeds": [
+          "hypercholesterolemia"
+        ],
+        "expansion_kept": [
+          "Cardiovascular Diseases",
+          "Obesity"
+        ]
+      },
+      {
+        "id": "ho-smoking",
+        "query": "smoking rates by county",
+        "n_results": 70,
+        "concepts": {
+          "subject": 1,
+          "related": 61,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.5081967213114754,
+        "seconds": 1.071,
+        "expansion_seeds": [
+          "Smoking"
+        ],
+        "expansion_kept": [
+          "Chronic Obstructive Airway Disease",
+          "Cardiovascular Diseases",
+          "Asthma",
+          "Coronary heart disease"
+        ]
+      },
+      {
+        "id": "ho-mental-health",
+        "query": "poor mental health days in Kentucky",
+        "n_results": 49,
+        "concepts": {
+          "subject": 1,
+          "related": 44,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.5113636363636364,
+        "seconds": 0.843,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      },
+      {
+        "id": "ho-teeth",
+        "query": "tooth loss among older adults by county",
+        "n_results": 66,
+        "concepts": {
+          "subject": 4,
+          "related": 61,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.13319672131147542,
+        "seconds": 0.825,
+        "expansion_seeds": [
+          "Tooth Loss"
+        ],
+        "expansion_kept": [
+          "Smoking",
+          "Diabetes"
+        ]
+      }
+    ],
+    "research_must_not_fire": [
+      {
+        "id": "nf-economic-depression",
+        "query": "counties hit hardest by the economic depression in unemployment",
+        "n_results": 62,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.99,
+        "expansion_seeds": [
+          "Depressive disorder"
+        ],
+        "expansion_kept": [
+          "COVID-19",
+          "Obesity",
+          "Diabetes",
+          "Mental disorders"
+        ]
+      },
+      {
+        "id": "nf-heat",
+        "query": "extreme heat days by county",
+        "n_results": 59,
+        "concepts": {
+          "subject": 19
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.05263157894736842,
+        "seconds": 0.909,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      },
+      {
+        "id": "nf-fire",
+        "query": "wildfire risk near fire stations",
+        "n_results": 59,
+        "concepts": {
+          "subject": 21
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.047619047619047616,
+        "seconds": 0.925,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      },
+      {
+        "id": "nf-pressure",
+        "query": "housing cost pressure on renters",
+        "n_results": 58,
+        "concepts": {
+          "subject": 16
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.0625,
+        "seconds": 0.841,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      },
+      {
+        "id": "nf-cold",
+        "query": "counties with cold winters and high heating costs",
+        "n_results": 61,
+        "concepts": {
+          "subject": 21
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.047619047619047616,
+        "seconds": 0.778,
+        "expansion_seeds": [
+          "Heating"
+        ],
+        "expansion_kept": [
+          "Thermal injury"
+        ]
+      },
+      {
+        "id": "nf-growth",
+        "query": "population growth in Texas",
+        "n_results": 45,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.651,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      },
+      {
+        "id": "nf-shock",
+        "query": "income shock after plant closures",
+        "n_results": 56,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.872,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      },
+      {
+        "id": "nf-burden",
+        "query": "commute burden by county",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.703,
+        "expansion_seeds": [],
+        "expansion_kept": []
+      }
+    ]
+  }
+}

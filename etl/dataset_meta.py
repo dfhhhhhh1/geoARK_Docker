@@ -69,7 +69,7 @@ SIDECAR_KEYS = {
     "aggregate", "grid_levels", "keywords", "missing", "code_rewrite",
     "zonal_levels", "measure", "measure_label",
 }
-COLUMN_KEYS = {"desc", "units", "skip"}
+COLUMN_KEYS = {"desc", "units", "skip", "definitions"}
 
 YEAR_RE = re.compile(r"(?<!\d)(1[89]\d\d|20\d\d)(?!\d)")
 

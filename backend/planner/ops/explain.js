@@ -83,17 +83,25 @@ function chooseFactors({ outcomeAttrId, candidates = [], resultsByQuery = [],
   // rather than silently losing the concept.
   const firstUsable = (results) =>
     (results || []).map(r => byId.get(r.attr_id)).find(usable);
-  const add = (c, source, literature = null) => {
+  const add = (c, source, literature = null, research = null) => {
     if (!usable(c) || factors.length >= MAX_FACTORS) return;
     taken.add(c.attr_id);
     factors.push({ attr_id: c.attr_id, role: "factor", description: c.attr_desc || null,
-                   source, ...(literature ? { literature } : {}) });
+                   source, ...(literature ? { literature } : {}),
+                   ...(research ? { research } : {}) });
   };
 
   // 1. Literature: the first (best-ranked) attribute of each kept concept.
   const concepts = new Map((expansion?.concepts || []).filter(c => c.kept).map(c => [c.name, c]));
   for (const rq of resultsByQuery) {
     if (rq.purpose !== "expanded") continue;
+    // A keyword read out of PubMed abstracts or web pages (backend/research.js)
+    // has no relation counts, so it must not be presented as one.
+    if (rq.research) {
+      add(firstUsable(rq.results), "research", null,
+          { keyword: rq.research.keyword, source: rq.research.source });
+      continue;
+    }
     const rec = concepts.get(rq.query) || rq.expansion || null;
     const lit = rec ? {
       concept: rec.name, seed: rec.seed, papers: rec.support, predicates: rec.predicates,

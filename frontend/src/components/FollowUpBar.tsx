@@ -7,6 +7,7 @@ import {
 import type { AnalysisResponse, FollowUpEdit, FollowUpMeasure, UserSeries } from '../types';
 import { searchMeasures, USER_PREFIX } from '../lib/followup';
 import { REGIONS, STATES } from '../lib/places';
+import FinerLevels from './FinerLevels';
 
 /**
  * What the user can do next with a result.
@@ -83,6 +84,8 @@ const FollowUpBar: React.FC<Props> = ({
             : 'Ask a question below, or start from your own data.'}
         </span>
       </div>
+
+      {result && <FinerLevels result={result} />}
 
       {can && (
         <>

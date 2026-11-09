@@ -21,6 +21,9 @@ import { SURVEY_URL } from './SurveyPrompt';
  */
 const NAV = [
   { to: '/analysis', label: 'Analysis', short: 'Analysis', hint: 'Ask a question, get a map' },
+  // Not the removed Map Explorer: every unit drawn here is a real boundary
+  // with a stored value, at the level that fits the view.
+  { to: '/explore', label: 'Explore map', short: 'Map', hint: 'Any loaded measure, county to 1 km' },
   { to: '/data-search', label: 'Browse data', short: 'Data', hint: 'What is in the catalog' },
   { to: '/csv-report', label: 'CSV tools', short: 'CSV', hint: 'Analyze your own file' },
 ];

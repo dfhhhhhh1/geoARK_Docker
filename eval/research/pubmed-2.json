@@ -1,0 +1,524 @@
+{
+  "endpoint": "unified",
+  "llm_filter": false,
+  "top_k": 60,
+  "queries": 20,
+  "errors": [],
+  "concept_recall": 0.8837209302325582,
+  "query_success": 0.75,
+  "mrr": 0.43619826093976044,
+  "latency_p50": 3.811,
+  "latency_p95": 4.408,
+  "per_suite": {
+    "research_related": {
+      "concept_recall": 0.8571428571428571,
+      "query_success": 0.5833333333333334
+    },
+    "research_must_not_fire": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    }
+  },
+  "detail": {
+    "research_related": [
+      {
+        "id": "ho-ckd",
+        "query": "chronic kidney disease by county",
+        "n_results": 69,
+        "concepts": {
+          "related": 13,
+          "environment": null
+        },
+        "n_concepts": 2,
+        "n_found": 1,
+        "all_found": false,
+        "mrr": 0.07692307692307693,
+        "seconds": 4.408,
+        "expansion_seeds": [
+          "Chronic Kidney Diseases"
+        ],
+        "expansion_kept": [
+          "Diabetes",
+          "Obesity",
+          "COVID-19"
+        ],
+        "research_kept": [],
+        "research_keywords": 33,
+        "research_errors": {}
+      },
+      {
+        "id": "ho-heart-attack",
+        "query": "where do the most heart attacks happen",
+        "n_results": 70,
+        "concepts": {
+          "subject": 1,
+          "related": 61,
+          "environment": 65
+        },
+        "n_concepts": 3,
+        "n_found": 3,
+        "all_found": true,
+        "mrr": 0.3439260193358554,
+        "seconds": 3.824,
+        "expansion_seeds": [
+          "Myocardial Infarction"
+        ],
+        "expansion_kept": [
+          "Diabetes",
+          "Coronary heart disease"
+        ],
+        "research_kept": [
+          "air pollution (pubmed)",
+          "PM 2.5 (pubmed)",
+          "ozone (O3) (pubmed)"
+        ],
+        "research_keywords": 31,
+        "research_errors": {}
+      },
+      {
+        "id": "ho-depression",
+        "query": "depression rates across counties",
+        "n_results": 78,
+        "concepts": {
+          "subject": 1,
+          "related": 64,
+          "environment": 73
+        },
+        "n_concepts": 3,
+        "n_found": 3,
+        "all_found": true,
+        "mrr": 0.3431078767123288,
+        "seconds": 4.239,
+        "expansion_seeds": [
+          "Depressive disorder"
+        ],
+        "expansion_kept": [
+          "COVID-19",
+          "Obesity",
+          "Diabetes",
+          "Smoking"
+        ],
+        "research_kept": [
+          "air pollution (pubmed)",
+          "fine particles (PM2.5) (pubmed)",
+          "sulfur dioxide (SO2) (pubmed)",
+          "environmental exposure (pubmed)"
+        ],
+        "research_keywords": 31,
+        "research_errors": {}
+      },
+      {
+        "id": "ho-cancer",
+        "query": "cancer prevalence in Appalachia",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1,
+          "related": 16,
+          "environment": 14
+        },
+        "n_concepts": 3,
+        "n_found": 3,
+        "all_found": true,
+        "mrr": 0.37797619047619047,
+        "seconds": 1.138,
+        "expansion_seeds": [],
+        "expansion_kept": [],
+        "research_kept": [],
+        "research_keywords": 0,
+        "research_errors": {
+          "pubmed": "no condition linked in the question"
+        }
+      },
+      {
+        "id": "ho-arthritis",
+        "query": "arthritis by county",
+        "n_results": 71,
+        "concepts": {
+          "subject": 1,
+          "related": 7,
+          "environment": 70
+        },
+        "n_concepts": 3,
+        "n_found": 3,
+        "all_found": true,
+        "mrr": 0.38571428571428573,
+        "seconds": 3.972,
+        "expansion_seeds": [
+          "Arthritis"
+        ],
+        "expansion_kept": [
+          "Disability",
+          "Obesity",
+          "Chronic disease"
+        ],
+        "research_kept": [
+          "cigarette smoking (pubmed)",
+          "air pollution (pubmed)"
+        ],
+        "research_keywords": 37,
+        "research_errors": {}
+      },
+      {
+        "id": "ho-binge",
+        "query": "binge drinking in the Midwest",
+        "n_results": 61,
+        "concepts": {
+          "subject": 1,
+          "related": 59,
+          "environment": 4
+        },
+        "n_concepts": 3,
+        "n_found": 3,
+        "all_found": true,
+        "mrr": 0.422316384180791,
+        "seconds": 3.893,
+        "expansion_seeds": [
+          "binge drinking"
+        ],
+        "expansion_kept": [
+          "Smoking"
+        ],
+        "research_kept": [],
+        "research_keywords": 30,
+        "research_errors": {}
+      },
+      {
+        "id": "ho-overdose",
+        "query": "drug overdose deaths by county",
+        "n_results": 57,
+        "concepts": {
+          "subject": 1,
+          "related": 5,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.6,
+        "seconds": 4.335,
+        "expansion_seeds": [
+          "Drug Overdose"
+        ],
+        "expansion_kept": [
+          "Respiratory Distress Syndrome, Adult"
+        ],
+        "research_kept": [
+          "Substance Use (pubmed)",
+          "Unemployment (pubmed)",
+          "Socioeconomic Conditions (pubmed)"
+        ],
+        "research_keywords": 42,
+        "research_errors": {}
+      },
+      {
+        "id": "ho-sugar",
+        "query": "counties where lots of people have sugar diabetes",
+        "n_results": 65,
+        "concepts": {
+          "subject": 1,
+          "related": 9,
+          "environment": 64
+        },
+        "n_concepts": 3,
+        "n_found": 3,
+        "all_found": true,
+        "mrr": 0.3755787037037037,
+        "seconds": 4.269,
+        "expansion_seeds": [
+          "Diabetes"
+        ],
+        "expansion_kept": [
+          "Cardiovascular Diseases"
+        ],
+        "research_kept": [
+          "Air Pollution (pubmed)"
+        ],
+        "research_keywords": 33,
+        "research_errors": {}
+      },
+      {
+        "id": "ho-cholesterol",
+        "query": "high cholesterol rates in Ohio",
+        "n_results": 65,
+        "concepts": {
+          "subject": 1,
+          "related": 5,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.6,
+        "seconds": 3.574,
+        "expansion_seeds": [
+          "hypercholesterolemia"
+        ],
+        "expansion_kept": [
+          "Cardiovascular Diseases",
+          "Obesity"
+        ],
+        "research_kept": [
+          "prevalence (pubmed)",
+          "age (pubmed)"
+        ],
+        "research_keywords": 23,
+        "research_errors": {}
+      },
+      {
+        "id": "ho-smoking",
+        "query": "smoking rates by county",
+        "n_results": 73,
+        "concepts": {
+          "subject": 1,
+          "related": 61,
+          "environment": 71
+        },
+        "n_concepts": 3,
+        "n_found": 3,
+        "all_found": true,
+        "mrr": 0.34349264988840145,
+        "seconds": 4.141,
+        "expansion_seeds": [
+          "Smoking"
+        ],
+        "expansion_kept": [
+          "Chronic Obstructive Airway Disease",
+          "Cardiovascular Diseases",
+          "Asthma",
+          "Coronary heart disease"
+        ],
+        "research_kept": [
+          "air pollution (pubmed)",
+          "chronic respiratory diseases (pubmed)"
+        ],
+        "research_keywords": 33,
+        "research_errors": {}
+      },
+      {
+        "id": "ho-mental-health",
+        "query": "poor mental health days in Kentucky",
+        "n_results": 49,
+        "concepts": {
+          "subject": 1,
+          "related": 44,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.5113636363636364,
+        "seconds": 0.901,
+        "expansion_seeds": [],
+        "expansion_kept": [],
+        "research_kept": [],
+        "research_keywords": 0,
+        "research_errors": {
+          "pubmed": "no condition linked in the question"
+        }
+      },
+      {
+        "id": "ho-teeth",
+        "query": "tooth loss among older adults by county",
+        "n_results": 67,
+        "concepts": {
+          "subject": 4,
+          "related": 61,
+          "environment": null
+        },
+        "n_concepts": 3,
+        "n_found": 2,
+        "all_found": false,
+        "mrr": 0.13319672131147542,
+        "seconds": 3.799,
+        "expansion_seeds": [
+          "Tooth Loss"
+        ],
+        "expansion_kept": [
+          "Smoking",
+          "Diabetes"
+        ],
+        "research_kept": [
+          "ethnicity (pubmed)"
+        ],
+        "research_keywords": 34,
+        "research_errors": {}
+      }
+    ],
+    "research_must_not_fire": [
+      {
+        "id": "nf-economic-depression",
+        "query": "counties hit hardest by the economic depression in unemployment",
+        "n_results": 69,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 4.866,
+        "expansion_seeds": [
+          "Depressive disorder"
+        ],
+        "expansion_kept": [
+          "COVID-19",
+          "Obesity",
+          "Diabetes",
+          "Mental disorders"
+        ],
+        "research_kept": [
+          "air pollution (pubmed)",
+          "PM2.5 (pubmed)",
+          "sulfur dioxide (pubmed)",
+          "ambient air pollution (pubmed)"
+        ],
+        "research_keywords": 37,
+        "research_errors": {}
+      },
+      {
+        "id": "nf-heat",
+        "query": "extreme heat days by county",
+        "n_results": 60,
+        "concepts": {
+          "subject": 19
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.05263157894736842,
+        "seconds": 0.846,
+        "expansion_seeds": [],
+        "expansion_kept": [],
+        "research_kept": [],
+        "research_keywords": 0,
+        "research_errors": {
+          "pubmed": "no condition linked in the question"
+        }
+      },
+      {
+        "id": "nf-fire",
+        "query": "wildfire risk near fire stations",
+        "n_results": 59,
+        "concepts": {
+          "subject": 21
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.047619047619047616,
+        "seconds": 0.947,
+        "expansion_seeds": [],
+        "expansion_kept": [],
+        "research_kept": [],
+        "research_keywords": 0,
+        "research_errors": {
+          "pubmed": "no condition linked in the question"
+        }
+      },
+      {
+        "id": "nf-pressure",
+        "query": "housing cost pressure on renters",
+        "n_results": 60,
+        "concepts": {
+          "subject": 16
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.0625,
+        "seconds": 0.869,
+        "expansion_seeds": [],
+        "expansion_kept": [],
+        "research_kept": [],
+        "research_keywords": 0,
+        "research_errors": {
+          "pubmed": "no condition linked in the question"
+        }
+      },
+      {
+        "id": "nf-cold",
+        "query": "counties with cold winters and high heating costs",
+        "n_results": 63,
+        "concepts": {
+          "subject": 21
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.047619047619047616,
+        "seconds": 3.893,
+        "expansion_seeds": [
+          "Heating"
+        ],
+        "expansion_kept": [
+          "Thermal injury"
+        ],
+        "research_kept": [
+          "PM2.5 (pubmed)"
+        ],
+        "research_keywords": 35,
+        "research_errors": {}
+      },
+      {
+        "id": "nf-growth",
+        "query": "population growth in Texas",
+        "n_results": 45,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.764,
+        "expansion_seeds": [],
+        "expansion_kept": [],
+        "research_kept": [],
+        "research_keywords": 0,
+        "research_errors": {
+          "pubmed": "no condition linked in the question"
+        }
+      },
+      {
+        "id": "nf-shock",
+        "query": "income shock after plant closures",
+        "n_results": 56,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.887,
+        "expansion_seeds": [],
+        "expansion_kept": [],
+        "research_kept": [],
+        "research_keywords": 0,
+        "research_errors": {
+          "pubmed": "no condition linked in the question"
+        }
+      },
+      {
+        "id": "nf-burden",
+        "query": "commute burden by county",
+        "n_results": 60,
+        "concepts": {
+          "subject": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.745,
+        "expansion_seeds": [],
+        "expansion_kept": [],
+        "research_kept": [],
+        "research_keywords": 0,
+        "research_errors": {
+          "pubmed": "no condition linked in the question"
+        }
+      }
+    ]
+  }
+}

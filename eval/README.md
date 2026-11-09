@@ -210,6 +210,38 @@ wrong: a `join` where `normalize` was needed, or one poverty percentage divided
 by another. Judging *correctness* needs expected-value assertions on the output,
 which is the next thing this harness should grow.
 
+## Measuring answers (`answer_probe.py` + `research.yaml`)
+
+The expected-value assertions the paragraph above asked for (2026-10-30). Each
+question is EXECUTED and its rows compared against a gold answer computed by
+hand-written SQL that never goes through the planner or compiler.
+
+    python eval/answer_probe.py --check-gold     # every gold query, every acceptable code
+    python eval/answer_probe.py --self-test      # the scorer separates right from wrong
+    python eval/answer_probe.py --save eval/phaseA/answer-r1.json [--tier now]
+
+- **Acceptable measures, not one attribute.** Each question names the measures it
+  needs as a regex over `code | description | dataset`; the gold SQL is bound to
+  the code the plan actually loaded. A failure is therefore classified:
+  `WRONG_MEASURE`, `WRONG_GEOGRAPHY`, `INCOMPLETE` (right places, too few) or
+  `WRONG_VALUE` (right measure and places, wrong numbers).
+- **The metric was shown to move before it was used.** Every question carries
+  known-wrong answers that `--self-test` must classify as declared, plus gold fed
+  back (must be CORRECT) and shuffled values (must not be). 66/66 at creation.
+  Among them the "Detroit" plan, poverty % / total population, which plan
+  validity, op appropriateness and the answerability probe all score as a
+  success: here it is `WRONG_VALUE`.
+- **Tiers.** `now` (one plan can express it), `phase_c` / `phase_d` (needs an op
+  or a multi-step workflow from [docs/RESEARCH_PLAN.md](../docs/RESEARCH_PLAN.md)),
+  `refuse`. A phase_c failure is the baseline, not a regression.
+- **Lenient where the API has no shape yet.** `groups` questions ("South vs
+  Northeast") pass if the result carries one layer per group (Jaccard >= 0.9)
+  with the right median; a single national map matches neither group. When
+  `compare_groups` exists it will return a statistic and the comparer must
+  learn to read it.
+- The run records the API container's creation time before and after and marks
+  the result `contaminated` if it changed: a redeploy mid-run mixes builds.
+
 ## Measuring follow-ups
 
 `followup_probe.py` + `followup.yaml` score `POST /api/analyze/followup`: was

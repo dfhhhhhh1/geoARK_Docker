@@ -49,6 +49,7 @@
  */
 
 const { AREA_NAMES } = require("../../states");
+const { RELATIVE_PHRASES, TIME_PHRASES } = require("../conditions");
 
 const MODULES = [
   require("./load"),
@@ -77,6 +78,11 @@ const MODULES = [
   // Ranked factors for one outcome; computed in Node, not SQL. Same gating
   // discipline. docs/EXPLAIN.md.
   require("./explain"),
+  // Conditions on several measures at once, and two groups compared. Both
+  // gated on phrasing (planner/conditions.js), so a question that states no
+  // condition and compares no groups sees exactly the op set it saw before.
+  require("./intersect"),
+  require("./compare_groups"),
   require("./output"),
 ];
 
@@ -98,20 +104,22 @@ const BY_NAME = new Map(MODULES.map(m => [m.name, m]));
 const SCHEMA_ORDER = [
   "load", "count_features", "count_near", "nearest_distance", "select_features",
   "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
-  "aggregate", "rank", "join", "combine", "hotspot", "outlier", "correlate", "explain", "output",
+  "aggregate", "rank", "join", "combine", "hotspot", "outlier", "correlate", "explain",
+  "intersect", "compare_groups", "output",
 ];
 
 const PROMPT_ORDER = [
   "load", "count_features", "nearest_distance", "select_features", "count_near",
   "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
-  "aggregate", "rank", "join", "combine", "hotspot", "outlier", "correlate", "explain", "output",
+  "aggregate", "rank", "join", "combine", "hotspot", "outlier", "correlate", "explain",
+  "intersect", "compare_groups", "output",
 ];
 
 // correlate sits BEFORE join here: "compare A and B" is join's phrasing, but a
 // question that asks whether they are related is the stronger signal, and the
 // model reads this table top to bottom.
 const CHOICE_ORDER = [
-  "normalize", "rank", "explain", "correlate", "join", "combine", "hotspot", "outlier",
+  "normalize", "rank", "explain", "correlate", "compare_groups", "intersect", "join", "combine", "hotspot", "outlier",
   "count_features", "count_near", "nearest_distance", "select_features",
   "aggregate", "filter_attr", "filter_area", "filter_place", "per_area", "load",
 ];
@@ -124,7 +132,7 @@ const CHOICE_ORDER = [
  * its position here, in the order its module lists them.
  */
 const EXAMPLE_ORDER = [
-  "normalize", "rank", "explain", "correlate", "join", "combine", "hotspot", "outlier",
+  "normalize", "rank", "explain", "correlate", "compare_groups", "intersect", "join", "combine", "hotspot", "outlier",
   "count_features", "aggregate", "filter_attr", "load", "filter_area",
   "filter_place", "count_near", "select_features", "nearest_distance",
   "per_area",
@@ -161,6 +169,24 @@ const STEP_FIELDS = {
   },
   operator: { type: "string", enum: ["<", "<=", ">", ">=", "=", "!="] },
   value: { type: "number" },
+  // op=filter_attr, instead of value, for "high" / "few" with no number. Gated
+  // on that phrasing, so no other prompt changes.
+  percentile: {
+    type: "integer",
+    description: "For op=filter_attr when the question says high, low, many or " +
+                 "few without giving a number: compare against this percentile of " +
+                 "the input's own values, e.g. operator \">=\" and percentile 75 " +
+                 "for the top quarter. Leave value out when you use it."
+  },
+  // op=filter_attr, instead of operator + value: a published definition listed
+  // under an attribute ("d1"). Code supplies the numbers. Offered only when a
+  // retrieved attribute carries one (backend/definitions.js).
+  definition: {
+    type: "string",
+    description: 'For op=filter_attr: a definition label like "d1", listed ' +
+                 "under the attribute it applies to. Use it when the question " +
+                 "uses that term; it sets operator and value for you."
+  },
   function: { type: "string", enum: ["mean", "sum", "count", "min", "max"] },
   group_by: { type: "string", enum: ["state", "none"] },
   direction: { type: "string", enum: ["asc", "desc"] },
@@ -258,11 +284,15 @@ const FIELD_GATES = {
   // Only when the question is actually about time. Most questions want the
   // current figure and should never see a year field to get wrong.
   year: (ctx) => TIME_PHRASES.test(String(ctx.query || "")),
+  // A qualifier with no number. English comparatives, not a term list.
+  percentile: (ctx) => RELATIVE_PHRASES.test(String(ctx.query || "")),
+  // Data-driven: only when a retrieved attribute carries a checked definition.
+  definition: (ctx) => ctx.hasDefinitions === true,
 };
 
-/** Phrasings that mean the question has a time dimension. */
-const TIME_PHRASES =
-  /\b(19\d{2}|20\d{2}|trends?|over time|since|growth|grew|shrank|declin\w*|increas\w*|decreas\w*|change\s+(from|in|since|between)|year[- ]over[- ]year|historical)\b/i;
+// TIME_PHRASES (the question has a time dimension) lives in conditions.js with
+// the other phrasing gates, so op modules (combine) can read it without a
+// require cycle through this file.
 
 /** Whether a step field is shown for this query. Unlisted fields always are. */
 const fieldOffered = (name, ctx = {}) =>
@@ -311,6 +341,9 @@ function examplesFor(offered, ctx = {}) {
       // Same rule for the year field: an example that sets a field the decoding
       // schema has dropped teaches a plan the model cannot emit.
       if (ex.usesYear && !fieldOffered("year", ctx)) continue;
+      // An op with a definition-using and a plain example shows exactly one.
+      if (ex.usesDefinitions !== undefined &&
+          ex.usesDefinitions !== fieldOffered("definition", ctx)) continue;
       out.push(ex.text);
     }
   }

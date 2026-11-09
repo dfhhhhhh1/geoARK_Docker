@@ -197,3 +197,133 @@ separate slots on the same smoking columns.
 enough to say it reaches data and does not visibly hurt the planner; it is not
 enough to say more. It cannot touch any question that links no condition, and
 `{"expand": false}` or `EXPAND_ENABLED=0` reverts it.
+
+## Held-out re-evaluation (2026-10-29)
+
+The 2026-09-28 numbers came from the 8 questions `EXPAND_MIN_SIM` was tuned on.
+`eval/expansion_heldout.yaml` is 12 health questions with different conditions
+and lay phrasings ("sugar diabetes", "heart attacks"), plus 8 non-health
+questions built around health-adjacent words. Results in `eval/exp-heldout/`.
+
+**Reach holds up out of sample.** Related-measure recall 83.9% -> 100%, query
+success 75% -> 100%, identical in all 3 runs per arm. Five questions only reach
+a related measure with expansion: heart attacks, depression, binge drinking,
+smoking, tooth loss. Every new hit sits at rank ~60, because expanded rows are
+appended.
+
+**MRR fell 0.596 -> 0.491, and that is the metric, not a regression.**
+`run.py` averages 1/rank over HITS only, so a new hit at rank 61 lowers the
+mean even though no existing rank moved (all subject ranks are identical).
+
+**Quiet does not hold up: 2 of 8 non-health questions fired.** The earlier
+"0 of 41" was on questions the seed rules were written against.
+- "the economic **depression** in unemployment" -> Depressive disorder -> COVID-19,
+  Obesity, Diabetes, Mental disorders.
+- "cold winters and high **heating** costs" -> Heating (`eehu`, linked by its own
+  name, so no similarity check runs) -> Thermal injury.
+
+A question-level similarity check would separate the first one (question vs
+concept 0.472, against 0.596+ for every real health question measured) and not
+the second (0.677). Neither is fixed: a threshold set on 21 examples is the
+mistake this file already records once.
+
+**Noise among kept concepts:** COVID-19 (for kidney disease and depression),
+"Respiratory Distress Syndrome, Adult" for drug overdose, "Chronic disease".
+**Missed:** "Hypertensive disease" is rejected at 0.592 although high blood
+pressure is loaded; the gate searches the clinical name, not its lay aliases.
+
+**Planner** (`eval/expansion_planner_ab.py`, 10 questions x 2 arms x 2 reps):
+expanded candidates DO reach the planner (1-4 per health question survive the
+top_k 25 cut), and all 8 plain map questions planned identically with expansion
+on and off. On "why" questions the `explain` table changes completely, from the
+default covariates to literature factors: heart attacks -> smoking +0.49/+0.60
+and diabetes; tooth loss -> smoking and diabetes. Some of what it surfaces is
+weak: depression -> COPD +0.45 is a PLACES ~ PLACES pair (inflated, see
+CORRELATE.md), binge drinking -> smoking -0.01.
+
+## Research expansion: keywords read from text (2026-10-29)
+
+`backend/research.js`, from `searchImprovement/newsearch`. Literature expansion
+walks SemMedDB's relation graph; this READS papers (PubMed) or web pages
+(SearXNG) about the question and has `LLM_MODEL` extract "geospatial or
+environmental factor" keywords (the prototype's own instruction), then searches
+the catalog for each through the same gate (`EXPAND_MIN_SIM`, new rows only).
+Results join under purpose `expanded`, so placement and quota are unchanged.
+
+Off by default; `{"research": ["pubmed"]}`, `["web"]` or both per request,
+`RESEARCH_SOURCES` for a default. Both leave the machine: `pubmed` sends the
+linked condition's NAME to NCBI (never the question), `web` sends the QUESTION
+to public search engines.
+
+| prototype | integrated | reason |
+|---|---|---|
+| PMIDs from a scan of the 3.3 GB gzip | E-utilities search: seed name AND risk-factor terms | `semmed_relation` stores counts, not PMIDs; the scan takes minutes |
+| scispaCy linker | expansion.js seeds | already linked, measured, gated |
+| MiniLM screening | BGE embedder already running | no new model |
+| qwen3:1.7b | `LLM_MODEL` (gemma3:4b) | a third model on 16 GB is the VRAM stall |
+| 10 pages x 5,000 chars | 5 texts x 1,500 chars | the prototype's prompt overflows a 4,096 window, and Ollama then discards the instructions |
+| SearXNG on host :8080 | compose profile `research`, no host port | :8080 is GeoARK's web container |
+
+**Measured** on `eval/research_heldout.yaml`: the held-out questions plus an
+`environment` concept (air pollution, PM2.5, ozone, air toxics, drinking water,
+superfund, food environment, lead paint, traffic), which is what the prototype
+is for and what the relation graph does not reach. Literature expansion on in
+every arm; `base` and `pubmed` 2 runs, `web` and `both` 3. `eval/research/`.
+
+| arm | environment reached | related | non-health runs that added rows | p50 / p95 |
+|---|--:|--:|--:|--:|
+| base (literature only) | 4/24 (17%) | 100% | 0 of 16 | 0.9s / 1.2s |
+| + pubmed | **14/24 (58%)** | 100% | 4 of 16 (the 2 homonyms) | 3.9s / 4.5s |
+| + web | 16/36 (44%) | 100% | **21 of 24** | 6.6-9.3s / 9-22s |
+| + both | 25/36 (69%) | 100% | 20 of 24 | 8.9-10.8s / 12-20s |
+
+- **PubMed is the useful half.** Identical in both runs. Its keywords are what
+  the instruction asks for: heart attacks -> air pollution, PM2.5, ozone;
+  depression -> air pollution, PM2.5, SO2; smoking -> air pollution. It fires
+  only where literature expansion linked a condition, so it inherits that
+  gate's quiet, and its only non-health hits are the two homonyms above. Misses:
+  "cancer" (in `ALIAS_STOP`) and "poor mental health days" link no seed, so
+  PubMed is never asked. Some keywords are generic ("prevalence", "age",
+  "mortality") and occasionally clear the gate.
+- **Web reaches about as much and is mostly noise.** Its keywords are often
+  method words ("county-level", "spatial analysis", "rural", "prevalence",
+  "United States"), and with no condition gate it added rows to 21 of 24
+  non-health runs: climate change and greenhouse gases for "population growth
+  in Texas", air pollution for "commute burden". Many result pages refuse the
+  fetch (HTTP 403 from publishers), and results drift between runs (web 1-3
+  differ). It is also the source that sends the question off the machine.
+- `both` has the best reach and carries web's noise with it.
+
+**Planner** (`eval/expansion_planner_ab.py --arms expand,pubmed,web --only why-`,
+6 "why" questions, one run each, `eval/research/planner.json`):
+
+- **PubMed adds an environmental factor to the explain table, with an honest
+  small effect**: heart attacks -> particulate air pollution +0.16 (after
+  smoking +0.49 and diabetes +0.38); depression -> particulate +0.01. Tooth
+  loss and binge drinking unchanged.
+- **Web makes the table worse.** Heart attacks: Stroke ranked #1 at +0.80, a
+  sibling outcome and a PLACES ~ PLACES pair. Binge drinking: high blood
+  pressure -0.44, stroke -0.39, STIs. Tooth loss: COPD first. Its keywords name
+  other conditions ("stroke", "heart disease", "chronic conditions"), and
+  `explain` ranks whatever is loaded.
+- **Research turned an honest refusal into a wrong answer.** No kidney measure
+  is loaded. "what drives chronic kidney disease rates" is refused (422) with
+  literature expansion alone; with pubmed or web it answers by explaining
+  **Diabetes prevalence** as the outcome (+0.88 with diagnosed diabetes). The
+  extra candidates gave the planner a plausible stand-in, and the relevance
+  check passed it. Same family as "average rainfall" -> reading scores
+  (CORRELATE.md). One run, but it is the failure that matters most.
+  **Guarded 2026-10-30** (`backend/planner/outcome.js`): an `expanded`
+  candidate may be a factor, never the explained outcome or a plan's only
+  subject. Same question, PubMed on: rejected on attempt 1, then refused.
+- "what factors explain arthritis prevalence" was refused in the expand and
+  pubmed arms and planned 5 correlates in 180s with web; it was already erratic
+  (128-256s, two shapes) in the expansion-only A/B above.
+
+**Recommendation: both stay off by default.** PubMed is a reasonable opt-in for
+"why" questions: deterministic, +3s, condition-gated, and it reaches the
+environmental measures the relation graph cannot. Before it is a default, the
+outcome substitution above needs a guard (the explained outcome must match the
+question's condition, or the plan refuses). Web is not worth it: about the
+reach of PubMed, mostly noise, fires on non-health questions, slower, and the
+only source that sends the question itself off the machine.

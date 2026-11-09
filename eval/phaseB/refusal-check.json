@@ -1,0 +1,68 @@
+[
+ {
+  "rep": 1,
+  "id": "w-out-of-scope",
+  "outcome": "REFUSED",
+  "http": 422,
+  "error": "no analysis could be built from the available data",
+  "ops": [],
+  "attrs": []
+ },
+ {
+  "rep": 1,
+  "id": "w-best-place",
+  "outcome": "ANSWERED",
+  "http": 200,
+  "error": null,
+  "ops": [
+   "load",
+   "rank",
+   "output"
+  ],
+  "attrs": [
+   "Median household income"
+  ]
+ },
+ {
+  "rep": 2,
+  "id": "w-out-of-scope",
+  "outcome": "REFUSED",
+  "http": 422,
+  "error": "the loaded data does not measure what this question asks about",
+  "ops": [],
+  "attrs": []
+ },
+ {
+  "rep": 2,
+  "id": "w-best-place",
+  "outcome": "REFUSED",
+  "http": 422,
+  "error": "the loaded data does not measure what this question asks about",
+  "ops": [],
+  "attrs": []
+ },
+ {
+  "rep": 3,
+  "id": "w-out-of-scope",
+  "outcome": "REFUSED",
+  "http": 422,
+  "error": "the loaded data does not measure what this question asks about",
+  "ops": [],
+  "attrs": []
+ },
+ {
+  "rep": 3,
+  "id": "w-best-place",
+  "outcome": "ANSWERED",
+  "http": 200,
+  "error": null,
+  "ops": [
+   "load",
+   "rank",
+   "output"
+  ],
+  "attrs": [
+   "Median household income"
+  ]
+ }
+]

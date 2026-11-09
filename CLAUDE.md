@@ -34,6 +34,12 @@ metric *can* move. See the correction in [eval/README.md](eval/README.md).
   planner that has latched onto one worked example: it scored 0.12 (a single op
   sequence across eight different questions) while `--endpoint analyze`
   reported 87.5% plan validity for the same run.
+- `eval/answer_probe.py` + `eval/research.yaml`, **answer correctness**: the
+  executed rows against gold computed by hand-written SQL, bound to whichever
+  acceptable measure the plan loaded. The only suite that looks at the numbers;
+  the "Detroit" percent / population plan passes every other one and fails
+  here. Run `--self-test` after editing the suite or the scorer. Plan:
+  [docs/RESEARCH_PLAN.md](docs/RESEARCH_PLAN.md).
 
 ## Traps that have already burned time
 
@@ -49,6 +55,8 @@ metric *can* move. See the correction in [eval/README.md](eval/README.md).
 | **Top-level `temperature` is ignored by Ollama** (fixed 2026-09-29) | Run-to-run flakiness that every probe had to average over | `callLLM` sent `temperature` beside `messages`; Ollama reads only `options.temperature` and says nothing. Every call ran at the model default: **qwen3:14b 0.6, gemma3:4b 1.0**, not the 0.1-0.2 recorded throughout this file. Verified in the ollama log (`temp = 1.000` vs `0.000`). Every planner number before 2026-09-29 was measured at those defaults |
 | **4,096-token context overflow** (fixed 2026-09-29) | "Plan invalid" retries; ollama log shows `slot context shift ... n_discard = 2045` | The planner prompt is ~3,600 tokens; qwen3's reasoning pushed past 4,096 and Ollama silently discarded the first half of the prompt, i.e. the system instructions, mid-answer. Now `num_ctx` 8,192 for the planner and 4,096 for gemma, with `OLLAMA_KV_CACHE_TYPE=q8_0` + flash attention so both stay resident on 16 GB (at 8,192 each, Ollama evicted one per switch). Check `ollama ps` shows both, 100% GPU |
 
+| **Rebuilding the embedder upgrades torch** (2026-10-30) | `/health` reports `drift: true` after an embedder rebuild that changed nothing but app.py | `requirements.txt` does not pin torch, so the CUDA index served 2.15.0+cu132 where the cache was written by 2.14.0+cu130 and the canary fingerprint moved. Measured: cosine fresh vs cached >= 0.9999999 on 400 rows, and `queries.yaml` reproduced 97.8 / 97.3 / MRR 0.740 exactly, so the corpus was NOT re-embedded. Pin torch before the next rebuild if the flag matters |
+| **Several sessions share this working tree and stack** (2026-10-30) | The api image picks up another session's half-written files; an eval round dies mid-run | `api` is built from the working tree, so any rebuild ships whatever is on disk. Coordinate before `--force-recreate api` (ListAgents / SendMessage) |
 | **VRAM stall on Windows: no error, just a crawl** (2026-10-15) | Planner calls time out at 90s; `ollama ps` still says `100% GPU`, `OOMKilled=false`, DeviceRequests fine. Ollama log shows `tg_3s` falling from ~22 t/s to 0.05 t/s | qwen3:14b (9.8 GB) + gemma3:4b (2.8 GB) resident + ~2.9 GB of desktop (launchers, browsers, Spotify, iCUE all draw on the GPU) is ~15.5 GB of 16. WDDM pages VRAM to system RAM instead of failing. `nvidia-smi` reads ~15.9 GB at ~100% util with nothing running. `docker restart geoark-ollama-1` clears it and keeps the GPU. The 2026-10-15 measurements ran at `OLLAMA_MAX_LOADED_MODELS=1` for this reason: zero stalls, at the cost of a model swap per step |
 
 ## Measured facts (do not re-derive)
@@ -798,6 +806,7 @@ fit".
 density plan chose `S0102_C01_001E` (1,524 counties), which ranks first for
 "total population", over `DP05_0001E` (3,221) and `POP_ESTIMATE` (3,211).
 "How densely populated are the counties in Texas" maps 98 of 254 counties.
+**Fixed 2026-10-30** by a coverage repair, see "Phase B" below.
 
 ### qwen3.5:9b as planner (2026-10-15)
 
@@ -882,7 +891,7 @@ loosely worded questions, which the plan suites do not contain:
 So the speed is real (3.5-4x) and the cost is real: about one confidently wrong
 answer per 20 loosely worded questions, of the percent-divided-by-population
 kind. That specific shape is deterministic and could be refused by the
-validator; not yet done.
+validator. **Done 2026-10-30**, see "Phase B" below.
 
 ### Drop-in loading and multi-level geography (2026-10-16)
 
@@ -1010,6 +1019,112 @@ usage in RUNBOOK §5a. `etl/load_table.py`, `etl/load_raster.py`,
 - **Sources moved**: the Census API now requires a key (302 to
   missing_key.html), and FEMA's NRI download URLs redirect to a landing page.
   CDC SVI (svi.cdc.gov) and PLACES (data.cdc.gov Socrata, no key) work.
+
+### Research expansion, and a held-out look at literature expansion (2026-10-29)
+
+`backend/research.js`, from `searchImprovement/newsearch`; details and tables in
+docs/EXPANSION.md. Reads PubMed abstracts (`pubmed`) or SearXNG web pages
+(`web`), has `LLM_MODEL` extract environmental-factor keywords, gates them like
+expansion. **Off by default**, `{"research": [...]}` per request.
+
+- Held-out, literature expansion still reaches: related recall 83.9 -> 100%,
+  3 runs identical. But **2 of 8 non-health questions fired** ("economic
+  depression", "heating costs"); the earlier 0/41 was on the questions the seed
+  rules were written against. Its MRR drop is `run.py` averaging over hits only.
+- Environmental-measure reach: 17% literature only, **58% + pubmed**, 44% + web.
+  PubMed is deterministic and condition-gated; web fires on 21/24 non-health
+  runs and its keywords are mostly method words.
+- **Research turned an honest refusal into a wrong answer**: with no kidney
+  data, "what drives CKD" explained Diabetes prevalence instead of refusing.
+  Guard the explained outcome before making any source a default.
+- `SEARXNG_SECRET` must not be `:?`-required in compose: compose interpolates
+  every service, so it broke plain `docker compose up`.
+
+### The explore map and cross-level estimates (2026-10-30)
+
+`/explore`, `backend/geo_layers.js`, `geoark_aggregate` / `geoark_apportion` in
+`etl/schema_geo.sql`. Phase 5 and part of 6 of `docs/DATA_LOADING_PLAN.md`
+(numbers under "Progress"). The planner is untouched: snapshot byte-identical.
+
+- **The level is chosen by units in view, not zoom**: the finest whose count in
+  the bbox fits (3,600 polygons, which admits all 3,233 counties; 8,000 cells).
+  Over budget everywhere, it refuses rather than draws a truncated subset.
+- **Density breaks must be tail-weighted.** Even sixths of every 4 km cell put
+  a whole metro in the top class (most cells are rural). 35/60/80/92/98th
+  percentiles, national and cached, so colours do not shift while panning.
+- **Derived values are checked against published ones, and labelled**: counts
+  summed from tracts match the county file exactly; population-weighted rates
+  r 0.998 (tract) / 0.978 (ZIP via crosswalk); apportioning a county count down
+  to tracts is only r 0.86, median 11% off. Estimates draw with a dashed edge.
+- **Total population is the wrong weight for poverty** where group quarters are
+  large (Chattahoochee GA 42.6% GQ: 28.7 derived vs 40.0 published). The
+  poverty universe would be right and is not loaded.
+- **Percentile ranks are never estimated**: a population-weighted mean of tract
+  percentiles is not a county percentile.
+- **Pixel area is analytic** (depends on latitude only). Geodesic area of
+  sampled pixels made the first 1 km view take 11 s.
+- **To rebuild only the API safely**: `docker compose -f docker-compose.yml -f
+  docker-compose.gpu.yml up -d --build --no-deps api`. `--no-deps` is what
+  keeps ollama (and its GPU) out of the recreate.
+- Not done: porting planner ops to `(level, geoid)`, `tract_neighbors`, vector
+  tiles. Blocked on purpose while another session had uncommitted planner edits.
+
+### Phase B: cheap correctness fixes (2026-10-30)
+
+`docs/RESEARCH_PLAN.md` Phase B. Four fixes for confident wrong answers, plus a
+reranker that did not earn its default. Prompt and schema byte-identical across
+48 contexts; every fix is code after the model. Tests: `planner/test_units.js`
+(19). Evidence: `eval/rerank/`, `eval/phaseB/`.
+
+- **The validator refuses a rate divided by a count** (`planner/units.js`). The
+  Detroit plan (poverty percent / total population, planner reasoning off) is
+  now rejected on attempt 1 and repaired to load -> filter_place -> output, 6
+  counties: verified live, rejection text in the log. Only a positively
+  identified rate over a positively identified count is refused; unknown passes.
+- **ACS labels are wrong about units 243 times in 3,557 series.** 181
+  S-table "Estimate|Total" columns hold percentages (all of S0801, S0102's
+  sex/age rows), and 62 DP "Percent Estimate" universe rows hold counts
+  (DP03_0001PE peaks at 8,112,148). So the national value range decides where
+  it is known (`series_stats.js` attaches it to resolved rows); after that
+  change, 0 series labelled count stay inside [0, 100].
+- **Coverage repair** (`planner/coverage.js`). On an accepted plan, a load
+  covering < 95% of the plan's own area (built by compiling its filter_area /
+  filter_place steps) is swapped for an equivalent that covers it, else its
+  coverage is reported. Equivalent = same class by description (whole-population
+  counts only, today) AND median value ratio 0.9-1.1 on shared counties. The
+  second test is load-bearing: "Estimate|ANCESTRY|Total population"
+  (DP02_0122E) matches the description, ratio 0.002. Live: Texas 98/254 and
+  Midwest 436/1,055 swapped to full coverage; ~250 ms warm. `COVERAGE_PREFER`,
+  `coverage: false` per request.
+- **An expanded candidate may be a factor, never the subject**
+  (`planner/outcome.js`). "what drives chronic kidney disease rates" with
+  PubMed research: attempt 1 explained an expanded candidate and was refused,
+  then the planner returned no steps -> honest refusal (was: explained
+  Diabetes prevalence). One live run.
+- **Out-of-scope re-check, 3 runs each**: rainfall refused 3/3. **"Best place
+  to live" is NOT reliably refused**: answered 2/3 as rank(median household
+  income) with a `proxy` verdict, once quoting an EMPTY question phrase.
+  `grounded` is computed per verdict and decides nothing. Making an ungrounded
+  proxy a rejection is a refusal-policy change and needs the answerability
+  suite re-run for false refusals; not done.
+- **Cross-encoder (bge-reranker-base) does not clear the bar; `RERANK=off`.**
+  Embedder `POST /rerank`, per-request `rerank` for the A/B. One run per arm,
+  `off` reproducing the recorded baseline exactly:
+
+  | arm | concept recall / success | concept MRR | known-item R@1 / MRR |
+  |---|--:|--:|--:|
+  | off | 97.8 / 97.3% | 0.740 | 91.7% / 0.944 |
+  | reorder (within RRF's top k) | 97.8 / 97.3% | 0.826 | 66.7% / 0.808 |
+  | replace (50 deep, then cut) | 95.6 / 94.6% | 0.826 | 66.7% / 0.808 |
+  | fuse (third RRF ranking) | 100 / 100% | 0.756 | 83.3% / 0.896 |
+
+  Target was MRR 0.874 with no recall loss. Facility losses are column
+  siblings (Ethanol Plants: Epafacid over Name; dataset recall@1 8/8 in every
+  arm, and the planner collapses facility columns anyway). The ACS losses are
+  real: persistent-poverty rank 3 -> 5, median-income-2017 1 -> 2 (reorder /
+  replace). `fuse` loses least: its known-item cost is one column sibling
+  (biofuel) plus persistent-poverty 3 -> 4, for +2.2pp concept recall. It is
+  the candidate if a default is wanted; one run is not enough to make it one.
 
 ## Two things generated and then thrown away
 

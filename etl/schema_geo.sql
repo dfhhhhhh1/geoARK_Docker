@@ -226,3 +226,129 @@ BEGIN
   INTO result USING g;
   RETURN result;
 END $$;
+
+-- ------------------------------------------------------------ dataset_info
+-- Dataset-level metadata the map and provenance can show: a name and where the
+-- data came from. geo_measure carries only the ledger id. Written by ingest and
+-- replay from the sidecar/XML metadata the ledger already records.
+CREATE TABLE IF NOT EXISTS dataset_info (
+    dataset_id   TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    description  TEXT,
+    originator   TEXT,
+    source_url   TEXT,
+    license      TEXT,
+    start_year   SMALLINT,
+    end_year     SMALLINT
+);
+
+-- ------------------------------------------------------------ across levels
+-- docs/DATA_LOADING_PLAN.md Phase 6: the two moves between levels that every
+-- level-aware op will be built on. Both return a coverage figure, because a
+-- derived value built from half its parts must not look like a stored one.
+--
+-- How a FROM unit relates to a TO unit, as (part, whole, share of the part
+-- inside the whole):
+--   tract / bg / block -> county   the parent key (county_fips): share 1
+--   bg -> tract                    LEFT(geoid, 11): share 1
+--   anything with a crosswalk      geo_crosswalk, in either direction
+CREATE OR REPLACE FUNCTION geoark_level_link(p_part text, p_whole text)
+RETURNS TABLE (part text, whole text, share double precision)
+LANGUAGE sql STABLE AS $$
+  SELECT u.geoid, u.county_fips::text, 1.0::float8 FROM geo_unit u
+   WHERE p_whole = 'county' AND p_part IN ('tract', 'bg', 'block')
+     AND u.level = p_part AND u.county_fips IS NOT NULL
+  UNION ALL
+  SELECT u.geoid, LEFT(u.geoid, 11), 1.0::float8 FROM geo_unit u
+   WHERE p_part = 'bg' AND p_whole = 'tract' AND u.level = 'bg'
+  UNION ALL
+  SELECT x.from_geoid, x.to_geoid, x.from_share FROM geo_crosswalk x
+   WHERE x.from_level = p_part AND x.to_level = p_whole
+  UNION ALL
+  -- The reverse rows: to_share is the share of the TO unit inside the FROM
+  -- unit, which from this side is the share of the part inside the whole.
+  SELECT x.to_geoid, x.from_geoid, x.to_share FROM geo_crosswalk x
+   WHERE x.from_level = p_whole AND x.to_level = p_part
+$$;
+
+-- Fine -> coarse. 'sum' for counts (a tract's people belong to its county);
+-- 'wmean' for rates, weighted by p_weight_code at the fine level (a
+-- population), or by land area when no weight is given. A rate is never
+-- summed, and an unweighted mean of rates over-counts small units.
+CREATE OR REPLACE FUNCTION geoark_aggregate(
+    p_code text, p_year int, p_from text, p_to text, p_method text,
+    p_weight_code text DEFAULT NULL, p_weight_year int DEFAULT NULL)
+RETURNS TABLE (geoid text, value double precision, coverage double precision, parts int)
+LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  IF p_method NOT IN ('sum', 'wmean') THEN
+    RAISE EXCEPTION 'geoark_aggregate: method must be sum or wmean';
+  END IF;
+  RETURN QUERY EXECUTE format($q$
+    WITH src AS (SELECT v.geoid, v.value FROM geo_values_all v
+                  WHERE v.level = %1$L AND v.code = %2$L AND v.year = %3$s),
+         w AS (%4$s),
+         link AS (SELECT * FROM geoark_level_link(%1$L, %5$L))
+    SELECT l.whole,
+           CASE WHEN %6$L = 'sum'
+                THEN sum(s.value * l.share)
+                ELSE sum(s.value * w.w * l.share) FILTER (WHERE s.value IS NOT NULL)
+                     / NULLIF(sum(w.w * l.share) FILTER (WHERE s.value IS NOT NULL), 0) END,
+           sum(COALESCE(w.w, 0) * l.share) FILTER (WHERE s.value IS NOT NULL)
+             / NULLIF(sum(COALESCE(w.w, 0) * l.share), 0),
+           count(s.value)::int
+      FROM link l
+      LEFT JOIN src s ON s.geoid = l.part
+      LEFT JOIN w ON w.geoid = l.part
+     GROUP BY l.whole
+    HAVING count(s.value) > 0$q$,
+    p_from, p_code, p_year,
+    CASE WHEN p_weight_code IS NULL
+         THEN format('SELECT geoid, aland::float8 AS w FROM geo_unit WHERE level = %L', p_from)
+         ELSE format($w$SELECT geoid, value AS w FROM geo_values_all
+                        WHERE level = %1$L AND code = %2$L
+                          AND year = COALESCE(%3$s, (SELECT max(year) FROM geo_values_all
+                                                       WHERE level = %1$L AND code = %2$L))$w$,
+                     p_from, p_weight_code, COALESCE(p_weight_year::text, 'NULL')) END,
+    p_to, p_method);
+END $$;
+
+-- Coarse -> fine. 'share' splits a COUNT among the fine units by their weight
+-- (a county's total over its tracts by tract population); 'copy' gives every
+-- fine unit its whole's value, which is the only honest move for a rate when
+-- nothing finer is known. Either way the result is an estimate, and callers
+-- must say so.
+CREATE OR REPLACE FUNCTION geoark_apportion(
+    p_code text, p_year int, p_from text, p_to text, p_method text,
+    p_weight_code text DEFAULT NULL, p_weight_year int DEFAULT NULL)
+RETURNS TABLE (geoid text, value double precision)
+LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  IF p_method NOT IN ('share', 'copy') THEN
+    RAISE EXCEPTION 'geoark_apportion: method must be share or copy';
+  END IF;
+  RETURN QUERY EXECUTE format($q$
+    WITH src AS (SELECT v.geoid, v.value FROM geo_values_all v
+                  WHERE v.level = %1$L AND v.code = %2$L AND v.year = %3$s),
+         w AS (%4$s),
+         link AS (SELECT * FROM geoark_level_link(%5$L, %1$L)),
+         part AS (SELECT l.part, l.whole, COALESCE(w.w, 0) * l.share AS pw, l.share
+                    FROM link l LEFT JOIN w ON w.geoid = l.part)
+    SELECT p.part,
+           sum(CASE WHEN %6$L = 'copy' THEN s.value * p.share
+                    ELSE s.value * p.pw / NULLIF(t.total, 0) END)
+             / CASE WHEN %6$L = 'copy' THEN NULLIF(sum(p.share), 0) ELSE 1 END
+      FROM part p
+      JOIN src s ON s.geoid = p.whole
+      JOIN (SELECT whole, sum(pw) AS total FROM part GROUP BY whole) t ON t.whole = p.whole
+     GROUP BY p.part$q$,
+    p_from, p_code, p_year,
+    CASE WHEN p_weight_code IS NULL
+         THEN format('SELECT geoid, aland::float8 AS w FROM geo_unit WHERE level = %L', p_to)
+         ELSE format($w$SELECT geoid, value AS w FROM geo_values_all
+                        WHERE level = %1$L AND code = %2$L
+                          AND year = COALESCE(%3$s, (SELECT max(year) FROM geo_values_all
+                                                       WHERE level = %1$L AND code = %2$L))$w$,
+                     p_to, p_weight_code, COALESCE(p_weight_year::text, 'NULL')) END,
+    p_to, p_method);
+END $$;

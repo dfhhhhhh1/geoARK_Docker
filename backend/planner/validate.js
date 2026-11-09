@@ -24,6 +24,7 @@
 const { toFipsPrefixes } = require("../states");
 
 const ops = require("./ops");
+const { stepUnit } = require("./units");
 
 /**
  * Arity, required fields, grounding rules and shape rules all come from the op
@@ -249,6 +250,27 @@ async function validatePlan(plan, resolve) {
             `Use op "load", not "${st.op}".`);
       }
     }
+  }
+
+  // --- a rate divided by a count is not a rate -----------------------------
+  //
+  // The "Detroit" shape: "What are the poverty rates around Detroit?" planned
+  // poverty PERCENT / total population with planner reasoning off, in both
+  // runs. It validates, compiles, executes and maps, and the relevance check
+  // passed Population as a "denominator", so nothing downstream can catch it.
+  // The units are known here, so it is refused here, and the repair loop is
+  // told why. Only a positively identified rate over a positively identified
+  // count is refused: an unknown unit on either side passes (planner/units.js).
+  const byId = new Map(steps.map(s => [s.id, s]));
+  for (const st of steps) {
+    if (st.op !== "normalize") continue;
+    const [num, den] = st.inputs || [];
+    if (stepUnit(num, byId, resolved) !== "rate" || stepUnit(den, byId, resolved) !== "count") continue;
+    errors.push(
+      `step "${st.id}" (normalize): "${num}" is already a rate or percentage, so ` +
+      `dividing it by a count ("${den}") gives a number with no meaning. ` +
+      `To show the rate, load it and output it without normalize. Use normalize ` +
+      `only to turn a COUNT into a rate.`);
   }
 
   // --- attribute filters must name a value the layer actually holds ---------

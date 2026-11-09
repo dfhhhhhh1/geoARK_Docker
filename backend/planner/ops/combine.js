@@ -1,4 +1,5 @@
 const { CompileError } = require("./_sql");
+const { CHANGE_PHRASES, TIME_PHRASES } = require("../conditions");
 
 /**
  * Arithmetic on two series.
@@ -52,9 +53,16 @@ module.exports = {
 
   // Gated on arithmetic phrasing, so it does not enlarge the decision space on
   // the many questions that have no second series to combine with.
-  offered: (ctx) =>
-    /\b(difference|differ|minus|subtract|change\s+(from|in|between)|combined|sum\s+of|total\s+of|added|plus|versus\s+.*\bchange)\b/i
-      .test(String(ctx.query || "")),
+  //
+  // Also offered for a CHANGE over a period ("rose the most over the last
+  // decade"): one measure at two years is exactly a difference or a
+  // percent_change, and before this the op was not on the menu for that
+  // phrasing at all.
+  offered: (ctx) => {
+    const q = String(ctx.query || "");
+    return /\b(difference|differ|minus|subtract|change\s+(from|in|between)|combined|sum\s+of|total\s+of|added|plus|versus\s+.*\bchange)\b/i.test(q)
+      || (CHANGE_PHRASES.test(q) && TIME_PHRASES.test(q));
+  },
 
   examples: [
     // Shown only when the year field is on offer. Without it the ONLY combine

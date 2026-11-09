@@ -37,8 +37,11 @@ console.log("  Starting Unified Geospatial Search Server...");
 const auth = require("./auth");
 const { createLimiter, rateLimit } = require("./ratelimit");
 const { createQueue, QueueFullError } = require("./queue");
-const { expandQuery, EXPANSION_CONFIG, indexLoaded: expansionIndexLoaded } = require("./expansion");
+const { expandQuery, linkSeeds, EXPANSION_CONFIG, indexLoaded: expansionIndexLoaded } = require("./expansion");
+const { researchExpand, resolveSources, RESEARCH_CONFIG } = require("./research");
 const { needsPopulation } = require("./population");
+const { createSeriesStats } = require("./series_stats");
+const { createDefinitions } = require("./definitions");
 
 const app = express();
 
@@ -160,6 +163,33 @@ const CONFIG = {
 
 // Database pool for PostGIS queries
 const pool = new Pool(CONFIG.database);
+
+// Value ranges, area coverage and verified equivalents per series
+// (series_stats.js). Cached per process; cleared by /api/reload-corpus.
+const seriesStats = createSeriesStats(pool, { log: (m) => console.log(m) });
+
+// Prefer a series that covers the analysis area (planner/coverage.js). On by
+// default; COVERAGE_PREFER=0, or `coverage: false` per request, turns it off
+// for an A/B without a recreate.
+const COVERAGE_PREFER_ENABLED = !/^(0|false|no)$/i.test(process.env.COVERAGE_PREFER ?? "1");
+
+// Published definitions of terms like "rural" (backend/definitions.js), each
+// re-checked against the loaded data; failures are withheld and reported on
+// /api/health. DEFINITIONS=0, or `definitions: false` per request, for an A/B.
+const definitions = createDefinitions(pool, { log: (m) => console.log(m) });
+const DEFINITIONS_ENABLED = !/^(0|false|no)$/i.test(process.env.DEFINITIONS ?? "1");
+
+// Years each value series has (planner/vintages.js). Cached per process.
+const yearsCache = new Map();
+async function yearsOf(code) {
+  if (!yearsCache.has(code)) {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT year::int AS y FROM acs_county_values
+        WHERE census_code = $1 AND value IS NOT NULL`, [code]);
+    yearsCache.set(code, rows.map(r => r.y));
+  }
+  return yearsCache.get(code);
+}
 
 // Test connection
 pool.query("SELECT 1")
@@ -812,7 +842,44 @@ function rrfFuse(rankings) {
   return fused;
 }
 
-async function performHybridSearch(query, topK = 20, searchPurpose = 'primary') {
+// -----------------------------------------------------------------------------
+// Cross-encoder reranking
+// -----------------------------------------------------------------------------
+//
+// RRF orders a sub-query's candidates by two cheap signals that each look at
+// the query and the row SEPARATELY. A cross-encoder reads them together, which
+// is what the LLM verifier did well (concept MRR 0.726 -> 0.874) before it
+// deleted too much (-10pp recall). Reranking reorders and never removes, so it
+// cannot lose recall inside the depth it reorders.
+//
+//   off      RRF order, as before
+//   reorder  the rows RRF selected, reordered by cross-encoder score
+//   replace  the top RERANK_DEPTH reordered by cross-encoder score, then cut
+//   fuse     the cross-encoder's ranking added as a third RRF ranking
+//
+// Per request: `rerank` on /api/unified-search and /api/analyze, `?rerank=` on
+// /api/search. The model runs in the embedder (POST /rerank), loaded on first
+// use. Any failure falls back to RRF order: ranking is never worth an error.
+const RERANK_MODES = ["off", "reorder", "replace", "fuse"];
+const RERANK_MODE = RERANK_MODES.includes(process.env.RERANK) ? process.env.RERANK : "off";
+const RERANK_DEPTH = Number(process.env.RERANK_DEPTH ?? 50);
+const rerankMode = (m) => RERANK_MODES.includes(m) ? m : RERANK_MODE;
+
+async function rerankScores(query, attrIds) {
+  try {
+    const r = await fetchJSON(`${CONFIG.embedder.url}/rerank`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, attr_ids: attrIds }),
+    }, 60000);
+    return r.scores;
+  } catch (err) {
+    console.warn(`   rerank failed, keeping RRF order: ${err.message}`);
+    return null;
+  }
+}
+
+async function performHybridSearch(query, topK = 20, searchPurpose = 'primary', options = {}) {
   if (!isEmbeddingsReady) {
     throw new Error("Embeddings not ready");
   }
@@ -855,15 +922,39 @@ async function performHybridSearch(query, topK = 20, searchPurpose = 'primary') 
   const fused = rrfFuse(lexicalRanking.length ? [semanticRanking, lexicalRanking]
                                               : [semanticRanking]);
 
-  const ranked = Array.from(fused.entries())
+  let ranked = Array.from(fused.entries())
     .map(([index, score]) => ({
       index,
       fused_score: score * (isMarginOfError(variables[index]) ? MOE_PENALTY : 1)
     }))
-    .sort((a, b) => b.fused_score - a.fused_score)
-    .slice(0, topK);
+    .sort((a, b) => b.fused_score - a.fused_score);
 
-  const topResults = ranked.map(({ index, fused_score }) => {
+  const mode = rerankMode(options.rerank);
+  if (mode !== "off" && ranked.length > 1) {
+    // `reorder` reranks only the rows RRF already selected, so the SET is
+    // unchanged and recall cannot move by construction; the others reach
+    // RERANK_DEPTH and can change which rows survive the cut to topK.
+    const head = ranked.slice(0, mode === "reorder" ? topK : Math.max(RERANK_DEPTH, topK));
+    const scores = await rerankScores(query, head.map(r => variables[r.index].attr_id));
+    if (scores) {
+      head.forEach((r, i) => { r.rerank_score = scores[i]; });
+      // The MOE demotion applies to the cross-encoder too: it reads "margin of
+      // error of poverty" as about poverty, which it is, and not what was asked.
+      const ce = head.filter(r => r.rerank_score != null)
+        .map(r => ({ ...r, ce: r.rerank_score * (isMarginOfError(variables[r.index]) ? MOE_PENALTY : 1) }))
+        .sort((a, b) => b.ce - a.ce);
+      if (mode === "fuse") {
+        ce.forEach((r, i) => { r.fused_score += 1 / (RRF_K + i + 1); });
+        ce.sort((a, b) => b.fused_score - a.fused_score);
+      }
+      // Rows the embedder does not know keep their place after the scored ones.
+      const unscored = head.filter(r => r.rerank_score == null);
+      ranked = [...ce, ...unscored, ...ranked.slice(head.length)];
+    }
+  }
+  ranked = ranked.slice(0, topK);
+
+  const topResults = ranked.map(({ index, fused_score, rerank_score }) => {
     const v = variables[index];
     return {
       dataset_id: v.dataset_id,
@@ -883,6 +974,7 @@ async function performHybridSearch(query, topK = 20, searchPurpose = 'primary') 
       semantic_score: Math.round(semantic[index] * 1000) / 1000,
       keyword_score: Math.round(lexical[index] * 1000) / 1000,   // BM25, unbounded
       hybrid_score: Math.round(fused_score * 100000) / 100000,   // RRF, ~0-0.033
+      ...(rerank_score != null ? { rerank_score: Math.round(rerank_score * 10000) / 10000 } : {}),
       search_purpose: searchPurpose
     };
   });
@@ -1014,9 +1106,16 @@ async function unifiedSearch(query, options = {}) {
     // Literature expansion (backend/expansion.js). Defaults to EXPAND_ENABLED;
     // requests may override it, so an A/B needs no container recreate.
     expand = EXPANSION_CONFIG.enabled,
+    // Research expansion (backend/research.js): keywords read from PubMed
+    // abstracts and/or web pages. Off unless RESEARCH_SOURCES or the request
+    // names a source; both leave the machine.
+    research: researchOption = undefined,
     // addPopulationDenominator, above. Per-request override for the A/B.
-    populationDenominator = POPULATION_DENOMINATOR_ENABLED
+    populationDenominator = POPULATION_DENOMINATOR_ENABLED,
+    // Cross-encoder reranking mode, above; undefined = RERANK.
+    rerank = undefined
   } = options;
+  const search = (q, k, purpose) => performHybridSearch(q, k, purpose, { rerank });
   
   const startTime = Date.now();
   
@@ -1048,7 +1147,7 @@ async function unifiedSearch(query, options = {}) {
   for (const searchQuery of decomposition.search_queries) {
     console.log(`\n   → Searching: "${searchQuery.query}" (${searchQuery.purpose})`);
     
-    const results = await performHybridSearch(
+    const results = await search(
       searchQuery.query,
       calculatedLimit,
       searchQuery.purpose
@@ -1072,7 +1171,7 @@ async function unifiedSearch(query, options = {}) {
 [STEP 2b] Literature expansion`);
     expansion = await expandQuery({
       pool, query, decomposition,
-      search: performHybridSearch,
+      search,
       embed: async (texts) => (await generateEmbeddings(texts, false)).embeddings,
       // The same phrasing test that offers `explain` to the planner, so the
       // expansion and the op agree about what kind of question this is.
@@ -1081,6 +1180,37 @@ async function unifiedSearch(query, options = {}) {
       log: (m) => console.log(m),
     });
     for (const rq of expansion.results_by_query) {
+      resultsByQuery.push(rq);
+      allResults.push(...rq.results);
+    }
+  }
+
+  // STEP 2c: Research expansion (backend/research.js). Appended after the
+  // literature expansion, under the same "expanded" purpose, so it inherits
+  // the same placement and quota in the planner path. Inert when no source is
+  // requested: nothing is fetched and results are unchanged.
+  let research = null;
+  const researchSources = resolveSources(researchOption);
+  if (researchSources.length) {
+    console.log(`
+[STEP 2c] Research expansion: ${researchSources.join(", ")}`);
+    const embed = async (texts) => (await generateEmbeddings(texts, false)).embeddings;
+    let seeds = expansion?.seeds || [];
+    if (!seeds.length && researchSources.includes("pubmed")) {
+      try {
+        seeds = await linkSeeds(pool, [query, ...(decomposition?.search_queries || []).map(q => q.query)], embed);
+      } catch (err) {
+        console.log(`   research: seed linking failed: ${err.message}`);
+      }
+    }
+    research = await researchExpand({
+      query, sources: researchSources, seeds,
+      search, embed,
+      callLLM: (sys, user, temp, schema) => callLLM(sys, user, temp, schema),
+      alreadyRetrieved: new Set(allResults.map(r => r.attr_id)),
+      log: (m) => console.log(m),
+    });
+    for (const rq of research.results_by_query) {
       resultsByQuery.push(rq);
       allResults.push(...rq.results);
     }
@@ -1137,6 +1267,9 @@ async function unifiedSearch(query, options = {}) {
     // Which concepts were linked, what was related to them, and why each
     // related concept was kept or skipped. null when expansion was off.
     expansion,
+    // Research expansion: sources, documents read, every keyword and whether
+    // it was kept. null when no research source was requested.
+    research,
     llm_reasoning: llmReasoning,
     results_by_query: resultsByQuery,
     results_by_purpose: resultsByPurpose,
@@ -1214,7 +1347,7 @@ app.post("/api/unified-search", auth.requireAuth, limitSearch, async (req, res) 
     // much -- on one sample query it cut 18 retrieved rows to 3. That is a
     // reranker's job, and a cross-encoder should replace it (docs/AI-PIPELINE.md
     // section 4). Until then, opt in explicitly if you want the ranking.
-    const { q: query, use_llm_filter = false, top_k = 10, expand } = req.body;
+    const { q: query, use_llm_filter = false, top_k = 10, expand, research, rerank } = req.body;
     
     if (!query || query.trim().length === 0) {
       return res.status(400).json({ error: "Query 'q' is required" });
@@ -1223,7 +1356,9 @@ app.post("/api/unified-search", auth.requireAuth, limitSearch, async (req, res) 
     const results = await unifiedSearch(query, {
       useLLMFilter: use_llm_filter,
       topKPerConcept: top_k,
-      ...(typeof expand === "boolean" ? { expand } : {})
+      ...(typeof expand === "boolean" ? { expand } : {}),
+      ...(research !== undefined ? { research } : {}),
+      ...(rerank !== undefined ? { rerank } : {})
     });
     
     res.json(results);
@@ -1270,7 +1405,7 @@ app.get("/api/search", auth.requireAuth, limitSearch, async (req, res) => {
       return res.json([]);
     }
     
-    const results = await performHybridSearch(query, 20);
+    const results = await performHybridSearch(query, 20, 'primary', { rerank: req.query.rerank });
     res.json(results);
     
   } catch (error) {
@@ -1335,6 +1470,10 @@ app.post("/api/reload-corpus", auth.requireAuth, limitAnalyze, async (req, res) 
   try {
     const before = corpusCacheKey;
     const result = await reloadCorpus();
+    // `make ingest` ends here, and an ingest can replace values underneath.
+    seriesStats.clear();
+    definitions.clear();
+    yearsCache.clear();
     console.log(`  Corpus reloaded: ${before} -> ${result.cache_key}`);
     res.json({ reloaded: true, previous_cache_key: before, ...result });
   } catch (err) {
@@ -1554,7 +1693,18 @@ async function resolveAttributes(attrIds) {
   const labels = rows.some(r => r.source_kind === "feature_table")
     ? await featureLabelColumns()
     : null;
+  // National min/max of each value series, which tells a percentage from a
+  // count where the ACS label is wrong (planner/units.js). Advisory: if it
+  // fails, units fall back to descriptions alone.
+  const acsCodes = rows.filter(r => r.source_kind === "acs_long").map(r => r.census_code);
+  const ranges = acsCodes.length
+    ? await seriesStats.valueRanges(acsCodes).catch(err => {
+        console.warn(`   value ranges unavailable: ${err.message}`);
+        return new Map();
+      })
+    : new Map();
   for (const r of rows) {
+    if (ranges.has(r.census_code)) r.value_range = ranges.get(r.census_code);
     if (r.source_kind === "feature_table" && labels) {
       r.label_columns = labels.get(r.table_name) || [];
       // Carried on the resolved row so the validator can check a filter against
@@ -1609,12 +1759,20 @@ async function runAnalysis({ query, top_k = 25, execute = true,
                              provider = null,
                              // Literature expansion override; null = EXPAND_ENABLED.
                              expand = null,
+                             // Research expansion sources; undefined = RESEARCH_SOURCES.
+                             research = undefined,
                              // Relevance check override; null = RELEVANCE_CHECK.
                              relevanceCheck = null,
                              // addPopulationDenominator override; null = POPULATION_DENOMINATOR.
                              populationDenominator = null,
                              // planThinkExtra override ("on" | "off" | N); null = PLAN_THINK.
-                             planThink = null }) {
+                             planThink = null,
+                             // planner/coverage.js override; null = COVERAGE_PREFER.
+                             coverage = null,
+                             // Reranking mode override; undefined = RERANK.
+                             rerank = undefined,
+                             // Published definitions override; null = DEFINITIONS.
+                             useDefinitions = null }) {
   const started = Date.now();
   try {
     if (!query || !query.trim()) {
@@ -1647,7 +1805,9 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       useLLMFilter: false,            // measured in Phase 2: costs 10pp recall
       topKPerConcept: Math.max(top_k, RETRIEVAL_BUDGET),
       ...(typeof expand === "boolean" ? { expand } : {}),
-      ...(typeof populationDenominator === "boolean" ? { populationDenominator } : {})
+      ...(research !== undefined ? { research } : {}),
+      ...(typeof populationDenominator === "boolean" ? { populationDenominator } : {}),
+      ...(rerank !== undefined ? { rerank } : {})
     });
     const candidates = search.all_results || [];
     emit({ stage: "decomposed", decomposition: search.decomposition,
@@ -1840,6 +2000,18 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       ...picked.filter(c => c.search_purpose === "expanded"),
     ].slice(0, top_k);
 
+    // Published definitions ride on the measure they define, and reach the
+    // planner only on a candidate retrieval already chose. No term matching
+    // here: getting from "rural" to % Rural is retrieval's job.
+    if (useDefinitions ?? DEFINITIONS_ENABLED) {
+      for (const c of executable) {
+        const src = resolved.get(c.attr_id);
+        if (src?.source_kind !== "acs_long") continue;
+        const defs = await definitions.forCode(src.census_code).catch(() => []);
+        if (defs.length) c.definitions = defs;
+      }
+    }
+
     console.log(`   candidates by purpose: ${JSON.stringify(takenByPurpose)}, ` +
                 `${featureRows.length} facility`);
 
@@ -1897,6 +2069,10 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       // relevance_check:false to measure it without recreating the container.
       relevanceCheck: typeof relevanceCheck === "boolean" ? relevanceCheck
         : !/^(0|false|no)$/i.test(process.env.RELEVANCE_CHECK ?? "1"),
+      coverage: (typeof coverage === "boolean" ? coverage : COVERAGE_PREFER_ENABLED)
+        ? { coverageOf: seriesStats.coverageOf, equivalentsOf: seriesStats.equivalentsOf }
+        : null,
+      yearsOf,
     });
 
     if (!planning.ok) {
@@ -1921,6 +2097,25 @@ async function runAnalysis({ query, top_k = 25, execute = true,
         .filter(v => v.verdict === "unrelated"));
       const notMeasured = rejected.length > 0 &&
         (planning.attempts.at(-1).errors || []).some(e => /no steps|^NOT_RELEVANT/.test(e));
+      // planner/outcome.js: the planner kept answering about a condition the
+      // literature linked, not the one asked. Same answer to the user.
+      const unaskedSubject = (planning.attempts.at(-1).errors || [])
+        .some(e => /linked from the medical literature/.test(e));
+      if (unaskedSubject && !notMeasured) {
+        throw new AnalyzeError(422, {
+          error: "the loaded data does not measure what this question asks about",
+          detail: "The only matching data measures related conditions, not the one " +
+                  "asked about, so any answer would be about something else. " +
+                  "These are things the same data can answer:",
+          not_measured: true,
+          suggestions: buildSuggestions(executable),
+          unavailable_datasets: missing,
+          validation_errors: planning.errors,
+          attempts: planning.attempts.length,
+          candidates: executable.slice(0, 10),
+          ms: Date.now() - started
+        });
+      }
       if (notMeasured) {
         const names = [...new Set(rejected.map(v => v.description).filter(Boolean))];
         throw new AnalyzeError(422, {
@@ -1985,6 +2180,8 @@ async function runAnalysis({ query, top_k = 25, execute = true,
         candidates: executable,
         resultsByQuery: search.results_by_query || [],
         expansion: search.expansion,
+        research: search.research,
+    research: search.research,
       });
       const extra = await resolveAttributes(chosen.map(f => f.attr_id));
       explainStep.factors = chosen
@@ -2076,6 +2273,7 @@ async function finishAnalysis({ query, started, planning, executable, candidates
     query,
     decomposition: search.decomposition,
     expansion: search.expansion,
+    research: search.research,
     plan: planning.plan,
     repairs: planning.repairs,
     // Deterministic corrections applied to the model's plan. Surfaced because
@@ -2111,9 +2309,19 @@ async function finishAnalysis({ query, started, planning, executable, candidates
           seeds: search.expansion.seeds,
           concepts: search.expansion.concepts.filter(c => c.kept).map(c => c.name),
         } : null,
+        // Research expansion: which external sources were consulted, the
+        // documents read, and the keywords that added candidates.
+        research: search.research ? {
+          sources: search.research.sources,
+          documents: search.research.documents,
+          keywords: search.research.keywords.filter(k => k.kept).map(k => `${k.keyword} (${k.source})`),
+        } : null,
       },
       database: CONFIG.database.database,
       attribute_origins: origins,
+      // Published definitions the plan applied ("mostly rural" = % Rural >=
+      // 0.5), with the citation. Absent when none was used.
+      ...(planning.definitions?.length ? { definitions: planning.definitions } : {}),
       // Present when the user reshaped an earlier result by hand rather than
       // the planner producing this plan from the question.
       ...(revision ? { revision } : {}),
@@ -2235,12 +2443,16 @@ app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
         // Only ever "google" or absent; anything else falls through to local.
         provider: req.body?.provider === "google" ? "google" : null,
         expand: typeof req.body?.expand === "boolean" ? req.body.expand : null,
+        research: req.body?.research,
         relevanceCheck: typeof req.body?.relevance_check === "boolean"
           ? req.body.relevance_check : null,
         populationDenominator: typeof req.body?.population_denominator === "boolean"
           ? req.body.population_denominator : null,
         planThink: ["string", "number"].includes(typeof req.body?.plan_think)
           ? String(req.body.plan_think) : null,
+        coverage: typeof req.body?.coverage === "boolean" ? req.body.coverage : null,
+        rerank: typeof req.body?.rerank === "string" ? req.body.rerank : undefined,
+        useDefinitions: typeof req.body?.definitions === "boolean" ? req.body.definitions : null,
       }),
       { isAbandoned: () => closed },
     );
@@ -2306,6 +2518,7 @@ app.get("/api/analyze/stream", auth.requireAuth, limitAnalyze, async (req, res) 
         execute: req.query.execute !== "false",
         includeGeometry: req.query.include_geometry === "true",
         expand: req.query.expand === "true" ? true : req.query.expand === "false" ? false : null,
+        research: req.query.research,
         emit: (ev) => send(ev.stage, ev),
       }),
       {
@@ -2578,6 +2791,10 @@ app.post("/api/measures/search", auth.requireAuth, limitSearch, async (req, res)
   }
 });
 
+// The multi-scale map (any measure at any level that fits the view):
+// backend/geo_layers.js, docs/DATA_LOADING_PLAN.md Phase 5.
+require("./geo_layers").register(app, { pool, auth });
+
 app.get("/api/health", async (req, res) => {
   const freshness = await checkCorpusFreshness();
   res.json({
@@ -2608,7 +2825,12 @@ app.get("/api/health", async (req, res) => {
     // Literature expansion: whether it is on by default, and whether its index
     // is built. Enabled with no index means it silently does nothing.
     expansion_enabled: EXPANSION_CONFIG.enabled,
-    expansion_index: (await expansionIndexLoaded(pool)).meta
+    expansion_index: (await expansionIndexLoaded(pool)).meta,
+    // Published definitions: which are applied, and which were WITHHELD
+    // because they no longer fit the loaded data (vintage, scale, range,
+    // share selected). A withheld one is never applied.
+    definitions_enabled: DEFINITIONS_ENABLED,
+    definitions: await definitions.status().catch(err => ({ error: err.message })),
   });
 });
 

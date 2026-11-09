@@ -1,0 +1,65 @@
+{
+  "suite": "research.yaml",
+  "queries": 2,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "now": {
+      "pass": 0,
+      "n": 2,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 1,
+    "WRONG_MEASURE": 1
+  },
+  "latency_mean": 85.0,
+  "api_container_created": "2026-10-30T14:48:36.517411043Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "detail": [
+    {
+      "id": "r-hospitals-per-capita-tx",
+      "tier": "now",
+      "query": "Which Texas counties have the most hospitals per 100,000 residents?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "could not produce a valid plan",
+      "exec_error": null,
+      "seconds": 123.6
+    },
+    {
+      "id": "r-density-midwest",
+      "tier": "now",
+      "query": "What is the population density, in people per square mile, of each county in the Midwest?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "population"
+        ],
+        "loaded": [
+          "CHR_V051_RAWVALUE | Population | "
+        ]
+      },
+      "ops": "load->per_area->filter_area->output",
+      "intent": "Population density in people per square mile for each county in the Midwest",
+      "loaded": [
+        "CHR_V051_RAWVALUE | Population | "
+      ],
+      "row_count": 1055,
+      "error": null,
+      "exec_error": null,
+      "seconds": 46.5
+    }
+  ]
+}

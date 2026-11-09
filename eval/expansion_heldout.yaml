@@ -1,0 +1,128 @@
+# Held-out literature-expansion suite (2026-10-29).
+#
+# eval/expansion.yaml is the set EXPAND_MIN_SIM (0.61) was tuned on, so its
+# numbers are optimistic by construction (docs/EXPANSION.md says so). Nothing
+# here was looked at before the cutoff was chosen: different conditions, and
+# looser lay phrasings ("sugar", "heart attacks", "mental health") of the kind
+# real users type.
+#
+# `related` is a loaded measure the question never names but that the
+# literature links to the condition. Run as an A/B with --score-depth larger
+# than --top-k (appended rows), and repeat: decomposition runs at temperature.
+#
+#   python eval/run.py --suite-file eval/expansion_heldout.yaml --endpoint unified \
+#       --top-k 60 --score-depth 200 --no-expand --save eval/exp-ho-off-1.json
+#   python eval/run.py --suite-file eval/expansion_heldout.yaml --endpoint unified \
+#       --top-k 60 --score-depth 200 --expand --save eval/exp-ho-on-1.json
+
+suites:
+  - name: heldout_related
+    queries:
+      - id: ho-ckd
+        query: "chronic kidney disease by county"
+        # No kidney measure is loaded: only the related concept is scorable.
+        concepts:
+          related: {desc: "diabet|blood pressure|hypertens|obes"}
+
+      - id: ho-heart-attack
+        query: "where do the most heart attacks happen"
+        concepts:
+          subject: {desc: "heart|coronary"}
+          related: {desc: "obes|smok|cigarette|blood pressure|hypertens|diabet|cholesterol|physical(ly)? inactiv"}
+
+      - id: ho-depression
+        query: "depression rates across counties"
+        concepts:
+          subject: {desc: "depress|mental"}
+          related: {desc: "drink|alcohol|smok|sleep|obes|physical(ly)? inactiv|poor physical health"}
+
+      - id: ho-cancer
+        query: "cancer prevalence in Appalachia"
+        concepts:
+          subject: {desc: "cancer"}
+          related: {desc: "smok|cigarette|tobacco|obes|drink|alcohol"}
+
+      - id: ho-arthritis
+        query: "arthritis by county"
+        concepts:
+          subject: {desc: "arthritis"}
+          related: {desc: "obes|physical(ly)? inactiv|disabil|mobility"}
+
+      - id: ho-binge
+        query: "binge drinking in the Midwest"
+        concepts:
+          subject: {desc: "binge|drink"}
+          related: {desc: "smok|cigarette|depress|mental|injur|overdose"}
+
+      - id: ho-overdose
+        query: "drug overdose deaths by county"
+        concepts:
+          subject: {desc: "overdose|drug"}
+          related: {desc: "depress|mental|drink|alcohol|smok|suicide"}
+
+      - id: ho-sugar
+        query: "counties where lots of people have sugar diabetes"
+        concepts:
+          subject: {desc: "diabet"}
+          related: {desc: "obes|physical(ly)? inactiv|blood pressure|hypertens|kidney"}
+
+      - id: ho-cholesterol
+        query: "high cholesterol rates in Ohio"
+        concepts:
+          subject: {desc: "cholesterol"}
+          related: {desc: "obes|diabet|heart|coronary|stroke|blood pressure|hypertens"}
+
+      - id: ho-smoking
+        query: "smoking rates by county"
+        concepts:
+          subject: {desc: "smok|cigarette|tobacco"}
+          related: {desc: "COPD|pulmonary|lung|cancer|heart|coronary|stroke|asthma"}
+
+      - id: ho-mental-health
+        query: "poor mental health days in Kentucky"
+        concepts:
+          subject: {desc: "mental"}
+          related: {desc: "depress|drink|alcohol|smok|sleep|physical(ly)? inactiv"}
+
+      - id: ho-teeth
+        query: "tooth loss among older adults by county"
+        concepts:
+          subject: {desc: "teeth|tooth"}
+          related: {desc: "smok|cigarette|diabet"}
+
+  # Non-health questions built to trip a homonym or a health-adjacent word.
+  # Expansion must link nothing: expansion_seeds empty in the saved JSON.
+  - name: heldout_must_not_fire
+    queries:
+      - id: nf-economic-depression
+        query: "counties hit hardest by the economic depression in unemployment"
+        concepts:
+          subject: {desc: "unemploy"}
+      - id: nf-heat
+        query: "extreme heat days by county"
+        concepts:
+          subject: {desc: "heat|temperature"}
+      - id: nf-fire
+        query: "wildfire risk near fire stations"
+        concepts:
+          subject: {dataset: "fire"}
+      - id: nf-pressure
+        query: "housing cost pressure on renters"
+        concepts:
+          subject: {desc: "rent"}
+      - id: nf-cold
+        query: "counties with cold winters and high heating costs"
+        concepts:
+          subject: {desc: "heat"}
+      - id: nf-growth
+        query: "population growth in Texas"
+        concepts:
+          subject: {desc: "population"}
+      - id: nf-shock
+        query: "income shock after plant closures"
+        concepts:
+          subject: {desc: "income"}
+      - id: nf-burden
+        query: "commute burden by county"
+        concepts:
+          subject: {desc: "commut|travel time"}

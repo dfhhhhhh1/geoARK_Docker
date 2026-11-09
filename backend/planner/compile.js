@@ -26,6 +26,7 @@
  */
 
 const ops = require("./ops");
+const { describeGroup } = require("./conditions");
 const {
   CompileError, SAFE_DB_IDENT, cte,
   OPERATORS, AGGREGATES, MAX_FEATURES, MAX_RESULT_ROWS,
@@ -97,6 +98,11 @@ function compilePlan(plan, resolved) {
     const declared = [];
     let hasSecond = false;
     let statColumns = [];
+    // compare_groups: per-row columns (grp) and a summary repeated on every
+    // row, lifted out by the executor. Same "only if the output reads that
+    // step directly" rule as statColumns, or the columns do not exist.
+    let rowColumns = [];
+    let summaryColumns = [];
 
     for (const st of neededFor(rootId)) {
       const mod = ops.byName(st.op);
@@ -111,11 +117,13 @@ function compilePlan(plan, resolved) {
       // Same rule for a statistic's extra columns (correlate): only when the
       // output reads that step directly, or the column does not exist.
       if (mod.statColumns && st.id === rootId) statColumns = mod.statColumns;
+      if (mod.rowColumns && st.id === rootId) rowColumns = mod.rowColumns;
+      if (mod.summaryColumns && st.id === rootId) summaryColumns = mod.summaryColumns;
     }
 
     return {
       sql: declared.length ? `WITH ${declared.join(",\n     ")}\n` : "",
-      params, hasSecond, statColumns,
+      params, hasSecond, statColumns, rowColumns, summaryColumns,
       // For a compute op (explain), which appends its own CTEs to the same
       // WITH list and must keep binding into the same parameter list.
       declared, bind,
@@ -191,7 +199,8 @@ function compilePlan(plan, resolved) {
     }
 
     const from = cte(srcId);
-    const { sql: prelude, params, hasSecond, statColumns } = preludeFor(srcId);
+    const { sql: prelude, params, hasSecond, statColumns, rowColumns, summaryColumns } =
+      preludeFor(srcId);
 
     // Aggregates with group_by=none yield a single NULL-fips row, so join to
     // geometry with LEFT JOIN rather than dropping it.
@@ -205,7 +214,7 @@ function compilePlan(plan, resolved) {
       prelude +
       `SELECT r.fips, g.name, g.state_fp, r.value,\n` +
       (hasSecond ? `       r.value_b,\n` : "") +
-      statColumns.map(c => `       r.${c},\n`).join("") +
+      [...statColumns, ...rowColumns, ...summaryColumns].map(c => `       r.${c},\n`).join("") +
       `       CASE WHEN g.geom IS NULL THEN NULL ELSE ST_AsGeoJSON(g.geom) END AS geometry\n` +
       `FROM ${from} r\n` +
       `LEFT JOIN county_geom g USING (fips)\n` +
@@ -218,6 +227,13 @@ function compilePlan(plan, resolved) {
       // Named extra columns of a one-row statistic, e.g. correlate's n and
       // p_value. Empty for every per-county layer.
       statColumns,
+      rowColumns, summaryColumns,
+      // Which group is which, named from the plan's own filters ("South",
+      // "mostly rural"), never from model text. Only for compare_groups.
+      groupLabels: summaryColumns.length
+        ? Object.fromEntries((srcStep.inputs || []).map((id, i) =>
+            [i === 0 ? "a" : "b", describeGroup(id, byId) || (i === 0 ? "group A" : "group B")]))
+        : null,
       // True for a layer the compiler added to show a combine's inputs, so the
       // UI can label it as a component rather than as the answer.
       part: out.part === true,

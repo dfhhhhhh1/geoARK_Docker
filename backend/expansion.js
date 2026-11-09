@@ -311,4 +311,4 @@ async function expandQuery({ pool, query, decomposition, search, embed = null,
   return out;
 }
 
-module.exports = { expandQuery, EXPANSION_CONFIG: CONFIG, indexLoaded, _test: { spans, normalize } };
+module.exports = { expandQuery, linkSeeds, EXPANSION_CONFIG: CONFIG, indexLoaded, _test: { spans, normalize } };

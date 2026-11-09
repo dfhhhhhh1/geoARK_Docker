@@ -6,6 +6,7 @@ import DatasetModal from './components/DatasetModal';
 import { Dataset, UnifiedSearchResponse } from './types';
 import ReportPage from './components/ReportPage';
 import AnalysisPage from './components/AnalysisPage';
+import ExplorePage from './components/ExplorePage';
 import LoginGate from './components/LoginGate';
 import { IdleMap } from './components/MapStage';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -303,6 +304,11 @@ function App() {
         />
 
         <Route path="/csv-report" element={<BackdropPage><ReportPage /></BackdropPage>} />
+
+        {/* Any loaded measure at the finest level that fits the view: real
+            units with real values (backend/geo_layers.js), unlike the old
+            /map-explorer below. */}
+        <Route path="/explore" element={<ExplorePage />} />
 
         {/* /map-explorer is deliberately absent: it plotted datasets at
             coordinates derived from a hash of their id. Anything still

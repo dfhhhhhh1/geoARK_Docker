@@ -3,7 +3,7 @@ COMPOSE := docker compose
 GPU     := docker compose -f docker-compose.yml -f docker-compose.gpu.yml
 DEV     := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 
-.PHONY: help up up-gpu down dev build logs ps health provenance models automl county-values county-values-dry semmed semmed-dry add-year neighbors boundaries boundaries-dry inspect ingest reload-corpus ledger replay replay-dry dump-dataset raster-export geo-units geo-units-dry crosswalks geo-verify load-geo load-reference load-reference-dry relink relink-features validate-catalog shell-api shell-embed shell-db reindex psql clean
+.PHONY: help up up-gpu down dev build logs ps health provenance models automl county-values county-values-dry semmed semmed-dry add-year neighbors boundaries boundaries-dry inspect ingest reload-corpus ledger replay definitions definitions-dry replay-dry dump-dataset raster-export geo-units geo-units-dry crosswalks geo-verify load-geo load-reference load-reference-dry relink relink-features validate-catalog shell-api shell-embed shell-db reindex psql clean
 
 help:            ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -128,6 +128,7 @@ inspect:         ## Show what a dataset would load as, writing nothing. DIR=<fol
 
 ingest:          ## Load a dataset end to end. DIR=<folder in incoming/> [ARGS=--replace]
 	$(INGEST) --commit $(ARGS)
+	$(MAKE) definitions
 	$(MAKE) relink
 	$(MAKE) reindex
 	$(MAKE) reload-corpus
@@ -142,6 +143,15 @@ reload-corpus:   ## Make the API pick up a re-embedded catalog (no recreate; kee
 	  "fetch('http://localhost:4000/api/reload-corpus',{method:'POST'}).then(async r=>{console.log('  reload-corpus', r.status, (await r.text()).slice(0,200));process.exit(r.ok?0:1)}).catch(e=>{console.error(e.message);process.exit(1)})" \
 	  || { echo "  reload refused; restarting the api container instead"; $(COMPOSE) restart api; }
 
+# Published definitions of terms like "rural" (etl/definitions.yaml + sidecar
+# `definitions:` recorded in the ledger). Shape is checked here; fit to the
+# loaded data is checked by the API, which withholds any that fail.
+definitions-dry: ## Check etl/definitions.yaml and ledger definitions, writing nothing
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo 	  /app/etl/definitions.py
+
+definitions:     ## Load published definitions (rural, high poverty ...) into concept_definition
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo 	  /app/etl/definitions.py --commit
+
 REPLAY = MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
          /app/etl/replay.py
 
@@ -152,6 +162,7 @@ replay-dry:      ## What the ledger says should be loaded, and what this databas
 
 replay:          ## Load every stale ledger entry here (server side), then relink + reindex
 	$(REPLAY) --commit $(if $(ID),--only $(ID)) $(ARGS)
+	$(MAKE) definitions
 	$(MAKE) relink
 	$(MAKE) reindex
 	$(MAKE) reload-corpus

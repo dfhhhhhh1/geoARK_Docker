@@ -1,8 +1,8 @@
 # Data loading and multi-scale geography: plan
 
-Status (2026-10-16): **Phases 1-4 built** (Phase 2 without blocks; Phase 4
-without COG conversion or `mode` aggregation). Phases 5-7 (display, ops,
-planner) not started. See
+Status (2026-10-30): **Phases 1-5 built**, Phase 6 in part (the cross-level
+SQL and its use on the map; the planner's ops are not yet ported), Phase 7 not
+started. Phase 2 has no blocks; Phase 4 no COG conversion or `mode`. See
 "Progress" at the end for what was measured and where it departed from the
 plan. Usage is in [RUNBOOK.md §5a](RUNBOOK.md). This file plans for three things:
 
@@ -391,7 +391,7 @@ Leaflet.VectorGrid vs MapLibre decision.
 
 | Decision | Leaning | Decide by |
 |---|---|---|
-| Leaflet + VectorGrid, or move to MapLibre GL | Leaflet until Phase 5 shows the limit | after Phase 5 |
+| Leaflet + VectorGrid, or move to MapLibre GL | Leaflet: Phase 5 runs on a canvas renderer at 3,600 polygons / 8,000 cells per view without strain. The limit is payload (ZIP areas ~3 MB per view), not drawing. Revisit with blocks | blocks |
 | Blocks: per state on request, or national | per state | Phase 2 size measurement |
 | Grid shape: raster-aligned squares, or H3 hexagons | squares (exact sums, no extension); H3 is a later option for equal-area analysis | Phase 4 |
 | How long to keep the old county tables | until every op is ported | Phase 6 |
@@ -544,6 +544,93 @@ What was checked, and the result:
   mode` (land cover) is not implemented. Pyramid factors are powers of two from
   pixel HEIGHT: sizing by width at the raster's mid-latitude (45N, dragged north
   by Alaska) gave 8x8-pixel "4 km" cells.
+
+### Phase 5, built 2026-10-30
+
+`backend/geo_layers.js` (`GET /api/geo/catalog`, `GET /api/geo/layer`),
+`frontend/src/components/ExplorePage.tsx` at `/explore` ("Explore map" in the
+header). `backend/test_geo_layers.js`, 14 tests.
+
+- **The level rule works as designed**: the finest level whose unit count in
+  the view's bounding box fits a budget (3,600 polygons, which admits every
+  county; 8,000 grid cells or pixels). Over budget at every level, it refuses
+  to draw rather than draw a truncated subset. Measured on a 1440x900 window:
+
+  | view | WorldPop (grid) | SVI | PLACES |
+  |---|---|---|---|
+  | lower 48 | 64 km grid, 3,464 cells | counties, 3,220 | counties, 3,220 |
+  | a state (z7) | 16 km grid, 1,887 | counties, 896 (14.3k tracts) | ZIP areas, 1,991 |
+  | a metro (z9-10) | 4 km grid, 1,800 | tracts, 1,042 | ZIP areas |
+  | downtown (z12) | 1 km pixels, 1,703 | tracts | ZIP areas |
+
+  Responses 8-400 ms once warm; worst payload ~3 MB (ZIP areas at z9).
+- **Breaks are national and computed once** per (measure, level, year, unit),
+  so a unit keeps its colour while panning. Densities are skewed (most 4 km
+  cells are rural), and even sixths put a whole metro in the top class, so
+  densities use breaks at the 35/60/80/92/98th percentiles. The legend states
+  the percentiles used.
+- **Counts are shown per km²** by default (a tract count map is flat: tracts
+  are drawn to hold ~4,000 people). Toggle off to see raw counts; the readout
+  always gives both.
+- **Pixel-level breaks first cost 11 s** (geodesic area of every sampled
+  pixel). A pixel's area depends only on latitude, so it is computed
+  analytically now: 2 s, then cached, and warmed in the background.
+- **Two frontend bugs found by looking**: the first view was degenerate (Leaflet
+  measured the container before it had a size; the API rejected the bbox), and
+  a linked view (`?at=lat,lng,zoom`) was overwritten by the default fit. The
+  link is now the map's initial props, so no effect races it.
+- **Not built**: vector tiles; year selection in the UI (every loaded measure
+  has one year); the hover readout on touch devices.
+
+### Phase 6, in part, 2026-10-30
+
+`geoark_level_link`, `geoark_aggregate` and `geoark_apportion` in
+`etl/schema_geo.sql`: the two moves between levels every level-aware op will
+use. Each returns its coverage; a derived value built from half its parts must
+not look like a stored one.
+
+Validated against values the source publishes, which is the only way to know a
+derivation is right:
+
+| check | result |
+|---|---|
+| SVI population, tract -> county, `sum` | **exact** for all 3,133 counties |
+| SVI % below 150% poverty, tract -> county, population-weighted | r 0.9975, mean abs error 0.22 pp |
+| PLACES diabetes, ZCTA -> county through the crosswalk, population-weighted | r 0.978, mean abs error 0.36 pp |
+| county population apportioned to tracts by WorldPop, vs each tract's own count | r 0.859, median error 11% |
+| apportion, then aggregate back | every county within 3e-8 |
+
+- **The poverty outliers are group quarters** (largest: Fort Benning's
+  Chattahoochee, 42.6% group quarters, derived 28.7 vs published 40.0; state
+  prisons; Ohio University). Poverty is measured over the population whose
+  status is determined, so total population is the wrong weight there. The
+  right weight (the poverty universe) is not loaded.
+- **Apportioning is an estimate and is labelled one.** A median 11% error per
+  tract is the real cost of spreading a county total by a modelled population.
+- **On the map**, `/api/geo/layer` uses them two ways. *Fill*: a stored level
+  with gaps gets them estimated from a finer level: Connecticut's 8 old counties
+  and Valdez-Cordova for SVI (from tracts) and PLACES (from ZIP areas); 30
+  counties nationally for PLACES diabetes. *Derived level*: SVI has a ZIP-area
+  level built from tracts that it was never loaded at. Estimates are drawn with
+  a dashed outline, the panel says how many and how, and the readout gives the
+  parts and coverage ("estimate from 65 census tracts, population-weighted").
+- **Never for percentile ranks**: a population-weighted mean of tract
+  percentiles is not a county percentile, so SVI's RPL themes stay blank in
+  Connecticut, and say so. Counts are summed; rates are weighted by the same
+  dataset's population, else WorldPop's, and not offered when neither exists.
+- **Analysis answers link to it**: when an answer's measure exists below county
+  (stored or estimated), its follow-up bar offers "Zoom in: <measure> by ZIP
+  code areas", opening the explore map on that measure.
+- **Not done, deliberately**: porting the planner's ops (`load`, `rank`,
+  `hotspot`...) onto `(level, geoid)`, `tract_neighbors`, and "show this by
+  tract" as a plan edit. A separate session had uncommitted edits in
+  `backend/planner/ops`, and every planner change here is measured with GPU
+  probe runs that would have competed with its evaluation. The map-side pieces
+  above do not touch the planner: the prompt snapshot is byte-identical across
+  48 contexts and the backend suite passes.
+- First view of a measure with fills costs one national `geoark_aggregate`
+  (0.3-2 s, measured up to 5 s cold with everything else), then is cached in
+  the API process.
 
 ## 11. Sources
 

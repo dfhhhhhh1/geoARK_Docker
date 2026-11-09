@@ -18,6 +18,10 @@ const { PLAN_SCHEMA, planSchemaFor } = require("../schemas");
 const { queryMentionsArea, statesMentioned, REGIONS } = require("../states");
 const { validatePlan } = require("./validate");
 const { checkRelevance } = require("./relevance");
+const { preferCoverage } = require("./coverage");
+const { unaskedSubjectErrors } = require("./outcome");
+const { derefDefinitions, checkThresholds } = require("./conditions");
+const { anchorYears } = require("./vintages");
 const { compilePlan, CompileError } = require("./compile");
 const opsRegistry = require("./ops");
 
@@ -178,6 +182,44 @@ const YEAR_NOTE = `This question mentions time, so "load" accepts a "year".
   year first. Not every attribute has every year; if one is missing the result
   is empty rather than wrong.`;
 
+/**
+ * Shown only when filter_attr has a threshold source beyond a stated number:
+ * a qualifier with no number in the question ("high", "few"), or a definition
+ * listed under a retrieved attribute. Gated on exactly what gates the fields,
+ * so the prompt never explains a field the schema has dropped.
+ */
+const conditionsNote = (ctx) => {
+  const pct = opsRegistry.fieldOffered("percentile", ctx);
+  const def = opsRegistry.fieldOffered("definition", ctx);
+  const lines = [`CONDITIONS
+
+  A condition on a measure is a filter_attr step on THAT measure. Take the
+  threshold from, in this order:`];
+  if (def) {
+    lines.push(`
+  - a DEFINITION listed under the attribute (d1, d2 ...), when the question
+    uses that term ("rural", "high poverty"):
+      {"id":"s4","op":"filter_attr","attr_id":"","inputs":["s3"],"definition":"d1"}
+    It is a published cut on that exact measure; never retype its number.`);
+  }
+  lines.push(`
+  - a NUMBER the question states ("above 20 percent"): operator and value.`);
+  if (pct) {
+    lines.push(`
+  - otherwise, for "high", "low", "many", "few", "above average" with no number,
+    a PERCENTILE of the measure's own values instead of a guessed number:
+      high / many / top quarter    "operator":">=","percentile":75
+      low / few / bottom quarter   "operator":"<=","percentile":25
+      above / below the median     "operator":">" or "<","percentile":50`);
+  }
+  if (opsRegistry.offeredFor(ctx).includes("intersect")) {
+    lines.push(`
+  Several conditions on DIFFERENT measures: filter each one separately, then
+  combine them with intersect. Never filter one measure for another's condition.`);
+  }
+  return lines.join("\n");
+};
+
 const EXAMPLES_HEADER = `WORKED EXAMPLES
 
 Each is a QUESTION and the correct PLAN for it. The op sequence and the intent
@@ -225,9 +267,12 @@ function buildSystemPrompt(ctx = {}) {
   // Explaining a field the decoding schema has dropped teaches a plan the model
   // cannot emit, so this is gated on exactly the same predicate the schema uses.
   if (opsRegistry.fieldOffered("year", ctx)) sections.push(YEAR_NOTE);
+  if (opsRegistry.fieldOffered("percentile", ctx) || opsRegistry.fieldOffered("definition", ctx)) {
+    sections.push(conditionsNote(ctx));
+  }
   sections.push(
     EXAMPLES_HEADER,
-    opsRegistry.examplesFor(ops, { hasFilterableValues }).join("\n\n"),
+    opsRegistry.examplesFor(ops, ctx).join("\n\n"),
     INTENT_RULE);
 
   return sections.join("\n\n");
@@ -250,6 +295,9 @@ const PLAN_SYSTEM_PROMPT = buildSystemPrompt({ hasFeatureTables: true });
  */
 function buildRefs(results, limit = 25) {
   const refs = new Map();      // label -> real attr_id
+  // Definition labels (d1, d2 ...) -> the definition, for derefDefinitions.
+  // Numbered across the whole list, so a label is never ambiguous.
+  const defRefs = new Map();
   const labelled = results.slice(0, limit).map((r, i) => {
     const label = `a${i + 1}`;
     refs.set(label, r.attr_id);
@@ -317,9 +365,22 @@ function buildRefs(results, limit = 25) {
         // that had worked before filters existed.
         if (!cols.length) sections.push(`    (no attribute filters for this dataset)`);
       }
+
+      // Published definitions of a term ON THIS MEASURE, already checked
+      // against the loaded data (backend/definitions.js). Listed under the
+      // attribute so the model sees which measure a definition belongs to;
+      // the numbers are shown for the reader, and code applies them.
+      // Absent unless retrieval returned a defined measure, so every prompt
+      // without one is byte-identical.
+      for (const d of r.definitions || []) {
+        const dl = `d${defRefs.size + 1}`;
+        defRefs.set(dl, d);
+        sections.push(
+          `    ${dl} = "${d.term}": value ${d.op} ${d.value} (${d.selected} of ${d.n} counties)`);
+      }
     }
   }
-  return { refs, text: sections.join("\n") };
+  return { refs, defRefs, text: sections.join("\n") };
 }
 
 /**
@@ -614,14 +675,18 @@ function resolveRelativeYears(plan, query) {
   const named = [...new Set((q.match(YEAR_IN_QUERY) || []).map(Number))].sort();
   const now = new Date().getFullYear();
   let span = null;                       // [earlier, later|null]
+  // How many years back, when the period is counted rather than named. The
+  // calendar count below is provisional: anchorYears (planner/vintages.js)
+  // re-counts it from the measure's own latest year once ids are real.
+  let back;
 
   const lastN = q.match(/\b(?:last|past|previous)\s+(\d{1,2})\s+years?\b/i);
   const decade = /\b(?:last|past|previous)\s+decade\b/i.test(q);
 
   if (named.length >= 2)      span = [named[0], named[named.length - 1]];
   else if (/\bsince\b/i.test(q) && named.length === 1) span = [named[0], null];
-  else if (lastN)             span = [now - Number(lastN[1]), null];
-  else if (decade)            span = [now - 10, null];
+  else if (lastN)             { back = Number(lastN[1]); span = [now - back, null]; }
+  else if (decade)            { back = 10; span = [now - 10, null]; }
 
   const loads = plan.steps.filter(s => s.op === "load");
   const notes = [];
@@ -639,15 +704,34 @@ function resolveRelativeYears(plan, query) {
 
   const [a, b] = combiner.inputs.map(id => plan.steps.find(s => s.id === id));
   if (!a || !b || a.op !== "load" || b.op !== "load") return null;
-  if (a.year || b.year) return null;     // the model already answered this
+  // The model's own years stand only when they ARE the question's period, on
+  // one measure. It used to back off whenever any year was set, and "rose the
+  // most over the last decade" then ran as ERS unemployment 2000 against
+  // County Health Rankings unemployment 2020: the wrong period, and two
+  // measures on different scales (r-unemp-decade, 2026-11-09).
+  //
+  // So the model's years are overridden when the period is COUNTED ("last
+  // decade": decidable from the measure's own years, see anchorYears) or when
+  // it compared two different measures (never a trend). A model year on one
+  // measure against a NAMED period ("since 2010" -> 2015) is still left alone,
+  // as test_dag pins: that was a deliberate choice, and changing it is a
+  // separate decision.
+  const modelYears = [a.year, b.year];
+  if ((a.year || b.year) && back === undefined && a.attr_id === b.attr_id) return null;
 
   // One measure at two points in time, not two measures divided by each other.
   if (a.attr_id !== b.attr_id) {
     notes.push(`compared "${a.attr_id}" against itself rather than against "${b.attr_id}"`);
     b.attr_id = a.attr_id;
   }
+  if (modelYears[0] || modelYears[1]) {
+    notes.push(`replaced the planner's years (${modelYears.map(y => y ?? "latest").join(" to ")}) ` +
+               `with the question's period`);
+  }
   a.year = span[0];
   if (span[1]) b.year = span[1];
+  else delete b.year;                    // "to the latest", resolved per measure
+  if (back !== undefined) a._back = back;
   // A ratio of a measure to its own earlier value is not what "increase" means.
   if (combiner.op === "normalize") {
     combiner.op = "combine";
@@ -656,6 +740,13 @@ function resolveRelativeYears(plan, query) {
     notes.push("changed the ratio to a percent change");
   } else if (!combiner.operation || combiner.operation === "ratio") {
     combiner.operation = "percent_change";
+  } else if (combiner.operation === "difference" && combiner.inputs[0] === a.id) {
+    // difference is input 1 - input 2, and input 1 was just made the EARLIER
+    // year, so it read earlier - later: ranking "rose the most" descending
+    // then listed the biggest FALLS (r-unemp-decade, 2026-11-09, overlap 0).
+    // A change over time reads later - earlier, the way percent_change does.
+    combiner.inputs = [b.id, a.id];
+    notes.push("ordered the difference as later minus earlier");
   }
   notes.push(`set the period to ${span[0]}${span[1] ? `-${span[1]}` : " to the latest year"}`);
   return notes.join("; ");
@@ -665,7 +756,17 @@ function repairStates(plan, query) {
   const notes = [];
   const named = statesMentioned(query);
   const regions = named.filter(n => REGIONS[n]);
-  const singleRegion = regions.length === 1 && named.length === 1 ? regions[0] : null;
+  // A plan that restricts to two DIFFERENT areas is comparing them
+  // (compare_groups: "more unemployment in the south than the north"). The
+  // question names one census region because the other side is not one, and
+  // overriding every step to it made both groups the South: every county in
+  // both, dropped as overlap, an empty answer 3 runs of 3 (2026-11-09).
+  // Duplicates are still removed; only the region override is skipped.
+  const areaSets = new Set((plan.steps || [])
+    .filter(s => Array.isArray(s.states) && s.states.length)
+    .map(s => [...new Set(s.states)].sort().join("|")));
+  const singleRegion = regions.length === 1 && named.length === 1 && areaSets.size < 2
+    ? regions[0] : null;
 
   for (const st of plan.steps || []) {
     if (!Array.isArray(st.states) || !st.states.length) continue;
@@ -727,6 +828,12 @@ async function generatePlan({
   // question asks (planner/relevance.js). Off by default here so callers that
   // script the LLM (the tests) are unaffected; runAnalysis turns it on.
   relevanceCheck = false,
+  // { coverageOf, equivalentsOf } (planner/coverage.js). Null skips the check,
+  // so the scripted-LLM tests and any caller without a database are unaffected.
+  coverage = null,
+  // async (census_code) => years with values (planner/vintages.js). Null keeps
+  // the calendar-based period, so scripted tests are unaffected.
+  yearsOf = null,
 }) {
   const attempts = [];
   let repairContext = "";
@@ -734,7 +841,15 @@ async function generatePlan({
   // so a silently-widened result is never presented as the question asked.
   const adjustments = [];
 
-  const { refs, text: attrText } = buildRefs(candidates);
+  const { refs, defRefs, text: attrText } = buildRefs(candidates);
+  // Every definition on offer, by id, for checkThresholds (a definition can
+  // bind several measures, so each id maps to a list).
+  const defsById = new Map();
+  for (const d of defRefs.values()) {
+    if (!defsById.has(d.id)) defsById.set(d.id, []);
+    defsById.get(d.id).push(d);
+  }
+  let definitionsUsed = [];
 
   // Narrow the op set to what this query can actually use. Both the decoding
   // schema and the prompt are built from the same three facts, so they cannot
@@ -758,6 +873,9 @@ async function generatePlan({
   const narrowing = {
     hasFeatureTables, featureTableCount, mentionsArea, wantsLocations,
     hasFilterableValues, hasPlaceBoundaries, hasNeighbors,
+    // A retrieved attribute carries a checked, published definition. Data,
+    // not phrasing: the definition field exists only when one is on offer.
+    hasDefinitions: defRefs.size > 0,
     // The statistics ops gate on PHRASING as well as on loaded data -- nobody
     // gets offered "hotspot" for a question that is not about clustering -- so
     // the query itself is part of the narrowing context.
@@ -841,6 +959,10 @@ async function generatePlan({
       plan.steps = [];
     }
     const unknownRefs = derefPlan(plan, refs);
+    // Definition labels are dereferenced the same way, and an unknown one is
+    // a repair, never a guess (planner/conditions.js).
+    const defs = derefDefinitions(plan, defRefs);
+    definitionsUsed = defs.used;
     // After deref, attr_ids are real, so the dataset's own columns can be
     // consulted. Must run before validation, which would otherwise reject.
     if (!unknownRefs.length) {
@@ -851,11 +973,17 @@ async function generatePlan({
         adjustments.push(`Filter ${unsupported} was not applied: this dataset has no such attribute.`);
       }
     }
-    if (unknownRefs.length) {
-      const errors = unknownRefs.map(r =>
-        `attr_id "${r}" is not one of the available labels. ` +
-        `Use exactly one of: ${[...refs.keys()].join(", ")}`);
-      log(`   Plan used ${unknownRefs.length} unknown label(s)`);
+    if (unknownRefs.length || defs.unknown.length) {
+      const errors = [
+        ...unknownRefs.map(r =>
+          `attr_id "${r}" is not one of the available labels. ` +
+          `Use exactly one of: ${[...refs.keys()].join(", ")}`),
+        ...defs.unknown.map(r => defRefs.size
+          ? `definition "${r}" is not listed. Use one of: ${[...defRefs.keys()].join(", ")}, ` +
+            `or give operator and value instead.`
+          : `definition "${r}" is not listed; give operator and value instead.`),
+      ];
+      log(`   Plan used ${errors.length} unknown label(s)`);
       attempts.push({ attempt, errors, plan });
       repairContext =
         `\nYour previous plan was rejected:\n` + errors.map(e => `- ${e}`).join("\n") +
@@ -864,6 +992,59 @@ async function generatePlan({
     }
 
     const check = await validatePlan(plan, resolve);
+
+    // Periods and years against the years each measure actually has.
+    if (check.ok && yearsOf) {
+      try {
+        const anchored = await anchorYears(plan, check.resolved, yearsOf);
+        if (anchored.errors.length) {
+          check.ok = false;
+          check.errors.push(...anchored.errors);
+        }
+        for (const n of anchored.notes) {
+          log(`   Years: ${n}`);
+          emit({ stage: "plan_adjusted", detail: `Years: ${n}.` });
+          adjustments.push(`Time period: ${n}.`);
+        }
+      } catch (err) {
+        log(`   Year anchoring skipped: ${err.message}`);
+      }
+    }
+    for (const st of plan.steps || []) delete st._back;
+
+    // Thresholds against the measure they filter: a definition on the measure
+    // it belongs to, a percentile in range, a stated number on the measure's
+    // own scale ("% rural > 50" on a 0-1 fraction is converted, not refused).
+    if (check.ok) {
+      const th = checkThresholds(plan, check.resolved, defsById);
+      for (const r of th.repairs) {
+        log(`   Threshold: ${r}`);
+        emit({ stage: "plan_adjusted", detail: `Threshold: ${r}.` });
+        adjustments.push(`Threshold: ${r}.`);
+      }
+      if (th.errors.length) {
+        check.ok = false;
+        check.errors.push(...th.errors);
+      }
+    }
+
+    // An expanded candidate may be a factor, never the subject
+    // (planner/outcome.js). Checked before the relevance check, which passed
+    // "Diabetes prevalence" as the outcome of "what drives chronic kidney
+    // disease", and which costs an LLM call this rule does not need.
+    if (check.ok) {
+      const unasked = unaskedSubjectErrors(plan, candidates);
+      if (unasked.length) {
+        log(`   Plan answers about a concept the question did not name (attempt ${attempt + 1})`);
+        emit({ stage: "plan_invalid", attempt: attempt + 1, errors: unasked });
+        attempts.push({ attempt, errors: unasked, plan });
+        repairContext =
+          `\nYour previous plan was rejected. Fix these problems and return a ` +
+          `corrected plan:\n` + unasked.map(e => `- ${e}`).join("\n") +
+          `\n\nPrevious plan:\n${JSON.stringify(plan)}\n`;
+        continue;
+      }
+    }
 
     // Valid is not the same as answering the question: "average rainfall"
     // planned a mean of reading scores. Unrelated attributes go back through
@@ -883,6 +1064,42 @@ async function generatePlan({
       }
     }
 
+    // Coverage (planner/coverage.js): on an ACCEPTED plan, swap a series that
+    // covers too little of the area for a verified equivalent, or say how
+    // little it covers. After the relevance check on purpose: a swap is
+    // between series that measure the same thing, so its verdict still holds.
+    let resolvedFinal = check.resolved;
+    if (check.ok && coverage) {
+      try {
+        const before = plan.steps.map(s => s.attr_id);
+        const { swaps, notes, added } = await preferCoverage(plan, candidates, coverage);
+        if (swaps.length) {
+          const recheck = await validatePlan(plan, resolve);
+          if (recheck.ok) {
+            resolvedFinal = recheck.resolved;
+            for (const row of added) candidates.push(row);
+            for (const s of swaps) {
+              log(`   Coverage: ${s}`);
+              emit({ stage: "plan_adjusted", detail: `Coverage: ${s}.` });
+              adjustments.push(`Coverage: ${s}.`);
+            }
+          } else {
+            plan.steps.forEach((s, i) => { s.attr_id = before[i]; });
+            log(`   Coverage swap reverted, it did not validate: ${recheck.errors.join("; ")}`);
+          }
+        }
+        for (const n of notes) {
+          log(`   Coverage: ${n}`);
+          emit({ stage: "plan_adjusted", detail: `Coverage: ${n}.` });
+          adjustments.push(`Coverage: ${n}.`);
+        }
+      } catch (err) {
+        // Coverage is advice about the answer, not part of it: a failure here
+        // must never cost the user a plan that already passed every check.
+        log(`   Coverage check skipped: ${err.message}`);
+      }
+    }
+
     if (check.ok) {
       log(`   Plan valid on attempt ${attempt + 1} (${plan.steps.length} steps)`);
       emit({
@@ -892,7 +1109,7 @@ async function generatePlan({
         ops: plan.steps.map(s => s.op),
       });
       return {
-        ok: true, plan, resolved: check.resolved, attempts, repairs: attempt,
+        ok: true, plan, resolved: resolvedFinal, attempts, repairs: attempt,
         // Deduped: the repair loop re-applies the same correction on every
         // attempt, and reporting it three times reads as three separate
         // problems rather than one.
@@ -900,10 +1117,21 @@ async function generatePlan({
         // Per-attribute verdicts: which are direct measures, which are proxies
         // the reader should be told about. null when the check did not run.
         relevance: relevance ? relevance.verdicts : null,
+        // Published definitions the plan applied, with their citations, for
+        // provenance. Empty when none was used.
+        definitions: definitionsUsed.map(d => ({
+          step: d.step, id: d.id, term: d.term, measure_code: d.measure_code,
+          rule: `value ${d.op} ${d.value}`, source: d.source, url: d.url || null,
+          vintages: [d.vintage_from, d.vintage_to],
+        })),
       };
     }
 
-    log(`   Plan invalid (attempt ${attempt + 1}): ${check.errors.length} error(s)`);
+    // The errors themselves, not just a count: which rule rejected a plan is
+    // what tells a validator catch from a model that cannot follow the prompt,
+    // and the POST response does not carry rejected attempts.
+    log(`   Plan invalid (attempt ${attempt + 1}): ${check.errors.length} error(s): ` +
+        check.errors.map(e => e.slice(0, 160)).join(" | "));
     emit({ stage: "plan_invalid", attempt: attempt + 1, errors: check.errors });
     attempts.push({ attempt, errors: check.errors, plan });
 
@@ -950,6 +1178,8 @@ function shapeLayer(out, res, ms) {
 
   const twoSeries = out.series === 2;
   const statCols = out.statColumns || [];
+  const rowCols = out.rowColumns || [];
+  const sumCols = out.summaryColumns || [];
   const num = (v) => (v === null || v === undefined ? null : Number(v));
   return {
     id: out.id, step: out.step, mode: "values",
@@ -969,6 +1199,13 @@ function shapeLayer(out, res, ms) {
       ? { value: num(res.rows[0].value),
           ...Object.fromEntries(statCols.map(c => [c, num(res.rows[0][c])])) }
       : null,
+    // A group comparison (compare_groups): which group is which, and the
+    // verdict. Named `comparison`, not `stats`, because the UI reads `stats`
+    // as a one-row correlation and would hide the map these rows draw.
+    comparison: sumCols.length && res.rows[0]
+      ? { labels: out.groupLabels,
+          ...Object.fromEntries(sumCols.map(c => [c, num(res.rows[0][c])])) }
+      : null,
     row_count: res.rowCount,
     ms,
     rows: res.rows.map(r => ({
@@ -976,6 +1213,7 @@ function shapeLayer(out, res, ms) {
       name: r.name,
       state_fp: r.state_fp,
       value: r.value === null ? null : Number(r.value),
+      ...Object.fromEntries(rowCols.map(c => [c, r[c] ?? null])),
       ...(twoSeries
         ? { value_b: r.value_b === null || r.value_b === undefined ? null : Number(r.value_b) }
         : {}),

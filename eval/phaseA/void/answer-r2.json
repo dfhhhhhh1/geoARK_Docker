@@ -1,0 +1,337 @@
+{
+  "suite": "research.yaml",
+  "queries": 18,
+  "answer_correctness": 0.16666666666666666,
+  "by_tier": {
+    "now": {
+      "pass": 0,
+      "n": 10,
+      "rate": 0.0
+    },
+    "phase_c": {
+      "pass": 0,
+      "n": 4,
+      "rate": 0.0
+    },
+    "phase_d": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    },
+    "refuse": {
+      "pass": 3,
+      "n": 3,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 15,
+    "CORRECT_REFUSAL": 3
+  },
+  "latency_mean": 0.0,
+  "api_container_created": "2026-10-30T14:16:53.763537925Z",
+  "contaminated": false,
+  "plan_think": null,
+  "detail": [
+    {
+      "id": "r-poverty-top-mo",
+      "tier": "now",
+      "query": "Which ten Missouri counties have the highest share of people living in poverty?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-hospitals-per-capita-tx",
+      "tier": "now",
+      "query": "Which Texas counties have the most hospitals per 100,000 residents?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-density-midwest",
+      "tier": "now",
+      "query": "What is the population density, in people per square mile, of each county in the Midwest?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-income-diabetes",
+      "tier": "now",
+      "query": "Is there a relationship between median household income and diabetes across US counties?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-poverty-stl-metro",
+      "tier": "now",
+      "query": "What are the poverty rates in the counties of the St. Louis metro area?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-poverty-detroit",
+      "tier": "now",
+      "query": "What are the poverty rates around Detroit?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-unemp-change-2019-2020",
+      "tier": "now",
+      "query": "Which counties saw the largest increase in unemployment rate between 2019 and 2020?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-fire-stations-co",
+      "tier": "now",
+      "query": "How many fire stations are there in each county of Colorado?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-hospital-distance-mo",
+      "tier": "now",
+      "query": "How far, in miles, is the center of each Missouri county from the nearest hospital?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-uninsured-big-counties",
+      "tier": "now",
+      "query": "Among counties with more than 100,000 residents, which ten have the highest share of people without health insurance?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-rural-poor-no-hospital",
+      "tier": "phase_c",
+      "query": "Which rural counties have a poverty rate above 20% and no hospital?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-unemp-decade",
+      "tier": "phase_c",
+      "query": "Which counties' unemployment rate rose the most over the last decade?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-south-vs-northeast",
+      "tier": "phase_c",
+      "query": "Is the unemployment rate higher in the South than in the Northeast?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-access-gap",
+      "tier": "phase_c",
+      "query": "Which counties with above-median poverty rates are more than 30 miles from the nearest hospital?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-obesity-top50-income",
+      "tier": "phase_d",
+      "query": "Take the 50 counties with the highest adult obesity rates. How does their median household income compare with the rest of the country?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "HTTP 502"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-refuse-rainfall",
+      "tier": "refuse",
+      "query": "What is the average annual rainfall in each county?",
+      "class": "CORRECT_REFUSAL",
+      "pass": true,
+      "detail": {},
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-refuse-ckd",
+      "tier": "refuse",
+      "query": "What drives chronic kidney disease rates across counties?",
+      "class": "CORRECT_REFUSAL",
+      "pass": true,
+      "detail": {},
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    },
+    {
+      "id": "r-refuse-schools",
+      "tier": "refuse",
+      "query": "Which counties have the best public schools?",
+      "class": "CORRECT_REFUSAL",
+      "pass": true,
+      "detail": {},
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "HTTP 502",
+      "exec_error": null,
+      "seconds": 0.0
+    }
+  ]
+}

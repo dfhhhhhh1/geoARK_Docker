@@ -1,0 +1,159 @@
+[
+ {
+  "run": 1,
+  "id": "w-two-conditions",
+  "shape": "ROWS",
+  "rows": 490,
+  "ops": "load->filter_attr->load->filter_attr->count_features->filter_attr->intersect->intersect->output",
+  "loaded": [
+   "RURAL_URBAN_CONTINUUM_CODE",
+   "S2201_C02_021E",
+   "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+  ],
+  "definitions": [
+   "ers_rucc_nonmetro"
+  ],
+  "comparison": null,
+  "adjustments": [],
+  "error": null,
+  "s": 40.3
+ },
+ {
+  "run": 1,
+  "id": "w-ratio-question",
+  "shape": "EMPTY",
+  "rows": 0,
+  "ops": "load->filter_area->filter_area->compare_groups->output",
+  "loaded": [
+   "S2101_C02_034E"
+  ],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": [
+   "Area restriction corrected: removed 1 duplicate state(s); used the Census Bureau's South region; left out New York, New Jersey, Pennsylvania and 24 more, which the planner had included but are not part of it."
+  ],
+  "error": null,
+  "s": 39.7
+ },
+ {
+  "run": 1,
+  "id": "w-trend-where",
+  "shape": "NO_PLAN",
+  "rows": null,
+  "ops": "",
+  "loaded": [],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": null,
+  "error": "could not produce a valid plan",
+  "s": 127.3
+ },
+ {
+  "run": 2,
+  "id": "w-two-conditions",
+  "shape": "ROWS",
+  "rows": 490,
+  "ops": "load->filter_attr->load->filter_attr->count_features->filter_attr->intersect->intersect->output",
+  "loaded": [
+   "RURAL_URBAN_CONTINUUM_CODE",
+   "S2201_C02_021E",
+   "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+  ],
+  "definitions": [
+   "ers_rucc_nonmetro"
+  ],
+  "comparison": null,
+  "adjustments": [],
+  "error": null,
+  "s": 43.5
+ },
+ {
+  "run": 2,
+  "id": "w-ratio-question",
+  "shape": "EMPTY",
+  "rows": 0,
+  "ops": "load->filter_area->filter_area->compare_groups->output",
+  "loaded": [
+   "S2101_C02_034E"
+  ],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": [
+   "Area restriction corrected: used the Census Bureau's South region; left out Northeast, which the planner had included but are not part of it."
+  ],
+  "error": null,
+  "s": 59.6
+ },
+ {
+  "run": 2,
+  "id": "w-trend-where",
+  "shape": "ROWS",
+  "rows": 10,
+  "ops": "load->load->combine->rank->output",
+  "loaded": [
+   "CHR_V024_RAWVALUE"
+  ],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": [
+   "Time reference resolved: compared \"a1\" against itself rather than against \"a4\"; replaced the planner's years (2020 to 2018) with the question's period; ordered the difference as later minus earlier; set the period to 2016 to the latest year.",
+   "Time period: \"Children in poverty\" runs to 2025, so the last 10 years were read as 2020-2025 (2015 is not available)."
+  ],
+  "error": null,
+  "s": 70.5
+ },
+ {
+  "run": 3,
+  "id": "w-two-conditions",
+  "shape": "ROWS",
+  "rows": 488,
+  "ops": "load->filter_attr->load->filter_attr->intersect->count_features->filter_attr->intersect->output",
+  "loaded": [
+   "CHR_V058_RAWVALUE",
+   "S2201_C02_021E",
+   "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+  ],
+  "definitions": [
+   "census_mostly_rural"
+  ],
+  "comparison": null,
+  "adjustments": [],
+  "error": null,
+  "s": 61.7
+ },
+ {
+  "run": 3,
+  "id": "w-ratio-question",
+  "shape": "EMPTY",
+  "rows": 0,
+  "ops": "load->filter_area->filter_area->compare_groups->output",
+  "loaded": [
+   "S2101_C02_034E"
+  ],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": [
+   "Area restriction corrected: used the Census Bureau's South region; left out Northeast, which the planner had included but are not part of it."
+  ],
+  "error": null,
+  "s": 72.2
+ },
+ {
+  "run": 3,
+  "id": "w-trend-where",
+  "shape": "ROWS",
+  "rows": 10,
+  "ops": "load->load->combine->rank->output",
+  "loaded": [
+   "CHR_V024_RAWVALUE"
+  ],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": [
+   "Time reference resolved: compared \"a1\" against itself rather than against \"a4\"; replaced the planner's years (2020 to 2018) with the question's period; ordered the difference as later minus earlier; set the period to 2016 to the latest year.",
+   "Time period: \"Children in poverty\" runs to 2025, so the last 10 years were read as 2020-2025 (2015 is not available)."
+  ],
+  "error": null,
+  "s": 56.7
+ }
+]

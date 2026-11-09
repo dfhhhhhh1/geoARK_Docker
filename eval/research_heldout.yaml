@@ -1,0 +1,146 @@
+# Research-expansion suite (backend/research.js, 2026-10-29).
+#
+# The questions of eval/expansion_heldout.yaml, plus one concept: `environment`,
+# an environmental exposure measure the question never names (air pollution,
+# PM2.5, ozone, air toxics, drinking water, superfund, food environment, lead
+# paint, traffic). That is what the newsearch prototype's keyword extraction is
+# FOR ("extract keywords related to geospatial or environmental factors"), and
+# what literature expansion's relation graph does not reach.
+#
+# `environment` is REACH, not truth: tooth loss and arthritis have weak
+# environmental literature, so a hit there is not automatically a good one.
+# Read the kept keywords alongside the number.
+#
+# Arms, same container, per-request switches:
+#   --expand --research ''            literature expansion only (the default)
+#   --expand --research pubmed
+#   --expand --research web
+#   --expand --research pubmed,web
+#
+# heldout_must_not_fire: research has no condition gate for "web" (the
+# prototype does not have one), so the measure there is how many keywords it
+# KEPT on questions that are not about health: research_kept in the saved JSON.
+
+suites:
+  - name: research_related
+    queries:
+      - id: ho-ckd
+        query: "chronic kidney disease by county"
+        # No kidney measure is loaded: only the related concept is scorable.
+        concepts:
+          related: {desc: "diabet|blood pressure|hypertens|obes"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-heart-attack
+        query: "where do the most heart attacks happen"
+        concepts:
+          subject: {desc: "heart|coronary"}
+          related: {desc: "obes|smok|cigarette|blood pressure|hypertens|diabet|cholesterol|physical(ly)? inactiv"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-depression
+        query: "depression rates across counties"
+        concepts:
+          subject: {desc: "depress|mental"}
+          related: {desc: "drink|alcohol|smok|sleep|obes|physical(ly)? inactiv|poor physical health"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-cancer
+        query: "cancer prevalence in Appalachia"
+        concepts:
+          subject: {desc: "cancer"}
+          related: {desc: "smok|cigarette|tobacco|obes|drink|alcohol"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-arthritis
+        query: "arthritis by county"
+        concepts:
+          subject: {desc: "arthritis"}
+          related: {desc: "obes|physical(ly)? inactiv|disabil|mobility"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-binge
+        query: "binge drinking in the Midwest"
+        concepts:
+          subject: {desc: "binge|drink"}
+          related: {desc: "smok|cigarette|depress|mental|injur|overdose"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-overdose
+        query: "drug overdose deaths by county"
+        concepts:
+          subject: {desc: "overdose|drug"}
+          related: {desc: "depress|mental|drink|alcohol|smok|suicide"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-sugar
+        query: "counties where lots of people have sugar diabetes"
+        concepts:
+          subject: {desc: "diabet"}
+          related: {desc: "obes|physical(ly)? inactiv|blood pressure|hypertens|kidney"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-cholesterol
+        query: "high cholesterol rates in Ohio"
+        concepts:
+          subject: {desc: "cholesterol"}
+          related: {desc: "obes|diabet|heart|coronary|stroke|blood pressure|hypertens"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-smoking
+        query: "smoking rates by county"
+        concepts:
+          subject: {desc: "smok|cigarette|tobacco"}
+          related: {desc: "COPD|pulmonary|lung|cancer|heart|coronary|stroke|asthma"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-mental-health
+        query: "poor mental health days in Kentucky"
+        concepts:
+          subject: {desc: "mental"}
+          related: {desc: "depress|drink|alcohol|smok|sleep|physical(ly)? inactiv"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+      - id: ho-teeth
+        query: "tooth loss among older adults by county"
+        concepts:
+          subject: {desc: "teeth|tooth"}
+          related: {desc: "smok|cigarette|diabet"}
+          environment: {desc: "PM2|PM25|particulate|ozone|air pollut|air toxics|drinking water violation|superfund|hazardous waste|food desert|food environment|lead paint|traffic proximity|traffic volume"}
+
+  # Non-health questions built to trip a homonym or a health-adjacent word.
+  # Expansion must link nothing: expansion_seeds empty in the saved JSON.
+  - name: research_must_not_fire
+    queries:
+      - id: nf-economic-depression
+        query: "counties hit hardest by the economic depression in unemployment"
+        concepts:
+          subject: {desc: "unemploy"}
+      - id: nf-heat
+        query: "extreme heat days by county"
+        concepts:
+          subject: {desc: "heat|temperature"}
+      - id: nf-fire
+        query: "wildfire risk near fire stations"
+        concepts:
+          subject: {dataset: "fire"}
+      - id: nf-pressure
+        query: "housing cost pressure on renters"
+        concepts:
+          subject: {desc: "rent"}
+      - id: nf-cold
+        query: "counties with cold winters and high heating costs"
+        concepts:
+          subject: {desc: "heat"}
+      - id: nf-growth
+        query: "population growth in Texas"
+        concepts:
+          subject: {desc: "population"}
+      - id: nf-shock
+        query: "income shock after plant closures"
+        concepts:
+          subject: {desc: "income"}
+      - id: nf-burden
+        query: "commute burden by county"
+        concepts:
+          subject: {desc: "commut|travel time"}
