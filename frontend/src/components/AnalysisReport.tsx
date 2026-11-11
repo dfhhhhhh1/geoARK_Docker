@@ -26,6 +26,12 @@ const PLACE_KIND_LABEL: Record<string, string> = {
   cbsa: 'metro area', urban: 'urbanized area',
 };
 
+const ordinal = (n: number): string => {
+  const sfx = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return `${n}${sfx[(v - 20) % 10] || sfx[v] || sfx[0]}`;
+};
+
 const describeFilters = (step: PlanStep): string => {
   const filters = step.attribute_filters ?? [];
   if (!filters.length) return '';
@@ -81,7 +87,26 @@ const AnalysisReport: React.FC<Props> = ({ result }) => {
       case 'normalize':
         return `${from}${step.scale && step.scale !== 1 ? `, scaled by ${step.scale}` : ''}`;
       case 'filter_attr':
+        // Where the threshold came from matters as much as the number: a
+        // published definition, a percentile of the data, or a stated value.
+        if (step.definition) {
+          return `keep rows from ${from} that are “${step.definition_term ?? step.definition}” ` +
+                 `(published definition: value ${step.operator} ${step.value})`;
+        }
+        if (step.percentile !== undefined && step.percentile !== null) {
+          return `keep rows from ${from} where value ${step.operator} its ${ordinal(step.percentile)} percentile`;
+        }
         return `keep rows from ${from} where value ${step.operator} ${step.value}`;
+      case 'intersect': {
+        const [a, b] = step.inputs.map(i => `step ${stepNumber(i)}`);
+        return step.exclude
+          ? `${a}, only for counties NOT in ${b}`
+          : `${a}, only for counties also in ${b}`;
+      }
+      case 'compare_groups': {
+        const [a, b] = step.inputs.map(i => `step ${stepNumber(i)}`);
+        return `${a} against ${b}: difference in medians, with a significance test`;
+      }
       case 'aggregate':
         return `${step.function} of ${from}`;
       case 'rank':

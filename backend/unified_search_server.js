@@ -24,6 +24,7 @@ const fs = require("fs");
 const { Pool } = require("pg");
 const { DECOMPOSITION_SCHEMA, VERIFICATION_SCHEMA } = require("./schemas");
 const { generatePlan, executePlan } = require("./planner");
+const { levelOf, rollupOf } = require("./planner/levels");
 const planOps = require("./planner/ops");
 const { callGoogle, googleConfigured } = require("./llm_google");
 const {
@@ -42,6 +43,8 @@ const { researchExpand, resolveSources, RESEARCH_CONFIG } = require("./research"
 const { needsPopulation } = require("./population");
 const { createSeriesStats } = require("./series_stats");
 const { createDefinitions } = require("./definitions");
+const workflow = require("./workflow");
+const failureLogLib = require("./failure_log");
 
 const app = express();
 
@@ -118,6 +121,12 @@ const CONFIG = {
     // never answers. Without a deadline the request hangs until nginx gives
     // up at 300s -- observed wedging an evaluation run for 20+ minutes.
     timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? 90000),
+    // The PLANNER's deadline, separately. A workflow step's prompt carries the
+    // earlier-results note and the intersect / compare_groups examples, and
+    // qwen3:14b reasoning on it ran past 90 s on 2 of 3 attempts (2026-11-09):
+    // the step lost its tries before it started, at 100% GPU with VRAM free.
+    // The short gemma calls keep 90 s, which is the stall detector.
+    planTimeoutMs: Number(process.env.PLAN_TIMEOUT_MS ?? 180000),
     // Context window per call. Ollama defaults to 4,096, and the planner prompt
     // alone is ~3,600 tokens: once qwen3 reasons past the window, Ollama does a
     // "context shift" that silently DISCARDS the first half of the prompt --
@@ -136,7 +145,12 @@ const CONFIG = {
     smallNumCtx: Number(process.env.LLM_SMALL_NUM_CTX ?? 4096),
     // Reasoning for PLAN_MODEL calls (the planner and the relevance check).
     // See planThinkExtra. "on" is the model's own default, unchanged.
-    planThink: process.env.PLAN_THINK || "on"
+    planThink: process.env.PLAN_THINK || "on",
+    // Models a request may name as `plan_model`, for A/Bs without recreating
+    // the container. An allowlist, because the request is untrusted and each
+    // name is a model load on the one GPU.
+    planModelChoices: (process.env.PLAN_MODEL_CHOICES || "")
+      .split(",").map(s => s.trim()).filter(Boolean),
   },
   embedder: {
     url: EMBEDDER_URL,
@@ -191,6 +205,18 @@ async function yearsOf(code) {
   return yearsCache.get(code);
 }
 
+// The levels each measure has values at (geo_measure), for plans at a unit
+// other than the county (planner/levels.js). Cleared with the years cache.
+const levelsCache = new Map();
+async function levelsOf(code) {
+  if (!levelsCache.has(code)) {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT level FROM geo_measure WHERE code = $1`, [code]);
+    levelsCache.set(code, new Set(rows.map(r => r.level)));
+  }
+  return levelsCache.get(code);
+}
+
 // Test connection
 pool.query("SELECT 1")
   .then(() => console.log("  PostGIS connection established"))
@@ -202,6 +228,24 @@ let embeddings = [];
 let processedVariablesText = [];
 let isEmbeddingsReady = false;
 let resolvableCount = null;   // attribute_source rows; null until first checked
+// attr_ids with an attribute_source row: the rows a plan can actually run on.
+let executableIds = new Set();
+
+/**
+ * Executable-first retrieval, for the planner path. 1,966 of 7,098 catalog
+ * rows (28%) have no attribute_source row -- datasets whose values were never
+ * loaded -- and they competed for each sub-query's slots before executability
+ * was checked: for "people living in poverty", 2 of the top 3 were such rows,
+ * and PCTPOVALL, the standard poverty rate, never reached the planner
+ * (2026-11-10). Off by default until measured; `executable_first` per request.
+ */
+const EXECUTABLE_FIRST_ENABLED = /^(1|true|yes)$/i.test(process.env.EXECUTABLE_FIRST ?? "0");
+
+async function loadExecutableIds() {
+  const { rows } = await pool.query("SELECT attr_id FROM attribute_source");
+  executableIds = new Set(rows.map(r => r.attr_id));
+  return executableIds.size;
+}
 let corpusCacheKey = null;    // the embedder cache key these vectors came from
 
 // =============================================================================
@@ -237,15 +281,34 @@ Rules:
  * POST to the LLM with a hard deadline. Ollama accepts connections even when
  * its model runner is dead, so "no response" is a real and silent failure mode.
  */
+/**
+ * PLAN_MODEL plus every per-request `plan_model` choice. All of them are
+ * planners and get the planner's window and deadline: a planner at 4,096
+ * tokens loses its system prompt to a context shift (CLAUDE.md, traps).
+ */
+const PLANNER_MODELS = new Set([CONFIG.llm.planModel, ...CONFIG.llm.planModelChoices]);
+
+/** A request's `plan_model`: null when absent, an Error when not allowed. */
+function requestedPlanModel(value) {
+  if (value == null || value === "") return null;
+  if (typeof value === "string" && PLANNER_MODELS.has(value)) return value;
+  return new Error(`plan_model must be one of: ${[...PLANNER_MODELS].join(", ")}`);
+}
+
 /** The planner model gets the large window; everything else the small one. */
 function numCtxFor(model) {
-  return model === CONFIG.llm.planModel && CONFIG.llm.planModel !== CONFIG.llm.model
+  return PLANNER_MODELS.has(model) && model !== CONFIG.llm.model
     ? CONFIG.llm.numCtx : CONFIG.llm.smallNumCtx;
 }
 
+/** The deadline for one call: planner calls get PLAN_TIMEOUT_MS. */
+const timeoutFor = (model) =>
+  PLANNER_MODELS.has(model) ? CONFIG.llm.planTimeoutMs : CONFIG.llm.timeoutMs;
+
 async function llmFetch(body) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CONFIG.llm.timeoutMs);
+  const limit = timeoutFor(body?.model);
+  const timer = setTimeout(() => controller.abort(), limit);
   try {
     return await fetch(CONFIG.llm.endpoint, {
       method: "POST",
@@ -256,7 +319,7 @@ async function llmFetch(body) {
   } catch (err) {
     if (err.name === "AbortError") {
       throw new Error(
-        `LLM did not respond within ${CONFIG.llm.timeoutMs}ms. An OOM-killed ` +
+        `LLM did not respond within ${limit}ms. An OOM-killed ` +
         `model runner still accepts connections but never answers -- check ` +
         `the ollama container's State.OOMKilled, and docs/DEPLOYMENT.md #7.`);
     }
@@ -367,7 +430,7 @@ function planThinkExtra(setting, role = "planner") {
  */
 async function budgetedChat(body, budget) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CONFIG.llm.timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutFor(body?.model));
   let thinking = "", content = "", thinkTokens = 0, overBudget = false;
   try {
     const res = await fetch(CONFIG.llm.endpoint, {
@@ -393,7 +456,7 @@ async function budgetedChat(body, budget) {
     }
   } catch (err) {
     if (err.name === "AbortError" && !overBudget) {
-      throw new Error(`LLM did not respond within ${CONFIG.llm.timeoutMs}ms (budgeted reasoning)`);
+      throw new Error(`LLM did not respond within ${timeoutFor(body?.model)}ms (budgeted reasoning)`);
     }
     throw err;
   } finally {
@@ -952,7 +1015,19 @@ async function performHybridSearch(query, topK = 20, searchPurpose = 'primary', 
       ranked = [...ce, ...unscored, ...ranked.slice(head.length)];
     }
   }
-  ranked = ranked.slice(0, topK);
+  if (options.executableFirst && executableIds.size) {
+    // Extend the cut until it holds topK rows a plan can run on. Rows above
+    // the cut that cannot run stay in the list: they are how the API tells a
+    // never-loaded dataset from an unsupported question. Capped, so a query
+    // matching only dead rows cannot pull in the whole catalog.
+    let seen = 0, cut = ranked.length;
+    for (let i = 0; i < ranked.length; i++) {
+      if (executableIds.has(variables[ranked[i].index].attr_id) && ++seen === topK) { cut = i + 1; break; }
+    }
+    ranked = ranked.slice(0, Math.min(Math.max(topK, cut), topK * 3));
+  } else {
+    ranked = ranked.slice(0, topK);
+  }
 
   const topResults = ranked.map(({ index, fused_score, rerank_score }) => {
     const v = variables[index];
@@ -1113,9 +1188,11 @@ async function unifiedSearch(query, options = {}) {
     // addPopulationDenominator, above. Per-request override for the A/B.
     populationDenominator = POPULATION_DENOMINATOR_ENABLED,
     // Cross-encoder reranking mode, above; undefined = RERANK.
-    rerank = undefined
+    rerank = undefined,
+    // Executable-first retrieval (EXECUTABLE_FIRST, above). Planner path only.
+    executableFirst = false,
   } = options;
-  const search = (q, k, purpose) => performHybridSearch(q, k, purpose, { rerank });
+  const search = (q, k, purpose) => performHybridSearch(q, k, purpose, { rerank, executableFirst });
   
   const startTime = Date.now();
   
@@ -1454,11 +1531,19 @@ async function checkCorpusFreshness() {
  */
 async function reloadCorpus() {
   const corpus = await fetchJSON(`${CONFIG.embedder.url}/corpus/vectors`, {}, 600000);
-  if (corpus.count !== variables.length) {
+  // The ROWS are re-read too, not just the vectors. Before 2026-11-10 only the
+  // vectors and BM25 text were swapped, so after a catalog edit retrieval
+  // ranked on the new text while the planner prompt, provenance and
+  // suggestions read the descriptions from startup: PCTPOVALL ranked for
+  // "poverty rate" and was still shown to the planner as "PCTPOVALL".
+  const rows = await loadVariablesFromCSV(CONFIG.search.csvPath);
+  if (corpus.count !== rows.length) {
     throw new Error(
-      `corpus/CSV row mismatch on reload: embedder has ${corpus.count}, this ` +
-      `process loaded ${variables.length}. Restart the API so both re-read the CSV.`);
+      `corpus/CSV row mismatch on reload: embedder has ${corpus.count}, the ` +
+      `catalog has ${rows.length}. Run \`make reindex\` first.`);
   }
+  variables = rows;
+  variablesById = null;
   embeddings = corpus.embeddings;
   processedVariablesText = corpus.processed_texts;
   corpusCacheKey = corpus.cache_key;
@@ -1474,6 +1559,8 @@ app.post("/api/reload-corpus", auth.requireAuth, limitAnalyze, async (req, res) 
     seriesStats.clear();
     definitions.clear();
     yearsCache.clear();
+    levelsCache.clear();
+    resolvableCount = await loadExecutableIds().catch(() => resolvableCount);
     console.log(`  Corpus reloaded: ${before} -> ${result.cache_key}`);
     res.json({ reloaded: true, previous_cache_key: before, ...result });
   } catch (err) {
@@ -1751,7 +1838,77 @@ class AnalyzeError extends Error {
  * `includeGeometry` exists because ST_AsGeoJSON for 1,000 counties is ~6.6 MB,
  * and the frontend already ships counties.geojson and joins on fips locally.
  */
-async function runAnalysis({ query, top_k = 25, execute = true,
+/**
+ * runAnalysis, plus a record of any run that did not answer (failure_log.js).
+ *
+ * A wrapper rather than edits at each exit, because there are a dozen ways out
+ * (thrown AnalyzeError, a 500 body carrying execution_error, an empty result)
+ * and four callers. The planner's own `emit` events are tapped for the trace.
+ * The record is written after the fact and cannot affect the response, except
+ * that it adds `failure_id` so a report can cite the entry.
+ */
+const failureLog = failureLogLib.createFailureLog({
+  dir: process.env.FAILURE_LOG_DIR ?? (process.env.FAILURE_LOG === "0" ? "" : "/app/logs"),
+});
+
+async function currentEnv() {
+  const fresh = await checkCorpusFreshness().catch(() => ({}));
+  return {
+    llm_model: CONFIG.llm.model, plan_model: CONFIG.llm.planModel, plan_think: CONFIG.llm.planThink,
+    num_ctx: CONFIG.llm.numCtx, embedding_model: CONFIG.embedder.model,
+    corpus_cache_key: corpusCacheKey ?? null, corpus_stale: fresh.stale ?? null,
+    catalog_rows: variables.length, resolvable_attributes: resolvableCount,
+    rerank: process.env.RERANK ?? "off", expand: EXPANSION_CONFIG.enabled,
+    coverage_prefer: COVERAGE_PREFER_ENABLED, executable_first: EXECUTABLE_FIRST_ENABLED,
+    queue: analysisQueue.stats(), node: process.version,
+  };
+}
+
+async function logFailure({ query, status, body, trace, flags, started, via, workflow: wf }) {
+  const kind = failureLogLib.classify({ status, body });
+  if (!kind) return null;
+  const entry = failureLogLib.buildEntry({
+    query, kind, status, body, trace: trace.data, flags, ms: Date.now() - started, via, workflow: wf,
+    env: await currentEnv().catch(err => ({ error: err.message })),
+    ollama: await failureLogLib.ollamaState(OLLAMA_URL),
+  });
+  // Not awaited by the caller: see runAnalysis.
+  failureLog.record(entry);
+  return entry.id;
+}
+
+async function runAnalysis(opts) {
+  const trace = failureLogLib.createTrace();
+  const started = Date.now();
+  // The per-request knobs that change behaviour, so a failure can be reproduced.
+  const flags = Object.fromEntries(Object.entries({
+    top_k: opts.top_k, execute: opts.execute, expand: opts.expand, research: opts.research,
+    relevance_check: opts.relevanceCheck, population_denominator: opts.populationDenominator,
+    plan_think: opts.planThink, plan_model: opts.planModel, coverage: opts.coverage,
+    rerank: opts.rerank, executable_first: opts.executableFirst, definitions: opts.useDefinitions,
+    provider: opts.provider, workflow_step: opts.extraSources ? true : undefined,
+  }).filter(([, v]) => v !== null && v !== undefined));
+  const base = { query: opts.query, trace, flags, started };
+  try {
+    const body = await runAnalysisInner({ ...opts, emit: trace.tap(opts.emit) });
+    // execution_error rides on http_status 500 inside a returned body.
+    const id = await logFailure({ ...base, status: body.http_status ?? 200, body });
+    if (id) body.failure_id = id;
+    return body;
+  } catch (err) {
+    if (err instanceof AnalyzeError) {
+      const id = await logFailure({ ...base, status: err.status,
+        body: { ...err.payload, stack: err.cause?.stack } });
+      if (id) err.payload.failure_id = id;
+    } else {
+      const id = await logFailure({ ...base, status: 500, body: { error: "analyze failed", details: err.message, stack: err.stack } });
+      if (id) err.failure_id = id;
+    }
+    throw err;
+  }
+}
+
+async function runAnalysisInner({ query, top_k = 25, execute = true,
                              includeGeometry = true, emit = () => {},
                              // Per-request engine override, for the A/B in
                              // eval/provider_bench.py. Absent means the
@@ -1767,12 +1924,19 @@ async function runAnalysis({ query, top_k = 25, execute = true,
                              populationDenominator = null,
                              // planThinkExtra override ("on" | "off" | N); null = PLAN_THINK.
                              planThink = null,
+                             // Planner model override, from PLAN_MODEL_CHOICES; null = PLAN_MODEL.
+                             planModel = null,
                              // planner/coverage.js override; null = COVERAGE_PREFER.
                              coverage = null,
                              // Reranking mode override; undefined = RERANK.
                              rerank = undefined,
+                             // Executable-first retrieval; null = EXECUTABLE_FIRST.
+                             executableFirst = null,
                              // Published definitions override; null = DEFINITIONS.
-                             useDefinitions = null }) {
+                             useDefinitions = null,
+                             // Earlier workflow results this step may cite
+                             // (backend/workflow.js): Map<"result:qN", source>.
+                             extraSources = null }) {
   const started = Date.now();
   try {
     if (!query || !query.trim()) {
@@ -1807,7 +1971,8 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       ...(typeof expand === "boolean" ? { expand } : {}),
       ...(research !== undefined ? { research } : {}),
       ...(typeof populationDenominator === "boolean" ? { populationDenominator } : {}),
-      ...(rerank !== undefined ? { rerank } : {})
+      ...(rerank !== undefined ? { rerank } : {}),
+      executableFirst: executableFirst ?? EXECUTABLE_FIRST_ENABLED,
     });
     const candidates = search.all_results || [];
     emit({ stage: "decomposed", decomposition: search.decomposition,
@@ -1816,6 +1981,9 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       emit({ stage: "expanded", seeds: search.expansion.seeds,
              kept: search.expansion.concepts.filter(c => c.kept).map(c => c.name) });
     }
+    // A workflow step resolves its earlier results from this request only,
+    // exactly as an upload does: a plan can cite one only if it was handed it.
+    const resolveAll = workflow.withResultSources(resolveAttributes, extraSources);
     const resolved = await resolveAttributes(candidates.map(c => c.attr_id));
 
     // Collapse feature tables to one candidate per dataset.
@@ -1999,6 +2167,74 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       ...featureRows,
       ...picked.filter(c => c.search_purpose === "expanded"),
     ].slice(0, top_k);
+    // A unit the question names that holds only a few measures (the grid
+    // levels hold one, WorldPop) gets all of them on the list: "the most
+    // densely populated 4 km grid cells" retrieved SVI population, which has
+    // no grid values, and never WorldPop, the only measure that does
+    // (2026-11-11). Absent unless the question names such a unit.
+    // The unit the answer is at, or the one a county answer is built from.
+    const namedLevel = levelOf(query) || rollupOf(query);
+    if (namedLevel) {
+      const { rows: atLevel } = await pool.query(
+        `SELECT DISTINCT code FROM geo_measure WHERE level = $1`, [namedLevel]);
+      const levelCodes = new Set(atLevel.map(r => r.code));
+      // Only measures with values at that unit stay on the list, topped up
+      // from everything retrieval found. A county-only measure can only fail
+      // there: "uninsured rate for every census tract" chose CHR Uninsured,
+      // was sent back naming the SVI one, and the next two attempts broke the
+      // plan instead of switching (reasoning off, 2026-11-11).
+      const hasLevel = (c) => {
+        const src = resolved.get(c.attr_id);
+        return src?.source_kind === "acs_long" && levelCodes.has(src.census_code);
+      };
+      const kept = executable.filter(hasLevel);
+      const have = new Set(kept.map(c => c.attr_id));
+      for (const c of candidates) {
+        if (kept.length >= top_k) break;
+        if (!have.has(c.attr_id) && hasLevel(c)) { kept.push(c); have.add(c.attr_id); }
+      }
+      // Searched again WITHIN the unit's measures, deeper than the planner's
+      // cut: "share of people ... without a vehicle" never retrieved SVI's
+      // "Percent of households with no vehicle available" in the top 60, and
+      // with nothing at the unit on the list the roll-up could only refuse
+      // (2026-11-11). ~30 ms a search, and only for a question naming a unit.
+      const subQueries = [query, ...(search.decomposition?.search_queries || []).map(q => q.query)];
+      for (const sq of subQueries) {
+        const deep = await performHybridSearch(sq, 300, "primary");
+        const fresh = deep.filter(r => !have.has(r.attr_id)).map(r => r.attr_id);
+        const deepSrc = fresh.length ? await resolveAttributes(fresh) : new Map();
+        let added = 0;
+        for (const r of deep) {
+          if (added >= 3 || kept.length >= top_k) break;
+          if (have.has(r.attr_id)) continue;
+          const src = deepSrc.get(r.attr_id);
+          if (src?.source_kind === "acs_long" && levelCodes.has(src.census_code)) {
+            resolved.set(r.attr_id, src);
+            kept.push({ ...(catalogRow(r.attr_id) || r), search_purpose: "primary" });
+            have.add(r.attr_id);
+            added++;
+          }
+        }
+      }
+      // A unit holding only a few measures gets all of them (the grid levels
+      // hold one, WorldPop, which retrieval never found for "densely populated
+      // 4 km grid cells").
+      if (atLevel.length <= 5) {
+        for (const { code } of atLevel) {
+          const row = catalogRow(code);
+          if (row && !have.has(code)) { kept.push({ ...row, search_purpose: "primary" }); have.add(code); }
+        }
+      }
+      if (kept.length) {
+        console.log(`   level ${namedLevel}: offering the ${kept.length} candidates with values at that unit`);
+        executable.splice(0, executable.length, ...kept);
+      }
+    }
+    // Earlier workflow results lead the list, under their own heading. Absent
+    // outside a workflow, so every other prompt is unchanged.
+    if (extraSources?.size) {
+      executable.unshift(...[...extraSources.values()].map(workflow.resultCandidate));
+    }
 
     // Published definitions ride on the measure they define, and reach the
     // planner only on a candidate retrieval already chose. No term matching
@@ -2055,10 +2291,10 @@ async function runAnalysis({ query, top_k = 25, execute = true,
       // Reasoning is set here so it covers every PLAN_MODEL call in the
       // analysis: the planner, its repairs, and the relevance check.
       callLLM: (sys, usr, temp, schema, extra) =>
-        callLLM(sys, usr, temp, schema, CONFIG.llm.planModel,
+        callLLM(sys, usr, temp, schema, planModel ?? CONFIG.llm.planModel,
                 { ...planThinkExtra(planThink ?? CONFIG.llm.planThink, extra?.role),
                   ...(extra || {}) }),
-      resolve: resolveAttributes,
+      resolve: resolveAll,
       // Whether named boundaries are loaded. filter_place is useless without
       // them, and offering an op that can only fail costs a repair round.
       hasPlaceBoundaries: await placeBoundariesLoaded(),
@@ -2073,6 +2309,7 @@ async function runAnalysis({ query, top_k = 25, execute = true,
         ? { coverageOf: seriesStats.coverageOf, equivalentsOf: seriesStats.equivalentsOf }
         : null,
       yearsOf,
+      levelsOf,
     });
 
     if (!planning.ok) {
@@ -2110,6 +2347,26 @@ async function runAnalysis({ query, top_k = 25, execute = true,
           not_measured: true,
           suggestions: buildSuggestions(executable),
           unavailable_datasets: missing,
+          validation_errors: planning.errors,
+          attempts: planning.attempts.length,
+          candidates: executable.slice(0, 10),
+          ms: Date.now() - started
+        });
+      }
+      // planner/vintages.js: the measures found do not have values across the
+      // period asked about. A coverage answer, like "not loaded": no loaded
+      // poverty measure spans 7+ years, so "the biggest increase over the last
+      // decade" has no honest answer, and saying "could not produce a valid
+      // plan" read as a crash (2026-11-09, 3 of 3).
+      const periodErrors = (planning.attempts.at(-1).errors || [])
+        .filter(e => /cannot show a change over the last/.test(e));
+      if (periodErrors.length && !notMeasured) {
+        throw new AnalyzeError(422, {
+          error: "the loaded data does not cover the period this question asks about",
+          detail: `${periodErrors[0].split(". Use an attribute")[0]}. No loaded measure of ` +
+                  "this has values across that period. These are things the same data can answer:",
+          period_not_covered: true,
+          suggestions: buildSuggestions(executable),
           validation_errors: planning.errors,
           attempts: planning.attempts.length,
           candidates: executable.slice(0, 10),
@@ -2204,12 +2461,14 @@ async function runAnalysis({ query, top_k = 25, execute = true,
 
     return await finishAnalysis({
       query, started, planning, executable, candidates, search,
-      execute, includeGeometry, emit,
+      execute, includeGeometry, emit, planModel,
     });
   } catch (error) {
     if (error instanceof AnalyzeError) throw error;
     console.error("Analyze error:", error);
-    throw new AnalyzeError(500, { error: "analyze failed", details: error.message });
+    const wrapped = new AnalyzeError(500, { error: "analyze failed", details: error.message });
+    wrapped.cause = error;   // the failure log wants the stack; the client must not get it
+    throw wrapped;
   }
 }
 
@@ -2227,7 +2486,7 @@ async function runAnalysis({ query, top_k = 25, execute = true,
  */
 async function finishAnalysis({ query, started, planning, executable, candidates, search,
                                 execute = true, includeGeometry = false, emit = () => {},
-                                revision = null }) {
+                                revision = null, planModel = null }) {
   const usedAttrIds = [...new Set(planning.plan.steps.flatMap(
     s => [s.attr_id, s.near_attr_id, ...(s.factors || []).map(f => f.attr_id)]
       .filter(Boolean)))];
@@ -2238,6 +2497,17 @@ async function finishAnalysis({ query, started, planning, executable, candidates
     const isFeature = src.source_kind === "feature_table";
     // The user's own upload. Named as such in every export: a number the user
     // supplied must never read as though it came from the catalog.
+    // An earlier step's result in a research workflow: derived here, from the
+    // data that step cites, never presented as catalog data or as an upload.
+    if (src.source_kind === "inline" && src.workflow_step) {
+      return {
+        attr_id: id, description: src.description, dataset: src.dataset,
+        source_kind: "workflow_result", workflow_step: src.workflow_step,
+        table_name: null, value_column: null, geometry_column: null, census_code: null,
+        entity_type: "COUNTY", start_date: null, end_date: null, srid: null,
+        rows: src.row_count,
+      };
+    }
     if (src.source_kind === "inline") {
       return {
         attr_id: id, description: src.description, dataset: src.dataset,
@@ -2293,7 +2563,7 @@ async function finishAnalysis({ query, started, planning, executable, candidates
       intent: planning.plan.intent,
       models: {
         decomposition: CONFIG.llm.model,
-        planner: CONFIG.llm.planModel || CONFIG.llm.model,
+        planner: planModel ?? (CONFIG.llm.planModel || CONFIG.llm.model),
         embedding: CONFIG.embedder.model,
       },
       retrieval: {
@@ -2352,6 +2622,8 @@ async function finishAnalysis({ query, started, planning, executable, candidates
       body.rows = result.rows;
       body.execution_ms = result.ms;
       body.output_mode = result.mode;
+      // The unit of every row: "county", or what the question named.
+      body.level = result.level || "county";
       // Two-series results carry `value_b` on every row. Announced explicitly
       // so the UI can offer a series switch without having to sniff the rows.
       if (result.series === 2) body.series = 2;
@@ -2369,6 +2641,11 @@ async function finishAnalysis({ query, started, planning, executable, candidates
         body.stats = result.stats;
         body.value_label = result.valueLabel ?? null;
       }
+      // compare_groups: which group is which, the medians, and the test. Kept
+      // apart from `stats` because the UI reads that as a one-row correlation
+      // and would hide the map these rows draw. Was computed by the executor
+      // and dropped here until 2026-11-09, so the verdict never reached anyone.
+      if (result.comparison) body.comparison = result.comparison;
       // explain: the ranked factor table, the controls it used, and how many
       // counties had the outcome at all.
       if (result.mode === "factors") {
@@ -2394,6 +2671,7 @@ async function finishAnalysis({ query, started, planning, executable, candidates
           diverging: l.diverging === true,
           value_label: l.valueLabel ?? null,
           stats: l.stats ?? null,
+          comparison: l.comparison ?? null,
           row_count: l.row_count,
           ...(l.mode === "features" ? { features: l.features } : { rows: l.rows }),
         }));
@@ -2409,9 +2687,11 @@ async function finishAnalysis({ query, started, planning, executable, candidates
         // include_geometry does not apply -- withholding it would leave the
         // caller with nothing. Bounded instead by MAX_FEATURES.
         body.features = result.features;
-      } else if (includeGeometry) {
+      } else if (includeGeometry || body.level !== "county") {
         // County geometry is ~6.6 MB for a 1,000-row result. Callers that
         // already have county boundaries locally ask for it to be left out.
+        // Nobody has tract or ZIP boundaries locally, so another level always
+        // carries its own (geo_unit's z12 tier, a few hundred bytes a tract).
         body.geometry = result.geometry;
       }
     } catch (err) {
@@ -2428,8 +2708,197 @@ async function finishAnalysis({ query, started, planning, executable, candidates
   return body;
 }
 
+/**
+ * A research question as a short workflow of analyses (backend/workflow.js).
+ *
+ * The response is the LAST step's analyze body, so every existing reader
+ * (the UI, eval/answer_probe.py) reads it unchanged, plus `workflow`: each
+ * step's question, plan, summary and the methods text. Provenance lists the
+ * data of EVERY step, because the final answer depends on all of it.
+ *
+ * A stopped workflow returns no rows: the step that ran last either failed or
+ * answered a different question than the one it was given, and its rows must
+ * not read as the answer. Why it stopped is in `error` and `workflow.reason`.
+ */
+async function runResearch({ query, emit = () => {}, flags = {} }) {
+  if (!query || !String(query).trim()) {
+    throw new AnalyzeError(400, { error: "field 'q' is required" });
+  }
+  console.log(`\n${"#".repeat(70)}\nRESEARCH: "${query}"\n${"#".repeat(70)}`);
+  const report = await workflow.runWorkflow({
+    question: String(query).trim(),
+    decompose: (sys, usr, schema) => callLLM(sys, usr, 0, schema, flags.planModel ?? CONFIG.llm.planModel,
+      planThinkExtra(flags.planThink ?? CONFIG.llm.planThink)),
+    analyze: async ({ query: q, extraSources }) => {
+      try {
+        return await runAnalysis({ ...flags, query: q, extraSources, emit,
+                                   includeGeometry: flags.includeGeometry ?? false });
+      } catch (err) {
+        if (err instanceof AnalyzeError) return { ...err.payload, http_status: err.status };
+        throw err;
+      }
+    },
+    log: (m) => console.log(m),
+    emit,
+  });
+
+  const out = workflowBody(report);
+  // A step that errored was already logged by runAnalysis. This records the
+  // workflow as a whole, which also stops when a step "ignored its input" and
+  // nothing in any single step looks wrong.
+  if (report.status !== "complete") {
+    const trace = failureLogLib.createTrace();
+    const id = await logFailure({
+      query: String(query), trace, started: Date.now() - (report.ms || 0), via: "research",
+      flags: Object.fromEntries(Object.entries({ plan_model: flags.planModel, plan_think: flags.planThink })
+        .filter(([, v]) => v)),
+      status: 200, body: { ...out, rows: undefined, geometry: undefined },
+      workflow: {
+        stopped_at: report.stopped_at || null, reason: report.reason || null,
+        decomposition: report.decomposition ?? null,
+        steps: report.steps.map(s => ({ id: s.id, question: s.question, status: s.status ?? null,
+          failure_id: s.response?.failure_id ?? null,
+          row_count: s.response?.row_count ?? null })),
+      },
+    });
+    if (id) out.failure_id = id;
+  }
+  return out;
+}
+
+/**
+ * The response for a workflow, run or re-run: the LAST step's analyze body
+ * (so every reader of /api/analyze reads it unchanged), plus `workflow`.
+ *
+ * Each step carries its own full `result`, without geometry: the pipeline UI
+ * shows any step on the map and offers that step's own alternatives for
+ * "change data", and both need the step's rows and followups. ~230 KB per
+ * national step, at most WORKFLOW_MAX_STEPS of them.
+ *
+ * A stopped workflow returns no top-level rows: the step that ran last either
+ * failed or answered a different question, and its rows must not read as the
+ * answer. The steps that did complete are still in `workflow.steps`.
+ */
+function workflowBody(report) {
+  const final = { ...(report.final || {}) };
+  delete final.http_status;
+  const origins = new Map();
+  for (const s of report.steps) {
+    for (const o of s.response?.provenance?.attribute_origins || []) {
+      if (!String(o.attr_id || "").startsWith(workflow.RESULT_PREFIX)) origins.set(o.attr_id, o);
+    }
+  }
+  const body = {
+    ...final,
+    provenance: final.provenance
+      ? { ...final.provenance, attribute_origins: [...origins.values()] } : final.provenance,
+    workflow: {
+      // The question as asked: sent back with an edit, and the pipeline's title.
+      question: report.question,
+      status: report.status, stopped_at: report.stopped_at || null, reason: report.reason || null,
+      methods: report.methods || null, ms: report.ms, decomposition: report.decomposition,
+      edited_step: report.edited_step || null,
+      steps: report.steps.map(({ response, ...s }) => {
+        const result = response ? { ...response } : null;
+        if (result) { delete result.http_status; delete result.geometry; }
+        return {
+          ...s, plan: response?.plan || null, adjustments: response?.adjustments || [],
+          definitions: response?.provenance?.definitions || [],
+          attribute_origins: response?.provenance?.attribute_origins || [],
+          candidate_ids: (response?.candidates || []).map(c => c.attr_id)
+            .filter(id => !String(id).startsWith(workflow.RESULT_PREFIX)),
+          result,
+        };
+      }),
+    },
+  };
+  if (report.status !== "complete") {
+    body.error = `workflow stopped at ${report.stopped_at}: ${report.reason}`;
+    body.rows = []; body.layers = []; body.row_count = 0; body.geometry = [];
+  }
+  return body;
+}
+
+/**
+ * POST /api/research/revise -- change the data one workflow step uses.
+ *
+ * Body: { question, steps: [{ id, question, uses, plan, candidate_ids }], edit }
+ * where edit is a follow-up edit plus `step` ("q2"). Every step re-executes the
+ * plan it has, in order, with no planner call; only `edit.step` is changed, and
+ * the steps after it see its new counties. Seconds, not minutes.
+ */
+app.post("/api/research/revise", auth.requireAuth, limitSearch, async (req, res) => {
+  const question = String(req.body?.question ?? "").slice(0, 500);
+  const steps = Array.isArray(req.body?.steps) ? req.body.steps : [];
+  const edit = req.body?.edit && typeof req.body.edit === "object" ? req.body.edit : null;
+  if (steps.some(st => (st?.plan?.steps || []).length > MAX_REVISE_STEPS)) {
+    return res.status(400).json({ error: `a step's plan has more than ${MAX_REVISE_STEPS} steps` });
+  }
+  try {
+    console.log(`\n${"#".repeat(70)}\nRESEARCH REVISE: "${question}" ${JSON.stringify(edit).slice(0, 160)}\n${"#".repeat(70)}`);
+    const report = await workflow.rerunWorkflow({
+      question, steps, edit,
+      log: (m) => console.log(m),
+      execute: async ({ step, plan, candidateIds, extraSources, edit: stepEdit }) => {
+        const resolver = workflow.withResultSources(resolveAttributes, extraSources);
+        try {
+          return await executeGivenPlan({
+            query: step.question, plan, edit: stepEdit, resolver, candidateIds,
+            extraIds: [...extraSources.keys()],
+          });
+        } catch (err) {
+          if (err instanceof AnalyzeError) return { ...err.payload };
+          throw err;
+        }
+      },
+    });
+    if (report.status === "invalid") {
+      return res.status(400).json({ error: "workflow is not valid", detail: report.errors.join("; ") });
+    }
+    return res.json(workflowBody(report));
+  } catch (err) {
+    console.error("Research revise error:", err);
+    return res.status(500).json({ error: "revise failed", details: err.message });
+  }
+});
+
+app.post("/api/research", auth.requireAuth, limitAnalyze, async (req, res) => {
+  let closed = false;
+  req.on("close", () => { closed = true; });
+  const planModel = requestedPlanModel(req.body?.plan_model);
+  if (planModel instanceof Error) return res.status(400).json({ error: planModel.message });
+  try {
+    const body = await analysisQueue.submit(
+      () => runResearch({
+        query: req.body?.q,
+        flags: {
+          top_k: req.body?.top_k,
+          includeGeometry: req.body?.include_geometry === true,
+          planThink: ["string", "number"].includes(typeof req.body?.plan_think)
+            ? String(req.body.plan_think) : null,
+          planModel,
+          executableFirst: typeof req.body?.executable_first === "boolean" ? req.body.executable_first : null,
+          useDefinitions: typeof req.body?.definitions === "boolean" ? req.body.definitions : null,
+          coverage: typeof req.body?.coverage === "boolean" ? req.body.coverage : null,
+        },
+      }),
+      { isAbandoned: () => closed },
+    );
+    return res.status(200).json(body);
+  } catch (err) {
+    if (err instanceof QueueFullError) {
+      res.set("Retry-After", "30");
+      return res.status(503).json({ error: "server is busy", detail: `${err.depth} analyses are already waiting.` });
+    }
+    if (err instanceof AnalyzeError) return res.status(err.status).json(err.payload);
+    return res.status(500).json({ error: "research failed", details: err.message });
+  }
+});
+
 app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
   const { q, top_k, execute, include_geometry } = req.body || {};
+  const planModel = requestedPlanModel(req.body?.plan_model);
+  if (planModel instanceof Error) return res.status(400).json({ error: planModel.message });
   // Queued like the stream: both compete for the same single GPU, and letting
   // POST bypass the queue would let it jump ahead of everyone waiting.
   let closed = false;
@@ -2450,6 +2919,8 @@ app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
           ? req.body.population_denominator : null,
         planThink: ["string", "number"].includes(typeof req.body?.plan_think)
           ? String(req.body.plan_think) : null,
+        planModel,
+        executableFirst: typeof req.body?.executable_first === "boolean" ? req.body.executable_first : null,
         coverage: typeof req.body?.coverage === "boolean" ? req.body.coverage : null,
         rerank: typeof req.body?.rerank === "string" ? req.body.rerank : undefined,
         useDefinitions: typeof req.body?.definitions === "boolean" ? req.body.definitions : null,
@@ -2511,6 +2982,22 @@ app.get("/api/analyze/stream", auth.requireAuth, limitAnalyze, async (req, res) 
   const heartbeat = setInterval(() => { if (open) res.write(": keepalive\n\n"); }, 15000);
 
   try {
+    // A question whose later part refers back to an earlier one runs as a
+    // research workflow (backend/workflow.js), with its step events streamed.
+    // The gate fired on 1 of 121 eval questions, the real workflow one, and a
+    // miss runs as one plan, which is the behaviour before workflows existed.
+    if (req.query.workflow !== "false" && workflow.needsWorkflow(req.query.q)) {
+      const body = await analysisQueue.submit(
+        () => runResearch({ query: req.query.q, emit: (ev) => send(ev.stage, ev) }),
+        {
+          onPosition: (position, total) => send("queued", { stage: "queued", position, total }),
+          isAbandoned: () => !open,
+        },
+      );
+      delete body.http_status;
+      send("done", body);
+      return;
+    }
     const body = await analysisQueue.submit(
       () => runAnalysis({
         query: req.query.q,
@@ -2575,7 +3062,10 @@ async function hydrateCandidates(attrIds, resolver) {
   for (const id of ids) {
     const src = resolved.get(id);
     if (!src) continue;
-    if (src.source_kind === "inline") { out.push(followup.userCandidate(src)); continue; }
+    if (src.source_kind === "inline") {
+      out.push(src.workflow_step ? workflow.resultCandidate(src) : followup.userCandidate(src));
+      continue;
+    }
     const row = catalogRow(id) || { attr_id: id, attr_desc: src.description || id };
     out.push(src.source_kind === "feature_table"
       ? { ...row, attr_desc: `${row.dataset_clean || src.table_name} (mapped locations)`,
@@ -2638,6 +3128,86 @@ app.post("/api/analyze/followup", auth.requireAuth, limitSearch, async (req, res
 });
 
 /**
+ * Validate and execute a plan the CLIENT holds, optionally after one edit: the
+ * shared core of POST /api/analyze/revise and of re-running a workflow step
+ * (POST /api/research/revise). No planner call. The plan is untrusted exactly
+ * like a model plan: grounded through `resolver`, validated, then compiled.
+ *
+ * Throws AnalyzeError (422) when the edit does not apply or the result is not
+ * a valid plan, so both callers report it the same way.
+ */
+async function executeGivenPlan({ query, plan, edit = null, resolver, started = Date.now(),
+                                  candidateIds = [], extraIds = [], decomposition = null }) {
+  const ids = (Array.isArray(candidateIds) ? candidateIds : []).slice(0, 60);
+  const editIds = edit ? [edit.attr_id, edit.from, edit.to].filter(Boolean) : [];
+  const planIds = (plan?.steps || []).flatMap(s => [s.attr_id, s.near_attr_id]).filter(Boolean);
+  const { candidates: executable, resolved } =
+    await hydrateCandidates([...planIds, ...editIds, ...ids, ...extraIds], resolver);
+  const byId = new Map(executable.map(c => [c.attr_id, c]));
+
+  let applied = { plan, note: null };
+  if (edit) {
+    try {
+      applied = followup.applyEdit(plan, edit, {
+        hasNeighbors: await countyNeighborsLoaded(),
+        label: (id) => {
+          const c = byId.get(id);
+          return (c && (followup.measureLabel(c.attr_desc) || c.dataset_clean)) || id;
+        },
+        kindOf: (id) => {
+          const src = resolved.get(id);
+          return !src ? null : src.source_kind === "feature_table" ? "feature" : "value";
+        },
+      });
+    } catch (err) {
+      if (!(err instanceof followup.FollowUpError)) throw err;
+      throw new AnalyzeError(422, { error: "that change does not apply to this result", detail: err.message });
+    }
+  }
+
+  // explain factors are attached by code, not grounded through `grounds`, so
+  // they are resolved here the way runAnalysis resolves them.
+  const explainStep = applied.plan.steps.find(s => s.op === "explain");
+  if (explainStep) {
+    const extra = await resolver((explainStep.factors || []).map(f => f.attr_id));
+    explainStep.factors = (explainStep.factors || [])
+      .filter(f => extra.get(f.attr_id) && extra.get(f.attr_id).source_kind !== "feature_table");
+    for (const [k, v] of extra) resolved.set(k, v);
+  }
+
+  const check = await validatePlan(applied.plan, resolver);
+  if (!check.ok) {
+    console.log(`   revised plan invalid: ${check.errors.join(" | ")}`);
+    throw new AnalyzeError(422, {
+      error: "the changed analysis is not valid",
+      detail: check.errors.join(" "),
+      validation_errors: check.errors,
+    });
+  }
+  for (const [k, v] of check.resolved) resolved.set(k, v);
+
+  const body = await finishAnalysis({
+    query: query || applied.plan.intent,
+    started,
+    planning: {
+      plan: applied.plan, resolved, repairs: 0,
+      adjustments: applied.note ? [applied.note] : [],
+      // The relevance check judges a plan against the QUESTION. An edit the
+      // user chose is not a reading of the question, so it is not re-judged.
+      relevance: null,
+    },
+    executable,
+    candidates: executable,
+    search: { decomposition, expansion: null },
+    execute: true,
+    includeGeometry: false,
+    revision: edit ? { from_query: query || null, edit, note: applied.note } : null,
+  });
+  delete body.http_status;
+  return body;
+}
+
+/**
  * POST /api/analyze/revise
  *
  * Body: { query, plan, edit, candidate_ids?, user_series?, decomposition? }
@@ -2677,71 +3247,11 @@ app.post("/api/analyze/revise", auth.requireAuth, limitSearch, async (req, res) 
 
   try {
     console.log(`\n${"=".repeat(70)}\nREVISE: "${query}" ${JSON.stringify(edit).slice(0, 200)}\n${"=".repeat(70)}`);
-    const candidateIds = (Array.isArray(req.body?.candidate_ids) ? req.body.candidate_ids : []).slice(0, 60);
-    const editIds = [edit.attr_id, edit.from, edit.to].filter(Boolean);
-    const planIds = (plan?.steps || []).flatMap(s => [s.attr_id, s.near_attr_id]).filter(Boolean);
-    const { candidates: executable, resolved } =
-      await hydrateCandidates([...planIds, ...editIds, ...candidateIds, ...userSources.keys()], resolver);
-    const byId = new Map(executable.map(c => [c.attr_id, c]));
-
-    const hasNeighbors = await countyNeighborsLoaded();
-    let applied;
-    try {
-      applied = followup.applyEdit(plan, edit, {
-        hasNeighbors,
-        label: (id) => {
-          const c = byId.get(id);
-          return (c && (followup.measureLabel(c.attr_desc) || c.dataset_clean)) || id;
-        },
-        kindOf: (id) => {
-          const src = resolved.get(id);
-          return !src ? null : src.source_kind === "feature_table" ? "feature" : "value";
-        },
-      });
-    } catch (err) {
-      if (!(err instanceof followup.FollowUpError)) throw err;
-      return res.status(422).json({ error: "that change does not apply to this result", detail: err.message });
-    }
-
-    // explain factors are attached by code, not grounded through `grounds`, so
-    // they are resolved here the way runAnalysis resolves them.
-    const explainStep = applied.plan.steps.find(s => s.op === "explain");
-    if (explainStep) {
-      const extra = await resolver((explainStep.factors || []).map(f => f.attr_id));
-      explainStep.factors = (explainStep.factors || [])
-        .filter(f => extra.get(f.attr_id) && extra.get(f.attr_id).source_kind !== "feature_table");
-      for (const [k, v] of extra) resolved.set(k, v);
-    }
-
-    const check = await validatePlan(applied.plan, resolver);
-    if (!check.ok) {
-      console.log(`   revised plan invalid: ${check.errors.join(" | ")}`);
-      return res.status(422).json({
-        error: "the changed analysis is not valid",
-        detail: check.errors.join(" "),
-        validation_errors: check.errors,
-      });
-    }
-    for (const [k, v] of check.resolved) resolved.set(k, v);
-
-    const body = await finishAnalysis({
-      query: query || applied.plan.intent,
-      started,
-      planning: {
-        plan: applied.plan, resolved, repairs: 0,
-        adjustments: [applied.note],
-        // The relevance check judges a plan against the QUESTION. An edit the
-        // user chose is not a reading of the question, so it is not re-judged.
-        relevance: null,
-      },
-      executable,
-      candidates: executable,
-      search: { decomposition: req.body?.decomposition ?? null, expansion: null },
-      execute: true,
-      includeGeometry: false,
-      revision: { from_query: query || null, edit, note: applied.note },
+    const body = await executeGivenPlan({
+      query, plan, edit, resolver, started,
+      candidateIds: req.body?.candidate_ids, extraIds: [...userSources.keys()],
+      decomposition: req.body?.decomposition ?? null,
     });
-    delete body.http_status;
     return res.json(body);
   } catch (err) {
     if (err instanceof AnalyzeError) return res.status(err.status).json(err.payload);
@@ -2795,6 +3305,17 @@ app.post("/api/measures/search", auth.requireAuth, limitSearch, async (req, res)
 // backend/geo_layers.js, docs/DATA_LOADING_PLAN.md Phase 5.
 require("./geo_layers").register(app, { pool, auth });
 
+// Recent queries that did not answer, newest first (backend/failure_log.js).
+// ?kind=planner_failed  ?class=failure|refusal|empty|workflow  ?q=<substring>  ?limit=50
+// The same file is on the host at logs/failures.jsonl; `python eval/failures.py` summarises it.
+app.get("/api/failures", auth.requireAuth, limitSearch, async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
+  const entries = await failureLog.read({
+    limit, kind: req.query.kind, cls: req.query.class, q: req.query.q,
+  });
+  res.json({ file: failureLog.file, count: entries.length, entries });
+});
+
 app.get("/api/health", async (req, res) => {
   const freshness = await checkCorpusFreshness();
   res.json({
@@ -2811,6 +3332,8 @@ app.get("/api/health", async (req, res) => {
     // silently changes it should be visible from outside.
     llm_provider: process.env.LLM_PROVIDER || "ollama",
     plan_think: CONFIG.llm.planThink,
+    plan_model_choices: [...PLANNER_MODELS],
+    executable_first: EXECUTABLE_FIRST_ENABLED,
     google_available: googleConfigured(),
     database: CONFIG.database.database,
     resolvable_attributes: resolvableCount,
@@ -2880,8 +3403,7 @@ async function initializeEmbeddings() {
     // How much of the catalog is actually executable. Surfaced on /api/health
     // because "search works but nothing can run" is otherwise invisible.
     try {
-      const { rows } = await pool.query("SELECT count(*)::int AS n FROM attribute_source");
-      resolvableCount = rows[0].n;
+      resolvableCount = await loadExecutableIds();
       console.log(`  Executable attributes: ${resolvableCount} of ${variables.length}`);
     } catch (err) {
       resolvableCount = 0;

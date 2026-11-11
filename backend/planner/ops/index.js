@@ -49,7 +49,7 @@
  */
 
 const { AREA_NAMES } = require("../../states");
-const { RELATIVE_PHRASES, TIME_PHRASES } = require("../conditions");
+const { RELATIVE_PHRASES, TIME_PHRASES, COMPLEMENT_PHRASES } = require("../conditions");
 
 const MODULES = [
   require("./load"),
@@ -84,6 +84,8 @@ const MODULES = [
   require("./intersect"),
   require("./compare_groups"),
   require("./output"),
+  // Internal: inserted by code (planner/levels.js), never offered, in no order.
+  require("./aggregate_to"),
 ];
 
 const BY_NAME = new Map(MODULES.map(m => [m.name, m]));
@@ -187,6 +189,14 @@ const STEP_FIELDS = {
                  "under the attribute it applies to. Use it when the question " +
                  "uses that term; it sets operator and value for you."
   },
+  // op=intersect: keep the counties NOT in input 2 instead ("the rest of the
+  // country"). Gated on that phrasing, or on earlier workflow results being on
+  // offer, which is when a complement group is most often needed.
+  exclude: {
+    type: "boolean",
+    description: "For op=intersect: true keeps input 1's counties that are NOT " +
+                 'in input 2, e.g. "the rest of the country", "all other counties".'
+  },
   function: { type: "string", enum: ["mean", "sum", "count", "min", "max"] },
   group_by: { type: "string", enum: ["state", "none"] },
   direction: { type: "string", enum: ["asc", "desc"] },
@@ -288,6 +298,8 @@ const FIELD_GATES = {
   percentile: (ctx) => RELATIVE_PHRASES.test(String(ctx.query || "")),
   // Data-driven: only when a retrieved attribute carries a checked definition.
   definition: (ctx) => ctx.hasDefinitions === true,
+  exclude: (ctx) => offeredFor(ctx).includes("intersect") &&
+    (COMPLEMENT_PHRASES.test(String(ctx.query || "")) || ctx.hasEarlierResults === true),
 };
 
 // TIME_PHRASES (the question has a time dimension) lives in conditions.js with
@@ -382,8 +394,15 @@ const filterOps = () => {
   return [...lead, ...all.filter(n => !lead.includes(n))];
 };
 
+/** Arity of the internal ops: validated like any other, never shown to the model. */
+function internalArity() {
+  const out = {};
+  for (const m of MODULES.filter(m => m.internal)) out[m.name] = { needs: m.needs, inputs: m.inputs };
+  return out;
+}
+
 module.exports = {
-  MODULES, BY_NAME, STEP_FIELDS,
+  MODULES, BY_NAME, STEP_FIELDS, internalArity,
   SCHEMA_ORDER, PROMPT_ORDER, CHOICE_ORDER, EXAMPLE_ORDER,
   byName: (n) => BY_NAME.get(n),
   names, offeredFor, inPromptOrder, inChoiceOrder, examplesFor,

@@ -1,0 +1,114 @@
+# What the USDA ERS county variable codes mean, as data.
+#
+# The ERS county files name their measures with bare codes (PCTPOVALL, POVALL,
+# R_NET_MIG) and nothing else. load_county_values.py used to register each code
+# as its own description, so the catalog row for the standard "percent of
+# people in poverty" measure read, in full: "PCTPOVALL", tags ['pctpovall'].
+# Retrieval had nothing to match "poverty" against, and every poverty question
+# fell through to a subpopulation table: S2201 (households, from the SNAP
+# table) or S2101 (the veteran-status table). research.yaml scored 7 of 11
+# wrong answers WRONG_MEASURE, all of that shape (docs/RESEARCH_PLAN.md).
+#
+# Each description below paraphrases the variable documentation ERS publishes
+# with the files, and was checked against the values actually loaded
+# (2026-11-10: PCTPOVALL 3.3-49.6, median 13.6; R_* are per 1,000; METRO is
+# 0/1; ECONOMIC_TYPOLOGY 0-5). A description says count or percent explicitly,
+# because planner/units.js and the relevance check both read it.
+#
+# Confidence-bound rows say "margin of error" on purpose: that is what the
+# search server's MOE demotion matches, and without it a bound would compete
+# with its own estimate as soon as it could be found at all.
+#
+# Codes are the attr_label / census_code the loader assigns (slug of the
+# measure name with the year removed). A code missing here keeps its name as
+# its description, which is the old behaviour.
+#
+# Apply to an existing catalog and database:
+#   python3 etl/load_county_values.py --refresh-descriptions --catalog backend/geoark_attributes.csv
+#   make county-descriptions        (attribute_source, inside the job container)
+
+source: >-
+  USDA Economic Research Service, County-level Data Sets (Poverty, Population
+  Estimates, Unemployment and Median Household Income, Educational Attainment),
+  variable documentation
+url: https://www.ers.usda.gov/data-products/county-level-data-sets/
+
+variables:
+  # --- Poverty2023.csv (Census SAIPE estimates) -----------------------------
+  PCTPOVALL: Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate)
+  POVALL: Number of people of all ages in poverty (count, Census SAIPE estimate)
+  PCTPOV017: Percent of children ages 0-17 in poverty (child poverty rate, SAIPE)
+  POV017: Number of children ages 0-17 in poverty (count, SAIPE)
+  PCTPOV517: Percent of related children ages 5-17 in families in poverty (SAIPE)
+  POV517: Number of related children ages 5-17 in families in poverty (count, SAIPE)
+  MEDHHINC: Median household income in dollars (Census SAIPE estimate)
+  CI90LBALL: Lower bound of the 90% confidence interval, margin of error for the number of people of all ages in poverty
+  CI90UBALL: Upper bound of the 90% confidence interval, margin of error for the number of people of all ages in poverty
+  CI90LBALLP: Lower bound of the 90% confidence interval, margin of error for the percent of people of all ages in poverty
+  CI90UBALLP: Upper bound of the 90% confidence interval, margin of error for the percent of people of all ages in poverty
+  CI90LB017: Lower bound of the 90% confidence interval, margin of error for the number of children ages 0-17 in poverty
+  CI90UB017: Upper bound of the 90% confidence interval, margin of error for the number of children ages 0-17 in poverty
+  CI90LB017P: Lower bound of the 90% confidence interval, margin of error for the percent of children ages 0-17 in poverty
+  CI90UB017P: Upper bound of the 90% confidence interval, margin of error for the percent of children ages 0-17 in poverty
+  CI90LB517: Lower bound of the 90% confidence interval, margin of error for the number of related children ages 5-17 in poverty
+  CI90UB517: Upper bound of the 90% confidence interval, margin of error for the number of related children ages 5-17 in poverty
+  CI90LB517P: Lower bound of the 90% confidence interval, margin of error for the percent of related children ages 5-17 in poverty
+  CI90UB517P: Upper bound of the 90% confidence interval, margin of error for the percent of related children ages 5-17 in poverty
+  CI90LBINC: Lower bound of the 90% confidence interval, margin of error for median household income
+  CI90UBINC: Upper bound of the 90% confidence interval, margin of error for median household income
+  RURAL_URBAN_CONTINUUM_CODE: Rural-Urban Continuum Code, 1-9 (1-3 metro counties by metro size, 4-9 nonmetro by urbanization and adjacency to a metro area)
+  URBAN_INFLUENCE_CODE: Urban Influence Code (metro counties by metro size, nonmetro counties by adjacency to metro areas and largest town; the code scheme differs between vintages)
+
+  # --- PopulationEstimates.csv (Census population estimates) ----------------
+  # "Total population (...)" is what population.js recognises as a
+  # whole-population count, which the density and coverage repairs depend on.
+  # Only POP_ESTIMATE says it, which keeps that set exactly what it was when
+  # these rows were bare codes. Describing CENSUS_POP the same way put it in
+  # the set, and the coverage repair swapped the 2020 count in for current
+  # estimates on two research.yaml questions (2026-11-10).
+  POP_ESTIMATE: Total population (resident population estimate, July 1)
+  CENSUS_POP: Resident population counted in the 2020 Census, April 1
+  ESTIMATES_BASE: Resident population estimates base, April 1 2020
+  N_POP_CHG: Numeric change in resident population over the year (count of people)
+  BIRTHS: Number of births over the year
+  DEATHS: Number of deaths over the year
+  NATURAL_CHG: Natural change in population, births minus deaths (count of people)
+  INTERNATIONAL_MIG: Net international migration (count of people)
+  DOMESTIC_MIG: Net domestic migration, people moving in from elsewhere in the US minus people moving out (count)
+  NET_MIG: Net migration, domestic plus international (count of people)
+  RESIDUAL: Residual population change not attributed to births, deaths or migration (estimation adjustment, count)
+  GQ_ESTIMATES: Group quarters population (college dorms, prisons, nursing homes, military barracks), July 1 estimate (count)
+  GQ_ESTIMATES_BASE: Group quarters population (college dorms, prisons, nursing homes, military barracks), April 1 2020 base (count)
+  R_BIRTH: Birth rate per 1,000 midyear population
+  R_DEATH: Death rate per 1,000 midyear population
+  R_NATURAL_CHG: Rate of natural increase, births minus deaths per 1,000 midyear population
+  R_INTERNATIONAL_MIG: Net international migration rate per 1,000 midyear population
+  R_DOMESTIC_MIG: Net domestic migration rate per 1,000 midyear population
+  R_NET_MIG: Net migration rate per 1,000 midyear population
+
+  # --- Unemployment2023.csv (BLS LAUS annual averages) ----------------------
+  CIVILIAN_LABOR_FORCE: Civilian labor force, annual average (count of people)
+  EMPLOYED: Number of people employed, annual average (count)
+  UNEMPLOYED: Number of people unemployed, annual average (count)
+  UNEMPLOYMENT_RATE: Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS)
+  MEDIAN_HOUSEHOLD_INCOME: Median household income in dollars
+  MED_HH_INCOME_PERCENT_OF_STATE_TOTAL: County median household income as a percent of the state median household income
+  METRO: Metropolitan county flag (1 = metro, 0 = nonmetro)
+  URBAN_INFLUENCE: Urban Influence Code, 2013 (1-12; metro counties by metro size, nonmetro counties by adjacency to metro areas and largest town)
+
+  # --- Education2023.csv (Census / ACS educational attainment) --------------
+  # The percent rows already carry readable names; only the counts were
+  # ambiguous about being counts.
+  BACHELOR_S_DEGREE_OR_HIGHER: Number of adults age 25 and older with a bachelor's degree or higher (count)
+  HIGH_SCHOOL_GRADUATE_OR_EQUIVALENCY: Number of adults age 25 and older whose highest education is high school graduate or equivalency (count)
+  LESS_THAN_HIGH_SCHOOL_GRADUATE: Number of adults age 25 and older without a high school diploma (count)
+  SOME_COLLEGE_OR_ASSOCIATE_DEGREE: Number of adults age 25 and older with some college or an associate degree (count)
+  FOUR_YEARS_OF_COLLEGE_OR_HIGHER: Number of adults age 25 and older completing four years of college or higher, 1970-1980 (count)
+  HIGH_SCHOOL_DIPLOMA_ONLY: Number of adults age 25 and older with a high school diploma only, 1970-1980 (count)
+  LESS_THAN_A_HIGH_SCHOOL_DIPLOMA: Number of adults age 25 and older without a high school diploma, 1970-1980 (count)
+  SOME_COLLEGE_1_3_YEARS: Number of adults age 25 and older completing some college (1-3 years), 1970-1980 (count)
+
+  # ECONOMIC_TYPOLOGY: deliberately left out. Its 0-5 codes are the 2015
+  # typology (farming, mining, manufacturing, government, recreation,
+  # nonspecialized), but the order could not be checked against the loaded file
+  # here, and a wrong code legend is worse than a bare name.

@@ -52,6 +52,17 @@ PLAN: {"intent":"Median household income for Missouri counties",
     }
     if (!codes.length) throw new CompileError("filter_area needs at least one state");
     const list = codes.map(c => ctx.bind(c)).join(", ");
+    if (ctx.level === "zcta") {
+      // A ZIP area has no state: it belongs to the state its area mostly lies
+      // in, through the ZCTA -> county crosswalk.
+      return `${ctx.name} AS (SELECT fips, value FROM ${ctx.ins[0]} WHERE fips IN (` +
+             `SELECT from_geoid FROM geo_crosswalk WHERE from_level = 'zcta' AND to_level = 'county' ` +
+             `AND from_share >= 0.5 AND LEFT(to_geoid, 2) IN (${list})))`;
+    }
+    if (ctx.level && ctx.level !== "county") {
+      return `${ctx.name} AS (SELECT fips, value FROM ${ctx.ins[0]} WHERE fips IN (` +
+             `SELECT geoid FROM geo_unit WHERE level = ${ctx.bind(ctx.level)} AND state_fp IN (${list})))`;
+    }
     return `${ctx.name} AS (SELECT fips, value FROM ${ctx.ins[0]} ` +
            `WHERE LEFT(fips, 2) IN (${list}))`;
   },

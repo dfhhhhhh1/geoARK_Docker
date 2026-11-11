@@ -158,7 +158,8 @@ export type PlanOp =
   | 'select_features'
   | 'filter_attr' | 'filter_area' | 'filter_place' | 'per_area'
   | 'normalize' | 'aggregate' | 'rank' | 'join' | 'combine'
-  | 'hotspot' | 'outlier' | 'correlate' | 'explain' | 'output';
+  | 'hotspot' | 'outlier' | 'correlate' | 'explain' | 'output'
+  | 'intersect' | 'compare_groups';
 
 /**
  * One returned result. A plan with several `output` steps produces several.
@@ -204,6 +205,13 @@ export interface PlanStep {
   scale?: number;
   operator?: string;
   value?: number;
+  /** filter_attr: compared against this percentile of the input's own values. */
+  percentile?: number;
+  /** filter_attr: a published definition applied (its rule is in operator/value). */
+  definition?: string;
+  definition_term?: string;
+  /** intersect: keep the counties NOT in input 2 ("the rest of the country"). */
+  exclude?: boolean;
   function?: string;
   direction?: 'asc' | 'desc';
   limit?: number;
@@ -290,6 +298,83 @@ export interface AnalysisRow {
    * final SELECT used to discard this one.
    */
   value_b?: number | null;
+  /** compare_groups: which group the county is in, 'a' (input 1) or 'b'. */
+  grp?: 'a' | 'b' | null;
+}
+
+/**
+ * compare_groups' verdict: is the measure higher in group A than in group B.
+ * Medians because the distributions are skewed; p is Mann-Whitney on sample
+ * sizes discounted for neighbouring counties resembling each other.
+ */
+export interface GroupComparison {
+  labels: { a: string; b: string } | null;
+  diff: number | null;
+  median_a: number | null;
+  median_b: number | null;
+  mean_a: number | null;
+  mean_b: number | null;
+  n_a: number | null;
+  n_b: number | null;
+  overlap: number | null;
+  rank_biserial: number | null;
+  moran_i: number | null;
+  n_eff_a: number | null;
+  n_eff_b: number | null;
+  p_value: number | null;
+}
+
+/** A published definition a plan applied ("mostly rural" = % Rural >= 0.5). */
+export interface AppliedDefinition {
+  step: string;
+  id: string;
+  term: string;
+  measure_code: string;
+  rule: string;
+  source: string;
+  url: string | null;
+  vintages: [number, number];
+}
+
+/** One analysis inside a research workflow (backend/workflow.js). */
+export interface WorkflowStep {
+  id: string;
+  question: string;
+  /** Earlier steps whose counties this one works on. */
+  uses: string[];
+  ms: number;
+  intent: string | null;
+  ops: PlanOp[];
+  summary: { counties: number; min: number | null; max: number | null; examples: string[] } | null;
+  error: string | null;
+  /** True for the step a "change data" edit was applied to. */
+  edited?: boolean;
+  plan: AnalysisPlan | null;
+  adjustments: string[];
+  definitions: AppliedDefinition[];
+  attribute_origins: AttributeOrigin[];
+  /** What retrieval offered this step, sent back on an edit. */
+  candidate_ids: string[];
+  /** The step's own full answer, without geometry: drawn when the step is selected. */
+  result: AnalysisResponse | null;
+}
+
+export interface WorkflowInfo {
+  /** The question as the user asked it. */
+  question: string;
+  status: 'complete' | 'stopped';
+  stopped_at: string | null;
+  reason: string | null;
+  /** A methods paragraph built from what each step actually did. */
+  methods: string | null;
+  ms: number;
+  decomposition: {
+    steps: Array<{ id: string; question: string; uses: string[] }>;
+    gated: boolean;
+    fallback: string[] | null;
+  };
+  edited_step?: string | null;
+  steps: WorkflowStep[];
 }
 
 export interface AnalysisResponse {
@@ -302,8 +387,13 @@ export interface AnalysisResponse {
   params?: (string | number)[];
   row_count?: number;
   rows?: AnalysisRow[];
-  /** Only present when include_geometry is requested; the UI joins locally instead. */
+  /**
+   * County answers: only present when include_geometry is requested; the UI
+   * joins locally instead. Any other level always carries it, keyed by geoid.
+   */
   geometry?: Array<{ fips: string; geometry: GeoJSON.Geometry }>;
+  /** The unit of every row: "county", or tract / zcta / grid4k ... when the question named one. */
+  level?: string;
   execution_ms?: number;
   execution_error?: string;
   provenance?: AnalysisProvenance;
@@ -332,6 +422,10 @@ export interface AnalysisResponse {
   explain?: ExplainResult;
   /** What can be done next with this plan (backend/followup.js). */
   followups?: FollowUps | null;
+  /** compare_groups' verdict, when the answer compares two groups of counties. */
+  comparison?: GroupComparison | null;
+  /** Present when the question ran as a multi-step research workflow. */
+  workflow?: WorkflowInfo;
   /** Present when this result is an edit of an earlier one, not a planned question. */
   revision?: Revision;
   ms: number;
@@ -426,7 +520,8 @@ export interface AnalysisFailure {
 export type AnalysisStage =
   | 'idle' | 'queued' | 'started' | 'decomposed' | 'retrieved'
   | 'planning' | 'plan_invalid' | 'plan_valid' | 'executing'
-  | 'plan_adjusted' | 'done' | 'failed';
+  | 'plan_adjusted' | 'done' | 'failed'
+  | 'workflow_planned' | 'workflow_step';
 
 export interface AnalysisEvent {
   stage: AnalysisStage;
@@ -446,6 +541,11 @@ export interface AnalysisEvent {
   total?: number;
   /** plan_adjusted: what was corrected deterministically. */
   detail?: string;
+  /** workflow_planned: the steps the question was split into. */
+  steps?: Array<{ id: string; question: string; uses: string[] }>;
+  /** workflow_step: which step is starting. */
+  id?: string;
+  question?: string;
 }
 // ---------------------------------------------------------------------------
 // Follow-ups

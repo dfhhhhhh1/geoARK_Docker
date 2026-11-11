@@ -1,0 +1,63 @@
+{
+  "suite": "research.yaml",
+  "queries": 1,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "phase_d": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 1
+  },
+  "latency_mean": 239.7,
+  "api_container_created": "2026-11-09T17:52:08.283719229Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "r-obesity-top50-income",
+      "tier": "phase_d",
+      "query": "Take the 50 counties with the highest adult obesity rates. How does their median household income compare with the rest of the country?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q2: q2 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q2: q2 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 50 counties have the highest adult obesity rates?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "How does the median household income in the counties from q1 compare to the median household income in all other counties?",
+            "uses": [
+              "q1"
+            ],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": "q2 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 239.7
+    }
+  ]
+}

@@ -99,6 +99,14 @@ def expand(sql: str, bind: dict[str, str], regions: dict[str, list[str]]) -> str
         return (f"(SELECT fips, value FROM acs_county_values WHERE census_code = {c} "
                 f"AND year = {int(m.group(2))})")
 
+    def geo(m):
+        # A measure below the county level (Phase E): geo_values, latest year,
+        # keyed `fips` so every compare kind works on geoids unchanged.
+        lv, c = sql_lit(m.group(1)), sql_lit(code(re.match(r"(\w+)", m.group(2))))
+        return (f"(SELECT geoid AS fips, value FROM geo_values WHERE level = {lv} AND code = {c} "
+                f"AND year = (SELECT max(year) FROM geo_values WHERE level = {lv} AND code = {c}))")
+
+    sql = re.sub(r"\{geo:(\w+):(\w+)\}", geo, sql)
     sql = re.sub(r"\{latest:(\w+)\}", latest, sql)
     sql = re.sub(r"\{year:(\w+):(\d{4})\}", year, sql)
     sql = re.sub(r"\{code:(\w+)\}", lambda m: sql_lit(code(m)), sql)
@@ -126,6 +134,16 @@ def catalog_candidates(regex: str) -> list[str]:
         "SELECT DISTINCT COALESCE(census_code, table_name), "
         "regexp_replace(COALESCE(description, ''), '[\\t\\n]', ' ', 'g'), dataset_id, "
         "source_kind FROM attribute_source")
+    # Measures loaded only below the county level have no attribute_source
+    # row by design (CLAUDE.md, "Non-county measures get NO catalog row");
+    # geo_measure lists them, so a Phase E question can still bind one.
+    known = {r[0] for r in rows}
+    try:
+        rows += [(c, lbl, "geo_measure", "geo") for c, lbl in psql(
+            "SELECT DISTINCT code, regexp_replace(COALESCE(label, ''), '[\\t\\n]', ' ', 'g') "
+            "FROM geo_measure") if c not in known]
+    except RuntimeError:
+        pass
     out = []
     for key, desc, ds, kind in rows:
         s = f"{key} | {desc} | {ds}"
@@ -163,7 +181,9 @@ def normalise(body: dict) -> dict:
         # compare_groups returns ONE layer whose rows carry `grp` (a / b). That
         # is the shape the gold already has, so it is split into one layer per
         # group exactly as self_test's as_answer splits the gold.
-        rows = [r for r in rows or [] if r.get("fips")]
+        # A unit below the county (Phase E) may come back keyed `geoid`.
+        rows = [{**r, "fips": r.get("fips") or r.get("geoid")} for r in rows or []]
+        rows = [r for r in rows if r.get("fips")]
         if rows and "grp" in rows[0]:
             by = {}
             for r in rows:
@@ -470,9 +490,12 @@ def self_test(suite: dict) -> int:
     return 1 if fails else 0
 
 
-def call_analyze(base: str, query: str, timeout: int, extra: dict) -> tuple[dict, float]:
+def call_analyze(base: str, query: str, timeout: int, extra: dict,
+                 endpoint: str = "analyze") -> tuple[dict, float]:
+    # /api/research (Phase D) returns the last step's analyze body, so the same
+    # normalise() and scoring read it; provenance there spans every step.
     body = json.dumps({"q": query, "execute": True, "include_geometry": False, **extra}).encode()
-    req = urllib.request.Request(f"{base}/api/analyze", data=body,
+    req = urllib.request.Request(f"{base}/api/{endpoint}", data=body,
                                  headers={"Content-Type": "application/json"}, method="POST")
     t0 = time.time()
     try:
@@ -497,6 +520,10 @@ def run(suite: dict, args) -> dict:
     extra = {}
     if args.plan_think:
         extra["plan_think"] = args.plan_think
+    if args.plan_model:
+        extra["plan_model"] = args.plan_model
+    if args.executable_first is not None:
+        extra["executable_first"] = args.executable_first
     created_before = api_created()
     cache: dict = {}
     rows = []
@@ -512,7 +539,7 @@ def run(suite: dict, args) -> dict:
             aborted = f"API container recreated before {q['id']}"
             print(f"  {RED}{aborted}; aborting{OFF}")
             break
-        body, secs = call_analyze(args.base, q["query"], args.timeout, extra)
+        body, secs = call_analyze(args.base, q["query"], args.timeout, extra, args.endpoint)
         ans = normalise(body)
         try:
             cls, det = score(q, suite, ans, cache)
@@ -526,6 +553,18 @@ def run(suite: dict, args) -> dict:
             "intent": (body.get("plan") or {}).get("intent"),
             "loaded": ans["origins"], "row_count": ans["row_count"],
             "error": body.get("error"), "exec_error": body.get("execution_error"),
+            # --endpoint research: how the question was split, and whether the
+            # workflow ran to the end. Over-splitting a one-plan question is
+            # the failure this records.
+            **({"workflow": {
+                "status": body["workflow"].get("status"),
+                "steps": [{"id": s.get("id"), "question": s.get("question"), "uses": s.get("uses"),
+                           "ops": "->".join(s.get("ops") or [])}
+                          for s in body["workflow"].get("steps") or []],
+                "planned_steps": len((body["workflow"].get("decomposition") or {}).get("steps") or []),
+                "fallback": (body["workflow"].get("decomposition") or {}).get("fallback"),
+                "reason": body["workflow"].get("reason"),
+            }} if isinstance(body.get("workflow"), dict) else {}),
             "seconds": round(secs, 1),
         })
         color = GREEN if cls in PASS else RED
@@ -559,6 +598,9 @@ def run(suite: dict, args) -> dict:
         # Excluded from every rate above; a run with any is not a baseline.
         "harness_errors": len(harness),
         "plan_think": args.plan_think,
+        "plan_model": args.plan_model,
+        "executable_first": args.executable_first,
+        "endpoint": args.endpoint,
         "detail": rows_all,
     }
 
@@ -572,6 +614,15 @@ def main() -> int:
     ap.add_argument("--tier")
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--plan-think")
+    # A planner from the API's PLAN_MODEL_CHOICES; default is its PLAN_MODEL.
+    ap.add_argument("--plan-model")
+    # Executable-first retrieval, per request; default is the API's EXECUTABLE_FIRST.
+    ap.add_argument("--executable-first", dest="executable_first", action="store_const",
+                    const=True, default=None)
+    ap.add_argument("--no-executable-first", dest="executable_first", action="store_const",
+                    const=False)
+    ap.add_argument("--endpoint", choices=["analyze", "research"], default="analyze",
+                    help="research = /api/research, the multi-step workflow (Phase D)")
     ap.add_argument("--check-gold", action="store_true")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()

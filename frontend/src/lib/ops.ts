@@ -28,6 +28,8 @@ export const OP_LABEL: Record<PlanOp, string> = {
   correlate: 'Correlation',
   explain: 'Explain',
   output: 'Output',
+  intersect: 'Keep matching counties',
+  compare_groups: 'Compare two groups',
 };
 
 /**
@@ -36,6 +38,11 @@ export const OP_LABEL: Record<PlanOp, string> = {
  * "2.3" means without being told.
  */
 export const OP_READING: Partial<Record<PlanOp, string>> = {
+  compare_groups:
+    'The difference in medians between the two groups, with a Mann-Whitney test ' +
+    'whose sample sizes are discounted for neighbouring counties resembling each ' +
+    "other (Moran's I). The rank-biserial correlation runs from -1 to 1: the chance " +
+    'a county in the first group is higher than one in the second, minus the reverse.',
   hotspot:
     'Getis-Ord Gi*. Strongly positive means this county and its neighbours are ' +
     'all high; strongly negative means they are all low. Around ±2 is the ' +

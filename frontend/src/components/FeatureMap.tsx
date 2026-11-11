@@ -38,6 +38,8 @@ interface Props {
   /** `stage` fills the parent and floats its controls; see MapVariant. */
   variant?: MapVariant;
   fitPadding?: FitPadding;
+  /** Extra stage toolbar controls, e.g. "Add layer". */
+  toolbarExtra?: React.ReactNode;
 }
 
 /**
@@ -73,7 +75,7 @@ const escapeHtml = (s: string): string =>
   s.replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
-const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fitPadding }) => {
+const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fitPadding, toolbarExtra }) => {
   const stage = variant === 'stage';
   const mapRef = useRef<L.Map | null>(null);
   // Bumped by the stage's reset button; see ChoroplethMap.
@@ -210,7 +212,9 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
       onOpacity={setOpacity}
       opacityLabel="Location marker"
       className={className}
-    />
+    >
+      {stage ? toolbarExtra : null}
+    </MapToolbar>
   );
 
   const map = (
@@ -271,7 +275,7 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
       <div className="absolute inset-0" onMouseLeave={clearHover}>
         {map}
         <div className="absolute right-3 z-[600] flex flex-col items-end gap-2 pointer-events-none
-                        max-w-[calc(100vw-1.5rem)]"
+                        max-w-[min(34rem,calc(100vw-1.5rem))]"
              style={{ top: 'var(--header-offset)' }}>
           <div className="pointer-events-auto glass glass-raisable glass-floor rounded-2xl px-3 py-2">
             {toolbar('flex flex-wrap items-center justify-end gap-x-3 gap-y-2')}

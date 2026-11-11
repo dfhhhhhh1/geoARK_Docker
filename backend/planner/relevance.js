@@ -30,7 +30,7 @@
  * plan back, never remove a candidate.
  */
 
-const { needsPopulation, isTotalPopulation } = require("../population");
+const { needsPopulation, asksPopulationSize, isTotalPopulation } = require("../population");
 
 const VERDICTS = ["direct", "proxy", "denominator", "unrelated"];
 
@@ -109,7 +109,13 @@ const normText = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]+/g, " "
 const GENERIC = new Set(("county counties each every state states rate rates percent percentage " +
   "estimate total number count among adults adult people population data level levels " +
   "prevalence crude adjusted mapped locations location average mean median which where " +
-  "what that this with from have many much across area areas year years").split(" "));
+  "what that this with from have many much across area areas year years " +
+  // Shared by most health measures, so they connect nothing. "What drives
+  // chronic kidney disease rates" (no kidney data) planned explain(COPD): the
+  // model said "none", and "chronic, disease" overruled it, 3 of 3 runs
+  // (2026-11-10). The overrules this rule exists for share a real word
+  // ("heart", "transmission").
+  "chronic disease diseases condition conditions disorder disorders health illness").split(" "));
 const contentWords = (x) => new Set(normText(x).split(" ")
   .filter(w => w.length >= 4 && !GENERIC.has(w))
   .map(w => w.replace(/(ies)$/, "y").replace(/s$/, "")));
@@ -166,8 +172,23 @@ function usedAttributes(plan) {
  * told the check did not run rather than that it passed.
  */
 async function checkRelevance({ query, plan, candidates, refs, callLLM, log = () => {} }) {
-  const used = usedAttributes(plan);
-  if (!used.length) return { errors: [], verdicts: [] };
+  // An earlier step's result (backend/workflow.js) is a set of counties, not a
+  // measure of anything the question names: "the counties from step 1" has no
+  // subject for the model to judge, and judged anyway it reads as unrelated.
+  // It is grounded by the workflow instead (a step must cite what it says it
+  // uses), so it gets a fixed verdict and is never sent to the model.
+  const isEarlier = (id) => typeof id === "string" && id.startsWith("result:");
+  const earlier = usedAttributes(plan).filter(u => isEarlier(u.attr_id)).map(u => ({
+    attr_id: u.attr_id, label: u.attr_id, verdict: "earlier_result", fit: null,
+    reason: "a set of counties produced by an earlier step of this analysis",
+  }));
+  const used = usedAttributes(plan).filter(u => !isEarlier(u.attr_id));
+  if (!used.length) return { errors: [], verdicts: earlier };
+  const withEarlier = (r) => ({ ...r, verdicts: [...earlier, ...(r.verdicts || [])] });
+  return withEarlier(await judge({ query, plan, candidates, refs, callLLM, log, used }));
+}
+
+async function judge({ query, plan, candidates, refs, callLLM, log, used }) {
 
   // The plan's attr_ids are already real ids here; the model saw a1, a2 ...
   const labelOf = new Map([...refs.entries()].map(([label, id]) => [id, label]));
@@ -230,13 +251,14 @@ async function checkRelevance({ query, plan, candidates, refs, callLLM, log = ()
     // population count even when it says "densely populated" or "people", which
     // sharedWords cannot see ("people" and "population" are generic there).
     // See backend/population.js for the two refusals this prevents.
-    const popRule = fit === "none" && !shared.length && needsPopulation(query) && isTotalPopulation(desc);
+    const popRule = fit === "none" && !shared.length &&
+      (needsPopulation(query) || asksPopulationSize(query)) && isTotalPopulation(desc);
     if (popRule) verdict = "unchecked";
     const measures = String(v?.measures || "").trim();
     const reason = !fit ? null
       : fit === "none" && shared.length
         ? `model said it measures nothing asked about, overruled: it shares "${shared.join(", ")}" with the question`
-      : popRule ? `model said it measures nothing asked about, overruled: a density or per-person question is defined by a total population`
+      : popRule ? `model said it measures nothing asked about, overruled: a density, per-person or population-size question is defined by a total population`
       : fit === "none" ? `measures ${measures || "something else"}, which the question does not name`
       : fit === "denominator" ? `scales the result (${measures})`
       : fit === "same" ? `measures ${phrase ? `"${phrase}"` : measures}`

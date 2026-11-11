@@ -1,0 +1,45 @@
+# Several layers on one map (2026-11-09).
+#
+# The compiler and executor have returned one layer per `output` step since the
+# plan became a DAG, but the planner was told "end with exactly one output",
+# so "show A and B on the same map" came back as one layer. The rule is now
+# gated on explicit layering phrasing (planner/conditions.js LAYER_PHRASES),
+# which fires on 0 of the 121 questions in the other eval suites, so those
+# prompts are byte-identical and this suite is the only one that can see it.
+#
+# expect_outputs  at least this many output steps (layers)
+# expect_op       an op the question demands, as in plan_correctness.yaml
+#
+# Run: python eval/plan_probe.py --suite-file eval/layers.yaml --save ...
+
+queries:
+  - id: layers-income-hospitals
+    query: "show median household income and hospitals on the same map"
+    expect_op: select_features
+    expect_outputs: 2
+
+  - id: layers-unemployment-fire-ohio
+    query: "map the unemployment rate in Ohio with fire stations on top"
+    expect_op: select_features
+    expect_outputs: 2
+
+  - id: layers-two-measures
+    query: "put poverty rate and diabetes prevalence on one map as separate layers"
+    expect_op: load
+    expect_outputs: 2
+
+  - id: layers-overlay-lines
+    query: "overlay electric transmission lines on population density for the Midwest"
+    expect_op: select_features
+    expect_outputs: 2
+
+  - id: layers-obesity-uninsured-texas
+    query: "show adult obesity and the uninsured rate in Texas as layers"
+    expect_op: load
+    expect_outputs: 2
+
+  # Control: a single-measure map question. The gate must not fire, and the
+  # answer must stay one layer.
+  - id: layers-control-single
+    query: "show poverty rates on a map"
+    expect_op: load

@@ -63,3 +63,7 @@ etl/_scratch/
 deploy/incoming/*
 !deploy/incoming/.gitkeep
 deploy/dumps/
+
+# failure log (backend/failure_log.js): queries only, but they are users' questions
+logs/*
+!logs/.gitkeep

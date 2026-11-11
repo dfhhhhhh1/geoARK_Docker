@@ -1,0 +1,69 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 1,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "phase_e": {
+      "pass": 1,
+      "n": 1,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 1
+  },
+  "latency_mean": 25.7,
+  "api_container_created": "2026-11-11T10:31:09.077940853Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "e-mi-noveh-rollup",
+      "tier": "phase_e",
+      "query": "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 83,
+        "gold_rows": 83,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_NOVEH"
+        }
+      },
+      "ops": "load->aggregate_to->filter_area->output",
+      "intent": "Share of people in each Michigan county who live in households without a vehicle, weighted by tract population",
+      "loaded": [
+        "SVI_EP_NOVEH | Percent of households with no vehicle available | CDC Social Vulnerability Index"
+      ],
+      "row_count": 83,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
+            "uses": [],
+            "ops": "load->aggregate_to->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 25.7
+    }
+  ]
+}

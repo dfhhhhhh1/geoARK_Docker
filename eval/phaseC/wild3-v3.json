@@ -1,0 +1,141 @@
+[
+ {
+  "run": 1,
+  "id": "w-two-conditions",
+  "shape": "ROWS",
+  "rows": 488,
+  "ops": "load->filter_attr->load->filter_attr->count_features->filter_attr->intersect->intersect->output",
+  "loaded": [
+   "CHR_V058_RAWVALUE",
+   "S2201_C02_021E",
+   "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+  ],
+  "definitions": [
+   "census_mostly_rural"
+  ],
+  "comparison": null,
+  "adjustments": [],
+  "error": null,
+  "s": 54.0
+ },
+ {
+  "run": 1,
+  "id": "w-ratio-question",
+  "shape": "ROWS",
+  "rows": 2693,
+  "ops": "load->filter_area->filter_area->compare_groups->output",
+  "loaded": [
+   "DP03_0009PE"
+  ],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": [],
+  "error": null,
+  "s": 65.8
+ },
+ {
+  "run": 1,
+  "id": "w-trend-where",
+  "shape": "NO_PLAN",
+  "rows": null,
+  "ops": "",
+  "loaded": [],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": null,
+  "error": "could not produce a valid plan",
+  "s": 106.9
+ },
+ {
+  "run": 2,
+  "id": "w-two-conditions",
+  "shape": "ROWS",
+  "rows": 315,
+  "ops": "load->filter_attr->load->filter_attr->count_features->filter_attr->intersect->intersect->output",
+  "loaded": [
+   "RURAL_URBAN_CONTINUUM_CODE",
+   "S2201_C02_021E",
+   "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+  ],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": [],
+  "error": null,
+  "s": 50.5
+ },
+ {
+  "run": 2,
+  "id": "w-ratio-question",
+  "shape": "ROWS",
+  "rows": 2694,
+  "ops": "load->filter_area->filter_area->compare_groups->output",
+  "loaded": [
+   "S2101_C02_034E"
+  ],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": [],
+  "error": null,
+  "s": 65.8
+ },
+ {
+  "run": 2,
+  "id": "w-trend-where",
+  "shape": "NO_PLAN",
+  "rows": null,
+  "ops": "",
+  "loaded": [],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": null,
+  "error": "could not produce a valid plan",
+  "s": 100.9
+ },
+ {
+  "run": 3,
+  "id": "w-two-conditions",
+  "shape": "ROWS",
+  "rows": 490,
+  "ops": "load->filter_attr->load->filter_attr->count_features->filter_attr->intersect->intersect->output",
+  "loaded": [
+   "RURAL_URBAN_CONTINUUM_CODE",
+   "S2201_C02_021E",
+   "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+  ],
+  "definitions": [
+   "ers_rucc_nonmetro"
+  ],
+  "comparison": null,
+  "adjustments": [],
+  "error": null,
+  "s": 45.3
+ },
+ {
+  "run": 3,
+  "id": "w-ratio-question",
+  "shape": "ROWS",
+  "rows": 2694,
+  "ops": "load->filter_area->filter_area->compare_groups->output",
+  "loaded": [
+   "S2101_C02_034E"
+  ],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": [],
+  "error": null,
+  "s": 56.9
+ },
+ {
+  "run": 3,
+  "id": "w-trend-where",
+  "shape": "NO_PLAN",
+  "rows": null,
+  "ops": "",
+  "loaded": [],
+  "definitions": [],
+  "comparison": null,
+  "adjustments": null,
+  "error": "could not produce a valid plan",
+  "s": 119.8
+ }
+]

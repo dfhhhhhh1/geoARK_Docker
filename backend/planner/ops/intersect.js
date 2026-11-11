@@ -1,4 +1,4 @@
-const { statesCondition } = require("../conditions");
+const { statesCondition, COMPLEMENT_PHRASES } = require("../conditions");
 
 /**
  * Counties that meet two conditions at once.
@@ -29,7 +29,11 @@ module.exports = {
                  that are also in input 2 (both conditions hold)`,
   choiceLine: `  "X counties that also ...", several conditions at once   -> filter each, then intersect`,
 
-  offered: (ctx) => statesCondition(ctx),
+  // Also when earlier workflow results are on offer (backend/workflow.js):
+  // "those counties" is a restriction to a set an earlier step produced, and
+  // "the rest of the country" is its complement.
+  offered: (ctx) => statesCondition(ctx) || ctx.hasEarlierResults === true ||
+    COMPLEMENT_PHRASES.test(String(ctx.query || "")),
 
   examples: [
     { usesDefinitions: true, text:
@@ -69,7 +73,11 @@ PLAN: {"intent":"Median household income in counties with income below 40000 and
 
   compile(step, ctx) {
     const [a, b] = ctx.ins;
+    // exclude: the complement, "the rest of the country". Still a semi-join
+    // shape (NOT EXISTS), so a NULL fips in input 2 cannot empty the result
+    // the way NOT IN would.
+    const test = step.exclude === true ? "NOT EXISTS" : "EXISTS";
     return `${ctx.name} AS (SELECT a.fips, a.value FROM ${a} a ` +
-           `WHERE EXISTS (SELECT 1 FROM ${b} b WHERE b.fips = a.fips))`;
+           `WHERE ${test} (SELECT 1 FROM ${b} b WHERE b.fips = a.fips))`;
   },
 };

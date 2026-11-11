@@ -1,0 +1,206 @@
+{
+  "attr_appropriateness": null,
+  "queries": 6,
+  "plan_validity": 0.8333333333333334,
+  "op_appropriateness": 0.8333333333333334,
+  "forbidden_op_rate": 0.0,
+  "op_diversity": 0.8333333333333334,
+  "distinct_op_sequences": [
+    "load->filter_area->output->load->filter_area->output",
+    "load->filter_area->output->select_features->output",
+    "load->output->load->output",
+    "load->output->select_features->output",
+    "load->per_area->output->select_features->output"
+  ],
+  "latency_mean": 35.1,
+  "detail": [
+    {
+      "id": "layers-income-hospitals",
+      "expect_attr": null,
+      "expect_attr_present": null,
+      "query": "show median household income and hospitals on the same map",
+      "planned": true,
+      "intent": "Median household income by county, with hospital locations as a second layer",
+      "ops": "load->output->select_features->output",
+      "narrowing": [],
+      "expect_op": "select_features",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "expect_outputs": 2,
+      "outputs": 2,
+      "attrs": [
+        {
+          "attr_id": "MEDIAN_HOUSEHOLD_INCOME",
+          "purpose": "primary",
+          "desc": "Median_Household_Income"
+        },
+        {
+          "attr_id": "443ff20b_01_01_24",
+          "purpose": "primary",
+          "desc": "Hospitals (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 25.8
+    },
+    {
+      "id": "layers-unemployment-fire-ohio",
+      "expect_attr": null,
+      "expect_attr_present": null,
+      "query": "map the unemployment rate in Ohio with fire stations on top",
+      "planned": true,
+      "intent": "Unemployment rate by Ohio county, with fire station locations as a second layer",
+      "ops": "load->filter_area->output->select_features->output",
+      "narrowing": [
+        "state=Ohio",
+        "state=Ohio"
+      ],
+      "expect_op": "select_features",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "expect_outputs": 2,
+      "outputs": 2,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_02_01_402",
+          "purpose": "primary",
+          "desc": "Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate"
+        },
+        {
+          "attr_id": "964c8e3d_01_01_19",
+          "purpose": "primary",
+          "desc": "Fire Stations (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 39.3
+    },
+    {
+      "id": "layers-two-measures",
+      "expect_attr": null,
+      "expect_attr_present": null,
+      "query": "put poverty rate and diabetes prevalence on one map as separate layers",
+      "planned": true,
+      "intent": "Poverty rate and diabetes prevalence mapped as separate layers by county",
+      "ops": "load->output->load->output",
+      "narrowing": [],
+      "expect_op": "load",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "expect_outputs": 2,
+      "outputs": 2,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_07_01_452",
+          "purpose": "primary",
+          "desc": "Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level"
+        },
+        {
+          "attr_id": "CHR_V060_RAWVALUE",
+          "purpose": "primary",
+          "desc": "Diabetes prevalence"
+        }
+      ],
+      "error": null,
+      "seconds": 39.2
+    },
+    {
+      "id": "layers-overlay-lines",
+      "expect_attr": null,
+      "expect_attr_present": null,
+      "query": "overlay electric transmission lines on population density for the Midwest",
+      "planned": true,
+      "intent": "Electric transmission lines overlaid on population density map for the Midwest region",
+      "ops": "load->per_area->output->select_features->output",
+      "narrowing": [
+        "state=Illinois",
+        "state=Indiana",
+        "state=Iowa",
+        "state=Kansas",
+        "state=Michigan",
+        "state=Minnesota",
+        "state=Missouri",
+        "state=Nebraska",
+        "state=North Dakota",
+        "state=Ohio",
+        "state=South Dakota",
+        "state=Wisconsin"
+      ],
+      "expect_op": "select_features",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "expect_outputs": 2,
+      "outputs": 2,
+      "attrs": [
+        {
+          "attr_id": "04d18a18_05_01_237",
+          "purpose": null,
+          "desc": "Estimate|SEX AND AGE|Total population"
+        },
+        {
+          "attr_id": "4247b381_01_01_03",
+          "purpose": "primary",
+          "desc": "Transmission Lines (mapped locations)"
+        }
+      ],
+      "error": null,
+      "seconds": 42.1
+    },
+    {
+      "id": "layers-obesity-uninsured-texas",
+      "expect_attr": null,
+      "expect_attr_present": null,
+      "query": "show adult obesity and the uninsured rate in Texas as layers",
+      "planned": true,
+      "intent": "Adult obesity and uninsured rate in Texas as separate map layers",
+      "ops": "load->filter_area->output->load->filter_area->output",
+      "narrowing": [
+        "state=Texas",
+        "state=Texas"
+      ],
+      "expect_op": "load",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "expect_outputs": 2,
+      "outputs": 2,
+      "attrs": [
+        {
+          "attr_id": "CHR_V011_RAWVALUE",
+          "purpose": "primary",
+          "desc": "Adult obesity"
+        },
+        {
+          "attr_id": "CHR_V085_RAWVALUE",
+          "purpose": "primary",
+          "desc": "Uninsured"
+        }
+      ],
+      "error": null,
+      "seconds": 55.4
+    },
+    {
+      "id": "layers-control-single",
+      "expect_attr": null,
+      "expect_attr_present": null,
+      "query": "show poverty rates on a map",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "narrowing": [],
+      "expect_op": "load",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "expect_outputs": null,
+      "outputs": 0,
+      "attrs": [],
+      "error": "Remote end closed connection without response",
+      "seconds": 8.9
+    }
+  ]
+}

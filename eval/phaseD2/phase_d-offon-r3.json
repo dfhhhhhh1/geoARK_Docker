@@ -1,0 +1,66 @@
+{
+  "suite": "research.yaml",
+  "queries": 1,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "phase_d": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "EMPTY": 1
+  },
+  "latency_mean": 44.3,
+  "api_container_created": "2026-11-11T03:35:39.99164488Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "r-obesity-top50-income",
+      "tier": "phase_d",
+      "query": "Take the 50 counties with the highest adult obesity rates. How does their median household income compare with the rest of the country?",
+      "class": "EMPTY",
+      "pass": false,
+      "detail": {},
+      "ops": "load->load->intersect->load->intersect->compare_groups->output",
+      "intent": "Median household income in the fifty counties ranked highest on adult obesity rates compared to the rest of the country",
+      "loaded": [
+        "PLACES_OBESITY_CrdPrv | Obesity among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES",
+        "MEDIAN_HOUSEHOLD_INCOME | Median household income in dollars | USDA ERS"
+      ],
+      "row_count": 0,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 50 counties have the highest adult obesity rates?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "What is the median household income in the counties from q1 compared to the rest of the country?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->intersect->load->intersect->compare_groups->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 44.3
+    }
+  ]
+}

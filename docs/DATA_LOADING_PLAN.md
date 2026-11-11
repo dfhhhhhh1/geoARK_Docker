@@ -632,6 +632,77 @@ derivation is right:
   (0.3-2 s, measured up to 5 s cold with everything else), then is cached in
   the API process.
 
+### Phases 6-7, the planner at other levels, 2026-11-11
+
+`backend/planner/levels.js`, tests `planner/test_levels.js` (10). Measured with
+`eval/research_advanced.yaml`'s `phase_e` tier; numbers in RESEARCH_PLAN.md,
+Phase E.
+
+- **The model never picks the level.** A question that wants tracts says so
+  ("census tracts", plural "ZIP codes", "4 km grid cells"), so the unit is read
+  from its words after planning and set as `plan.level`. The decoding schema
+  and prompt are byte-identical across all 48 contexts. A question that names
+  counties as its answer ("each Michigan county", "in which Missouri
+  counties") keeps the county even when it mentions tracts: that is a roll-up,
+  and answering it with tract rows would be the wrong unit. 5 of 151 eval
+  questions get a level.
+- **A level is set only when every loaded measure has it** (`geo_measure`).
+  Otherwise the plan goes back for repair with the candidates that do, by
+  label: "Uninsured has no values by census tract. These on the list do: a5
+  Percent of persons without health insurance", and the next attempt used it.
+- **Ported:** `load` (geo_values_all), `filter_area` (geo_unit.state_fp; a ZIP
+  area through the crosswalk, >= 50% of it), `filter_place` (the same 1%
+  overlap rule against the unit's own geometry), `per_area` (geo_unit.aland),
+  and the output (geo_unit at its z12 tier). `rank`, `filter_attr`,
+  `normalize`, `join`, `intersect`, `combine` read only `(fips, value)` and
+  need nothing. Everything else is refused at another level with a sentence,
+  never compiled at the county level by accident. County SQL is unchanged
+  (tested: no geo_unit / geo_values in it).
+- **The level is inlined in one place** (the output's geo_unit join), from a
+  closed set; a level outside it compiles as the county.
+- Verified by executing compiled SQL: St. Louis city tracts by % below 150% of
+  poverty return exactly the gold's top three (70.7, 69.3, 67.7), 453 ms.
+- **Found on the way:** none of the 31 catalog rows the ledger records for CDC
+  SVI (county) and WorldPop were in the catalog. Something rewrote it after the
+  2026-10-16 ingests; their values resolved and nothing could retrieve them.
+  `etl/restore_ledger_catalog.py` puts back what the ledger lists (the tagger's
+  original tags are lost; tags are rebuilt from descriptions). Retrieval
+  guards after: known-item 91.7% / 0.944, concept 97.8 / 97.3%, concept MRR
+  0.737 -> 0.750. Seven SVI race/ethnicity codes had no sidecar description
+  ("EP_AFAM"); the CDC definitions are now in both SVI sidecars.
+- **Roll-ups: finer data, county answers** (`ops/aggregate_to.js`, internal:
+  in no ordering, never offered, so again nothing the model sees changes).
+  "Using census tract data ... each Michigan county" and "which Missouri
+  counties vary most from one tract to another" keep the county as the answer
+  unit; `applyRollup` marks each load to read tracts and inserts the roll-up
+  right after it, so the rest of the plan is an ordinary county plan. Rates
+  are weighted by the same dataset's population (SVI), else WorldPop's;
+  counts are summed; spread phrasing takes the standard deviation of a
+  county's tracts (3+). Tract and block group only: they nest in counties, a
+  grid cell does not. Compiled SQL against hand-written gold: Michigan 83 of
+  83 counties within 0.01, Missouri spread top 10 exactly.
+- **At a named unit, only measures with values there are offered.** The
+  candidate list is filtered to measures `geo_measure` has at that level,
+  topped up from everything retrieval found; a unit holding five or fewer
+  measures gets all of them. "Uninsured rate for every census tract" chose CHR
+  Uninsured (county only), was sent back naming SVI's, and the next two
+  attempts broke the plan rather than switch; with the filter it plans SVI on
+  attempt 1 and returns all 104 St. Louis city tracts.
+- **The analysis map draws other levels.** It joins counties from a shipped
+  file, so a tract answer used to draw nothing. Any level but the county now
+  always carries its geometry (z12 tier, a few hundred bytes a tract) and the
+  map draws it; the response says `level`.
+- **Two repairs this needed, both deterministic:** a place named "Cook County"
+  becomes a county restriction (an internal place kind, not in the enum), and
+  a plan that restricts to nothing while the question names exactly one state
+  gets that state (the grid question ranked all 613,889 US cells in 190 s for
+  "in Colorado"; the same failure as the old `r-fire-stations-co` flake).
+  "In the city of St. Louis" now passes the area gate.
+- **Not done:** a crosswalk lookup ("which counties does ZIP 65721 fall in"),
+  ZIP -> county roll-ups (they need crosswalk shares), `tract_neighbors` and
+  the statistics ops at other levels, and city names with no state at tract
+  level (Denver: five other states' Denvers, which is the user's to settle).
+
 ## 11. Sources
 
 None of these have been checked for current availability yet.

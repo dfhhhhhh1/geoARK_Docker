@@ -1,0 +1,366 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 6,
+  "answer_correctness": 0.8333333333333334,
+  "by_tier": {
+    "phase_d": {
+      "pass": 5,
+      "n": 6,
+      "rate": 0.8333333333333334
+    }
+  },
+  "classes": {
+    "CORRECT": 5,
+    "WRONG_VALUE": 1
+  },
+  "latency_mean": 44.1,
+  "api_container_created": "2026-11-11T07:26:54.867444941Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "d-uninsured100-diabetes",
+      "tier": "phase_d",
+      "query": "Find the 100 counties with the highest uninsured rates. Is diabetes more common in those counties than in all other counties?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "groups": {
+          "rest": {
+            "gold_median": 0.107,
+            "got_median": 0.107,
+            "jaccard": 1.0,
+            "ok": true
+          },
+          "top100": {
+            "gold_median": 0.141,
+            "got_median": 0.141,
+            "jaccard": 1.0,
+            "ok": true
+          }
+        },
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V085_RAWVALUE",
+          "m2": "CHR_V060_RAWVALUE"
+        }
+      },
+      "ops": "load->load->intersect->load->intersect->compare_groups->output",
+      "intent": "Diabetes prevalence in counties from q1 compared with all other counties",
+      "loaded": [
+        "CHR_V085_RAWVALUE | Uninsured | County Health Rankings",
+        "CHR_V060_RAWVALUE | Diabetes prevalence | County Health Rankings"
+      ],
+      "row_count": 3133,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 100 counties have the highest uninsured rates?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "Is diabetes more common in the counties from q1 than in all other counties?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->intersect->load->intersect->compare_groups->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 43.8
+    },
+    {
+      "id": "d-mo-poverty20-distance",
+      "tier": "phase_d",
+      "query": "Find the 20 Missouri counties with the highest poverty rates. How far, in miles, is the center of each of those counties from the nearest hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 20,
+        "gold_rows": 20,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PCTPOVALL",
+          "m2": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "load->nearest_distance->intersect->output",
+      "intent": "Distance in miles from the center of each of the 20 Missouri counties with the highest poverty rates to the nearest hospital",
+      "loaded": [
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 20,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 20 Missouri counties have the highest poverty rates?",
+            "uses": [],
+            "ops": "load->filter_area->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "How far, in miles, is the center of each of the counties from q1 from the nearest hospital?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->nearest_distance->intersect->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 41.5
+    },
+    {
+      "id": "d-unemp-outliers-poverty",
+      "tier": "phase_d",
+      "query": "Which counties are statistical outliers for the unemployment rate? Is the poverty rate in those outlier counties different from everywhere else?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "groups": {
+          "rest": {
+            "gold_median": 13.5,
+            "got_median": 13.5,
+            "jaccard": 1.0,
+            "ok": true
+          },
+          "outlier": {
+            "gold_median": 18.85,
+            "got_median": 18.85,
+            "jaccard": 1.0,
+            "ok": true
+          }
+        },
+        "gold_alt": 0,
+        "bind": {
+          "m1": "UNEMPLOYMENT_RATE",
+          "m2": "PCTPOVALL"
+        }
+      },
+      "ops": "load->load->intersect->load->intersect->compare_groups->output",
+      "intent": "Is the poverty rate in the counties from q1 different from the poverty rate in all other counties?",
+      "loaded": [
+        "UNEMPLOYMENT_RATE | Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS) | USDA ERS",
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS"
+      ],
+      "row_count": 3132,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which counties are statistical outliers for the unemployment rate?",
+            "uses": [],
+            "ops": "load->outlier->output"
+          },
+          {
+            "id": "q2",
+            "question": "Is the poverty rate in the counties from q1 different from the poverty rate in all other counties?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->intersect->load->intersect->compare_groups->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 38.3
+    },
+    {
+      "id": "d-smallest50-diabetes10-distance",
+      "tier": "phase_d",
+      "query": "Take the 50 least populous counties in the country. Of those, which 10 have the highest diabetes prevalence? How far is each of those 10 from the nearest hospital, in miles?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 10,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V051_RAWVALUE",
+          "m2": "PLACES_DIABETES_AgeAdjPrv",
+          "m3": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "load->nearest_distance->intersect->output",
+      "intent": "Distance in miles from each county in q2 to its nearest hospital",
+      "loaded": [
+        "CHR_V051_RAWVALUE | Population | County Health Rankings",
+        "PLACES_DIABETES_AgeAdjPrv | Diagnosed diabetes among adults (age-adjusted prevalence) (covers 2,957 counties) | CDC PLACES",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which are the 50 least populous counties in the country?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "Of the counties from q1, which 10 have the highest diabetes prevalence?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->intersect->rank->output"
+          },
+          {
+            "id": "q3",
+            "question": "How far is each of the counties from q2 from the nearest hospital, in miles?",
+            "uses": [
+              "q2"
+            ],
+            "ops": "load->nearest_distance->intersect->output"
+          }
+        ],
+        "planned_steps": 3,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 58.7
+    },
+    {
+      "id": "d-poor-quarter-smoking-copd",
+      "tier": "phase_d",
+      "query": "Take the poorest quarter of counties by median household income. Within those counties, how strongly is adult smoking related to COPD?",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "gold": 0.6509,
+        "got": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V063_RAWVALUE",
+          "m2": "CHR_V009_RAWVALUE",
+          "m3": "PLACES_COPD_CrdPrv"
+        }
+      },
+      "ops": "load->load->load->intersect->intersect->correlate->output",
+      "intent": "How strongly adult smoking and COPD go together in counties from q1",
+      "loaded": [
+        "CHR_V063_RAWVALUE | Median household income | County Health Rankings",
+        "CHR_V009_RAWVALUE | Adult smoking | County Health Rankings",
+        "PLACES_COPD_CrdPrv | Chronic obstructive pulmonary disease among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which counties are in the poorest quarter by median household income?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "How strongly is adult smoking related to COPD in the counties from q1?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->load->intersect->intersect->correlate->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 40.1
+    },
+    {
+      "id": "d-co-firestations-income",
+      "tier": "phase_d",
+      "query": "Find the 10 Colorado counties with the most fire stations per 10,000 residents. What is the median household income in each of them?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 10,
+        "outside": 0,
+        "outside_sample": [],
+        "jaccard": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations",
+          "m2": "CHR_V051_RAWVALUE",
+          "m3": "MEDIAN_HOUSEHOLD_INCOME"
+        }
+      },
+      "ops": "load->load->intersect->output",
+      "intent": "Median household income in each of the ten Colorado counties with the highest number of fire stations per 10,000 residents",
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations",
+        "CHR_V051_RAWVALUE | Population | ",
+        "MEDIAN_HOUSEHOLD_INCOME | Median household income in dollars | USDA ERS"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 10 Colorado counties have the most fire stations per 10,000 residents?",
+            "uses": [],
+            "ops": "count_features->filter_area->load->normalize->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "What is the median household income in each of the counties from q1?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->intersect->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 41.9
+    }
+  ]
+}

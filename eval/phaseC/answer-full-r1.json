@@ -1,0 +1,495 @@
+{
+  "suite": "research.yaml",
+  "queries": 18,
+  "answer_correctness": 0.3888888888888889,
+  "by_tier": {
+    "now": {
+      "pass": 4,
+      "n": 10,
+      "rate": 0.4
+    },
+    "phase_c": {
+      "pass": 1,
+      "n": 4,
+      "rate": 0.25
+    },
+    "phase_d": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    },
+    "refuse": {
+      "pass": 2,
+      "n": 3,
+      "rate": 0.6666666666666666
+    }
+  },
+  "classes": {
+    "WRONG_MEASURE": 7,
+    "CORRECT": 5,
+    "WRONG_VALUE": 1,
+    "NO_ANSWER": 1,
+    "WRONG_SHAPE": 1,
+    "CORRECT_REFUSAL": 2,
+    "FALSE_ANSWER": 1
+  },
+  "latency_mean": 67.0,
+  "api_container_created": "2026-11-09T17:03:13.82116104Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "endpoint": "analyze",
+  "detail": [
+    {
+      "id": "r-poverty-top-mo",
+      "tier": "now",
+      "query": "Which ten Missouri counties have the highest share of people living in poverty?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "poverty_rate"
+        ],
+        "loaded": [
+          "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined"
+        ]
+      },
+      "ops": "load->filter_area->rank->output",
+      "intent": "The ten Missouri counties with the highest percentage of households below poverty level",
+      "loaded": [
+        "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "seconds": 34.7
+    },
+    {
+      "id": "r-hospitals-per-capita-tx",
+      "tier": "now",
+      "query": "Which Texas counties have the most hospitals per 100,000 residents?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 20,
+        "gold_rows": 254,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "CHR_V051_RAWVALUE"
+        }
+      },
+      "ops": "count_features->filter_area->load->filter_area->normalize->rank->output",
+      "intent": "Texas counties ranked by the number of hospitals per 100,000 residents",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals",
+        "CHR_V051_RAWVALUE | Population | "
+      ],
+      "row_count": 20,
+      "error": null,
+      "exec_error": null,
+      "seconds": 121.7
+    },
+    {
+      "id": "r-density-midwest",
+      "tier": "now",
+      "query": "What is the population density, in people per square mile, of each county in the Midwest?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 1055,
+        "gold_rows": 1055,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V051_RAWVALUE"
+        }
+      },
+      "ops": "load->filter_area->per_area->output",
+      "intent": "Population density in each county of the Midwest, in people per square mile",
+      "loaded": [
+        "CHR_V051_RAWVALUE | Population | "
+      ],
+      "row_count": 1055,
+      "error": null,
+      "exec_error": null,
+      "seconds": 28.8
+    },
+    {
+      "id": "r-income-diabetes",
+      "tier": "now",
+      "query": "Is there a relationship between median household income and diabetes across US counties?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": -0.7704,
+        "got": -0.7704,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "MEDIAN_HOUSEHOLD_INCOME",
+          "m2": "PLACES_DIABETES_CrdPrv"
+        }
+      },
+      "ops": "load->load->correlate->output",
+      "intent": "How strongly median household income and diagnosed diabetes among adults go together across US counties",
+      "loaded": [
+        "MEDIAN_HOUSEHOLD_INCOME | Median_Household_Income | USDA ERS",
+        "PLACES_DIABETES_CrdPrv | Diagnosed diabetes among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "seconds": 38.1
+    },
+    {
+      "id": "r-poverty-stl-metro",
+      "tier": "now",
+      "query": "What are the poverty rates in the counties of the St. Louis metro area?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "poverty_rate"
+        ],
+        "loaded": [
+          "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined"
+        ]
+      },
+      "ops": "load->filter_place->output",
+      "intent": "Poverty rates for counties in the St. Louis metro area",
+      "loaded": [
+        "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined"
+      ],
+      "row_count": 15,
+      "error": null,
+      "exec_error": null,
+      "seconds": 40.8
+    },
+    {
+      "id": "r-poverty-detroit",
+      "tier": "now",
+      "query": "What are the poverty rates around Detroit?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "poverty_rate"
+        ],
+        "loaded": [
+          "S2101_C02_036E | Estimate!!Percent!!POVERTY STATUS IN THE PAST 12 MONTHS!!Civilian population 18 years and over for whom poverty status is determined!!Income in the past 12 months below poverty level | ACS_combined"
+        ]
+      },
+      "ops": "load->filter_place->output",
+      "intent": "Poverty rate for counties around Detroit, Michigan",
+      "loaded": [
+        "S2101_C02_036E | Estimate!!Percent!!POVERTY STATUS IN THE PAST 12 MONTHS!!Civilian population 18 years and over for whom poverty status is determined!!Income in the past 12 months below poverty level | ACS_combined"
+      ],
+      "row_count": 6,
+      "error": null,
+      "exec_error": null,
+      "seconds": 55.6
+    },
+    {
+      "id": "r-unemp-change-2019-2020",
+      "tier": "now",
+      "query": "Which counties saw the largest increase in unemployment rate between 2019 and 2020?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "unemployment_yearly"
+        ],
+        "loaded": [
+          "S2101_C02_034E | Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate | ACS_combined"
+        ]
+      },
+      "ops": "load->load->combine->rank->output",
+      "intent": "Counties with the largest increase in unemployment rate between 2019 and 2020",
+      "loaded": [
+        "S2101_C02_034E | Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate | ACS_combined"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "seconds": 36.8
+    },
+    {
+      "id": "r-fire-stations-co",
+      "tier": "now",
+      "query": "How many fire stations are there in each county of Colorado?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 64,
+        "gold_rows": 64,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations"
+        }
+      },
+      "ops": "count_features->filter_area->output",
+      "intent": "Number of fire stations in each county of Colorado",
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations"
+      ],
+      "row_count": 64,
+      "error": null,
+      "exec_error": null,
+      "seconds": 73.8
+    },
+    {
+      "id": "r-hospital-distance-mo",
+      "tier": "now",
+      "query": "How far, in miles, is the center of each Missouri county from the nearest hospital?",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "rows": 115,
+        "gold_rows": 115,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 0.939,
+        "mismatch_sample": [
+          {
+            "fips": "29061",
+            "gold": 20.1364,
+            "got": 21.0669
+          },
+          {
+            "fips": "29067",
+            "gold": 37.1044,
+            "got": 41.1111
+          },
+          {
+            "fips": "29197",
+            "gold": 18.7625,
+            "got": 19.4306
+          }
+        ],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "nearest_distance->filter_area->output",
+      "intent": "Distance from the center of each Missouri county to the nearest hospital",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 115,
+      "error": null,
+      "exec_error": null,
+      "seconds": 46.9
+    },
+    {
+      "id": "r-uninsured-big-counties",
+      "tier": "now",
+      "query": "Among counties with more than 100,000 residents, which ten have the highest share of people without health insurance?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "could not produce a valid plan",
+      "exec_error": null,
+      "seconds": 129.6
+    },
+    {
+      "id": "r-rural-poor-no-hospital",
+      "tier": "phase_c",
+      "query": "Which rural counties have a poverty rate above 20% and no hospital?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "poverty_rate"
+        ],
+        "loaded": [
+          "CHR_V058_RAWVALUE | % Rural | County Health Rankings",
+          "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined",
+          "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+        ]
+      },
+      "ops": "load->filter_attr->load->filter_attr->intersect->count_features->filter_attr->intersect->output",
+      "intent": "Rural counties with poverty rate above 20% and no hospitals",
+      "loaded": [
+        "CHR_V058_RAWVALUE | % Rural | County Health Rankings",
+        "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 111,
+      "error": null,
+      "exec_error": null,
+      "seconds": 64.9
+    },
+    {
+      "id": "r-unemp-decade",
+      "tier": "phase_c",
+      "query": "Which counties' unemployment rate rose the most over the last decade?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 3218,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "UNEMPLOYMENT_RATE"
+        }
+      },
+      "ops": "load->load->combine->rank->output",
+      "intent": "Counties with the highest increase in unemployment rate from 2000 to 2020",
+      "loaded": [
+        "UNEMPLOYMENT_RATE | Unemployment_rate | USDA ERS"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "seconds": 75.1
+    },
+    {
+      "id": "r-south-vs-northeast",
+      "tier": "phase_c",
+      "query": "Is the unemployment rate higher in the South than in the Northeast?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "unemployment_rate"
+        ],
+        "loaded": [
+          "S2101_C02_034E | Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate | ACS_combined"
+        ]
+      },
+      "ops": "load->filter_area->filter_area->compare_groups->output",
+      "intent": "Unemployment rate in Southern counties compared with Northeastern counties",
+      "loaded": [
+        "S2101_C02_034E | Estimate!!Percent!!EMPLOYMENT STATUS!!Civilian labor force 18 to 64 years!!Unemployment rate | ACS_combined"
+      ],
+      "row_count": 1639,
+      "error": null,
+      "exec_error": null,
+      "seconds": 46.0
+    },
+    {
+      "id": "r-access-gap",
+      "tier": "phase_c",
+      "query": "Which counties with above-median poverty rates are more than 30 miles from the nearest hospital?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "poverty_rate"
+        ],
+        "loaded": [
+          "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined",
+          "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+        ]
+      },
+      "ops": "load->filter_attr->nearest_distance->filter_attr->intersect->output",
+      "intent": "Counties with above-median poverty rates that are more than 30 miles from the nearest hospital",
+      "loaded": [
+        "S2201_C02_021E | Estimate|Percent|Households|POVERTY STATUS IN THE PAST 12 MONTHS|Below poverty level | ACS_combined",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 69,
+      "error": null,
+      "exec_error": null,
+      "seconds": 68.5
+    },
+    {
+      "id": "r-obesity-top50-income",
+      "tier": "phase_d",
+      "query": "Take the 50 counties with the highest adult obesity rates. How does their median household income compare with the rest of the country?",
+      "class": "WRONG_SHAPE",
+      "pass": false,
+      "detail": {
+        "why": "no per-county rows",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PLACES_OBESITY_CrdPrv",
+          "m2": "MEDIAN_HOUSEHOLD_INCOME"
+        }
+      },
+      "ops": "load->load->join->rank->aggregate->aggregate->output",
+      "intent": "Compare the median household income of the 50 counties with the highest adult obesity rates to the median income of all other counties",
+      "loaded": [
+        "PLACES_OBESITY_CrdPrv | Obesity among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES",
+        "MEDIAN_HOUSEHOLD_INCOME | Median_Household_Income | USDA ERS"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "seconds": 154.5
+    },
+    {
+      "id": "r-refuse-rainfall",
+      "tier": "refuse",
+      "query": "What is the average annual rainfall in each county?",
+      "class": "CORRECT_REFUSAL",
+      "pass": true,
+      "detail": {},
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "no analysis could be built from the available data",
+      "exec_error": null,
+      "seconds": 82.7
+    },
+    {
+      "id": "r-refuse-ckd",
+      "tier": "refuse",
+      "query": "What drives chronic kidney disease rates across counties?",
+      "class": "CORRECT_REFUSAL",
+      "pass": true,
+      "detail": {},
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "no analysis could be built from the available data",
+      "exec_error": null,
+      "seconds": 65.0
+    },
+    {
+      "id": "r-refuse-schools",
+      "tier": "refuse",
+      "query": "Which counties have the best public schools?",
+      "class": "FALSE_ANSWER",
+      "pass": false,
+      "detail": {},
+      "ops": "load->rank->output",
+      "intent": "Counties ranked highest on high school completion rates as an indicator of school quality",
+      "loaded": [
+        "CHR_V168_RAWVALUE | High School Completion | County Health Rankings"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "seconds": 42.9
+    }
+  ]
+}

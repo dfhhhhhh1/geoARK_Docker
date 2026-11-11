@@ -25,6 +25,7 @@
  * question return, say, a point layer and a choropleth.
  */
 
+const { planLevel } = require("./levels");
 const ops = require("./ops");
 const { describeGroup } = require("./conditions");
 const {
@@ -38,6 +39,9 @@ const {
  * @returns {{outputs: Array, sql: string, params: any[], mode: string, series: number}}
  */
 function compilePlan(plan, resolved) {
+  // Phase E: the unit the plan runs at (planner/levels.js). "county" unless
+  // the question named another, so every existing plan compiles as before.
+  const level = planLevel(plan);
   const steps = plan.steps || [];
   const byId = new Map(steps.map(s => [s.id, s]));
 
@@ -109,7 +113,7 @@ function compilePlan(plan, resolved) {
       if (!mod) throw new CompileError(`unknown op ${st.op}`);
       const name = cte(st.id);
       declared.push(mod.compile(st, {
-        name, ins: (st.inputs || []).map(cte), bind, resolved, featureSource,
+        name, ins: (st.inputs || []).map(cte), bind, resolved, featureSource, level,
       }));
       // Only the CTE this output actually reads decides whether a second
       // measure survives: every other op selects (fips, value) and drops it.
@@ -217,13 +221,21 @@ function compilePlan(plan, resolved) {
       [...statColumns, ...rowColumns, ...summaryColumns].map(c => `       r.${c},\n`).join("") +
       `       CASE WHEN g.geom IS NULL THEN NULL ELSE ST_AsGeoJSON(g.geom) END AS geometry\n` +
       `FROM ${from} r\n` +
-      `LEFT JOIN county_geom g USING (fips)\n` +
+      // Another level draws from geo_unit, at its z12 display tier: full
+      // TIGER tract geometry is ~85% of geo_unit's 4.7 GB. The level is from a
+      // closed set (planner/levels.js), so it is inlined, not bound.
+      (level === "county"
+        ? `LEFT JOIN county_geom g USING (fips)\n`
+        : `LEFT JOIN (SELECT geoid AS fips, name, state_fp, COALESCE(geom_z12, geom) AS geom ` +
+          `FROM geo_unit WHERE level = '${level}') g USING (fips)\n`) +
       `ORDER BY r.value DESC NULLS LAST\n` +
       `LIMIT ${MAX_RESULT_ROWS}`;
 
     return {
       id: out.id, step: srcId, mode: "values",
       sql, params, series: hasSecond ? 2 : 1,
+      // The unit each row is: "county", or a level the question named.
+      level,
       // Named extra columns of a one-row statistic, e.g. correlate's n and
       // p_value. Empty for every per-county layer.
       statColumns,

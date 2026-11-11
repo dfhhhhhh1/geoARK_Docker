@@ -581,7 +581,27 @@ function applyEdit(plan, edit, ctx = {}) {
     if (!SAFE_ID.test(String(st.id))) throw new FollowUpError(`step id ${JSON.stringify(st.id)} is not valid`);
   }
   const note = fn(next, edit, full);
+  dropUnread(next);
   return { plan: next, note };
+}
+
+/**
+ * Remove steps no output reads. An edit can orphan one ("add as a
+ * correlation" on a top-10 plan reads the series before the rank, leaving the
+ * rank behind), and validatePlan refuses a step that reaches no output, since
+ * from the planner that means a restriction was silently lost.
+ */
+function dropUnread(plan) {
+  const byId = new Map(plan.steps.map(s => [s.id, s]));
+  const live = new Set();
+  const stack = plan.steps.filter(s => s.op === "output").map(s => s.id);
+  while (stack.length) {
+    const id = stack.pop();
+    if (live.has(id) || !byId.has(id)) continue;
+    live.add(id);
+    stack.push(...(byId.get(id).inputs || []));
+  }
+  if (live.size) plan.steps = plan.steps.filter(s => live.has(s.id));
 }
 
 // ---------------------------------------------------------------------------

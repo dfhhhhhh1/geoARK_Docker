@@ -157,7 +157,10 @@ const REGION_WORDS = /\b(coast|coastal|belt|valley|region|seaboard|plains|heartl
  * 75000" is also five digits, and offering the op there is a false positive
  * for no benefit.
  */
-const BOUNDARY_WORDS = /\b(zip|zcta|postal\s*code|metro|metropolitan|micropolitan|city limits|urbanized)\b/i;
+// "in the city of St. Louis": the capitalised-phrase rule needs the capital
+// right after "in (the)", so the place behind "city of" was invisible and the
+// tract question planned national tracts (2026-11-11).
+const BOUNDARY_WORDS = /\b(zip|zcta|postal\s*code|metro|metropolitan|micropolitan|city limits|urbanized|(?:city|town|village)\s+of)\b/i;
 
 /**
  * A capitalised phrase after a locative preposition: "in New England",

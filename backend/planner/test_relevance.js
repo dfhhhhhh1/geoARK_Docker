@@ -88,7 +88,12 @@ const load = (id) => ({ id: "s1", op: "load", attr_id: id, inputs: [] });
       ["Median household income", "What does a gallon of milk cost in each county?"],
       ["Estimate|Total|Households", "How many pet dogs live in each county?"],
       ["Adverse Climate Events", "Which counties get the most snow each year?"],
+      // 2026-11-10: "chronic, disease" overruled this rejection 3 of 3 runs.
+      ["Chronic obstructive pulmonary disease among adults (age-adjusted prevalence)",
+       "What drives chronic kidney disease rates across counties?"],
     ]) assert.deepStrictEqual(sharedWords(desc, query), [], `${desc} / ${query}`);
+    // A named condition still connects through its own word.
+    assert.deepStrictEqual(sharedWords("Chronic kidney disease among adults", "what drives kidney disease"), ["kidney"]);
   });
 
   await test("broader, stand-in and denominator pass and say why", async () => {
@@ -178,6 +183,15 @@ const load = (id) => ({ id: "s1", op: "load", attr_id: id, inputs: [] });
       // nothing; it was reported as `skipped` before.
       assert.strictEqual(r.skipped, undefined, "overruled must not read as skipped");
     }
+  });
+
+  await test("population size: 'least populous' is about a total-population count", async () => {
+    // Step 1 of a three-step workflow was refused for this, 2026-11-11.
+    const r = await checkRelevance({
+      query: "Take the 50 least populous counties in the country", plan: plan(load("POP")),
+      candidates, refs, callLLM: scripted([v("a2", "none", "", "total population")]) });
+    assert.deepStrictEqual(r.errors, []);
+    assert.match(r.verdicts[0].reason, /population-size question/);
   });
 
   await test("density: the population rule exempts ONLY a total-population count", async () => {

@@ -1,16 +1,18 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { MapContainer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnalysisResponse } from '../types';
 import ChoroplethMap from './ChoroplethMap';
-import LayeredMap from './LayeredMap';
+import LayerStack from './LayerStack';
+import AddLayerMenu, { type LayerSource } from './AddLayerMenu';
+import { layersOf, type StackLayer } from '../lib/layers';
 import FeatureMap from './FeatureMap';
 import ErrorBoundary from './ErrorBoundary';
 import { BaseLayers, BasemapPicker, StageZoom, fitOptions, type FitPadding } from './MapControls';
 import { basemapById, loadBasemapId, saveBasemapId } from '../lib/basemaps';
 import { outcomeLabelOf } from '../lib/series';
-import { OP_LABEL } from '../lib/ops';
 
 /**
  * The full-screen map behind the analysis page.
@@ -94,11 +96,69 @@ interface Props {
   resultKey: string | null;
   focus: { fips: string; nonce: number } | null;
   fitPadding: FitPadding;
+  /** Layers the reader added on top of this answer (components/AddLayerMenu). */
+  extraLayers?: StackLayer[];
+  onAddLayers?: (layers: StackLayer[]) => void;
+  onRemoveLayer?: (key: string) => void;
+  /** What can be added from the conversation: earlier answers, workflow steps. */
+  layerSources?: LayerSource[];
 }
 
-const MapStage: React.FC<Props> = ({ result, resultKey, focus, fitPadding }) => {
+/**
+ * MORE THAN ONE LAYER. An answer with several outputs, a two-measure join, or
+ * anything the reader added goes to the layer stack (LayerStack), where each
+ * layer has its own colours, classes, opacity and place in the order. A single
+ * layer keeps the full single-measure map, which has behaviour the stack does
+ * not need (series switching, the diverging legend), plus an "Add layer"
+ * button that turns it into a stack.
+ */
+const MapStage: React.FC<Props> = ({
+  result, resultKey, focus, fitPadding, extraLayers = [], onAddLayers, onRemoveLayer, layerSources = [],
+}) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => { setMenuOpen(false); }, [resultKey]);
+  const base = useMemo(() => layersOf(result, 'ans', 'This answer'), [result]);
   const idle = <IdleMap fitPadding={fitPadding} />;
+
+  const present = new Set([...base, ...extraLayers].map(l => l.key));
+  const menu = menuOpen && onAddLayers ? (
+    <AddLayerMenu sources={layerSources} present={present}
+                  onAdd={ls => { onAddLayers(ls); setMenuOpen(false); }}
+                  onClose={() => setMenuOpen(false)} />
+  ) : null;
+
+  if (base.length > 1 || extraLayers.length > 0) {
+    return (
+      <ErrorBoundary key={resultKey ?? 'none'} label="the map">
+        <LayerStack
+          layers={[...extraLayers, ...base]}
+          intent={result?.plan.intent ?? 'Layers'}
+          focus={focus}
+          fitPadding={fitPadding}
+          onAdd={onAddLayers ? () => setMenuOpen(o => !o) : undefined}
+          onRemove={onRemoveLayer}
+          addMenu={menu}
+        />
+      </ErrorBoundary>
+    );
+  }
+
   if (!result || result.execution_error || result.stats) return idle;
+
+  // A single layer: the full map, with the button that starts a stack.
+  const addButton = onAddLayers ? (
+    <button type="button" onClick={() => setMenuOpen(o => !o)} aria-expanded={menuOpen}
+            className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg
+                       bg-ink text-white hover:bg-brand-700 transition-colors">
+      <Plus className="w-3.5 h-3.5" /> Add layer
+    </button>
+  ) : null;
+  const floatingMenu = menu && (
+    <div className="absolute right-3 z-[650] w-[min(25rem,calc(100vw-1.5rem))]"
+         style={{ top: 'calc(var(--header-offset) + 3.75rem)' }}>
+      {menu}
+    </div>
+  );
 
   const rows = result.rows ?? [];
   const features = result.features ?? [];
@@ -112,35 +172,28 @@ const MapStage: React.FC<Props> = ({ result, resultKey, focus, fitPadding }) => 
       const label = outcomeLabelOf(result) ?? result.plan.intent;
       map = <ChoroplethMap rows={rows} intent={label} result={result} focus={focus} {...common} />;
     }
-  } else if (layers.length > 1) {
-    const values = layers.filter(l => l.mode === 'values');
-    const firstFeatures = layers.find(l => l.mode === 'features' && (l.features?.length ?? 0) > 0);
-    // Values layers share one map so they can be compared through each other.
-    // A feature layer alongside them is drawn in the conversation panel, since
-    // it has its own geometry and would need its own map.
-    if (values.length) {
-      map = (
-        <LayeredMap layers={values} intent={result.plan.intent} focus={focus}
-                    describe={l => `${OP_LABEL[l.op] ?? l.op}${l.part ? ' (component)' : ''}`}
-                    {...common} />
-      );
-    } else if (firstFeatures) {
-      map = <FeatureMap features={firstFeatures.features ?? []} intent={result.plan.intent} {...common} />;
-    }
+  } else if (layers.length === 1 && layers[0].mode === 'features') {
+    map = <FeatureMap features={layers[0].features ?? []} intent={result.plan.intent}
+                      toolbarExtra={addButton} {...common} />;
   } else if (result.output_mode === 'features') {
-    if (features.length) map = <FeatureMap features={features} intent={result.plan.intent} {...common} />;
+    if (features.length) {
+      map = <FeatureMap features={features} intent={result.plan.intent} toolbarExtra={addButton} {...common} />;
+    }
   } else if (rows.length) {
     map = (
       <ChoroplethMap rows={rows} intent={result.plan.intent} result={result}
                      diverging={result.diverging} valueLabel={result.value_label ?? null}
-                     focus={focus} {...common} />
+                     focus={focus} toolbarExtra={addButton} {...common} />
     );
   }
 
   return (
     // Keyed on the answer, so a map that failed for one result does not leave
     // the boundary tripped for the next.
-    <ErrorBoundary key={resultKey ?? 'none'} label="the map">{map}</ErrorBoundary>
+    <ErrorBoundary key={resultKey ?? 'none'} label="the map">
+      {map}
+      {floatingMenu}
+    </ErrorBoundary>
   );
 };
 

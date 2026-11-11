@@ -3,7 +3,7 @@ COMPOSE := docker compose
 GPU     := docker compose -f docker-compose.yml -f docker-compose.gpu.yml
 DEV     := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 
-.PHONY: help up up-gpu down dev build logs ps health provenance models automl county-values county-values-dry semmed semmed-dry add-year neighbors boundaries boundaries-dry inspect ingest reload-corpus ledger replay definitions definitions-dry replay-dry dump-dataset raster-export geo-units geo-units-dry crosswalks geo-verify load-geo load-reference load-reference-dry relink relink-features validate-catalog shell-api shell-embed shell-db reindex psql clean
+.PHONY: help up up-gpu down dev build logs ps health failures provenance models automl county-values county-values-dry county-descriptions semmed semmed-dry add-year neighbors boundaries boundaries-dry inspect ingest reload-corpus ledger replay definitions definitions-dry replay-dry dump-dataset raster-export geo-units geo-units-dry crosswalks geo-verify load-geo load-reference load-reference-dry relink relink-features validate-catalog shell-api shell-embed shell-db reindex psql clean
 
 help:            ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -37,6 +37,9 @@ logs:            ## Tail all logs
 
 ps:              ## Show service status
 	$(COMPOSE) ps
+
+failures:        ## Summarise queries that did not answer (logs/failures.jsonl); ARGS="--class failure"
+	python ../eval/failures.py $(ARGS)
 
 health:          ## Check every service
 	@echo "-- embedder --"; $(COMPOSE) exec -T embedder \
@@ -85,6 +88,12 @@ county-values:   ## Load USDA ERS / CDC PLACES / County Health Rankings county C
 	@echo "    python3 etl/load_county_values.py --source-dir geospatial_database_data/county_csv \\"
 	@echo "        --catalog-only --catalog backend/geoark_attributes.csv"
 	@echo "    make reindex && make up-gpu"
+
+county-descriptions: ## Apply etl/ers_variables.yaml to ERS measures already loaded (DB + catalog)
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --no-deps --entrypoint python3 etl-geo \
+	  /app/etl/load_county_values.py --refresh-descriptions --commit
+	cd .. && $(or $(PYTHON),python3) etl/load_county_values.py --refresh-descriptions --catalog backend/geoark_attributes.csv
+	$(MAKE) reindex reload-corpus
 
 # SEMMED_FILE is relative to SEMMED_DIR (mounted at /semmed). UMLS_KB is
 # optional; without it only SemMedDB's preferred names link, see docs/EXPANSION.md.

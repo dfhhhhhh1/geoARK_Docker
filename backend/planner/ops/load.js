@@ -49,6 +49,20 @@ PLAN: {"intent":"Total population in each county",
     const src = ctx.resolved.get(step.attr_id);
     if (!src) throw new CompileError(`unresolved attr_id ${step.attr_id}`);
 
+    // The step's own level (a load rolled up to counties, planner/levels.js
+    // applyRollup) or the plan's.
+    const level = ["tract", "bg"].includes(step.level) ? step.level : ctx.level;
+    if (src.source_kind === "acs_long" && level && level !== "county") {
+      // Another unit (planner/levels.js): geo_values, keyed by geoid, which
+      // every downstream op reads as `fips`.
+      const code = ctx.bind(src.census_code);
+      const lv = ctx.bind(level);
+      const yearFilter = Number.isInteger(step.year)
+        ? `year = ${ctx.bind(step.year)}`
+        : `year = (SELECT max(year) FROM geo_values_all WHERE level = ${lv} AND code = ${code})`;
+      return `${ctx.name} AS (SELECT geoid AS fips, value FROM geo_values_all ` +
+             `WHERE level = ${lv} AND code = ${code} AND ${yearFilter})`;
+    }
     if (src.source_kind === "acs_long") {
       const code = ctx.bind(src.census_code);
       // WHICH YEAR. Asking for one explicitly is the trend case; saying nothing

@@ -56,7 +56,9 @@ module.exports = {
   kind: "sql",
   rowColumns: ROW_COLUMNS,
   summaryColumns: SUMMARY_COLUMNS,
-  valueLabel: "difference in medians (group A - group B)",
+  // No valueLabel: the rows the map draws are each county's OWN value of the
+  // measure. The difference in medians is the `comparison` summary, and
+  // labelling the legend with it (as this once did) mislabelled every county.
 
   enumComment: "is a measure higher in one group of counties than another",
   promptLine: `  compare_groups 2 inputs                          -> both groups' counties, and whether

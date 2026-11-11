@@ -28,6 +28,11 @@ PLAN: {"intent":"Population per square mile of land in each county",
     // aland is square metres; awater is deliberately excluded, because dividing
     // by total area makes coastal and Great Lakes counties look artificially
     // sparse.
+    if (ctx.level && ctx.level !== "county") {
+      return `${ctx.name} AS (SELECT r.fips, ` +
+             `r.value / NULLIF(g.aland, 0) * 2589988.110336 AS value ` +
+             `FROM ${ctx.ins[0]} r JOIN geo_unit g ON g.level = ${ctx.bind(ctx.level)} AND g.geoid = r.fips)`;
+    }
     return `${ctx.name} AS (SELECT r.fips, ` +
            `r.value / NULLIF(g.aland, 0) * 2589988.110336 AS value ` +
            `FROM ${ctx.ins[0]} r JOIN county_geom g USING (fips))`;

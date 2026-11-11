@@ -286,16 +286,25 @@ const AreaPicker: React.FC<{ onPick: (states: string[]) => void; onClose: () => 
  * a catalog search. The search is limited server-side to attributes that hold
  * data, so everything listed can be loaded.
  */
-const MeasurePanel: React.FC<{
+export const MeasurePanel: React.FC<{
   mode: 'swap' | 'add' | 'map';
   result: AnalysisResponse | null;
   uploads: UserSeries[];
   disabled: boolean;
   onSend: (edit: FollowUpEdit, text?: string) => void;
   onClose: () => void;
-}> = ({ mode, result, uploads, disabled, onSend, onClose }) => {
+  /**
+   * Measures in use that may NOT be swapped. A workflow step's input from an
+   * earlier step (`result:q1`) is changed by editing that step, not here: the
+   * server would refuse a step that no longer uses its input.
+   */
+  locked?: (attrId: string) => boolean;
+  /** Overrides the panel's title and hint, e.g. "Change the data in step 2". */
+  title?: string;
+  hint?: string;
+}> = ({ mode, result, uploads, disabled, onSend, onClose, locked, title: titleOverride, hint: hintOverride }) => {
   const f = result?.followups;
-  const inUse = f?.in_use ?? [];
+  const inUse = (f?.in_use ?? []).filter(m => !locked?.(m.attr_id));
   const [target, setTarget] = useState<string>(inUse[0]?.attr_id ?? '');
   const targetKind = inUse.find(m => m.attr_id === target)?.kind ?? 'value';
   const [q, setQ] = useState('');
@@ -327,16 +336,16 @@ const MeasurePanel: React.FC<{
       ? m.description.replace(/^(Percents+)?Estimate!!/i, '').replace(/!!/g, ' › ')
       : null;
 
-  const title = mode === 'swap' ? 'Use a different measure'
+  const title = titleOverride ?? (mode === 'swap' ? 'Use a different measure'
     : mode === 'add' ? 'Add a second measure to this result'
-    : 'Map a different measure';
-  const hint = mode === 'swap'
+    : 'Map a different measure');
+  const hint = hintOverride ?? (mode === 'swap'
     ? 'Everything else about the analysis stays the same: the area, the ranking, the statistics.'
     : mode === 'add'
       ? '"Side by side" shows both numbers for each county. "Test relationship" gives a rank correlation with a significance test that accounts for neighbouring counties resembling each other.'
       : result
         ? 'Starts a fresh map. A state or region restriction on the current result is kept.'
-        : 'Maps it for every county that has a value. Refine it afterwards.';
+        : 'Maps it for every county that has a value. Refine it afterwards.');
 
   const actions = (m: { attr_id: string; label: string }) => {
     if (mode === 'swap') {

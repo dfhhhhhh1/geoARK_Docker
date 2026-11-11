@@ -25,14 +25,30 @@ const NEEDS_POPULATION =
 const needsPopulation = (query) => NEEDS_POPULATION.test(String(query || ""));
 
 /**
+ * A question ABOUT population size: "the 50 least populous counties", "the
+ * most populated", "counties by population". The relevance check refused
+ * Total population for "least populous" (2026-11-11): "population" is generic
+ * in sharedWords and "populous" is a different word, so nothing overruled the
+ * model's "none", and the first step of a three-step workflow was refused.
+ */
+const POPULATION_SIZE =
+  /\b(?:populous|populated|population\s+size|by\s+population|(?:most|fewest|least)\s+(?:people|residents|inhabitants))\b/i;
+
+const asksPopulationSize = (query) => POPULATION_SIZE.test(String(query || ""));
+
+/**
  * A whole-population COUNT: "Estimate|SEX AND AGE|Total population", the
  * Census POP_ESTIMATE, County Health Rankings "Population". Not a percentage,
  * a margin of error, or a sub-population ("60 years and over"), none of which
  * can stand in for the people a density counts.
+ *
+ * ERS rows describe themselves from etl/ers_variables.yaml as "Total
+ * population (<which estimate>)"; before that file they were the bare code,
+ * which is why POP_ESTIMATE is still accepted on its own.
  */
 const TOTAL_POPULATION =
-  /^(?:Estimate[|!]+(?!60 years)[^|!]+[|!]+Total population|(?:Estimate[|!]+)?Total population|POP_ESTIMATE|Population)$/i;
+  /^(?:Estimate[|!]+(?!60 years)[^|!]+[|!]+Total population|(?:Estimate[|!]+)?Total population(?: \([^()]*\))?|POP_ESTIMATE|Population)$/i;
 
 const isTotalPopulation = (desc) => TOTAL_POPULATION.test(String(desc || "").trim());
 
-module.exports = { NEEDS_POPULATION, needsPopulation, isTotalPopulation };
+module.exports = { NEEDS_POPULATION, needsPopulation, asksPopulationSize, isTotalPopulation };

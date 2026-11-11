@@ -7,6 +7,7 @@ import {
   describeEdit, FollowUpRequestError, historyFrom, interpretFollowUp,
   isUserAttr, reviseAnalysis, USER_PREFIX,
 } from '../lib/followup';
+import { reviseWorkflow, stepNumber } from '../lib/workflow';
 
 /**
  * One exchange in the thread: what the user asked or clicked, and what came back.
@@ -25,6 +26,8 @@ export interface Turn {
   interpreted?: string | null;
   interpretNote?: string | null;
   edit?: FollowUpEdit;
+  /** For an edit to one step of a multi-step analysis: which step. */
+  workflowStep?: string;
   baseTurnId: string | null;
   status: 'interpreting' | 'running' | 'done' | 'failed' | 'cancelled';
   result?: AnalysisResponse;
@@ -117,9 +120,14 @@ export function useConversation() {
     return [...(f?.in_use ?? []), ...(f?.alternatives ?? [])].find(m => m.attr_id === id)?.label ?? id;
   }, [active]);
 
-  const runEdit = useCallback(async (id: string, base: AnalysisResponse | null, edit: FollowUpEdit) => {
+  const runEdit = useCallback(async (id: string, base: AnalysisResponse | null, edit: FollowUpEdit,
+                                     workflowStep?: string) => {
     try {
-      const result = await reviseAnalysis(base, edit, uploadsRef.current);
+      // An edit to one step of a workflow re-runs the whole chain from the
+      // server's copy of the plans; any other edit revises the one plan.
+      const result = workflowStep && base?.workflow
+        ? await reviseWorkflow(base, workflowStep, edit)
+        : await reviseAnalysis(base, edit, uploadsRef.current);
       finish(id, { status: 'done', result });
     } catch (err) {
       const e = err as FollowUpRequestError;
@@ -140,6 +148,22 @@ export function useConversation() {
     });
     void runEdit(id, base?.result ?? null, e);
   }, [busy, active, add, labelFor, runEdit]);
+
+  /**
+   * Change the data one step of a multi-step analysis uses. The step and every
+   * step after it re-run with the plans they already have: seconds, no planner.
+   */
+  const editStep = useCallback((stepId: string, e: FollowUpEdit, label: string) => {
+    if (busy || !active?.result?.workflow) return;
+    const base = active;
+    const n = stepNumber(base.result!, stepId);
+    const id = add({
+      kind: 'edit', edit: e, workflowStep: stepId,
+      userText: `Step ${n}: ${label}`,
+      baseTurnId: base.id, status: 'running',
+    });
+    void runEdit(id, base.result ?? null, e, stepId);
+  }, [busy, active, add, runEdit]);
 
   /**
    * Ask something. As a follow-up, the server first decides whether the text is
@@ -186,7 +210,7 @@ export function useConversation() {
     const base = turnsRef.current.find(x => x.id === t.baseTurnId)?.result ?? null;
     if (t.kind === 'edit' && t.edit) {
       const id = add({ ...t, status: 'running', result: undefined, error: undefined, failure: null });
-      void runEdit(id, base, t.edit);
+      void runEdit(id, base, t.edit, t.workflowStep);
       return;
     }
     const id = add({ kind: 'question', userText: t.userText, interpreted: t.interpreted,
@@ -209,7 +233,7 @@ export function useConversation() {
 
   return {
     turns, active, activeId, setActiveId, busy, uploads,
-    ask, edit, retry, clear, addUploads, removeUpload, labelFor,
+    ask, edit, editStep, retry, clear, addUploads, removeUpload, labelFor,
     // Progress of the one question that can be running.
     stream: { stage: stream.stage, events: stream.events, elapsedMs: stream.elapsedMs, cancel: stream.cancel },
   };

@@ -6,6 +6,33 @@ const { toFipsPrefixes } = require("../../states");
  * Until place_geom existed, county_geom was the only administrative geometry
  * and this could not be expressed at all.
  */
+/**
+ * A named COUNTY ("ZIP codes in Cook County, Illinois"). Not in the decoding
+ * enum, so the prompt is unchanged: planner/index.js repairCountyKind sets it
+ * when a place_name ends in County / Parish / Borough. county_geom names carry
+ * no suffix ("Cook"), and the state narrows the name (eight states have a Cook
+ * County). At another level, a unit is in the county by the same 1% overlap
+ * rule as any other place.
+ */
+function compileCounty(step, ctx) {
+  const conds = [`lower(k.name) = lower(${ctx.bind(String(step.place_name || ""))})`];
+  if (Array.isArray(step.states) && step.states.length) {
+    const { codes, unknown } = toFipsPrefixes(step.states);
+    if (unknown.length) throw new CompileError(`unknown state or region: ${unknown.join(", ")}`);
+    conds.push(`k.state_fp IN (${codes.map(c => ctx.bind(c)).join(", ")})`);
+  }
+  if (!ctx.level || ctx.level === "county") {
+    return `${ctx.name} AS (SELECT r.fips, r.value FROM ${ctx.ins[0]} r ` +
+           `WHERE r.fips IN (SELECT k.fips FROM county_geom k WHERE ${conds.join(" AND ")}))`;
+  }
+  return `${ctx.name} AS (SELECT r.fips, r.value FROM ${ctx.ins[0]} r ` +
+         `WHERE EXISTS (SELECT 1 FROM county_geom k JOIN geo_unit c ` +
+         `ON c.level = ${ctx.bind(ctx.level)} AND c.geom && k.geom AND ST_Intersects(c.geom, k.geom) ` +
+         `AND ST_Area(ST_Intersection(c.geom, k.geom)) > ` +
+         `${PLACE_OVERLAP_MIN} * LEAST(ST_Area(c.geom), ST_Area(k.geom)) ` +
+         `WHERE c.geoid = r.fips AND ${conds.join(" AND ")}))`;
+}
+
 module.exports = {
   name: "filter_place",
   inputs: 1,
@@ -71,6 +98,7 @@ PLAN: {"intent":"Median household income for counties around Springfield, Missou
     // intersecting polygon, silently duplicating its value into every
     // downstream aggregate.
     const kind = String(step.place_kind || "");
+    if (kind === "county") return compileCounty(step, ctx);
     if (!PLACE_KINDS.includes(kind)) {
       throw new CompileError(`unsupported place_kind ${step.place_kind}`);
     }
@@ -117,6 +145,15 @@ PLAN: {"intent":"Median household income for counties around Springfield, Missou
     //
     // The && prefilter stays first so the GIST index is used before the
     // expensive ST_Intersection runs.
+    if (ctx.level && ctx.level !== "county") {
+      // The same overlap rule against the unit's own boundary (geo_unit).
+      return `${ctx.name} AS (SELECT r.fips, r.value FROM ${ctx.ins[0]} r ` +
+             `WHERE EXISTS (SELECT 1 FROM place_geom p JOIN geo_unit c ` +
+             `ON c.level = ${ctx.bind(ctx.level)} AND c.geom && p.geom AND ST_Intersects(c.geom, p.geom) ` +
+             `AND ST_Area(ST_Intersection(c.geom, p.geom)) > ` +
+             `${PLACE_OVERLAP_MIN} * LEAST(ST_Area(c.geom), ST_Area(p.geom)) ` +
+             `WHERE c.geoid = r.fips AND ${conds.join(" AND ")}))`;
+    }
     return `${ctx.name} AS (SELECT r.fips, r.value FROM ${ctx.ins[0]} r ` +
            `WHERE EXISTS (SELECT 1 FROM place_geom p JOIN county_geom c ` +
            `ON c.geom && p.geom AND ST_Intersects(c.geom, p.geom) ` +

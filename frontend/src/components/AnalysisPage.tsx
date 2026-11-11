@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Loader2, AlertTriangle, Send, Paperclip, CornerDownRight, Pencil,
   RotateCcw, Eye, Trash2, Zap, MessageSquarePlus, CheckCircle2,
-  Pin, PinOff, PanelLeftClose, MessagesSquare, ChevronsLeftRight,
+  Pin, PinOff, PanelLeftClose, MessagesSquare, ChevronsLeftRight, GitBranch, Eye as EyeIcon,
 } from 'lucide-react';
 import { useConversation, type Turn } from '../hooks/useConversation';
 import AnalysisProgress from './AnalysisProgress';
@@ -14,8 +14,14 @@ import FollowUpBar from './FollowUpBar';
 import SurveyPrompt from './SurveyPrompt';
 import UploadPanel from './UploadPanel';
 import MapStage from './MapStage';
+import WorkflowPipeline from './WorkflowPipeline';
+import { fmtValue, isMultiStep } from '../lib/workflow';
+import { layersOf, type StackLayer } from '../lib/layers';
+import type { LayerSource } from './AddLayerMenu';
+import type { AnalysisResponse } from '../types';
 import type { FitPadding } from './MapControls';
 import type { ViewKind } from './ResultViews';
+import { unitPlural } from '../lib/units';
 
 const EXAMPLES = [
   'poverty rate normalized by total population for counties',
@@ -92,6 +98,60 @@ const AnalysisPage: React.FC = () => {
   const activeId = convo.active?.id ?? null;
   useEffect(() => { setFocus(null); }, [activeId]);
 
+  // Multi-step analyses: which step the stage map draws (null = the final
+  // answer), and how tall the pipeline strip is, so the map's fit and legend
+  // sit above it. A new answer goes back to its final step.
+  const [stepOnMap, setStepOnMap] = useState<string | null>(null);
+  const [stripH, setStripH] = useState(0);
+  useEffect(() => { setStepOnMap(null); }, [activeId]);
+  const activeResult = convo.active?.result ?? null;
+  const multiStep = isMultiStep(activeResult);
+  const mapResult: AnalysisResponse | null = multiStep && stepOnMap
+    ? activeResult?.workflow?.steps.find(s => s.id === stepOnMap)?.result ?? activeResult
+    : activeResult;
+
+  // Layers the reader added on top of an answer, kept PER ANSWER: going back
+  // to an earlier answer brings back the stack that was built on it.
+  const [added, setAdded] = useState<Record<string, StackLayer[]>>({});
+  const extraLayers = (activeId && added[activeId]) || [];
+  const addLayers = (ls: StackLayer[]) => {
+    if (!activeId) return;
+    setAdded(a => {
+      const have = new Set((a[activeId] ?? []).map(l => l.key));
+      return { ...a, [activeId]: [...ls.filter(l => !have.has(l.key)), ...(a[activeId] ?? [])] };
+    });
+  };
+  const removeLayer = (key: string) => {
+    if (!activeId) return;
+    setAdded(a => ({ ...a, [activeId]: (a[activeId] ?? []).filter(l => l.key !== key) }));
+  };
+  // What "Add layer" can offer from the conversation: this answer's other
+  // workflow steps, then every other answer in the thread, newest first.
+  const layerSources = useMemo<LayerSource[]>(() => {
+    const out: LayerSource[] = [];
+    const w = activeResult?.workflow;
+    if (w && activeId) {
+      const drawn = stepOnMap ?? w.steps[w.steps.length - 1]?.id;
+      w.steps.forEach((st, i) => {
+        if (st.id === drawn || !st.result) return;
+        out.push({
+          key: `step:${st.id}`, kind: 'step',
+          title: humanize(st.question),
+          subtitle: `Step ${i + 1} of this analysis`,
+          layers: layersOf(st.result, `step:${activeId}:${st.id}`, `Step ${i + 1}`, true),
+        });
+      });
+    }
+    for (const t of [...convo.turns].reverse()) {
+      if (t.id === activeId || t.status !== 'done' || !t.result) continue;
+      const ls = layersOf(t.result, `turn:${t.id}`, 'Earlier answer', true);
+      if (!ls.length) continue;
+      out.push({ key: `turn:${t.id}`, kind: 'answer', title: t.result.plan.intent,
+                 subtitle: 'Earlier answer', layers: ls });
+    }
+    return out;
+  }, [activeResult, activeId, stepOnMap, convo.turns]);
+
   const hasThread = convo.turns.length > 0;
   const asFollowUp = followUp && !!convo.active;
 
@@ -127,9 +187,10 @@ const AnalysisPage: React.FC = () => {
     }
     return {
       topLeft: [collapsed ? 24 : panelW + 36, 100],
-      bottomRight: [32, 96],
+      // The strip sits 12px off the bottom; keep the data clear of it.
+      bottomRight: [32, multiStep && stripH ? Math.max(96, stripH + 32) : 96],
     };
-  }, [isDesktop, collapsed, panelW]);
+  }, [isDesktop, collapsed, panelW, multiStep, stripH]);
 
   const composer = (
     <Composer
@@ -154,20 +215,38 @@ const AnalysisPage: React.FC = () => {
       <div
         className="map-stage fixed inset-0 z-0"
         style={{
-          ['--stage-bottom-inset' as string]: !isDesktop && !collapsed ? '50vh' : '0px',
+          ['--stage-bottom-inset' as string]: !isDesktop && !collapsed ? '50vh'
+            : multiStep && stripH ? `${stripH + 12}px` : '0px',
         } as React.CSSProperties}
       >
         <MapStage
-          result={convo.active?.result ?? null}
-          resultKey={activeId}
+          result={mapResult}
+          resultKey={activeId && `${activeId}:${stepOnMap ?? 'answer'}`}
           focus={focus}
           fitPadding={fitPadding}
+          extraLayers={extraLayers}
+          onAddLayers={activeId ? addLayers : undefined}
+          onRemoveLayer={removeLayer}
+          layerSources={layerSources}
         />
         {convo.busy && (
           <div className="stage-activity z-[700]" style={{ top: 'calc(var(--header-offset) - 0.6rem)' }}
                role="progressbar" aria-label="Analysis running" />
         )}
       </div>
+
+      {multiStep && activeResult && (
+        <WorkflowPipeline
+          result={activeResult}
+          selected={stepOnMap}
+          onSelect={setStepOnMap}
+          onEditStep={convo.editStep}
+          busy={convo.busy}
+          left={collapsed ? 12 : panelW + 24}
+          isDesktop={isDesktop}
+          onHeight={setStripH}
+        />
+      )}
 
       {!collapsed && (
         <aside
@@ -259,6 +338,8 @@ const AnalysisPage: React.FC = () => {
                     onUpload={() => setShowUpload(true)}
                     focusFips={focus?.fips ?? null}
                     onPick={fips => setFocus({ fips, nonce: Date.now() })}
+                    stepOnMap={stepOnMap}
+                    onStepOnMap={setStepOnMap}
                   />
                 ))}
               </div>
@@ -386,8 +467,14 @@ const TurnView: React.FC<{
   /** The county picked in a table, which the stage map is showing. */
   focusFips: string | null;
   onPick: (fips: string) => void;
-}> = ({ turn: t, isActive, convo, view, onViewChange, onReuseText, onPrefill, onUpload, focusFips, onPick }) => {
+  /** Multi-step answers: the step on the map (null = the answer). */
+  stepOnMap: string | null;
+  onStepOnMap: (id: string | null) => void;
+}> = ({ turn: t, isActive, convo, view, onViewChange, onReuseText, onPrefill, onUpload, focusFips, onPick,
+        stepOnMap, onStepOnMap }) => {
   const r = t.result;
+  const multi = isMultiStep(r);
+  const stopped = multi && r?.workflow?.status !== 'complete';
   return (
     <section id={`turn-${t.id}`} className="space-y-3 scroll-mt-2">
       {/* The user's side. What was typed, and -- when it differs -- what it was
@@ -481,11 +568,19 @@ const TurnView: React.FC<{
               </span>
             </p>
           )}
-          <ErrorBoundary label="the result">
-            <ResultBlock result={r} view={view} onViewChange={onViewChange} onEdit={convo.edit}
-                         stage onPick={onPick} selectedFips={focusFips} />
-          </ErrorBoundary>
-          <FollowUpBar
+          {multi && <WorkflowSummary result={r} stepOnMap={stepOnMap} onStepOnMap={onStepOnMap} />}
+          {!stopped && (
+            <ErrorBoundary label="the result">
+              <ResultBlock result={stepOnMap && multi
+                             ? r.workflow!.steps.find(s => s.id === stepOnMap)?.result ?? r : r}
+                           view={view} onViewChange={onViewChange} onEdit={convo.edit}
+                           stage onPick={onPick} selectedFips={focusFips} />
+            </ErrorBoundary>
+          )}
+          {/* A workflow's steps are changed in the pipeline, where every step
+              after the edited one re-runs too. These chips would revise the
+              final step alone, which depends on an earlier step's counties. */}
+          {!multi && <FollowUpBar
             result={r}
             uploads={convo.uploads}
             disabled={convo.busy}
@@ -493,7 +588,7 @@ const TurnView: React.FC<{
             onPrefill={onPrefill}
             onUpload={onUpload}
             onRemoveUpload={convo.removeUpload}
-          />
+          />}
           {/* Only under an answer that ran: the survey asks about the data
               layers recommended, which a failed or empty answer has none of. */}
           {!r.execution_error && <SurveyPrompt />}
@@ -531,13 +626,95 @@ const TurnActions: React.FC<{
 /** One line for a collapsed turn: what shape of answer, and how much of it. */
 function summarize(r: NonNullable<Turn['result']>): string {
   if (r.execution_error) return 'execution failed';
+  if (isMultiStep(r)) {
+    const w = r.workflow!;
+    const n = Math.max(w.steps.length, w.decomposition.steps.length);
+    if (w.status !== 'complete') return `${n}-step analysis, stopped`;
+    if (r.comparison) return `${n}-step analysis · ${r.comparison.labels?.a ?? 'A'} vs ${r.comparison.labels?.b ?? 'B'}`;
+    return `${n}-step analysis · ${(r.row_count ?? 0).toLocaleString()} counties`;
+  }
+  if (r.comparison) return `comparison · ${r.comparison.labels?.a ?? 'A'} vs ${r.comparison.labels?.b ?? 'B'}`;
   if (r.stats) {
     const rho = r.stats.value;
     return rho === null || rho === undefined ? 'correlation' : `correlation ρ = ${rho.toFixed(2)}`;
   }
   if (r.explain) return `${r.explain.factors.filter(f => f.role === 'factor').length} factors ranked`;
   if (r.output_mode === 'features') return `${(r.features?.length ?? r.row_count ?? 0).toLocaleString()} locations`;
-  return `${(r.row_count ?? 0).toLocaleString()} counties`;
+  return `${(r.row_count ?? 0).toLocaleString()} ${unitPlural(r.level)}`;
 }
+
+/** "the counties from q1" reads as "the counties from step 1" to a person. */
+const humanize = (q: string) => q.replace(/\bthe counties from q(\d)\b/gi, 'the counties from step $1');
+
+/**
+ * The conversation panel's view of a multi-step answer: the steps in order,
+ * which one is on the map, and where to inspect or change them. The pipeline
+ * over the map is the working surface; this keeps the thread readable.
+ */
+const WorkflowSummary: React.FC<{
+  result: AnalysisResponse;
+  stepOnMap: string | null;
+  onStepOnMap: (id: string | null) => void;
+}> = ({ result, stepOnMap, onStepOnMap }) => {
+  const w = result.workflow!;
+  const finalId = w.steps[w.steps.length - 1]?.id;
+  const shown = stepOnMap ?? finalId;
+  const ran = new Set(w.steps.map(s => s.id));
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <div className="flex items-center gap-2">
+        <GitBranch className="w-4 h-4 text-slate-500 rotate-90" />
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 mr-auto">
+          Multi-step analysis
+        </p>
+        {w.edited_step && (
+          <span className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+            re-run with changed data
+          </span>
+        )}
+      </div>
+      <ol className="mt-2 space-y-1.5">
+        {w.decomposition.steps.map((p, i) => {
+          const s = w.steps.find(x => x.id === p.id);
+          const failed = w.stopped_at === p.id;
+          return (
+            <li key={p.id} className="flex items-start gap-2.5">
+              <span className={`mt-0.5 w-5 h-5 shrink-0 rounded-full flex items-center justify-center
+                                text-[11px] font-semibold tabular-nums
+                ${failed ? 'bg-red-600 text-white' : !ran.has(p.id) ? 'bg-slate-100 text-slate-400'
+                  : shown === p.id ? 'bg-ink text-white' : 'bg-slate-200 text-slate-700'}`}>
+                {i + 1}
+              </span>
+              <span className={`text-sm leading-snug flex-1 min-w-0 ${ran.has(p.id) ? 'text-slate-800' : 'text-slate-400'}`}>
+                {humanize(p.question)}
+                {s?.summary && !failed && (
+                  <span className="block text-xs text-slate-500 tabular-nums">
+                    {s.result?.comparison
+                      ? `median ${fmtValue(s.result.comparison.median_a)} vs ${fmtValue(s.result.comparison.median_b)}`
+                      : `${s.summary.counties.toLocaleString()} counties`}
+                  </span>
+                )}
+              </span>
+              {s?.result && !failed && (
+                <button type="button" onClick={() => onStepOnMap(p.id === finalId ? null : p.id)}
+                        aria-pressed={shown === p.id}
+                        className={`shrink-0 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md
+                          ${shown === p.id ? 'bg-ink text-white' : 'text-brand-700 hover:bg-slate-100'}`}>
+                  <EyeIcon className="w-3.5 h-3.5" /> {shown === p.id ? 'On map' : 'Map'}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      {w.status !== 'complete' && w.reason && (
+        <p className="mt-2 text-sm text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{w.reason}</p>
+      )}
+      <p className="mt-2 text-xs text-slate-500">
+        Inspect any step, or change the data it uses, in the pipeline along the bottom of the map.
+      </p>
+    </div>
+  );
+};
 
 export default AnalysisPage;

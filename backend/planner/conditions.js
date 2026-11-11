@@ -27,6 +27,9 @@ const RELATIVE_PHRASES = new RegExp(
     "high", "low", "(?<!how\\s)many", "few", "fewer", "lots\\s+of", "large", "small",
     "(above|below)[- ](the\\s+)?((national|state|us|u\\.s\\.)\\s+)?(average|median|norm)",
     "(top|bottom|upper|lower)\\s+(quarter|quartile|third|half|tenth|decile|fifth|quintile)",
+    // "the poorest quarter of counties" (research_advanced.yaml): a share of
+    // the distribution named by its direction, not by top/bottom.
+    "(poorest|richest|wealthiest|highest|lowest|most|least)\\s+(quarter|quartile|third|half|tenth|decile|fifth|quintile)",
   ].join("|") + ")\\b", "i");
 
 /**
@@ -55,6 +58,23 @@ const TIME_PHRASES =
 const CHANGE_PHRASES =
   /\b(increas\w*|decreas\w*|rose|risen|rising|fell|fallen|falling|grew|grown|growth|declin\w*|dropped|climbed|worsened|improved|shrank|gain\w*|lost)\b/i;
 
+/**
+ * The complement of a group: "the rest of the country", "all other counties".
+ * Gates intersect's `exclude` field.
+ */
+const COMPLEMENT_PHRASES =
+  /\b(the\s+rest\s+of|all\s+(the\s+)?other|every\s+other|everywhere\s+else|elsewhere|outside\s+(of\s+)?(the|those|these|them)|exclud\w*|except|other\s+counties|remaining\s+counties)\b/i;
+
+/**
+ * Several things on ONE map: "show poverty and hospitals on the same map",
+ * "overlay fire stations on unemployment", "as layers". Gates the multi-output
+ * rule. Explicit phrasing only: "poverty and unemployment" alone is a join or a
+ * comparison, and a user who wants more layers can add them in the map's
+ * layer panel without a planner call.
+ */
+const LAYER_PHRASES =
+  /\b(on\s+(the\s+same|one|a\s+single)\s+map|same\s+map|overlay\w*|overlaid|layers?|layered|stack(ed)?\s+on|on\s+top(\s+of)?)\b/i;
+
 /** Whether the question states a condition of any kind. */
 function statesCondition(ctx = {}) {
   const q = String(ctx.query || "");
@@ -71,7 +91,7 @@ function statesCondition(ctx = {}) {
  * combine's arithmetic on two MEASURES, not two groups, so it is not here.
  */
 const GROUP_COMPARISON =
-  /\b(higher|lower|more|less|greater|fewer|worse|better|bigger|smaller|larger|poorer|richer|healthier|sicker)\s+(?!than\b)[^.?]*?\bthan\s+(?![\d$]|(the\s+)?((national|state|us)\s+)?(average|median|mean)\b)|\bcompared?\s+(to|with)\b|\b(versus|vs\.?)\s/i;
+  /\b(higher|lower|more|less|greater|fewer|worse|better|bigger|smaller|larger|poorer|richer|healthier|sicker)\s+(?!than\b)[^.?]*?\bthan\s+(?![\d$]|(the\s+)?((national|state|us)\s+)?(average|median|mean)\b)|\bcompared?\s+(to|with)\b|\b(versus|vs\.?)\s|\bdiffer(ent|s)?\s+(from|than)\b/i;
 
 /**
  * Steps that pass input 1's values through unchanged, so a threshold on them is
@@ -227,13 +247,20 @@ function describeGroup(stepId, byId, defsById = new Map()) {
       // The condition sits on the SECOND input; the walk continues down the
       // first, which carries the values.
       const other = describeGroup((st.inputs || [])[1], byId, defsById);
-      if (other) parts.push(other);
+      if (other) parts.push(st.exclude === true ? `all counties except ${other}` : other);
+      else if (st.exclude === true) parts.push("all others");
     } else if (st.op === "filter_attr") {
       const def = st.definition ? (defsById.get(st.definition) || [])[0] : null;
       const term = def ? def.term : st.definition_term;
       parts.push(term ? term
         : st.percentile ? `${st.operator} ${ordinal(st.percentile)} percentile`
         : `${st.operator} ${st.value}`);
+    } else if (st.op === "load" && String(st.attr_id || "").startsWith("result:")) {
+      // An earlier workflow step's counties (backend/workflow.js).
+      // "q2" is an id; a person reads "step 2". Workflow ids are q1..qN in order.
+      const id = st.attr_id.slice("result:".length);
+      parts.push(`counties from ${/^q\d+$/.test(id) ? `step ${id.slice(1)}` : id}`);
+      break;
     } else if (!PASS_THROUGH.has(st.op)) {
       break;
     }
@@ -249,6 +276,7 @@ const ordinal = (n) => {
 
 module.exports = {
   RELATIVE_PHRASES, COMPARISON_PHRASES, GROUP_COMPARISON, TIME_PHRASES, CHANGE_PHRASES,
+  COMPLEMENT_PHRASES, LAYER_PHRASES,
   statesCondition, sourceLoad, derefDefinitions, checkThresholds, describeGroup,
   ordinal,
 };

@@ -86,6 +86,13 @@ def probe(base: str, queries: list[dict], timeout: int, expand: bool | None = No
         forbid = q.get("forbid_op")
         has_expect = expect in ops if expect else None
         has_forbid = forbid in ops if forbid else False
+        # expect_outputs: at least this many output steps, i.e. map layers.
+        # Folded into op appropriateness: a "show A and B on one map" question
+        # answered with one layer has the wrong SHAPE whatever its ops are.
+        expect_outputs = q.get("expect_outputs")
+        n_outputs = sum(1 for o in ops if o == "output")
+        if expect_outputs:
+            has_expect = (has_expect is not False) and n_outputs >= int(expect_outputs)
 
         # Which attributes it chose, with descriptions, so semantic wrongness
         # is at least visible to a reader even though it is not scored.
@@ -143,6 +150,8 @@ def probe(base: str, queries: list[dict], timeout: int, expand: bool | None = No
             "expect_op_present": has_expect,
             "forbid_op": forbid,
             "forbid_op_present": has_forbid,
+            "expect_outputs": expect_outputs,
+            "outputs": n_outputs,
             "attrs": attrs,
             "error": payload.get("error"),
             "seconds": round(secs, 1),

@@ -40,6 +40,16 @@ metric *can* move. See the correction in [eval/README.md](eval/README.md).
   the "Detroit" percent / population plan passes every other one and fails
   here. Run `--self-test` after editing the suite or the scorer. Plan:
   [docs/RESEARCH_PLAN.md](docs/RESEARCH_PLAN.md).
+- `eval/research_advanced.yaml`, the same scorer over 24 harder questions,
+  tiered `phase_d` (workflows, including a 3-step one), `phase_e` (tract, ZIP,
+  grid, crosswalk) and `phase_f` (catchment population, 2SFCA, spatial lag,
+  residuals, change, confidence intervals), plus workflow refusals. Kept
+  separate so `research.yaml` baselines stay comparable. Run it through
+  `--endpoint research`. Its gold uses `{geo:<level>:m1}` for sub-county
+  measures. **Three of its first gold answers could not tell right from wrong**
+  (a raw rate passed as a residual, raw unemployment as a neighbour gap,
+  nearest distance as 2SFCA); `--self-test` caught all three before any API
+  run. Re-run it after editing a question.
 
 ## Traps that have already burned time
 
@@ -56,6 +66,8 @@ metric *can* move. See the correction in [eval/README.md](eval/README.md).
 | **4,096-token context overflow** (fixed 2026-09-29) | "Plan invalid" retries; ollama log shows `slot context shift ... n_discard = 2045` | The planner prompt is ~3,600 tokens; qwen3's reasoning pushed past 4,096 and Ollama silently discarded the first half of the prompt, i.e. the system instructions, mid-answer. Now `num_ctx` 8,192 for the planner and 4,096 for gemma, with `OLLAMA_KV_CACHE_TYPE=q8_0` + flash attention so both stay resident on 16 GB (at 8,192 each, Ollama evicted one per switch). Check `ollama ps` shows both, 100% GPU |
 
 | **Rebuilding the embedder upgrades torch** (2026-10-30) | `/health` reports `drift: true` after an embedder rebuild that changed nothing but app.py | `requirements.txt` does not pin torch, so the CUDA index served 2.15.0+cu132 where the cache was written by 2.14.0+cu130 and the canary fingerprint moved. Measured: cosine fresh vs cached >= 0.9999999 on 400 rows, and `queries.yaml` reproduced 97.8 / 97.3 / MRR 0.740 exactly, so the corpus was NOT re-embedded. Pin torch before the next rebuild if the flag matters |
+| **`reload-corpus` swapped vectors but not rows** (fixed 2026-11-10) | After a catalog edit, retrieval ranks on the new text while the planner prompt still shows the old descriptions | `reloadCorpus` re-read only the embedder's vectors and BM25 text; the API's `variables` rows (what the planner, provenance and suggestions read) stayed as loaded at startup. It now re-reads the CSV too. Also: a catalog edit needs `make reindex` BEFORE `reload-corpus`, or the cache key does not move and both arms of an A/B read the old corpus. `make county-descriptions` does both |
+| **Catalog rows the ledger records can vanish** (found 2026-11-11) | A loaded, resolvable measure that no question ever retrieves | All 31 rows `etl/data_manifest.yaml` lists for CDC SVI (county) and WorldPop were missing from `backend/geoark_attributes.csv` and from the last commit: something rewrote the catalog after the 2026-10-16 ingests. `python etl/restore_ledger_catalog.py` reports any gap (`--write` restores, then `make reindex reload-corpus`). Run it after anything that rewrites the catalog |
 | **Several sessions share this working tree and stack** (2026-10-30) | The api image picks up another session's half-written files; an eval round dies mid-run | `api` is built from the working tree, so any rebuild ships whatever is on disk. Coordinate before `--force-recreate api` (ListAgents / SendMessage) |
 | **VRAM stall on Windows: no error, just a crawl** (2026-10-15) | Planner calls time out at 90s; `ollama ps` still says `100% GPU`, `OOMKilled=false`, DeviceRequests fine. Ollama log shows `tg_3s` falling from ~22 t/s to 0.05 t/s | qwen3:14b (9.8 GB) + gemma3:4b (2.8 GB) resident + ~2.9 GB of desktop (launchers, browsers, Spotify, iCUE all draw on the GPU) is ~15.5 GB of 16. WDDM pages VRAM to system RAM instead of failing. `nvidia-smi` reads ~15.9 GB at ~100% util with nothing running. `docker restart geoark-ollama-1` clears it and keeps the GPU. The 2026-10-15 measurements ran at `OLLAMA_MAX_LOADED_MODELS=1` for this reason: zero stalls, at the cost of a model swap per step |
 
@@ -140,6 +152,16 @@ Two performance rules these depend on, both measured:
   survivors: **1.2s** nationally with it, a sequential scan without.
 - **`nearest_distance` must keep the `<->` KNN operator.** 187ms for all 3,233
   counties; rewriting it as a join is a cross product.
+  **Correction (2026-11-10): `<->` alone was not the nearest.** It orders by
+  planar distance in degrees, and a degree of longitude shrinks with
+  cos(latitude), so its first row was the wrong hospital for **222 of 3,233
+  counties** (worst +39.7%; Denali AK read 148 mi for 105.6). A fixed K does
+  not fix it: K=10 still missed Denali. The op now takes `<->`'s nearest as an
+  upper bound d0, then the geodesic minimum over the `&&` box that holds a d0
+  circle (longitude widened by 1/cos). Equal to brute force on AK/MO/MT/HI and
+  to K=200 nationally, **181 ms**. Caught by `research.yaml`
+  `r-hospital-distance-mo`, whose gold was written to catch exactly this; no
+  other suite looks at the numbers.
 
 The op surface is now 12, and this project has already measured that op-set size
 costs accuracy on its own. Narrowing is therefore load-bearing, and
@@ -1125,6 +1147,125 @@ reranker that did not earn its default. Prompt and schema byte-identical across
   replace). `fuse` loses least: its known-item cost is one column sibling
   (biofuel) plus persistent-poverty 3 -> 4, for +2.2pp concept recall. It is
   the candidate if a default is wanted; one run is not enough to make it one.
+
+### Phase C: conditions, definitions, group comparisons (2026-11-09)
+
+`docs/CONDITIONS.md`. `intersect` (several conditions on different measures),
+`compare_groups` (two groups of one measure, Mann-Whitney on Moran's-I
+effective n, verified against independent Python to 1.4e-7), `filter_attr`
+`percentile` / `definition`, and periods anchored to each measure's own years.
+All phrasing-gated; the snapshot is byte-identical.
+
+- **Definitions are data, never a term list.** `etl/definitions.yaml` and
+  sidecar `definitions:`, loaded by `make definitions`. Each is cited and pinned
+  to `vintages`, attached only to a measure retrieval returned, and re-tested
+  against the loaded data on every corpus load (vintage, scale, range, share
+  selected). One that fails is WITHHELD, with the reason on `/api/health`.
+  Verified live by inserting two bad rules. A qualifier with no definition
+  uses a percentile.
+- **Vintages are required because ranges cannot see a code change.** ERS Urban
+  Influence Codes have 12 codes in 2013 and 9 in 2024. The 2013 "3-12 nonmetro"
+  rule passes every range check on 2024 data. That is why there is no UIC entry.
+- **CHR "% Rural" is a 0-1 fraction.** A stated "> 50" on it is converted, and
+  the conversion is reported.
+- **`repairStates` must not touch a plan with two different areas**: it turned
+  both groups of "south vs north" into the South, and the answer came back
+  empty, 3 of 3.
+- A change over time is later minus earlier. A measure covering under 70% of
+  the period asked about is refused, and the refusal says so.
+- phase_c answer correctness 0/12 -> 3/12, plan shape 12/12. All 9 remaining
+  misses are attribute choice (`S2201_C02_021E` for poverty, a veterans-table
+  unemployment rate). That is the next lever, not more ops.
+
+### Phase D: research workflows (2026-11-09)
+
+`docs/WORKFLOWS.md`, `POST /api/research`. Up to 4 ordinary analyses. A later
+one cites an earlier one's counties as a grounded `result:qN` inline source,
+and must cite every result it declared. A failed step, or one that ignored its
+input, stops the workflow with NO rows. The response is the last step's
+analyze body, with provenance spanning every step.
+
+- **Decompose only when the question refers back** ("their", "those") or is
+  several sentences. Without that gate, 4 of 15 one-plan questions were split
+  and 2 lost their answer; with it, 0 of 17.
+- `r-obesity-top50-income`: 5 of 7 correct (never answerable before). 112-202 s,
+  so latency is the open problem.
+
+### Measure choice, exact distances, reasoning off (2026-11-10)
+
+`docs/RESEARCH_PLAN.md` Phase D progress; evidence `eval/ersdesc/`. Answer
+correctness on `research.yaml`, one build, runs not contaminated:
+
+| | runs | mean | s / q |
+|---|---|--:|--:|
+| before (qwen3:14b, reasoning on) | 44.4 | 44.4% | 67 |
+| + ERS descriptions | 61.1 / 61.1 / 55.6 | 59.3% | 56 |
+| + `PLAN_THINK=off/on` | 61.1 / 72.2 / 72.2 | 68.5% | 22 |
+| + dead-step rule, medical stopwords | 72.2 / 83.3 / 72.2 | **75.9%** | **23** |
+| same fixes, reasoning on | 72.2 | 72.2% | 81 |
+
+- **The poverty failures were a catalog gap, not the planner.** All 67 USDA ERS
+  rows were registered with their bare code as the description: PCTPOVALL,
+  the standard poverty rate, read "PCTPOVALL", tags `['pctpovall']`, so every
+  poverty question loaded a SNAP- or veteran-table series. ERS's own variable
+  definitions are now data (`etl/ers_variables.yaml`, `make
+  county-descriptions`), checked against the loaded values. PCTPOVALL is now
+  loaded in 4 of 5 poverty questions. known_item 91.7% / 0.944 and concept
+  recall 97.8 / 97.3% unmoved.
+- **Describing CENSUS_POP as "Total population (...)" broke two questions**:
+  it joined `isTotalPopulation`'s set, and the coverage repair swapped the
+  2020 count in for current estimates. Only POP_ESTIMATE says it now.
+- **`nearest_distance` was wrong for 6.9% of counties**: see the correction
+  under Geospatial ops.
+- **A step no output reads is now refused** (`validate.js`). With reasoning
+  off, the Missouri filter landed on a branch nothing read, 3 of 3, and the
+  compiler pruned it silently: a national answer. Follow-up edits drop steps
+  they orphan (`followup.js dropUnread`).
+- **"chronic", "disease", "health" ... are generic in `sharedWords`.**
+  "What drives chronic kidney disease" (no kidney data) explained COPD 3 of 3
+  with reasoning off: the model said `none` and the shared words overruled it.
+  Now refused 3 of 3.
+- **Reasoning off is now the default** (`PLAN_THINK=off/on` in deploy/.env).
+  Reasoning-on qwen3 picks the veterans-table unemployment rate every time;
+  off picks ERS `UNEMPLOYMENT_RATE`. Cost: answerability 10/10 refused but
+  **2/20 false refusals** (0/20 with reasoning on): "where do seniors live",
+  intermittent with reasoning off since 2026-10-16, and "around Detroit".
+- **qwen3.5:9b `off/512`**: 61.1 / 50.0 / 66.7% at 20 s, rainfall answered 2
+  of 3, "milk" answered as Child Care Cost Burden. Not better than 14b at the
+  same speed. `plan_model` per request (`PLAN_MODEL_CHOICES`, answer_probe /
+  answerability_probe `--plan-model`) so this needs no recreate.
+- **Executable-first retrieval** (`executable_first`, off): 28% of catalog rows
+  (1,966) have no data and take retrieval slots. One run: 61.1%, no change.
+  Kept as a flag, not a default.
+- **Still failing, every arm**: "around Detroit" matches cities named Detroit
+  in five states instead of the metro (place-kind ambiguity); "uninsured in
+  big counties" never loads an uninsured RATE; the 2-step workflow question
+  returns EMPTY through `/api/analyze` (it needs `/api/research`).
+
+### Phase D closed, Phase E: plans below the county (2026-11-11)
+
+RESEARCH_PLAN.md (Phases D, E), DATA_LOADING_PLAN.md ("Phases 6-7").
+
+- **Phase D done-when met**: a 3-step workflow correct 3/3 in 56-59 s.
+  Phase D tier 2/6 -> 4-5/6; `research.yaml` 83-89%. Every fix is a
+  deterministic repair of wiring qwen3 (reasoning off) gets wrong the same way
+  every attempt (`planner/rewire.js`), or a phrasing gate measured over all
+  151 eval questions.
+- **The model never chooses a level.** `planner/levels.js` reads the unit from
+  the question ("census tracts", plural "ZIP codes", "4 km grid cells") after
+  planning; county-answer questions that use tract data get an internal
+  roll-up (`ops/aggregate_to.js`, in no ordering, never offered). Prompt
+  byte-identical throughout. Phase E tier 0/8 -> 4/8 (5/8 with a suite fix).
+- **At a named unit, only measures that have it are offered**, found by a
+  second search within that unit's measures. Retrieval alone never surfaced
+  SVI for "share without a vehicle"; a county-only measure offered there can
+  only fail, and with reasoning off the repair loop broke the plan instead of
+  switching.
+- **The analysis map draws tracts and ZIP areas** from geometry the API sends
+  for any non-county level (`level` on the response); labels follow the unit.
+- Open: a crosswalk lookup op, a default `rank` limit for unnumbered "most",
+  city ambiguity at tract level, `per_area` on a rate (the tract-spread pass
+  divided a standard deviation by land area and scored correct by overlap).
 
 ## Two things generated and then thrown away
 

@@ -14,7 +14,10 @@ import {
 } from '../lib/basemaps';
 import { deriveSeries } from '../lib/series';
 import { useIsDark } from '../hooks/useIsDark';
-import { Palette } from 'lucide-react';
+import { Palette, BarChart3 } from 'lucide-react';
+import {
+  CLASSIFICATIONS, classBreaks, loadClassification, saveClassification, type Classification,
+} from '../lib/classify';
 
 /**
  * Choropleth of an analysis result.
@@ -73,6 +76,12 @@ interface Props {
   focus?: { fips: string; nonce: number } | null;
   /** `stage` fills the parent and floats its controls; see MapVariant. */
   variant?: MapVariant;
+  /**
+   * Extra controls for the stage toolbar, e.g. "Add layer". Rendered first, so
+   * the action that changes what is ON the map leads the controls that change
+   * how it looks.
+   */
+  toolbarExtra?: React.ReactNode;
   /** Where the data may be framed, clear of chrome drawn over the map. */
   fitPadding?: FitPadding;
 }
@@ -184,9 +193,13 @@ const FitToData: React.FC<{
 
 const ChoroplethMap: React.FC<Props> = ({
   rows, intent, result, diverging = false, valueLabel = null, visible = true, focus = null,
-  variant = 'inline', fitPadding,
+  variant = 'inline', fitPadding, toolbarExtra,
 }) => {
   const isDark = useIsDark();
+  // How values are cut into colour classes (lib/classify.ts). Natural breaks
+  // unless the reader chose otherwise; remembered across maps.
+  const [method, setMethod] = useState<Classification>(loadClassification);
+  const chooseMethod = (m: Classification) => { setMethod(m); saveClassification(m); };
   // Sequential and diverging selections are remembered separately, because a
   // signed measure must never fall back to a single-hue ramp.
   const [rampId, setRampId] = useState(() => loadRampId(diverging));
@@ -237,7 +250,7 @@ const ChoroplethMap: React.FC<Props> = ({
       .filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
     const b = diverging
       ? divergingBreaks(values, ramp.length)
-      : quantileBreaks(values, ramp.length);
+      : classBreaks(values, ramp.length, method);
 
     // De-duplication can leave fewer breaks than ramp steps -- a measure where
     // most counties share a value (hospital counts are mostly 0) collapses
@@ -251,7 +264,7 @@ const ChoroplethMap: React.FC<Props> = ({
           ramp[Math.round((i / Math.max(binCount - 1, 1)) * (ramp.length - 1))]);
 
     return { byFips: map, breaks: b, binColours: colors };
-  }, [rows, ramp, active.key, diverging]);
+  }, [rows, ramp, active.key, diverging, method]);
 
   const colourFor = useCallback((value: number | null | undefined): string => {
     if (value === null || value === undefined || !Number.isFinite(value)) return noData;
@@ -380,7 +393,23 @@ const ChoroplethMap: React.FC<Props> = ({
   const [refit, setRefit] = useState(0);
   const stage = variant === 'stage';
 
-  if (loadError) {
+  // Phase E: an answer by census tract, ZIP area or grid cell carries its own
+  // boundaries (the shipped file holds counties only), keyed by geoid in the
+  // GEOID property the join below already reads.
+  const unitShapes = useMemo<FeatureCollection | null>(() => {
+    if (!result?.level || result.level === 'county' || !result.geometry?.length) return null;
+    const names = new Map(rows.map(r => [String(r.fips), r.name]));
+    return {
+      type: 'FeatureCollection',
+      features: result.geometry.map(g => ({
+        type: 'Feature', geometry: g.geometry,
+        properties: { GEOID: String(g.fips), NAME: names.get(String(g.fips)) ?? String(g.fips) },
+      })),
+    };
+  }, [result, rows]);
+  const shapes = unitShapes ?? counties;
+
+  if (loadError && !unitShapes) {
     return (
       <div className={`${stage ? 'absolute inset-0' : 'h-[420px] rounded-lg'}
                        flex items-center justify-center text-sm text-slate-500 bg-slate-50`}>
@@ -389,14 +418,15 @@ const ChoroplethMap: React.FC<Props> = ({
     );
   }
 
-  if (!counties) {
+
+  if (!shapes) {
     return <div className={stage ? 'absolute inset-0 bg-[#e7e5df]'
                                  : 'h-[420px] bg-slate-100 rounded-lg animate-pulse'} />;
   }
 
   return (
     <ChoroplethBody
-      counties={counties}
+      counties={shapes}
       byFips={byFips}
       rows={rows}
       series={series}
@@ -423,6 +453,10 @@ const ChoroplethMap: React.FC<Props> = ({
       rampId={chosen.id}
       rampChoices={rampChoices}
       onRamp={chooseRamp}
+      method={method}
+      onMethod={chooseMethod}
+      diverging={diverging}
+      toolbarExtra={toolbarExtra}
       stage={stage}
       fitPadding={fitPadding}
       refit={refit}
@@ -464,6 +498,10 @@ interface BodyProps {
   rampId: string;
   rampChoices: ReturnType<typeof rampsFor>;
   onRamp: (id: string) => void;
+  method: Classification;
+  onMethod: (m: Classification) => void;
+  diverging: boolean;
+  toolbarExtra?: React.ReactNode;
   stage: boolean;
   fitPadding?: FitPadding;
   refit: number;
@@ -474,7 +512,7 @@ const ChoroplethBody: React.FC<BodyProps> = ({
   counties, byFips, rows, series, active, seriesIdx, onSeries, breaks, binColours,
   noData, intent, style, geoRef, mapRef, basemapId, onBasemap, opacity, onOpacity,
   hovered, onMouseOver, clearHover, isDark, valueLabel, visible,
-  rampId, rampChoices, onRamp, stage, fitPadding, refit, onRefit,
+  rampId, rampChoices, onRamp, method, onMethod, diverging, toolbarExtra, stage, fitPadding, refit, onRefit,
 }) => {
   const basemap = basemapById(basemapId);
 
@@ -508,6 +546,7 @@ const ChoroplethBody: React.FC<BodyProps> = ({
 
   const toolbarControls = (
     <>
+      {toolbarExtra}
       <label className="flex items-center gap-1.5 text-xs text-slate-600">
         <Palette className="w-4 h-4 text-slate-400" aria-hidden />
         <span className="sr-only">Color scale</span>
@@ -530,6 +569,19 @@ const ChoroplethBody: React.FC<BodyProps> = ({
           ))}
         </span>
       </label>
+      {/* Classification. A diverging measure keeps its symmetric bins,
+          whatever is chosen, so the menu is not offered for one. */}
+      {!diverging && (
+        <label className="flex items-center gap-1.5 text-xs text-slate-600"
+               title={CLASSIFICATIONS.find(c => c.id === method)?.hint}>
+          <BarChart3 className="w-4 h-4 text-slate-400" aria-hidden />
+          <span className="sr-only">Colour classes</span>
+          <select value={method} onChange={e => onMethod(e.target.value as Classification)}
+                  className="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white text-slate-700 cursor-pointer">
+            {CLASSIFICATIONS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+        </label>
+      )}
       {series.length > 1 && (
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-slate-500">Color by</span>
@@ -648,7 +700,7 @@ const ChoroplethBody: React.FC<BodyProps> = ({
       <div className="absolute inset-0" onMouseLeave={clearHover}>
         {map}
         <div className="absolute right-3 z-[600] flex flex-col items-end gap-2 pointer-events-none
-                        max-w-[calc(100vw-1.5rem)]"
+                        max-w-[min(34rem,calc(100vw-1.5rem))]"
              style={{ top: 'var(--header-offset)' }}>
           <div className="pointer-events-auto glass glass-raisable glass-floor rounded-2xl px-3 py-2">
             <MapToolbar

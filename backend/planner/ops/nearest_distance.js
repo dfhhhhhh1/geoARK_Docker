@@ -25,13 +25,30 @@ PLAN: {"intent":"Distance in miles from each county to its nearest hospital",
           {"id":"s2","op":"output","attr_id":"","inputs":["s1"]}]}` }],
 
   compile(step, ctx) {
-    // Miles from each county's centroid to the nearest feature. The <->
-    // operator is an index-assisted KNN scan, so this is one indexed lookup per
-    // county rather than a cross join: 187ms for all 3,233 counties.
+    // Miles from each county's centroid to the nearest feature, exactly.
+    //
+    // <-> alone is NOT the nearest: it orders by planar distance in DEGREES,
+    // and a degree of longitude shrinks with cos(latitude). Taking its first
+    // row was wrong for 222 of 3,233 counties nationally (worst +39.7%; Denali
+    // AK 148 mi for 105.6), caught by research.yaml r-hospital-distance-mo.
+    // A fixed K is not a fix either: K=10 still missed Denali.
+    //
+    // So two index-assisted steps: <-> gives a feature, whose geodesic
+    // distance d0 bounds the true minimum; then the minimum over every feature
+    // in the box that holds a d0 circle (longitude widened by 1/cos of the
+    // circle's poleward edge). Same result as brute force on AK/MO/MT/HI and
+    // as K=200 nationally, 181 ms for all counties (was 187 ms). Keep the &&:
+    // without it this is a cross join. Not handled: a nearest feature across
+    // the antimeridian (the Aleutians), which the old form missed too.
     const target = ctx.featureSource(step.attr_id);
+    const g = `f.${target.geom}`;
     return `${ctx.name} AS (SELECT c.fips, (` +
-           `SELECT ST_Distance(ST_Centroid(c.geom)::geography, f.${target.geom}::geography) / 1609.344 ` +
-           `FROM ${target.table} f ORDER BY f.${target.geom} <-> ST_Centroid(c.geom) LIMIT 1` +
-           `) AS value FROM county_geom c)`;
+           `SELECT min(ST_Distance(k.pt::geography, ${g}::geography)) FROM ${target.table} f ` +
+           `WHERE ${g} && ST_Expand(k.pt, k.d0 * 1.01 / ` +
+           `(110574 * cos(radians(least(abs(ST_Y(k.pt)) + k.d0 / 110574, 89.9)))))` +
+           `) / 1609.344 AS value FROM county_geom c ` +
+           `LEFT JOIN LATERAL (SELECT ST_Centroid(c.geom) AS pt) p ON true ` +
+           `LEFT JOIN LATERAL (SELECT p.pt, ST_Distance(p.pt::geography, ${g}::geography) AS d0 ` +
+           `FROM ${target.table} f ORDER BY ${g} <-> p.pt LIMIT 1) k ON true)`;
   },
 };

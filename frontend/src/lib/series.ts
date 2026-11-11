@@ -39,7 +39,7 @@ export function shortLabel(desc: string, max = 52): string {
  * a plan is validated before it reaches here, but this runs in the browser on
  * data from the network, and an infinite loop would take the page down.
  */
-function attrOfStep(result: AnalysisResponse, stepId: string): string | null {
+export function attrOfStep(result: AnalysisResponse, stepId: string): string | null {
   const seen = new Set<string>();
   let id: string | undefined = stepId;
   while (id && !seen.has(id)) {
@@ -52,7 +52,7 @@ function attrOfStep(result: AnalysisResponse, stepId: string): string | null {
   return null;
 }
 
-function describeAttr(result: AnalysisResponse, attrId: string | null): string | null {
+export function describeAttr(result: AnalysisResponse, attrId: string | null): string | null {
   if (!attrId) return null;
   const origin = result.provenance?.attribute_origins.find(o => o.attr_id === attrId);
   if (origin?.description) return shortLabel(origin.description);

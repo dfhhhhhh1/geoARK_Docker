@@ -15,13 +15,18 @@
  */
 
 const { PLAN_SCHEMA, planSchemaFor } = require("../schemas");
-const { queryMentionsArea, statesMentioned, REGIONS } = require("../states");
+const { queryMentionsArea, statesMentioned, REGIONS, STATE_FIPS } = require("../states");
 const { validatePlan } = require("./validate");
 const { checkRelevance } = require("./relevance");
 const { preferCoverage } = require("./coverage");
 const { unaskedSubjectErrors } = require("./outcome");
-const { derefDefinitions, checkThresholds } = require("./conditions");
-const { anchorYears } = require("./vintages");
+const { derefDefinitions, checkThresholds, LAYER_PHRASES, GROUP_COMPARISON,
+        COMPLEMENT_PHRASES } = require("./conditions");
+const { anchorYears, spans } = require("./vintages");
+const { applyLevel, applyRollup } = require("./levels");
+const { seriesUnit } = require("./units");
+const { loadLabelInputs, splitOutputs, dropRateOverCount, earlierResultSecond,
+        bridgeInputsToIntersect, restrictToEarlier, uninvertChains } = require("./rewire");
 const { compilePlan, CompileError } = require("./compile");
 const opsRegistry = require("./ops");
 
@@ -49,6 +54,9 @@ const LOCATION_PHRASES = [
 
 function queryWantsLocations(query) {
   if (!query) return false;
+  // "with fire stations on top", "overlay hospitals": a layer of facilities
+  // is their locations, so the locations op must be on the menu.
+  if (LAYER_PHRASES.test(String(query))) return true;
   return LOCATION_PHRASES.some(re => re.test(String(query)));
 }
 
@@ -99,8 +107,41 @@ Rules:
 - Start with "load" steps (one per attribute you need), then combine them.
 - For a rate, percentage, or "per capita" figure, use "normalize" with a
   PRIMARY attribute as input 1 and a NORMALIZATION attribute as input 2, and
-  scale 100 for a percentage. Never divide one PRIMARY attribute by another.
-- End with exactly one "output" step.`;
+  scale 100 for a percentage. Never divide one PRIMARY attribute by another.`;
+
+/**
+ * The closing rule. "Exactly one output" for every question except one that
+ * asks to see several things on ONE map (LAYER_PHRASES), which gets one output
+ * per layer. Built from parts so the ungated text is byte-identical.
+ */
+const outputRule = (ctx) => (wantsLayers(ctx)
+  ? `- End with one "output" step for EACH layer the question asks to see on the map.`
+  : `- End with exactly one "output" step.`);
+
+const wantsLayers = (ctx) => LAYER_PHRASES.test(String(ctx.query || ""));
+
+/**
+ * Shown only for an "on one map" question. The compiler and executor have run
+ * several outputs, each its own layer, since the plan became a DAG; the
+ * planner was never told, so a request to overlay two things got one.
+ */
+const LAYERS_NOTE = `SEVERAL LAYERS ON ONE MAP
+
+  This question asks to see more than one thing on the same map. Build each
+  one as its own branch and give EACH branch its own "output" step; each output
+  becomes a separate map layer the reader can stack, recolour and reorder.
+
+  QUESTION: map the unemployment rate in Ohio with fire stations on top
+    (a2 = unemployment rate, a6 = Fire Stations (mapped locations))
+  PLAN: {"intent":"Unemployment rate by Ohio county, with fire station locations as a second layer",
+   "output_type":"map","entity_type":"COUNTY",
+   "steps":[{"id":"s1","op":"load","attr_id":"a2","inputs":[]},
+            {"id":"s2","op":"filter_area","attr_id":"","inputs":["s1"],"states":["Ohio"]},
+            {"id":"s3","op":"output","attr_id":"","inputs":["s2"]},
+            {"id":"s4","op":"select_features","attr_id":"a6","inputs":[],"states":["Ohio"]},
+            {"id":"s5","op":"output","attr_id":"","inputs":["s4"]}]}
+  NOTE: two outputs, one per layer. Do not join, normalize or correlate the
+  layers unless the question asks for that too.`;
 
 // The prompt is assembled from the op registry. Each op owns its own line, its
 // phrasing hint and its worked examples, so an op cannot be described here
@@ -220,6 +261,23 @@ const conditionsNote = (ctx) => {
   return lines.join("\n");
 };
 
+/**
+ * Shown only inside a research workflow, when earlier results are on offer.
+ * Teaches the two shapes a later step needs: restrict a measure to an earlier
+ * step's counties, and to every other county.
+ */
+const EARLIER_NOTE = `EARLIER RESULTS
+
+  Labels under EARLIER RESULTS are sets of counties produced by earlier steps
+  of this analysis. Load one like any attribute. To look at a measure ONLY in
+  those counties, intersect the measure with it:
+    {"id":"s1","op":"load","attr_id":"a4","inputs":[]}
+    {"id":"s2","op":"load","attr_id":"a1","inputs":[]}
+    {"id":"s3","op":"intersect","attr_id":"","inputs":["s1","s2"]}
+  For every OTHER county ("the rest of the country"), the same intersect with
+  "exclude": true. To set the two against each other, compare_groups(s3, s4).
+  When the question refers to an earlier result, the plan must use it.`;
+
 const EXAMPLES_HEADER = `WORKED EXAMPLES
 
 Each is a QUESTION and the correct PLAN for it. The op sequence and the intent
@@ -253,7 +311,7 @@ function buildSystemPrompt(ctx = {}) {
   const ops = opsRegistry.offeredFor(ctx);
 
   const sections = [
-    PLAN_PREAMBLE,
+    `${PLAN_PREAMBLE}\n${outputRule(ctx)}`,
     "Operations:\n" + opsRegistry.inPromptOrder(ops)
       .map(n => opsRegistry.byName(n).promptLine).join("\n"),
     fieldRules(hasFeatureTables),
@@ -267,6 +325,8 @@ function buildSystemPrompt(ctx = {}) {
   // Explaining a field the decoding schema has dropped teaches a plan the model
   // cannot emit, so this is gated on exactly the same predicate the schema uses.
   if (opsRegistry.fieldOffered("year", ctx)) sections.push(YEAR_NOTE);
+  if (wantsLayers(ctx)) sections.push(LAYERS_NOTE);
+  if (ctx.hasEarlierResults === true) sections.push(EARLIER_NOTE);
   if (opsRegistry.fieldOffered("percentile", ctx) || opsRegistry.fieldOffered("definition", ctx)) {
     sections.push(conditionsNote(ctx));
   }
@@ -314,8 +374,12 @@ function buildRefs(results, limit = 25) {
   // for them only when the question asks about causes or related factors. No
   // candidate carries it unless expansion ran, so every existing prompt is
   // byte-identical.
-  const ORDER = ["primary", "normalization", "filter", "related", "expanded"];
+  // "earlier" is a result an earlier step of a research workflow produced
+  // (backend/workflow.js). First, because a step that says "those counties"
+  // is about exactly that set. No candidate carries it outside a workflow.
+  const ORDER = ["earlier", "primary", "normalization", "filter", "related", "expanded"];
   const HEADINGS = {
+    earlier: "EARLIER RESULTS - counties an earlier step of this analysis produced, with that step's value",
     primary: "PRIMARY - the main quantity asked for",
     normalization: "NORMALIZATION - denominators for rates and per-capita figures",
     filter: "FILTER - qualifiers",
@@ -444,6 +508,25 @@ function derefPlan(plan, refs) {
  *
  * @returns a description of the correction, or null.
  */
+/**
+ * "Cook County" as a place_name is a county, not a city or a ZIP: planned as
+ * filter_place(zcta, "Cook County") it failed the ZIP-shape check, and the
+ * retries lost the output step (2026-11-11). Sets the internal kind "county"
+ * (ops/filter_place.js compileCounty) and the bare name county_geom stores.
+ */
+function repairCountyKind(plan) {
+  for (const st of plan.steps || []) {
+    if (st.op !== "filter_place" || st.place_kind === "county") continue;
+    const m = String(st.place_name || "").match(/^(.+?)\s+(?:County|Parish|Borough)$/i);
+    if (!m) continue;
+    const was = st.place_kind;
+    st.place_kind = "county";
+    st.place_name = m[1].trim();
+    return `"${m[0]}" read as a county (planned as place_kind ${JSON.stringify(was)})`;
+  }
+  return null;
+}
+
 function repairPlaceKind(plan) {
   for (const st of plan.steps || []) {
     if (st.op !== "filter_place" || !st.place_name) continue;
@@ -455,6 +538,72 @@ function repairPlaceKind(plan) {
     }
   }
   return null;
+}
+
+/**
+ * "Around Detroit", "the Chicago area", "greater Boston": a metro, not a city.
+ *
+ * With no state, place_kind "place" matches every town of that name: "What are
+ * the poverty rates around Detroit?" kept counties in Texas, Alabama,
+ * Illinois, Oregon and Kansas besides Wayne, MI, in every run once the poverty
+ * measure was right (2026-11-10, research.yaml r-poverty-detroit). Metro names
+ * are compound ("Detroit-Warren-Dearborn, MI") and match "Detroit" without
+ * matching "Detroit Lakes, MN", so the metro reading is both what an area
+ * phrase means and far less ambiguous. A step that carries a state is left
+ * alone: "the Springfield, Missouri area" is the city, as before.
+ */
+const METRO_PHRASE = /\b(?:around|surrounding|near|metro|metropolitan|greater)\b|\barea\b/i;
+
+function repairMetroKind(plan, query) {
+  if (!METRO_PHRASE.test(String(query || ""))) return null;
+  for (const st of plan.steps || []) {
+    if (st.op !== "filter_place" || st.place_kind !== "place" || !st.place_name) continue;
+    if (Array.isArray(st.states) && st.states.length) continue;
+    st.place_kind = "cbsa";
+    return `"${st.place_name}" read as its metro area (the question asks about an area, ` +
+           `and names no state)`;
+  }
+  return null;
+}
+
+/**
+ * The question names one state and the plan restricts to nothing.
+ *
+ * "the most densely populated 4 km grid cells in Colorado" planned load ->
+ * per_area -> rank over all 613,889 US cells (190 s, 993 of 1,000 rows outside
+ * Colorado), 2 of 2; "fire stations in each county of Colorado" has lost its
+ * state the same way since Phase A. With exactly one state named, no second
+ * area, no comparison and no restriction anywhere in the plan, the only
+ * reading is that the restriction was dropped. Added in front of each output
+ * that reads a per-unit series; a features step takes it in its own `states`.
+ */
+function addAskedState(plan, query) {
+  const named = statesMentioned(query);
+  if (named.length !== 1 || !STATE_FIPS[named[0]]) return null;
+  if (GROUP_COMPARISON.test(query) || COMPLEMENT_PHRASES.test(query)) return null;
+  const steps = plan.steps || [];
+  const restricted = steps.some(st =>
+    ["filter_area", "filter_place", "compare_groups"].includes(st.op) ||
+    (Array.isArray(st.states) && st.states.length) || st.city);
+  if (restricted || !steps.length) return null;
+  const byId = new Map(steps.map(st => [st.id, st]));
+  const ids = new Set(steps.map(st => st.id));
+  const added = [];
+  for (const out of steps.filter(st => st.op === "output")) {
+    const src = byId.get((out.inputs || [])[0]);
+    const mod = src && opsRegistry.byName(src.op);
+    if (!mod) continue;
+    if (mod.produces === "features") { src.states = [named[0]]; added.push(src.id); continue; }
+    if (mod.produces !== "series" || mod.statColumns) continue;
+    let id = `${src.id}_in_state`;
+    while (ids.has(id)) id += "_";
+    ids.add(id);
+    steps.splice(steps.indexOf(out), 0,
+      { id, op: "filter_area", attr_id: "", inputs: [src.id], states: [named[0]] });
+    out.inputs = [id];
+    added.push(id);
+  }
+  return added.length ? `${named[0]} (the question names it; the plan restricted to nothing)` : null;
 }
 
 function applyImpliedState(plan, query) {
@@ -834,6 +983,9 @@ async function generatePlan({
   // async (census_code) => years with values (planner/vintages.js). Null keeps
   // the calendar-based period, so scripted tests are unaffected.
   yearsOf = null,
+  // async (census_code) => Set of levels with values (planner/levels.js).
+  // Null keeps every plan at the county, so scripted tests are unaffected.
+  levelsOf = null,
 }) {
   const attempts = [];
   let repairContext = "";
@@ -876,6 +1028,8 @@ async function generatePlan({
     // A retrieved attribute carries a checked, published definition. Data,
     // not phrasing: the definition field exists only when one is on offer.
     hasDefinitions: defRefs.size > 0,
+    // A research workflow handed this step the results of earlier steps.
+    hasEarlierResults: candidates.some(c => c.search_purpose === "earlier"),
     // The statistics ops gate on PHRASING as well as on loaded data -- nobody
     // gets offered "hotspot" for a question that is not about clustering -- so
     // the query itself is part of the narrowing context.
@@ -914,10 +1068,22 @@ async function generatePlan({
     }
 
     normalizeIds(plan);
+    // Wiring the model gets wrong the same way on every repair attempt
+    // (planner/rewire.js), fixed exactly in code.
+    for (const fix of [loadLabelInputs(plan, refs), splitOutputs(plan), uninvertChains(plan)]) {
+      if (!fix) continue;
+      log(`   Rewired plan: ${fix}`);
+      emit({ stage: "plan_adjusted", detail: fix });
+    }
     const unasked = dropUnaskedFilters(plan, query);
     if (unasked) {
       log(`   Dropped filter(s) the question did not ask for: ${unasked}`);
       emit({ stage: "plan_adjusted", detail: `dropped unasked filter ${unasked}` });
+    }
+    const countyFix = repairCountyKind(plan);
+    if (countyFix) {
+      log(`   Repaired place kind: ${countyFix}`);
+      emit({ stage: "plan_adjusted", detail: countyFix });
     }
     const kindFix = repairPlaceKind(plan);
     if (kindFix) {
@@ -947,6 +1113,19 @@ async function generatePlan({
       log(`   Added implied state restriction: ${implied}`);
       emit({ stage: "plan_adjusted", detail: `restricted to ${implied}` });
     }
+    const asked = addAskedState(plan, query);
+    if (asked) {
+      log(`   Added the state the question named: ${asked}`);
+      emit({ stage: "plan_adjusted", detail: `restricted to ${asked}` });
+      adjustments.push(`Area: restricted to ${asked}.`);
+    }
+    // After applyImpliedState: a state the question names keeps the city.
+    const metro = repairMetroKind(plan, query);
+    if (metro) {
+      log(`   Repaired place kind: ${metro}`);
+      emit({ stage: "plan_adjusted", detail: metro });
+      adjustments.push(`Place: ${metro}.`);
+    }
     // A plan of nothing but empty `output` steps is the model saying "none of
     // these attributes answer this" in the only shape the schema let it
     // produce. Measured on "shark attack incidents along the Australian coast":
@@ -959,6 +1138,17 @@ async function generatePlan({
       plan.steps = [];
     }
     const unknownRefs = derefPlan(plan, refs);
+    // Workflow-step wiring (planner/rewire.js), in this order: a bridge given
+    // an input becomes an intersect, an ignored earlier result becomes a
+    // restriction, and an earlier result is never intersect's value side.
+    const earlierIds = candidates.filter(c => c.search_purpose === "earlier").map(c => c.attr_id);
+    for (const fix of [bridgeInputsToIntersect(plan), restrictToEarlier(plan, earlierIds),
+                       earlierResultSecond(plan)]) {
+      if (!fix) continue;
+      log(`   Rewired plan: ${fix}`);
+      emit({ stage: "plan_adjusted", detail: fix });
+      adjustments.push(`Plan corrected: ${fix}.`);
+    }
     // Definition labels are dereferenced the same way, and an unknown one is
     // a repair, never a guess (planner/conditions.js).
     const defs = derefDefinitions(plan, defRefs);
@@ -991,12 +1181,43 @@ async function generatePlan({
       continue;
     }
 
-    const check = await validatePlan(plan, resolve);
+    let check = await validatePlan(plan, resolve);
+    // A rate divided by a count: the validator refuses it, and the model then
+    // re-emits it 3 of 3 times. Keep the rate (the thing asked for) instead.
+    if (!check.ok && check.errors.some(e => /is already a rate or percentage/.test(e))) {
+      const fix = dropRateOverCount(plan, check.resolved);
+      if (fix) {
+        log(`   Rewired plan: ${fix}`);
+        emit({ stage: "plan_adjusted", detail: fix });
+        adjustments.push(`Plan corrected: ${fix}.`);
+        check = await validatePlan(plan, resolve);
+      }
+    }
 
     // Periods and years against the years each measure actually has.
     if (check.ok && yearsOf) {
       try {
-        const anchored = await anchorYears(plan, check.resolved, yearsOf);
+        const anchored = await anchorYears(plan, check.resolved, yearsOf, {
+          // Other measures on the list that DO span the period, by label, so a
+          // repair can switch to one instead of re-picking the same series.
+          // `back` years to span, or (back null) every year in `want`.
+          alternatives: async (back, exclude, want = null) => {
+            const pairs = [...refs].filter(([, id]) => !exclude.has(id) && !featureTables.has(id));
+            const src = await resolve(pairs.map(([, id]) => id));
+            const out = [];
+            for (const [label, id] of pairs) {
+              const s = src.get(id);
+              if (!s || s.source_kind !== "acs_long") continue;
+              const ys = [...new Set(await yearsOf(s.census_code))].sort((a, b) => a - b);
+              const span = want
+                ? (want.every(y => ys.includes(y)) ? { from: ys[0], to: ys[ys.length - 1] } : null)
+                : spans(ys, back);
+              if (span) out.push({ label, description: s.description || id, ...span });
+              if (out.length === 3) break;
+            }
+            return out;
+          },
+        });
         if (anchored.errors.length) {
           check.ok = false;
           check.errors.push(...anchored.errors);
@@ -1011,6 +1232,58 @@ async function generatePlan({
       }
     }
     for (const st of plan.steps || []) delete st._back;
+
+    // The unit the question names (census tracts, ZIP codes, grid cells),
+    // set in code after the model has planned (planner/levels.js).
+    if (check.ok && levelsOf) {
+      try {
+        const lv = await applyLevel(plan, query, check.resolved, levelsOf, async (level) => {
+          const pairs = [...refs].filter(([, id]) => !featureTables.has(id));
+          const src = await resolve(pairs.map(([, id]) => id));
+          const out = [];
+          for (const [label, id] of pairs) {
+            const s = src.get(id);
+            if (s?.source_kind === "acs_long" && (await levelsOf(s.census_code)).has(level)) {
+              out.push({ label, description: s.description || id });
+            }
+          }
+          return out;
+        });
+        if (lv.errors.length) {
+          check.ok = false;
+          check.errors.push(...lv.errors);
+        } else if (lv.note) {
+          log(`   Level: ${lv.note}`);
+          emit({ stage: "plan_adjusted", detail: `Unit: ${lv.note}.` });
+          adjustments.push(`Unit: ${lv.note}.`);
+        }
+        // Finer data, county answers: roll each load up (ops/aggregate_to.js).
+        const ru = await applyRollup(plan, query, check.resolved, levelsOf, seriesUnit, async (level) => {
+          const pairs = [...refs].filter(([, id]) => !featureTables.has(id));
+          const src = await resolve(pairs.map(([, id]) => id));
+          const out = [];
+          for (const [label, id] of pairs) {
+            const s = src.get(id);
+            if (s?.source_kind === "acs_long" && (await levelsOf(s.census_code)).has(level)) {
+              out.push({ label, description: s.description || id });
+            }
+          }
+          return out;
+        });
+        if (ru.errors.length) {
+          check.ok = false;
+          check.errors.push(...ru.errors);
+        } else if (ru.note) {
+          log(`   Roll-up: ${ru.note}`);
+          emit({ stage: "plan_adjusted", detail: `Built from finer data: ${ru.note}.` });
+          adjustments.push(`Built from finer data: ${ru.note}.`);
+          const again = await validatePlan(plan, resolve);
+          if (!again.ok) { check.ok = false; check.errors.push(...again.errors); }
+        }
+      } catch (err) {
+        log(`   Level check skipped: ${err.message}`);
+      }
+    }
 
     // Thresholds against the measure they filter: a definition on the measure
     // it belongs to, a percentile in range, a stated number on the measure's
@@ -1069,7 +1342,8 @@ async function generatePlan({
     // little it covers. After the relevance check on purpose: a swap is
     // between series that measure the same thing, so its verdict still holds.
     let resolvedFinal = check.resolved;
-    if (check.ok && coverage) {
+    // Coverage is measured over counties; a plan at another unit is not.
+    if (check.ok && coverage && !plan.level) {
       try {
         const before = plan.steps.map(s => s.attr_id);
         const { swaps, notes, added } = await preferCoverage(plan, candidates, coverage);
@@ -1208,6 +1482,9 @@ function shapeLayer(out, res, ms) {
       : null,
     row_count: res.rowCount,
     ms,
+    // The unit each row is (planner/levels.js): "county" unless the question
+    // named tracts, ZIP areas or grid cells.
+    level: out.level || "county",
     rows: res.rows.map(r => ({
       fips: r.fips,
       name: r.name,

@@ -132,6 +132,18 @@ export function useAnalyzeStream() {
       es.addEventListener(stage, onStage(stage));
     }
 
+    // A multi-step analysis: which steps were planned, and which is starting.
+    // Recorded, not stages: each step then runs the ordinary stages, and the
+    // progress display reads these to say "step 2 of 2".
+    for (const ev of ['workflow_planned', 'workflow_step'] as const) {
+      es.addEventListener(ev, (e: MessageEvent) => {
+        try {
+          const payload = JSON.parse(e.data) as AnalysisEvent;
+          setState(s => ({ ...s, events: [...s.events, payload] }));
+        } catch { /* a progress note is not worth failing over */ }
+      });
+    }
+
     // Recorded but does NOT advance the stage: a deterministic correction
     // happens *during* planning, and treating it as a phase would rewind the
     // progress display to a step that is not a step.

@@ -12,6 +12,7 @@ const { seriesUnit } = require("./units");
 const { validatePlan } = require("./validate");
 const { preferCoverage } = require("./coverage");
 const { unaskedSubjectErrors } = require("./outcome");
+const { isTotalPopulation } = require("../population");
 
 let pass = 0, fail = 0;
 async function test(name, fn) {
@@ -79,6 +80,23 @@ const normalizeOf = (num, den, ...middle) => plan(
     assert.strictEqual(seriesUnit(SOURCES.get("INCOME")), "rate");
     assert.strictEqual(seriesUnit(acs("DP05_0001M",
       "Margin of Error|SEX AND AGE|Total population", 0, 4000)), null);
+  });
+
+  await test("whole-population counts, including ERS's described rows", async () => {
+    // etl/ers_variables.yaml gives POP_ESTIMATE a description; the coverage
+    // repair finds its equivalents through this, so renaming it must not
+    // silently drop it from the population set.
+    for (const d of ["Total population (resident population estimate, July 1)",
+                     "Total population (2020 Census count, April 1)",
+                     "POP_ESTIMATE", "Population", "Estimate|SEX AND AGE|Total population"]) {
+      assert.ok(isTotalPopulation(d), d);
+    }
+    for (const d of ["Estimate|60 years and over|Total population",
+                     "Total population (resident population estimate) (covers 1,524 counties)",
+                     "Group quarters population (college dorms, prisons, nursing homes, military barracks), July 1 estimate (count)",
+                     "Number of people of all ages in poverty (count, Census SAIPE estimate)"]) {
+      assert.ok(!isTotalPopulation(d), d);
+    }
   });
 
   await test("non-ACS sources: code, description, then range", async () => {

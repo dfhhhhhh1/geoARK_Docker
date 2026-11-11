@@ -1,0 +1,54 @@
+{
+  "attr_appropriateness": null,
+  "queries": 2,
+  "plan_validity": 0.5,
+  "op_appropriateness": 0.5,
+  "forbidden_op_rate": 0.0,
+  "op_diversity": 0.5,
+  "distinct_op_sequences": [
+    "load->filter_attr->output"
+  ],
+  "latency_mean": 37.0,
+  "detail": [
+    {
+      "id": "filter-high-income",
+      "expect_attr": null,
+      "expect_attr_present": null,
+      "query": "counties where median household income is above 75000",
+      "planned": true,
+      "intent": "Counties whose median household income is greater than 75000",
+      "ops": "load->filter_attr->output",
+      "narrowing": [],
+      "expect_op": "filter_attr",
+      "expect_op_present": true,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [
+        {
+          "attr_id": "MEDIAN_HOUSEHOLD_INCOME",
+          "purpose": "primary",
+          "desc": "Median_Household_Income"
+        }
+      ],
+      "error": null,
+      "seconds": 28.3
+    },
+    {
+      "id": "hotspot-clusters",
+      "expect_attr": null,
+      "expect_attr_present": null,
+      "query": "show me clusters of counties with high uninsured rates",
+      "planned": false,
+      "intent": null,
+      "ops": "",
+      "narrowing": [],
+      "expect_op": "hotspot",
+      "expect_op_present": false,
+      "forbid_op": null,
+      "forbid_op_present": false,
+      "attrs": [],
+      "error": "could not produce a valid plan",
+      "seconds": 45.7
+    }
+  ]
+}

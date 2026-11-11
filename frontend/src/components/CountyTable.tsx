@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, Search, MapPin } from 'lucide-react';
 import type { AnalysisRow } from '../types';
 import type { Series } from '../lib/series';
 import { STATE_ABBR } from '../lib/places';
+import { unitHeading, unitPlural } from '../lib/units';
 
 /**
  * The per-county numbers, as a tool rather than a wall.
@@ -22,6 +23,8 @@ interface Props {
   selected?: string | null;
   /** Tailwind max-height class for the scroll box. */
   heightClass?: string;
+  /** The unit of each row (API `level`); "county" when absent. */
+  level?: string;
 }
 
 type SortKey = 'value' | 'value_b' | 'name';
@@ -33,7 +36,7 @@ const MAX_RENDER = 4000;
 const fmt = (v: number | null | undefined) =>
   v === null || v === undefined ? '–' : v.toLocaleString(undefined, { maximumFractionDigits: 3 });
 
-const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, heightClass = 'max-h-64' }) => {
+const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, heightClass = 'max-h-64', level }) => {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'value', dir: 'desc' });
 
@@ -81,12 +84,12 @@ const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, h
         <input
           value={q}
           onChange={e => setQ(e.target.value)}
-          placeholder="Find a county or state…"
-          aria-label="Filter counties"
+          placeholder={`Find a ${unitHeading(level).toLowerCase()} or state…`}
+          aria-label={`Filter ${unitPlural(level)}`}
           className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
         />
         <span className="text-xs text-slate-500 shrink-0">
-          {shown.length === rows.length ? `${rows.length.toLocaleString()} counties`
+          {shown.length === rows.length ? `${rows.length.toLocaleString()} ${unitPlural(level)}`
             : `${shown.length.toLocaleString()} of ${rows.length.toLocaleString()}`}
         </span>
       </div>
@@ -97,7 +100,7 @@ const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, h
               <th className="py-1.5 pl-3 pr-2 font-medium w-10">#</th>
               <th className="py-1.5 pr-2 font-medium">
                 <button type="button" onClick={() => toggle('name')} className="hover:text-slate-800">
-                  County <SortIcon k="name" />
+                  {unitHeading(level)} <SortIcon k="name" />
                 </button>
               </th>
               {series.map(s => (

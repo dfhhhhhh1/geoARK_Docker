@@ -33,7 +33,10 @@ const { stepUnit } = require("./units");
  * uniqueness, the DAG ordering rule, the terminal-output rule, and the
  * shape-composition rule that spans several steps at once.
  */
-const OPS = ops.arityTable();
+// Model-facing ops (named in repair messages) plus internal ones, which code
+// inserts and the model is never told about (ops/aggregate_to.js).
+const OPS = { ...ops.arityTable(), ...ops.internalArity() };
+const MODEL_OPS = Object.keys(ops.arityTable());
 
 /** Ops whose attr_id (and near_attr_id) must name a facility dataset. */
 const FEATURE_OPS = ops.featureOps();
@@ -69,7 +72,7 @@ async function validatePlan(plan, resolve) {
   for (const st of steps) {
     const spec = OPS[st.op];
     if (!spec) {
-      errors.push(`step "${st.id}": unknown op "${st.op}". Valid ops: ${Object.keys(OPS).join(", ")}`);
+      errors.push(`step "${st.id}": unknown op "${st.op}". Valid ops: ${MODEL_OPS.join(", ")}`);
       continue;
     }
     for (const field of spec.needs) {
@@ -144,6 +147,53 @@ async function validatePlan(plan, resolve) {
     }
     if (!consumers.length) {
       errors.push(`step "${st.id}" (${st.op}) is never used by an output step`);
+    }
+  }
+
+  // --- every step must reach an output --------------------------------------
+  //
+  // The compiler prunes what no output reads, so a dead step never errors: it
+  // just disappears, and with it whatever restriction it carried. Planner
+  // reasoning off, "how far is each Missouri county from the nearest hospital"
+  // planned count_features -> filter_area(Missouri), nearest_distance ->
+  // output: the Missouri filter sat on a branch nothing read, and the answer
+  // was national, 3 of 3 runs (2026-11-10). Feature steps have their own
+  // message above.
+  if (outputs.length) {
+    const byId = new Map(steps.map(s => [s.id, s]));
+    const live = new Set();
+    const stack = outputs.map(o => o.id);
+    while (stack.length) {
+      const id = stack.pop();
+      if (live.has(id) || !byId.has(id)) continue;
+      live.add(id);
+      stack.push(...(byId.get(id).inputs || []));
+    }
+    const dead = steps.filter(s => !live.has(s.id) && ops.byName(s.op)?.produces !== "features");
+    if (dead.length) {
+      const live1 = outputs[0].inputs?.[0];
+      errors.push(
+        `step${dead.length > 1 ? "s" : ""} ${dead.map(s => `"${s.id}" (${s.op})`).join(", ")} ` +
+        `${dead.length > 1 ? "are" : "is"} not used by any output, so ${dead.length > 1 ? "their results are" : "its result is"} ` +
+        `discarded. Every step must lead to an output: put a filter on the chain the output ` +
+        `reads${live1 ? ` (the output reads "${live1}")` : ""}, or remove the step.`);
+    }
+  }
+
+  // --- an ungrouped aggregate is one row with no county ---------------------
+  //
+  // Its fips is NULL, so join / normalize / intersect / compare_groups on it
+  // match nothing. "Is poverty in the outlier counties different from
+  // everywhere else" planned mean(group a), mean(group b), join: EMPTY, from a
+  // plan that validated (2026-11-11). Two groups are compare_groups' job.
+  for (const st of steps) {
+    if (st.op !== "aggregate" || st.group_by === "state") continue;
+    const chained = steps.filter(s => (s.inputs || []).includes(st.id) && !ops.byName(s.op)?.terminal);
+    if (chained.length) {
+      errors.push(
+        `step "${st.id}" (aggregate) returns one national number, so it cannot feed ` +
+        `${[...new Set(chained.map(s => s.op))].join(", ")}: there is no county to match. ` +
+        `Feed it straight into an "output"; to compare two groups of counties, use compare_groups.`);
     }
   }
 

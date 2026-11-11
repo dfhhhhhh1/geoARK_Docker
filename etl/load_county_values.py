@@ -93,6 +93,74 @@ STATE_KEYS = ("state", "stabr", "state_abbr", "stateabbr")
 AREA_KEYS = ("area_name", "area name", "county", "locationname", "name")
 
 
+ERS_VARIABLES = Path(__file__).with_name("ers_variables.yaml")
+
+
+def ers_descriptions(path: Path = ERS_VARIABLES) -> dict[str, str]:
+    """
+    code -> description for the ERS measures, from ers_variables.yaml.
+
+    ERS names its measures with bare codes. Registered as their own
+    description, "PCTPOVALL" was unfindable by any question about poverty, and
+    every such question fell through to a subpopulation table. See the file.
+    """
+    if not path.exists():
+        return {}
+    import yaml                                                 # noqa: PLC0415
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {str(k): str(v).strip() for k, v in (doc.get("variables") or {}).items()}
+
+
+def describe(code: str, m: dict, ers: dict[str, str]) -> str:
+    """A measure's description: ERS's own definition where it has one."""
+    if m.get("dataset") == "USDA ERS" and code in ers:
+        return ers[code]
+    return m["label"]
+
+
+def refresh_catalog(catalog: Path, ers: dict[str, str]) -> int:
+    """
+    Rewrite attr_desc and tags of EXISTING ERS catalog rows from the dictionary.
+
+    append_catalog() never touches a row that is already there, so a better
+    description reaches an established catalog only through this. attr_orig
+    keeps the code, so a search for "PCTPOVALL" still finds it. The file is
+    rewritten whole: a csv round-trip of it is byte-identical (checked
+    2026-11-10), so only the changed rows differ.
+    """
+    with catalog.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.reader(fh))
+    header = rows[0]
+    i_ds, i_label = header.index("dataset_clean"), header.index("attr_label")
+    i_desc, i_tags = header.index("attr_desc"), header.index("tags")
+    changed = 0
+    for r in rows[1:]:
+        if not r or r[i_ds] != "USDA ERS" or r[i_label] not in ers:
+            continue
+        desc = ers[r[i_label]]
+        # Keep the partial-coverage note append_catalog added, if any.
+        note = re.search(r"\s*\(covers [\d,]+ counties\)$", r[i_desc])
+        if note:
+            desc += note.group(0)
+        tags = str(tags_for(desc))
+        if (r[i_desc], r[i_tags]) != (desc, tags):
+            r[i_desc], r[i_tags] = desc, tags
+            changed += 1
+    if changed:
+        with catalog.open("w", encoding="utf-8", newline="") as fh:
+            csv.writer(fh, lineterminator="\r\n").writerows(rows)
+    return changed
+
+
+_TAG_STOP = {"the", "and", "for", "with", "who", "are", "from"}
+
+
+def tags_for(label: str) -> list[str]:
+    words = [w.lower() for w in re.split(r"[^A-Za-z]+", label)
+             if len(w) > 2 and w.lower() not in _TAG_STOP]
+    return sorted(set(words))[:12]
+
+
 def detect_encoding(path: Path) -> str:
     """Decode the WHOLE file. A chunk is not evidence -- see the module note."""
     raw = path.read_bytes()
@@ -307,15 +375,15 @@ def append_catalog(catalog: Path, measures: dict) -> int:
     if not new:
         return 0
 
+    ers = ers_descriptions()
     rows = []
     for code, m in sorted(new.items()):
         years = sorted(m["years"])
-        words = [w.lower() for w in re.split(r"[^A-Za-z]+", m["label"]) if len(w) > 2]
-        tags = sorted(set(words))[:12]
+        desc = describe(code, m, ers)
+        tags = tags_for(desc)
         # Partial coverage stated in the description, because a reader cannot
         # otherwise tell a national measure from one missing half the country.
         n = len(m.get("counties") or ())
-        desc = m["label"]
         if n < PARTIAL_COUNTIES:
             desc = f"{desc} (covers {n:,} counties)"
         row = dict.fromkeys(header, "")
@@ -339,10 +407,48 @@ def append_catalog(catalog: Path, measures: dict) -> int:
     return len(rows)
 
 
+def refresh_descriptions(args) -> int:
+    ers = ers_descriptions()
+    if not ers:
+        print(f"no variables in {ERS_VARIABLES}", file=sys.stderr)
+        return 1
+    if not (args.catalog or args.commit):
+        print("--refresh-descriptions needs --catalog and/or --commit", file=sys.stderr)
+        return 2
+    if args.catalog:
+        n = refresh_catalog(args.catalog, ers)
+        print(f"  {n} ERS catalog rows rewritten in {args.catalog.name}"
+              + ("  -> make reload-corpus" if n else ""))
+    if args.commit:
+        import psycopg2                                         # noqa: PLC0415
+        conn = psycopg2.connect(args.dsn) if args.dsn else psycopg2.connect()
+        try:
+            with conn, conn.cursor() as cur:
+                # Only rows this loader registered (dataset_id 'USDA ERS::...'),
+                # so a census_code that happens to collide is never relabelled.
+                cur.executemany(
+                    "UPDATE attribute_source SET description = %s "
+                    "WHERE attr_id = %s AND dataset_id = %s AND description IS DISTINCT FROM %s",
+                    [(d, code, f"USDA ERS::{code}", d) for code, d in ers.items()])
+                cur.execute("SELECT count(*) FROM attribute_source WHERE dataset_id LIKE 'USDA ERS::%%' "
+                            "AND attr_id = ANY(%s) AND description = ANY(%s)",
+                            (list(ers), list(ers.values())))
+                print(f"  attribute_source: {cur.fetchone()[0]} of {len(ers)} ERS "
+                      f"descriptions now match ers_variables.yaml")
+        finally:
+            conn.close()
+    return 0
+
+
 # ----------------------------------------------------------------------- main
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source-dir", type=Path, required=True)
+    ap.add_argument("--source-dir", type=Path)
+    ap.add_argument("--refresh-descriptions", action="store_true",
+                    help="apply ers_variables.yaml to measures already loaded: "
+                         "rewrite their catalog rows (with --catalog, on the "
+                         "host) and/or attribute_source (with --commit). Reads "
+                         "no CSV.")
     ap.add_argument("--commit", action="store_true",
                     help="write; otherwise report what would load and stop")
     ap.add_argument("--catalog-only", action="store_true",
@@ -356,6 +462,11 @@ def main() -> int:
                          "RETRIEVED: search indexes the catalog, not the "
                          "database, so an unlisted measure is invisible.")
     args = ap.parse_args()
+
+    if args.refresh_descriptions:
+        return refresh_descriptions(args)
+    if not args.source_dir:
+        ap.error("--source-dir is required unless --refresh-descriptions")
 
     files = sorted(p for p in args.source_dir.iterdir()
                    if p.suffix.lower() == ".csv")
@@ -445,7 +556,8 @@ def main() -> int:
             # Register each measure so retrieval can find it and the compiler
             # can resolve it. source_kind reuses the long-format path, which is
             # what these are -- see the note on the table's historical name.
-            rows = [(code, f"{m['dataset']}::{code}", m["label"], "acs_long",
+            ers = ers_descriptions()
+            rows = [(code, f"{m['dataset']}::{code}", describe(code, m, ers), "acs_long",
                      "acs_county_values", None, code, "COUNTY")
                     for code, m in measures.items()]
             execute_values(cur, """

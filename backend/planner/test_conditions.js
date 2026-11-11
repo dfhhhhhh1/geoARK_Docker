@@ -433,6 +433,85 @@ const DEF_NONMETRO = {
     assert.match(r.errors.join(), /values for 2020, 2025, so it cannot show a change over the last 10 years/);
   });
 
+  await test("a period refusal names the candidates that DO span it, and the repair uses one", async () => {
+    // r-unemp-decade: the planner chose a two-vintage CHR series on every
+    // attempt while ERS unemployment, 2000-2023, was on its list.
+    const SRC = new Map([...SOURCES,
+      ["CHR_UNEMP", acs("CHR_V023_RAWVALUE", "Unemployment", 0.01, 0.2)]]);
+    const res2 = async (ids) => new Map(ids.filter(i => SRC.has(i)).map(i => [i, SRC.get(i)]));
+    const years = { CHR_V023_RAWVALUE: [2020, 2025], UNEMPLOYMENT_RATE: [2000, 2010, 2013, 2023],
+                    PCTPOVALL: [2023] };
+    const decade = (label) => JSON.stringify(plan(
+      { id: "s1", op: "load", attr_id: label, inputs: [] },
+      { id: "s2", op: "load", attr_id: label, inputs: [] },
+      { id: "s3", op: "combine", attr_id: "", inputs: ["s1", "s2"], operation: "difference" },
+      { id: "s4", op: "output", attr_id: "", inputs: ["s3"] }));
+    const answers = [decade("a1"), decade("a2")];
+    const prompts = [];
+    const res = await generatePlan({
+      query: "which counties saw unemployment rise the most over the last decade",
+      candidates: [
+        { attr_id: "CHR_UNEMP", attr_desc: "Unemployment", search_purpose: "primary" },
+        { attr_id: "UNEMP", attr_desc: "Unemployment rate", search_purpose: "primary" },
+        { attr_id: "POV", attr_desc: "Poverty rate", search_purpose: "primary" }],
+      callLLM: async (sys, usr) => { prompts.push(usr); return answers.shift(); },
+      resolve: res2, log: () => {}, yearsOf: async (c) => years[c] || [],
+    });
+    // Named by label, with its years; the one-year poverty series is not.
+    assert.match(prompts[1], /These on the list do: a2 "Unemployment rate" \(2013-2023\)\./);
+    assert.doesNotMatch(prompts[1], /a3 "Poverty/);
+    assert.ok(res.ok, JSON.stringify(res.errors));
+    assert.strictEqual(res.plan.steps[0].attr_id, "UNEMP");
+    assert.deepStrictEqual(res.plan.steps.slice(0, 2).map(s => s.year).sort(), [2013, 2023]);
+  });
+
+  await test("'around Detroit' with no state is the metro; a named state keeps the city", async () => {
+    const run = async (query, placeStep) => {
+      const res = await generatePlan({
+        query,
+        candidates: [{ attr_id: "POV", attr_desc: "Poverty rate", search_purpose: "primary" }],
+        callLLM: async () => JSON.stringify(plan(
+          { id: "s1", op: "load", attr_id: "a1", inputs: [] },
+          { id: "s2", op: "filter_place", attr_id: "", inputs: ["s1"], ...placeStep },
+          { id: "s3", op: "output", attr_id: "", inputs: ["s2"] })),
+        resolve, log: () => {}, hasPlaceBoundaries: true,
+      });
+      assert.ok(res.ok, JSON.stringify(res.errors));
+      return res.plan.steps[1];
+    };
+    // Every run once the measure was right: five towns called Detroit.
+    assert.strictEqual((await run("What are the poverty rates around Detroit?",
+      { place_kind: "place", place_name: "Detroit" })).place_kind, "cbsa");
+    // A named state: the city, as the filter_place example plans it.
+    const mo = await run("poverty for counties in the Springfield, Missouri area",
+      { place_kind: "place", place_name: "Springfield" });
+    assert.strictEqual(mo.place_kind, "place");
+    assert.deepStrictEqual(mo.states, ["Missouri"]);
+    // No area phrasing: untouched.
+    assert.strictEqual((await run("poverty rates in Detroit",
+      { place_kind: "place", place_name: "Detroit" })).place_kind, "place");
+  });
+
+  await test("a change between two named years on a one-year measure is refused, not zero", async () => {
+    // SVI unemployment has 2022 only: both loads would move to 2022.
+    const p = plan(
+      { id: "s1", op: "load", attr_id: "UNEMP", inputs: [], year: 2019 },
+      { id: "s2", op: "load", attr_id: "UNEMP", inputs: [], year: 2020 },
+      { id: "s3", op: "combine", attr_id: "", inputs: ["s1", "s2"], operation: "difference" },
+      { id: "s4", op: "output", attr_id: "", inputs: ["s3"] });
+    const r = await anchorYears(p, await resolve(["UNEMP"]), async () => [2022], {
+      alternatives: async (back, exclude, want) => (want ? [{ label: "a2", description: "ERS rate", from: 2000, to: 2023 }] : []),
+    });
+    assert.match(r.errors.join(), /has values for 2022 only, so it cannot show a change between 2019 and 2020.*a2 "ERS rate" \(2000-2023\)/);
+    // Both years present: no error, years kept.
+    const q = plan(
+      { id: "s1", op: "load", attr_id: "UNEMP", inputs: [], year: 2019 },
+      { id: "s2", op: "load", attr_id: "UNEMP", inputs: [], year: 2020 },
+      { id: "s3", op: "output", attr_id: "", inputs: ["s1"] });
+    const ok = await anchorYears(q, await resolve(["UNEMP"]), async () => [2019, 2020, 2021]);
+    assert.deepStrictEqual(ok.errors, []);
+  });
+
   await test("two different areas are a comparison: the one-region override leaves them", async () => {
     const { generatePlan } = require("./index");
     const planJSON = JSON.stringify(plan(

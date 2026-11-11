@@ -53,6 +53,9 @@ services:
       PLAN_MODEL: ${PLAN_MODEL:-}
       # Planner reasoning: on (model default) | off | a token budget, e.g. 512.
       PLAN_THINK: ${PLAN_THINK:-on}
+      # Other planners a request may name as `plan_model` (eval A/Bs, no
+      # recreate). Each gets the planner's context window and deadline.
+      PLAN_MODEL_CHOICES: ${PLAN_MODEL_CHOICES:-qwen3:14b,qwen3.5:9b}
       PLAN_MAX_REPAIRS: ${PLAN_MAX_REPAIRS:-2}
       # Context window per model: planner / small model. See numCtx in
       # unified_search_server.js for why they differ.
@@ -117,6 +120,10 @@ services:
       # CSV takes effect on restart, without a rebuild, and without the two
       # services drifting apart (which the API's row-count assert would reject).
       - ../backend/geoark_attributes.csv:/app/geoark_attributes.csv:ro
+      # Queries that did not answer, with the run around them
+      # (backend/failure_log.js). On the host so it survives a recreate:
+      # `make failures`, or logs/failures.jsonl directly.
+      - ../logs:/app/logs
     depends_on:
       # NOT service_healthy for the embedder: on a cold volume it spends
       # minutes downloading the model, and waitForEmbedder() in the API polls

@@ -8,6 +8,7 @@ import ErrorBoundary from './ErrorBoundary';
 import AnalysisReport from './AnalysisReport';
 import AmbiguityNotice from './AmbiguityNotice';
 import CorrelationCard from './CorrelationCard';
+import ComparisonCard from './ComparisonCard';
 import FactorTable from './FactorTable';
 import CountyTable from './CountyTable';
 import type { AnalysisResponse, FollowUpEdit, MappedFeature } from '../types';
@@ -163,6 +164,13 @@ const ResultBlock: React.FC<Props> = ({
               ))}
             </div>
           </div>
+          {/* compare_groups: the verdict leads, above the counties of both
+              groups, which are the evidence for it. */}
+          {result.comparison && (
+            <div className="mb-4">
+              <ComparisonCard result={result} comparison={result.comparison} compact={stage} />
+            </div>
+          )}
           {/* The planner's output_type picks the default tab; every view
               stays reachable. A feature result has no per-county numbers,
               so it only ever gets the map. */}
@@ -190,7 +198,7 @@ const ResultBlock: React.FC<Props> = ({
           )}
           {countyViews && shownView === 'table' && (
             <CountyTable rows={rows} series={series} heightClass={stage ? 'max-h-80' : 'max-h-[420px]'}
-                         onPick={canFocus ? pick : undefined} selected={selected} />
+                         onPick={canFocus ? pick : undefined} selected={selected} level={result.level} />
           )}
           {proxies.length > 0 && (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5
@@ -288,7 +296,7 @@ const ResultBlock: React.FC<Props> = ({
               {countyViews && activeView === 'map' && (
                 <div className="mt-4">
                   <CountyTable rows={rows} series={series}
-                               onPick={canFocus ? pick : undefined} selected={selected} />
+                               onPick={canFocus ? pick : undefined} selected={selected} level={result.level} />
                 </div>
               )}
             </ErrorBoundary>

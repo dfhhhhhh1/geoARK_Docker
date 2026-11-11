@@ -58,6 +58,18 @@ const AnalysisProgress: React.FC<Props> = ({ stage, events, elapsedMs, onCancel 
   const planErrors = events.filter(e => e.stage === 'plan_invalid').length;
   // Deterministic corrections, surfaced so a filter that could not be applied
   // is visible rather than silently widening the result.
+  // A multi-step analysis (backend/workflow.js): the steps it was split into,
+  // and the one running now. Each step runs the four phases below again.
+  const planned = last('steps');
+  const multi = planned && planned.length > 1 ? planned : null;
+  const currentStep = (() => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i].stage === 'workflow_step') return events[i].id ?? null;
+    }
+    return null;
+  })();
+  const currentIdx = multi ? multi.findIndex(s => s.id === currentStep) : -1;
+
   const adjustments = events
     .filter(e => e.stage === 'plan_adjusted' && e.detail)
     .map(e => e.detail as string);
@@ -102,7 +114,9 @@ const AnalysisProgress: React.FC<Props> = ({ stage, events, elapsedMs, onCancel 
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <div className="flex items-baseline justify-between gap-3 mb-4">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-            {failed ? 'Analysis stopped' : stage === 'queued' ? 'Waiting to start' : 'Analysis in progress'}
+            {failed ? 'Analysis stopped' : stage === 'queued' ? 'Waiting to start'
+              : multi ? `Multi-step analysis · step ${Math.max(currentIdx, 0) + 1} of ${multi.length}`
+              : 'Analysis in progress'}
           </h3>
           <div className="flex items-baseline gap-3">
             <span className="text-sm font-mono tabular-nums text-ink">
@@ -118,6 +132,28 @@ const AnalysisProgress: React.FC<Props> = ({ stage, events, elapsedMs, onCancel 
             )}
           </div>
         </div>
+
+        {multi && (
+          <ol className="mb-4 space-y-1.5" aria-label="Steps of this analysis">
+            {multi.map((st, i) => {
+              const state = i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending';
+              return (
+                <li key={st.id} className="flex items-start gap-2.5 text-sm">
+                  <span className={`mt-0.5 w-5 h-5 shrink-0 rounded-full flex items-center justify-center
+                                    text-[11px] font-semibold tabular-nums
+                    ${state === 'done' ? 'bg-emerald-600 text-white'
+                      : state === 'active' ? 'bg-ink text-white' : 'bg-slate-200 text-slate-500'}`}>
+                    {i + 1}
+                  </span>
+                  <span className={state === 'pending' ? 'text-slate-500' : 'text-ink'}>
+                    {st.question.replace(/\bthe counties from q(\d)\b/gi, 'the counties from step $1')}
+                    {state === 'active' && <span className="ml-2 text-xs text-brand-700">running</span>}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
 
         {/* One segment per phase: a glance says how far along, without an icon
             per row doing the same job four times. */}

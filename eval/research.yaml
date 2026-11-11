@@ -52,7 +52,10 @@ measures:
   # CHR_V051 (2025) is the Census estimate: median ratio to POP_ESTIMATE 1.000,
   # no county off by >10%, 3,133 counties. Added 2026-10-30 after Phase B's
   # coverage swap chose it and this regex scored that WRONG_MEASURE.
-  population: '^(DP05_0001E|POP_ESTIMATE|CHR_V051_RAWVALUE)\b'
+  # SVI_E_TOTPOP (ACS 2018-22, restored to the catalog 2026-11-11): median
+  # ratio 0.997 to POP_ESTIMATE, but 95 of 3,133 counties off >10% (5-year
+  # ACS against a 2023 estimate). A defensible total population; accepted.
+  population: '^(DP05_0001E|POP_ESTIMATE|CHR_V051_RAWVALUE|SVI_E_TOTPOP)\b'
   # MEDIAN_HOUSEHOLD_INCOME (ERS, 2022): median ratio 0.96 to MEDHHINC, 3% of
   # counties off >15%. Added after the baseline scored it WRONG_MEASURE.
   income: '^(DP03_0062E|MEDHHINC|CHR_V063_RAWVALUE|MEDIAN_HOUSEHOLD_INCOME)\b'

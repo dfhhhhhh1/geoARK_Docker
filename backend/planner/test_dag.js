@@ -75,7 +75,14 @@ const statPlan = (op) => plan(
       assert.ok(Number.isInteger(mod.inputs), `${mod.name}: inputs must be a number`);
       assert.ok(Array.isArray(mod.needs), `${mod.name}: needs must be an array`);
       assert.strictEqual(typeof mod.offered, "function", `${mod.name}: no offered()`);
-      assert.ok(mod.promptLine, `${mod.name}: no promptLine`);
+      // Internal ops (aggregate_to) are inserted by code and never shown to
+      // the model, so they have no prompt line -- and must never be offered.
+      if (mod.internal) {
+        assert.strictEqual(mod.offered({ query: "census tract county" }), false, `${mod.name}: internal but offered`);
+        assert.ok(!ops.SCHEMA_ORDER.includes(mod.name), `${mod.name}: internal but in the decoding enum`);
+      } else {
+        assert.ok(mod.promptLine, `${mod.name}: no promptLine`);
+      }
       // Terminal ops produce nothing and compile to nothing; everything else
       // must be able to emit its own SQL.
       if (mod.terminal) continue;
@@ -86,7 +93,7 @@ const statPlan = (op) => plan(
   });
 
   await test("every op appears in all four orderings", () => {
-    for (const mod of ops.MODULES) {
+    for (const mod of ops.MODULES.filter(m => !m.internal)) {
       for (const [label, order] of [
         ["SCHEMA_ORDER", ops.SCHEMA_ORDER],
         ["PROMPT_ORDER", ops.PROMPT_ORDER],
@@ -737,6 +744,46 @@ const statPlan = (op) => plan(
     assert.strictEqual(byId.CONSEQ.rank, undefined);
     assert.strictEqual(byId.CONSEQ.context, "consequence");
     assert.ok(typeof byId.CONSEQ.q_value === "number", "still tested and adjusted");
+  });
+
+  await test("a step no output reads is refused: its restriction would vanish", async () => {
+    // Planner reasoning off, 3 of 3 runs (2026-11-10): the Missouri filter sat
+    // on a branch nothing read, and the compiler pruned it without a word.
+    const r = await validatePlan({ intent: "t", output_type: "map", entity_type: "COUNTY", steps: [
+      { id: "s1", op: "count_features", attr_id: "HOSPITAL", inputs: [] },
+      { id: "s2", op: "filter_area", attr_id: "", inputs: ["s1"], states: ["Missouri"] },
+      { id: "s3", op: "nearest_distance", attr_id: "HOSPITAL", inputs: [] },
+      { id: "s4", op: "output", attr_id: "", inputs: ["s3"] }] }, resolve);
+    assert.ok(!r.ok);
+    assert.match(r.errors.join(" "), /"s1" \(count_features\), "s2" \(filter_area\) are not used by any output.*the output reads "s3"/);
+    // The same plan with the filter on the chain the output reads is fine.
+    const ok = await validatePlan({ intent: "t", output_type: "map", entity_type: "COUNTY", steps: [
+      { id: "s1", op: "nearest_distance", attr_id: "HOSPITAL", inputs: [] },
+      { id: "s2", op: "filter_area", attr_id: "", inputs: ["s1"], states: ["Missouri"] },
+      { id: "s3", op: "output", attr_id: "", inputs: ["s2"] }] }, resolve);
+    assert.ok(ok.ok, ok.errors.join("; "));
+  });
+
+  await test("an ungrouped aggregate cannot feed a join: it has no county to match", async () => {
+    // "Is poverty in the outlier counties different from everywhere else",
+    // reasoning off: mean(a), mean(b), join -> EMPTY from a valid plan.
+    const r = await validatePlan({ intent: "t", output_type: "map", entity_type: "COUNTY", steps: [
+      { id: "s1", op: "load", attr_id: "POV", inputs: [] },
+      { id: "s2", op: "load", attr_id: "INC", inputs: [] },
+      { id: "s3", op: "aggregate", attr_id: "", inputs: ["s1"], function: "mean" },
+      { id: "s4", op: "aggregate", attr_id: "", inputs: ["s2"], function: "mean" },
+      { id: "s5", op: "join", attr_id: "", inputs: ["s3", "s4"] },
+      { id: "s6", op: "output", attr_id: "", inputs: ["s5"] }] }, resolve);
+    assert.ok(!r.ok);
+    assert.match(r.errors.join(" "), /aggregate\) returns one national number, so it cannot feed join.*compare_groups/);
+    // By state it has a key, and straight to an output it is fine.
+    for (const agg of [{ function: "mean", group_by: "state" }, { function: "mean" }]) {
+      const ok = await validatePlan({ intent: "t", output_type: "map", entity_type: "COUNTY", steps: [
+        { id: "s1", op: "load", attr_id: "POV", inputs: [] },
+        { id: "s2", op: "aggregate", attr_id: "", inputs: ["s1"], ...agg },
+        { id: "s3", op: "output", attr_id: "", inputs: ["s2"] }] }, resolve);
+      assert.ok(ok.ok, ok.errors.join("; "));
+    }
   });
 
   console.log(`\n${pass}/${pass + fail} passed`);
