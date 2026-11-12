@@ -24,10 +24,13 @@ const LEVEL_LABEL = {
 const LEVELS = new Set(Object.keys(LEVEL_LABEL));
 
 // Ops whose SQL works at any level: they only read (fips, value), or have a
-// level-aware form (load, filter_area, filter_place, per_area, output).
+// level-aware form (load, filter_area, filter_place, per_area, nearest_distance,
+// count_near, output).
 const LEVEL_OPS = new Set([
   "load", "filter_area", "filter_place", "filter_attr", "rank", "normalize",
   "per_area", "join", "intersect", "combine", "output",
+  // Distance ops measure from each unit's own geometry (2026-11-11).
+  "nearest_distance", "count_near",
 ]);
 
 /**
@@ -50,10 +53,28 @@ function levelOf(query) {
   return unitNamed(q);
 }
 
+/**
+ * Does the question ask how far, or what is near? The only ops that read a
+ * feature layer at another unit are nearest_distance and count_near, so a
+ * feature layer stays on a named unit's candidate list only for these
+ * questions. Offered unconditionally, the layers derailed two that planned
+ * fine without them: "the most densely populated 4 km grid cells" loaded
+ * Natural Gas Storage Facilities, and the Michigan tract roll-up returned no
+ * steps (2026-11-11).
+ */
+const DISTANCE =
+  /\b(?:near|nearest|nearby|close\s+to|closest|far|farther|farthest|furthest|distance|distances|away\s+from|within\s+(?:a\s+|an\s+)?\d*\.?\d*\s*-?\s*(?:miles?|mi|km|kilometers?|kilometres?|meters?|metres?|feet|minutes?))\b/i;
+const asksDistance = (query) => DISTANCE.test(String(query || ""));
+
 /** The finer unit a question names, whatever its answer unit is. */
 function unitNamed(q) {
   if (/\b(?:census\s+)?tracts?\b/i.test(q)) return "tract";
   if (/\bzip\s*codes\b|\bzips\b|\bzctas\b|\bzip\s*code\s+areas\b/i.test(q)) return "zcta";
+  // A singular ZIP after each / every / per / by still means all of them.
+  // "How far is each ZIP code in Montana from the nearest hospital" read as a
+  // county question and answered 56 counties (2026-11-11). A bare "ZIP code
+  // 65721" stays a place, not a level.
+  if (/\b(?:each|every|per|by)\s+zip(?:\s*code)?\b/i.test(q)) return "zcta";
   const g = q.match(/\b(\d+)\s*-?\s*(?:km|kilometer|kilometre)\b[^.?]*\bgrid|\bgrid\s+cells?\b/i);
   if (g) {
     const km = Number(g[1]);
@@ -160,7 +181,7 @@ async function applyLevel(plan, query, resolved, levelsOf, alternatives = null) 
   if (notPorted.length) {
     errors.push(`The question asks for ${unit}s, and ${notPorted.join(", ")} ` +
                 `${notPorted.length > 1 ? "are" : "is"} not available by ${unit} yet. ` +
-                `Use only load, filters, rank, normalize, per_area, join, intersect, combine and output.`);
+                `Use only load, filters, rank, normalize, per_area, join, intersect, combine, nearest_distance, count_near and output.`);
   }
   const lacking = [];
   for (const st of steps.filter(s => s.op === "load")) {
@@ -186,4 +207,4 @@ async function applyLevel(plan, query, resolved, levelsOf, alternatives = null) 
 /** The level a plan compiles at; "county" unless applyLevel set one. */
 const planLevel = (plan) => (LEVELS.has(plan?.level) ? plan.level : "county");
 
-module.exports = { levelOf, rollupOf, applyLevel, applyRollup, planLevel, LEVELS, LEVEL_LABEL, LEVEL_OPS };
+module.exports = { levelOf, rollupOf, asksDistance, applyLevel, applyRollup, planLevel, LEVELS, LEVEL_LABEL, LEVEL_OPS };

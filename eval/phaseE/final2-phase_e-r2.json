@@ -1,22 +1,22 @@
 {
   "suite": "research_advanced.yaml",
   "queries": 8,
-  "answer_correctness": 0.375,
+  "answer_correctness": 0.625,
   "by_tier": {
     "phase_e": {
-      "pass": 3,
+      "pass": 5,
       "n": 8,
-      "rate": 0.375
+      "rate": 0.625
     }
   },
   "classes": {
-    "CORRECT": 3,
-    "NO_ANSWER": 3,
+    "CORRECT": 5,
     "INCOMPLETE": 1,
-    "WRONG_GEOGRAPHY": 1
+    "WRONG_GEOGRAPHY": 1,
+    "NO_ANSWER": 1
   },
-  "latency_mean": 41.4,
-  "api_container_created": "2026-11-11T10:18:42.898073093Z",
+  "latency_mean": 43.9,
+  "api_container_created": "2026-11-11T18:55:28.470967985Z",
   "contaminated": false,
   "aborted": null,
   "harness_errors": 0,
@@ -65,7 +65,7 @@
         "fallback": null,
         "reason": null
       },
-      "seconds": 20.0
+      "seconds": 20.7
     },
     {
       "id": "e-cook-zip-diabetes",
@@ -74,23 +74,23 @@
       "class": "CORRECT",
       "pass": true,
       "detail": {
-        "rows": 10,
-        "gold_rows": 167,
+        "rows": 177,
+        "gold_rows": 177,
         "outside": 0,
         "outside_sample": [],
         "k": 10,
         "overlap": 1.0,
-        "gold_alt": 0,
+        "gold_alt": 1,
         "bind": {
           "m1": "PLACES_DIABETES_CrdPrv"
         }
       },
-      "ops": "load->filter_area->filter_place->rank->output",
+      "ops": "load->filter_area->filter_place->output",
       "intent": "ZIP codes in Cook County, Illinois with the highest diabetes prevalence",
       "loaded": [
         "PLACES_DIABETES_CrdPrv | Diagnosed diabetes among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES"
       ],
-      "row_count": 10,
+      "row_count": 177,
       "error": null,
       "exec_error": null,
       "workflow": {
@@ -100,45 +100,57 @@
             "id": "q1",
             "question": "Which ZIP codes in Cook County, Illinois have the highest diabetes prevalence?",
             "uses": [],
-            "ops": "load->filter_area->filter_place->rank->output"
+            "ops": "load->filter_area->filter_place->output"
           }
         ],
         "planned_steps": 1,
         "fallback": null,
         "reason": null
       },
-      "seconds": 34.5
+      "seconds": 35.1
     },
     {
       "id": "e-mi-noveh-rollup",
       "tier": "phase_e",
       "query": "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
-      "class": "NO_ANSWER",
-      "pass": false,
+      "class": "CORRECT",
+      "pass": true,
       "detail": {
-        "error": "workflow stopped at q1: q1 could not be answered: no analysis could be built from the available data"
+        "rows": 83,
+        "gold_rows": 83,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_NOVEH"
+        }
       },
-      "ops": "",
-      "intent": null,
-      "loaded": [],
-      "row_count": 0,
-      "error": "workflow stopped at q1: q1 could not be answered: no analysis could be built from the available data",
+      "ops": "load->aggregate_to->filter_area->output",
+      "intent": "Share of people in each Michigan county who live in households without a vehicle, weighted by tract population",
+      "loaded": [
+        "SVI_EP_NOVEH | Percent of households with no vehicle available | CDC Social Vulnerability Index"
+      ],
+      "row_count": 83,
+      "error": null,
       "exec_error": null,
       "workflow": {
-        "status": "stopped",
+        "status": "complete",
         "steps": [
           {
             "id": "q1",
             "question": "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
             "uses": [],
-            "ops": ""
+            "ops": "load->aggregate_to->filter_area->output"
           }
         ],
         "planned_steps": 1,
         "fallback": null,
-        "reason": "q1 could not be answered: no analysis could be built from the available data"
+        "reason": null
       },
-      "seconds": 14.7
+      "seconds": 24.3
     },
     {
       "id": "e-co-grid-density",
@@ -179,7 +191,7 @@
         "fallback": null,
         "reason": null
       },
-      "seconds": 191.4
+      "seconds": 192.6
     },
     {
       "id": "e-denver-tract-uninsured",
@@ -225,38 +237,49 @@
         "fallback": null,
         "reason": null
       },
-      "seconds": 16.7
+      "seconds": 23.3
     },
     {
       "id": "e-mo-tract-poverty-spread",
       "tier": "phase_e",
       "query": "In which Missouri counties does poverty vary the most from one census tract to another?",
-      "class": "NO_ANSWER",
-      "pass": false,
+      "class": "CORRECT",
+      "pass": true,
       "detail": {
-        "error": "workflow stopped at q1: q1 could not be answered: no analysis could be built from the available data"
+        "rows": 102,
+        "gold_rows": 102,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 0.7,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_POV150"
+        }
       },
-      "ops": "",
-      "intent": null,
-      "loaded": [],
-      "row_count": 0,
-      "error": "workflow stopped at q1: q1 could not be answered: no analysis could be built from the available data",
+      "ops": "load->aggregate_to->per_area->filter_area->output",
+      "intent": "Missouri counties where poverty varies the most from one census tract to another",
+      "loaded": [
+        "SVI_EP_POV150 | Percent of persons below 150% of the poverty level | CDC Social Vulnerability Index"
+      ],
+      "row_count": 102,
+      "error": null,
       "exec_error": null,
       "workflow": {
-        "status": "stopped",
+        "status": "complete",
         "steps": [
           {
             "id": "q1",
             "question": "In which Missouri counties does poverty vary the most from one census tract to another?",
             "uses": [],
-            "ops": ""
+            "ops": "load->aggregate_to->per_area->filter_area->output"
           }
         ],
         "planned_steps": 1,
         "fallback": null,
-        "reason": "q1 could not be answered: no analysis could be built from the available data"
+        "reason": null
       },
-      "seconds": 17.7
+      "seconds": 17.8
     },
     {
       "id": "e-zip-65721-counties",
@@ -265,13 +288,13 @@
       "class": "NO_ANSWER",
       "pass": false,
       "detail": {
-        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\""
       },
       "ops": "",
       "intent": null,
       "loaded": [],
       "row_count": 0,
-      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\"",
       "exec_error": null,
       "workflow": {
         "status": "stopped",
@@ -285,9 +308,9 @@
         ],
         "planned_steps": 1,
         "fallback": null,
-        "reason": "q1 could not be answered: could not produce a valid plan"
+        "reason": "q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\""
       },
-      "seconds": 18.4
+      "seconds": 18.9
     },
     {
       "id": "e-co-worldpop-county",
@@ -330,7 +353,7 @@
         "fallback": null,
         "reason": null
       },
-      "seconds": 17.7
+      "seconds": 18.8
     }
   ]
 }

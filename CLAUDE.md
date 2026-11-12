@@ -915,6 +915,69 @@ answer per 20 loosely worded questions, of the percent-divided-by-population
 kind. That specific shape is deterministic and could be refused by the
 validator. **Done 2026-10-30**, see "Phase B" below.
 
+### Relevance reasoning budget: `off/2048` (2026-11-11)
+
+**The default is now `PLAN_THINK=off/2048`** (deploy/.env). With `off/on` the
+relevance check sometimes reasoned without ending (a prototype of
+`named_data.js` did the same: 16,000 reasoning tokens, never answered, which
+is why that check runs with `think:false`). It hit the 180 s `callLLM`
+timeout, logged "relevance check did not run: the model returned nothing",
+and **failed open**: the plan stood unchecked. Deterministic on this build:
+"Which census tracts in Colorado have the most hospitals within 3 miles of a
+fire station?" 4 of 4 plus 2 of 2, ~200 s total for 9 s of planning and 2.4 s
+of SQL, and the phase_e grid question ("densest 4 km grid cells in
+Colorado") 4 of 4, ~195 s. That 195 s had been put down to `per_area` over the
+grid; the SQL takes 0.5 s.
+
+How long the check normally reasons was measured first, with `plan_think:
+off/100000`: the same as `off/on`, but routed through `budgetedChat`, which
+logs the count. Over **137 calls** on qwen3:14b (answerability, research,
+phase_e), the 131 that finished reasoned **201-1,492 tokens**, median ~300.
+So `off/512`, the setting that "caused more false refusals", was cutting
+about 1 normal check in 5 (5 of 26 in answerability). 2048 is 1.4x the
+longest normal call seen and cut 6 of 137: the grid question on every
+attempt (5), and "most hospitals per person" once, whose verdicts were still
+right. Cut, a check costs ~37 s
+(2,048 tokens plus a non-reasoning answer) instead of 180 s and a skip.
+
+| setting (qwen3:14b) | nonsense answered | false refusals | research.yaml | phase_e | phase_e mean | relevance timeouts |
+|---|--:|--:|--:|--:|--:|--:|
+| `off/on` (other session, same build) | 0, 1 (snowfall) | 1/20 | 77.8, 77.8% | 5/8, 5/8 | 46 s, 44 s | Colorado 4/4, grid 4/4 |
+| `off/2048`, per request | 1 (snowfall) | 1/20 | 83.3% | 5/8 | 34 s | 0 |
+| `off/2048` default, + WorldPop fix | **0** | **1/20** | **88.9%** | 5/8 | **28 s** | **0** of 55 calls |
+
+Runs: `eval/phaseE/relbudget-*.json` (`ans_base` is the logged-`off/100000`
+baseline; its rainfall/snowfall rows timed out queued behind another
+session's evals, so the `off/on` row uses that session's clean runs).
+The false refusal is a-seniors in every row. Snowfall was answered via
+"Adverse Climate Events" judged `broader` after 291 reasoning tokens, far
+under any budget; the `off/on` arm did the same once. It is the model, not
+the cap.
+
+**The budget exposed a latent defect, which a fail-open timeout had hidden.**
+Once the check finished on the grid question it rejected WorldPop ("Estimated
+population from the WorldPop 1 km gridded estimate") as "population, which the
+question does not name", 3 attempts, then refused (123 s, NO_ANSWER). The
+population rule overrules exactly that, but only for `isTotalPopulation`
+descriptions, and WorldPop is not one. `population.isPopulationCount` (total
+population OR the WorldPop count) is used by the relevance rule only, because
+`series_stats` coverage equivalents still need `isTotalPopulation` to mean
+"an ACS total population". After the fix the grid question plans
+`load -> filter_area -> per_area -> rank` in 49 s; it still scores INCOMPLETE
+(1 ranked row of 19,967), the same as before, and that is a separate defect.
+The Colorado question now gets real verdicts (hospitals `narrower`, fire
+stations `same`) in ~50 s.
+
+The held-out 16 analyst queries are the named-data check's guard, and that
+check only sees plans the relevance check accepts. They were re-run on the new
+default (`eval/gis_ops/relbudget-heldout.json`): **0 of 16 answered**, the
+same as `off/on`, 13-35 s each, 10 relevance calls, none cut or timed out.
+
+Not done: a shorter, role-specific timeout. Under the budget, the remaining
+unbounded part of the call is a non-reasoning, schema-constrained answer, so
+the budget alone bounds it. `PLAN_THINK=on` (and the compose fallback `on`)
+still leave the relevance check unbounded.
+
 ### Drop-in loading and multi-level geography (2026-10-16)
 
 `docs/DATA_LOADING_PLAN.md` (phases), RUNBOOK §5a (usage). Phase 1 and 2 built.
@@ -1225,7 +1288,8 @@ correctness on `research.yaml`, one build, runs not contaminated:
   "What drives chronic kidney disease" (no kidney data) explained COPD 3 of 3
   with reasoning off: the model said `none` and the shared words overruled it.
   Now refused 3 of 3.
-- **Reasoning off is now the default** (`PLAN_THINK=off/on` in deploy/.env).
+- **Reasoning off is now the default** (`PLAN_THINK=off/on` in deploy/.env;
+  `off/2048` since 2026-11-11, see "Relevance reasoning budget").
   Reasoning-on qwen3 picks the veterans-table unemployment rate every time;
   off picks ERS `UNEMPLOYMENT_RATE`. Cost: answerability 10/10 refused but
   **2/20 false refusals** (0/20 with reasoning on): "where do seniors live",
@@ -1266,6 +1330,53 @@ RESEARCH_PLAN.md (Phases D, E), DATA_LOADING_PLAN.md ("Phases 6-7").
 - Open: a crosswalk lookup op, a default `rank` limit for unnumbered "most",
   city ambiguity at tract level, `per_area` on a rate (the tract-spread pass
   divided a standard deviation by land area and scored correct by overlap).
+- **Distance ops below the county (2026-11-11)**: `nearest_distance` and
+  `count_near` at any level, equal to brute force on every tract of four
+  states. Two traps: `count_near`'s plain LEFT JOIN at tract was **95 s**
+  (Postgres estimated the EXISTS-filtered features at 1 row and dropped the
+  index), a LATERAL probe is 1.5 s; and the named-unit candidate filter had
+  silently dropped every feature layer, so neither op could be planned below
+  the county. Features now stay only for distance questions
+  (`levels.asksDistance`), minus location columns ("Zip" of College Campuses
+  was loaded as ZIP data). Open: "Which ZIP codes ... are farthest from"
+  plans 1 of 5.
+- **Correction: the grid query's ~190 s is the relevance check timing out**
+  (180 s LLM timeout, fails open), not per_area over grid cells; its SQL is
+  ~0.5 s. Same on the tract count_near question.
+
+### Analyst GIS questions, and the named-data check (2026-11-11)
+
+`docs/GIS_OPS_PLAN.md`, `eval/gis_ops/`. 16 analyst questions (buffers,
+overlays, zonal, network) are a HELD-OUT set: score them at phase boundaries,
+never tune to their wording. Baseline 0/16 correct and **5/16 confidently
+wrong** (flood zones x parcels -> county home value; solar raster -> % homes
+heated by solar; "mobile inspection sites" -> Mobile Home Parks).
+
+- **The relevance check judges what a plan USES and cannot see what it
+  DROPPED.** `planner/named_data.js` asks the other direction: every phrase
+  the question names data about must be covered by a used attribute, else
+  `NOT_COVERED` into the repair loop. Held-out wrong answers 5 -> 0 (3 runs);
+  research.yaml 83.3% x3 and answerability 10/10, 1/20 unmoved.
+- **Code, not the model, decides exemptions** (places, units, periods,
+  reporting units, "the rest of", "the center of"): told not to list them,
+  qwen3 listed "the Midwest" and "each county" anyway. A missing exemption is
+  a false refusal: "the center of each Missouri county" refused
+  r-hospital-distance-mo until it was added.
+- **Reasoning off for this call**: on, one call reasoned 16,000 tokens and hit
+  the 5-minute timeout.
+- **One shared word no longer overrules a "none"**: it must be half the
+  attribute's content words (`relevance.overrules`). "mobile", "solar" and
+  "value" each overruled a correct rejection in one run. **Corrected the same
+  day**: the first version counted the dataset name and the catalog's
+  "(covers N counties)" note as part of the name, which stopped the overrule
+  rescuing real false "none" verdicts (SVI poverty, SVI no-vehicle, coronary
+  heart disease): two phase_e questions and one answerability question were
+  refused. The H0 guard runs had skipped the phase_e tier. **Run every suite
+  in the CLAUDE.md list after touching the relevance check, not just
+  research.yaml and answerability.**
+- Found on the way: `count_near`'s degree box is too narrow east-west away from
+  the equator (7,491 vs 7,517 hospitals within 3 mi of a fire station). Fix in
+  progress in another session.
 
 ## Two things generated and then thrown away
 

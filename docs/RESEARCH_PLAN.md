@@ -538,5 +538,58 @@ that have both years); `SVI_E_TOTPOP` was accepted as a population by value
 | which counties ZIP 65721 falls in | no crosswalk lookup op | a lookup over `geo_crosswalk` |
 
 Also not done: ZIP -> county roll-ups (crosswalk shares), `tract_neighbors`
-and the statistics ops below the county, the grid query's 190 s (per_area over
-geo_unit at grid4k).
+and the statistics ops below the county, the grid query's 190 s.
+
+**Correction (2026-11-11): the grid query's 190 s is not per_area.** The
+relevance check's reasoning runs to the 180 s LLM timeout on it, then fails
+open; the SQL takes ~0.5 s (timestamped api log, 2 of 2 runs). Same on the
+tract count_near question below. Spun off as its own task (bound that call's
+reasoning, measured against the refusal suites).
+
+**Distance ops below the county (2026-11-11).** `nearest_distance` and
+`count_near` now compile at any level (`planner/levels.js` LEVEL_OPS); county
+SQL unchanged. Tests: `planner/test_levels.js` (15). Evidence: `eval/phaseE/`.
+
+- `nearest_distance` measures from `geo_unit.pt` (inside its unit at every
+  level, 0 of 1,064,152 outside) with the same two-step geodesic search as
+  counties. **Equal to brute force on every tract** in AK, HI, MT and MO;
+  2.7 s for all 85,529 tracts.
+- `count_near` per unit is a LATERAL index probe, not the county form's plain
+  join: Postgres estimated the EXISTS-filtered features at 1 row (7,517),
+  materialized them and ran 643M ST_Intersects, **95 s** for tracts. LATERAL:
+  **1.5 s**, equal to brute force on all 11,279 tracts of AK/MT/MO/CA, tract
+  total = county total (7,517). It carries the per-axis prefilter fix from
+  the count_near longitude session.
+- **The named-unit candidate filter dropped every feature layer**, so neither
+  op could ever be planned below the county. Features are now kept at the
+  answer's unit when the question asks about distance (`levels.asksDistance`),
+  minus layers matched only through a location column ("Zip", "City",
+  `LOCATION_COLUMN`, built from the catalog's own names): "Which ZIP codes"
+  retrieved the "Zip" columns of College Campuses and Biodiesel Plants, which
+  the planner tried to load as ZIP data. Unconditional, the layers derailed
+  the grid and Michigan roll-up questions; the gate fires on none of the 6
+  existing level questions.
+- `levelOf` accepts a singular ZIP after each / every / per / by: "each ZIP
+  code in Montana" answered 56 counties, silently.
+
+Live, final build: Missouri tracts from the nearest hospital 4/4 (1,654
+tracts), Colorado tracts' hospitals within 3 mi of a fire station 4/4 (1,447),
+"each ZIP code in Montana" 4/4 (366), county control 4/4 (Douglas 37.1 mi,
+the gold). **"Which ZIP codes in Montana are farthest from a hospital" plans
+1 of 5**: valid on attempt 1 once, otherwise the planner reaches for other ops
+and never uses nearest_distance. Open.
+
+Guards, final build (two runs each): phase_e **5/8, 5/8** (all five recorded
+correct, misses are the three open items above); `research.yaml` 77.8, 77.8%
+(83.3-88.9 earlier today: `r-refuse-schools` answered on the model's own
+"proxy" verdict and `r-poverty-top-mo`'s SNAP-household flake, neither on a
+path these changes touch); answerability 10/10 refused in 3 runs and 9/10 in
+1 (`r-snowfall`, the model's own "broader" verdict), 1/20 false refusals
+(`a-seniors`, the recorded flake). Snapshot byte-identical.
+
+**Three regressions this work found in H0 (GIS_OPS_PLAN.md), fixed before
+the final runs**, all because H0's guards were not run on the phase_e tier:
+the overrule rule counted the dataset name and the "(covers N counties)"
+note as part of the attribute's name, so the overrules that had rescued SVI
+poverty, SVI no-vehicle and coronary heart disease from false "none" verdicts
+stopped firing; and the named-data check read "How far, in miles" as data.

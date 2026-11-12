@@ -193,4 +193,7 @@ function queryMentionsArea(query) {
 module.exports = {
   STATE_FIPS, REGIONS, AREA_NAMES, POSTAL_TO_NAME, toFipsPrefixes,
   queryMentionsArea, statesMentioned,
+  // planner/named_data.js reads place words with the same patterns the area
+  // gate uses, so "a place" means one thing in both.
+  LOCATIVE_PHRASE, REGION_WORDS,
 };

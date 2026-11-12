@@ -48,10 +48,18 @@ PLAN: {"intent":"Hospitals within ten miles of a transmission line, per county",
     // ever runs on survivors. Measured: 1.2s for hospitals-near-transmission-
     // lines nationally; without the prefilter the same query is a seq scan.
     //
-    // ST_Expand takes degrees, so the radius is converted at the equator
-    // (111.32 km/deg). That over-expands away from the equator, which is the
-    // safe direction for a prefilter -- it can only admit extra candidates,
-    // never discard real ones.
+    // ST_Expand takes degrees, and the conversion is per axis. CORRECTION
+    // (2026-11-11): this used to be one radius / 111320 for both axes, with a
+    // comment claiming it "over-expands away from the equator". That is
+    // backwards for longitude: a degree of longitude is ~111.32 km * cos(lat),
+    // so the box was too NARROW east-west and silently dropped real neighbours
+    // (hospitals within 3 mi of a fire station, nationally: 7,491 vs 7,517).
+    // Latitude was short too: a meridian degree is 110,574 m at the equator.
+    //   dy: radius / 110574, the shortest degree of latitude anywhere.
+    //   dx: dy / cos(lat) at the feature's poleward edge plus dy, where the
+    //       circle's degree of longitude is shortest; clamped below the pole.
+    // Same form as nearest_distance. Not handled: a neighbour across the
+    // antimeridian (the Aleutians), which the old form missed too.
     const subject = ctx.featureSource(step.attr_id);
     const near = ctx.featureSource(step.near_attr_id, "near_attr_id");
     const miles = Number(step.miles);
@@ -59,16 +67,37 @@ PLAN: {"intent":"Hospitals within ten miles of a transmission line, per county",
       throw new CompileError(`count_near needs a positive "miles", got ${step.miles}`);
     }
     const meters = miles * 1609.344;
-    const degrees = meters / 111320;
+    const fg = `f.${subject.geom}`;
+    const dy = `${ctx.bind(meters / 110574)}::float8`;
+    const poleward = `least(greatest(abs(ST_YMin(${fg})), abs(ST_YMax(${fg}))) + ${dy}, 89.9)`;
+    const dx = `${dy} / cos(radians(${poleward}))`;
+
+    const exists = `EXISTS (SELECT 1 FROM ${near.table} n ` +
+           `WHERE n.${near.geom} && ST_Expand(${fg}, ${dx}, ${dy}) ` +
+           `AND ST_DWithin(f.${subject.geom}::geography, n.${near.geom}::geography, ${ctx.bind(meters)}))`;
+
+    // Below the county (Phase E): the same count per unit of geo_unit. A
+    // LATERAL probe, not the county form's plain LEFT JOIN: Postgres estimates
+    // the EXISTS-filtered features at 1 row (7,517 in fact), materializes them
+    // and tests every unit against every feature with no index, 643M
+    // ST_Intersects and 95 s for tracts. The LATERAL makes each unit an index
+    // probe of the feature layer whatever the estimate: 1.5 s for all 85,529
+    // tracts, equal to brute force on every tract in AK, MT, MO and CA, and
+    // the tract total equals the county total (7,517 hospitals within 3 mi of
+    // a fire station). The county form keeps its SQL: 222 ms already.
+    if (ctx.level && ctx.level !== "county") {
+      return `${ctx.name} AS (SELECT c.geoid AS fips, COUNT(x.one)::double precision AS value ` +
+             `FROM geo_unit c LEFT JOIN LATERAL (SELECT 1 AS one FROM ${subject.table} f ` +
+             `WHERE ${fg} && c.geom AND ST_Intersects(c.geom, ${fg}) AND ${exists}) x ON true ` +
+             `WHERE c.level = ${ctx.bind(ctx.level)} GROUP BY c.geoid)`;
+    }
 
     // LEFT JOIN with the proximity test in the ON clause, not WHERE: a county
     // with no qualifying feature must yield 0, and a WHERE would delete the row.
     return `${ctx.name} AS (SELECT c.fips, COUNT(f.*)::double precision AS value ` +
            `FROM county_geom c LEFT JOIN ${subject.table} f ` +
            `ON ST_Intersects(c.geom, f.${subject.geom}) ` +
-           `AND EXISTS (SELECT 1 FROM ${near.table} n ` +
-           `WHERE n.${near.geom} && ST_Expand(f.${subject.geom}, ${ctx.bind(degrees)}) ` +
-           `AND ST_DWithin(f.${subject.geom}::geography, n.${near.geom}::geography, ${ctx.bind(meters)})) ` +
+           `AND ${exists} ` +
            `GROUP BY c.fips)`;
   },
 };

@@ -17,7 +17,8 @@
 const { PLAN_SCHEMA, planSchemaFor } = require("../schemas");
 const { queryMentionsArea, statesMentioned, REGIONS, STATE_FIPS } = require("../states");
 const { validatePlan } = require("./validate");
-const { checkRelevance } = require("./relevance");
+const { checkRelevance, usedAttributes } = require("./relevance");
+const { checkNamedData } = require("./named_data");
 const { preferCoverage } = require("./coverage");
 const { unaskedSubjectErrors } = require("./outcome");
 const { derefDefinitions, checkThresholds, LAYER_PHRASES, GROUP_COMPARISON,
@@ -977,6 +978,9 @@ async function generatePlan({
   // question asks (planner/relevance.js). Off by default here so callers that
   // script the LLM (the tests) are unaffected; runAnalysis turns it on.
   relevanceCheck = false,
+  // Every phrase the question names data about is covered by an attribute
+  // the plan uses (planner/named_data.js). Off here for the same reason.
+  namedDataCheck = false,
   // { coverageOf, equivalentsOf } (planner/coverage.js). Null skips the check,
   // so the scripted-LLM tests and any caller without a database are unaffected.
   coverage = null,
@@ -1337,6 +1341,25 @@ async function generatePlan({
       }
     }
 
+    // The relevance check judges what the plan USES; this catches what it
+    // DROPPED. "FEMA flood zones x tax parcels, value at risk" planned county
+    // home value, and every attribute it used was judged on its own
+    // (planner/named_data.js). Same repair loop as NOT_RELEVANT.
+    let named = null;
+    if (check.ok && namedDataCheck) {
+      named = await checkNamedData({ query, used: usedAttributes(plan), candidates, refs, callLLM, log });
+      if (named.errors.length) {
+        log(`   Plan leaves data the question names uncovered (attempt ${attempt + 1})`);
+        emit({ stage: "plan_irrelevant", attempt: attempt + 1, errors: named.errors });
+        attempts.push({ attempt, errors: named.errors, plan, uncovered: named.uncovered });
+        repairContext =
+          `\nYour previous plan was rejected. Fix these problems and return a ` +
+          `corrected plan:\n` + named.errors.map(e => `- ${e}`).join("\n") +
+          `\n\nPrevious plan:\n${JSON.stringify(plan)}\n`;
+        continue;
+      }
+    }
+
     // Coverage (planner/coverage.js): on an ACCEPTED plan, swap a series that
     // covers too little of the area for a verified equivalent, or say how
     // little it covers. After the relevance check on purpose: a swap is
@@ -1391,6 +1414,9 @@ async function generatePlan({
         // Per-attribute verdicts: which are direct measures, which are proxies
         // the reader should be told about. null when the check did not run.
         relevance: relevance ? relevance.verdicts : null,
+        // What the question names and which attribute covers each
+        // (planner/named_data.js). null when the check did not run.
+        named_data: named ? named.named : null,
         // Published definitions the plan applied, with their citations, for
         // provenance. Empty when none was used.
         definitions: definitionsUsed.map(d => ({

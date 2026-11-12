@@ -42,6 +42,20 @@ PLAN: {"intent":"Distance in miles from each county to its nearest hospital",
     // the antimeridian (the Aleutians), which the old form missed too.
     const target = ctx.featureSource(step.attr_id);
     const g = `f.${target.geom}`;
+    // Below the county (Phase E): the same two steps from each unit's `pt`,
+    // a stored point that is always inside the unit (checked: 0 of 1,064,152
+    // outside, every level). ST_Centroid stays for counties so their SQL, and
+    // every number measured with it, is unchanged.
+    if (ctx.level && ctx.level !== "county") {
+      return `${ctx.name} AS (SELECT u.geoid AS fips, (` +
+             `SELECT min(ST_Distance(k.pt::geography, ${g}::geography)) FROM ${target.table} f ` +
+             `WHERE ${g} && ST_Expand(k.pt, k.d0 * 1.01 / ` +
+             `(110574 * cos(radians(least(abs(ST_Y(k.pt)) + k.d0 / 110574, 89.9)))))` +
+             `) / 1609.344 AS value FROM geo_unit u ` +
+             `LEFT JOIN LATERAL (SELECT u.pt, ST_Distance(u.pt::geography, ${g}::geography) AS d0 ` +
+             `FROM ${target.table} f ORDER BY ${g} <-> u.pt LIMIT 1) k ON true ` +
+             `WHERE u.level = ${ctx.bind(ctx.level)})`;
+    }
     return `${ctx.name} AS (SELECT c.fips, (` +
            `SELECT min(ST_Distance(k.pt::geography, ${g}::geography)) FROM ${target.table} f ` +
            `WHERE ${g} && ST_Expand(k.pt, k.d0 * 1.01 / ` +

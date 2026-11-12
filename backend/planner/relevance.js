@@ -30,7 +30,7 @@
  * plan back, never remove a candidate.
  */
 
-const { needsPopulation, asksPopulationSize, isTotalPopulation } = require("../population");
+const { needsPopulation, asksPopulationSize, isPopulationCount } = require("../population");
 
 const VERDICTS = ["direct", "proxy", "denominator", "unrelated"];
 
@@ -115,7 +115,15 @@ const GENERIC = new Set(("county counties each every state states rate rates per
   // model said "none", and "chronic, disease" overruled it, 3 of 3 runs
   // (2026-11-10). The overrules this rule exists for share a real word
   // ("heart", "transmission").
-  "chronic disease diseases condition conditions disorder disorders health illness").split(" "));
+  "chronic disease diseases condition conditions disorder disorders health illness " +
+  // A section header across the ACS DP04 rows ("Estimate!!VALUE!!Owner-
+  // occupied units"). It overruled a rejection of home value for "assessed
+  // property value at risk" in FEMA flood zones (2026-11-11).
+  "value values " +
+  // Like "people" and "adults": every population measure says it. Counted as
+  // content, they kept "poverty" from being half of "Percent of persons below
+  // 150% of the poverty level" (2026-11-11).
+  "person persons below above").split(" "));
 const contentWords = (x) => new Set(normText(x).split(" ")
   .filter(w => w.length >= 4 && !GENERIC.has(w))
   .map(w => w.replace(/(ies)$/, "y").replace(/s$/, "")));
@@ -134,6 +142,40 @@ const contentWords = (x) => new Set(normText(x).split(" ")
 function sharedWords(description, query) {
   const q = contentWords(query);
   return [...contentWords(description)].filter(w => q.has(w));
+}
+
+/**
+ * Whether the shared words are enough to overrule a "none": they must be at
+ * least half of the attribute's own content words.
+ *
+ * One shared word was enough until 2026-11-11, when it overruled three correct
+ * rejections in one run of analyst questions: "mobile" (Mobile Home Parks for
+ * "our mobile field inspection locations", 1 of 3 words), "solar" (% of homes
+ * heated by solar for "solar radiation raster", 1 of 8), and "value" (now
+ * generic). Both overrules this rule exists for keep: "heart" is 1 of 2 words
+ * of "Coronary heart disease among adults", "transmission, line" 2 of 2 of
+ * "Transmission Lines".
+ */
+//
+// The half is of the attribute's OWN name, not its name plus dataset. Counting
+// "CDC Social Vulnerability Index" diluted "Percent of households with no
+// vehicle available" from 2 of 3 to 2 of 6, and the overrule that had rescued
+// that measure (and SVI poverty) from a false "none" stopped firing: the
+// Michigan tract roll-up and the Missouri tract spread were refused
+// (research_advanced phase_e, 2026-11-11). The dataset still supplies shared
+// words, which a facility column named "Name" needs.
+// The catalog's coverage note, "(covers 2,957 counties)", is not part of the
+// name either: "covers" counted as a word made "heart" 1 of 3 words of
+// "Coronary heart disease among adults (...) (covers 2,957 counties)", and the
+// overrule this rule was written to keep stopped firing (answerability
+// a-expl-heart refused, 2026-11-11).
+const COVERAGE_NOTE = /\(covers [\d,]+ \w+\)/gi;
+
+function overrules(description, query, dataset = "") {
+  const name = String(description || "").replace(COVERAGE_NOTE, " ");
+  const own = contentWords(name).size ? contentWords(name) : contentWords(dataset);
+  const shared = sharedWords(`${description} ${dataset}`, query);
+  return own.size > 0 && shared.length > 0 && shared.length * 2 >= own.size;
 }
 
 /** The quoted phrase really occurs in the question (word by word, any order). */
@@ -244,7 +286,9 @@ async function judge({ query, plan, candidates, refs, callLLM, log, used }) {
     // disabled every rainfall-style catch in production.
     let verdict = fit ? FIT_TO_VERDICT[fit] : "unchecked";
     const desc = byId.get(u.attr_id)?.attr_desc || "";
-    const shared = fit === "none" ? sharedWords(`${desc} ${byId.get(u.attr_id)?.dataset_clean || ""}`, query) : [];
+    const dataset = byId.get(u.attr_id)?.dataset_clean || "";
+    const shared = fit === "none" && overrules(desc, query, dataset)
+      ? sharedWords(`${desc} ${dataset}`, query) : [];
     // A rejection must survive the lexical cross-check (sharedWords above).
     if (fit === "none" && shared.length) verdict = "unchecked";
     // ...and the population rule. A density or per-person question is ABOUT a
@@ -252,7 +296,7 @@ async function judge({ query, plan, candidates, refs, callLLM, log, used }) {
     // sharedWords cannot see ("people" and "population" are generic there).
     // See backend/population.js for the two refusals this prevents.
     const popRule = fit === "none" && !shared.length &&
-      (needsPopulation(query) || asksPopulationSize(query)) && isTotalPopulation(desc);
+      (needsPopulation(query) || asksPopulationSize(query)) && isPopulationCount(desc);
     if (popRule) verdict = "unchecked";
     const measures = String(v?.measures || "").trim();
     const reason = !fit ? null
@@ -291,4 +335,4 @@ async function judge({ query, plan, candidates, refs, callLLM, log, used }) {
   return { errors, verdicts };
 }
 
-module.exports = { checkRelevance, usedAttributes, grounded, sharedWords, RELEVANCE_SCHEMA, VERDICTS, FITS, SYSTEM };
+module.exports = { checkRelevance, usedAttributes, grounded, sharedWords, overrules, RELEVANCE_SCHEMA, VERDICTS, FITS, SYSTEM };

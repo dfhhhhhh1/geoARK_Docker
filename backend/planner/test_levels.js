@@ -17,6 +17,7 @@ const SRC = new Map([
   ["POV150", { source_kind: "acs_long", census_code: "SVI_EP_POV150", description: "Percent below 150% of poverty" }],
   ["PCT", { source_kind: "acs_long", census_code: "PCTPOVALL", description: "Percent of people in poverty" }],
   ["HOSP", { source_kind: "feature_table", table_name: "hospitals", geom_column: "geom" }],
+  ["FIRE", { source_kind: "feature_table", table_name: "fire_stations", geom_column: "geom" }],
 ]);
 const LEVELS = { SVI_EP_POV150: ["county", "tract"], PCTPOVALL: ["county"] };
 const levelsOf = async (c) => new Set(LEVELS[c] || []);
@@ -30,6 +31,10 @@ const out = (from) => ({ id: "s9", op: "output", attr_id: "", inputs: [from] });
     assert.strictEqual(levelOf("Show the uninsured rate for every census tract in Denver."), "tract");
     assert.strictEqual(levelOf("Which ZIP codes in Cook County have the highest diabetes?"), "zcta");
     assert.strictEqual(levelOf("Which counties does ZIP code 65721 fall in?"), null);
+    // A singular ZIP after each / every / per / by is still every ZIP.
+    assert.strictEqual(levelOf("How far is each ZIP code in Montana from the nearest hospital?"), "zcta");
+    assert.strictEqual(levelOf("obesity by ZIP code in Ohio"), "zcta");
+    assert.strictEqual(levelOf("What is the poverty rate in ZIP code 63101?"), null);
     assert.strictEqual(levelOf("the most densely populated 4 km grid cells in Colorado"), "grid4k");
     assert.strictEqual(levelOf("poverty by 16 km grid"), "grid16k");
     assert.strictEqual(levelOf("Which Missouri counties have the most poverty?"), null);
@@ -39,6 +44,22 @@ const out = (from) => ({ id: "s9", op: "output", attr_id: "", inputs: [from] });
     assert.strictEqual(levelOf("Estimate the population of each Colorado county from the 1 km population grid."), null);
     // A county named as a PLACE does not count.
     assert.strictEqual(levelOf("Which ZIP codes in Cook County, Illinois have the highest diabetes prevalence?"), "zcta");
+  });
+
+  await test("feature layers reach a named unit only for distance questions", () => {
+    const { asksDistance } = require("./levels");
+    for (const q of [
+      "How far is each census tract in Missouri from the nearest hospital?",
+      "Which ZIP codes in Montana are farthest from a hospital?",
+      "Which census tracts in Colorado have the most hospitals within 3 miles of a fire station?",
+      "tracts within 500 meters of a transit stop",
+    ]) assert.ok(asksDistance(q), q);
+    // The two questions that offering features unconditionally derailed.
+    for (const q of [
+      "Where are the most densely populated 4 km grid cells in Colorado?",
+      "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
+      "Show the uninsured rate for every census tract in Denver.",
+    ]) assert.ok(!asksDistance(q), q);
   });
 
   await test("a level is set only when every loaded measure has it", async () => {
@@ -62,9 +83,49 @@ const out = (from) => ({ id: "s9", op: "output", attr_id: "", inputs: [from] });
   });
 
   await test("an op not ported to other levels is refused, not compiled at the county", async () => {
+    const p = plan(load("POV150"), { id: "s2", op: "hotspot", attr_id: "", inputs: ["s1"] }, out("s2"));
+    const r = await applyLevel(p, "hot spots of poverty by census tract", SRC, levelsOf);
+    assert.match(r.errors.join(" "), /hotspot is not available by census tract yet/);
+  });
+
+  await test("distance ops take a level: a plan of only nearest_distance gets the tract", async () => {
     const p = plan({ id: "s1", op: "nearest_distance", attr_id: "HOSP", inputs: [] }, out("s1"));
     const r = await applyLevel(p, "distance from each census tract to a hospital", SRC, levelsOf);
-    assert.match(r.errors.join(" "), /nearest_distance is not available by census tract yet/);
+    assert.deepStrictEqual(r.errors, []);
+    assert.strictEqual(p.level, "tract");
+  });
+
+  await test("nearest_distance at tract and ZIP measures from geo_unit.pt; county SQL unchanged", () => {
+    const nd = { id: "s1", op: "nearest_distance", attr_id: "HOSP", inputs: [] };
+    for (const level of ["tract", "zcta"]) {
+      const c = compilePlan({ ...plan(nd, out("s1")), level }, SRC);
+      assert.match(c.sql, /SELECT u\.geoid AS fips, \(SELECT min\(ST_Distance\(k\.pt::geography/, level);
+      assert.match(c.sql, /FROM geo_unit u LEFT JOIN LATERAL \(SELECT u\.pt, /, level);
+      assert.match(c.sql, /ORDER BY f\.geom <-> u\.pt LIMIT 1\) k ON true WHERE u\.level = \$\d+/, level);
+      assert.ok(c.params.includes(level), level);
+      assert.doesNotMatch(c.sql, /county_geom|ST_Centroid/, level);
+    }
+    const county = compilePlan(plan(nd, out("s1")), SRC);
+    assert.match(county.sql, /FROM county_geom c LEFT JOIN LATERAL \(SELECT ST_Centroid\(c\.geom\) AS pt\)/);
+    assert.doesNotMatch(county.sql, /geo_unit/);
+  });
+
+  await test("count_near at tract and ZIP counts per unit; county SQL unchanged", () => {
+    const cn = { id: "s1", op: "count_near", attr_id: "HOSP", near_attr_id: "FIRE", miles: 3, inputs: [] };
+    for (const level of ["tract", "zcta"]) {
+      const c = compilePlan({ ...plan(cn, out("s1")), level }, SRC);
+      // A LATERAL index probe per unit; the plain join was 95 s at tract.
+      assert.match(c.sql, /SELECT c\.geoid AS fips, COUNT\(x\.one\)::double precision AS value FROM geo_unit c LEFT JOIN LATERAL \(SELECT 1 AS one FROM hospitals f WHERE f\.geom && c\.geom AND ST_Intersects\(c\.geom, f\.geom\) AND EXISTS/, level);
+      assert.match(c.sql, /WHERE c\.level = \$\d+ GROUP BY c\.geoid\)/, level);
+      // The per-axis prefilter, not one degree radius for both axes.
+      assert.match(c.sql, /n\.geom && ST_Expand\(f\.geom, \$\d+::float8 \/ cos\(radians\(/, level);
+      assert.ok(c.params.includes(level), level);
+      assert.doesNotMatch(c.sql, /county_geom/, level);
+    }
+    const county = compilePlan(plan(cn, out("s1")), SRC);
+    assert.match(county.sql, /FROM county_geom c LEFT JOIN hospitals f ON ST_Intersects\(c\.geom, f\.geom\) AND EXISTS/);
+    assert.match(county.sql, /GROUP BY c\.fips\)/);
+    assert.doesNotMatch(county.sql, /geo_unit/);
   });
 
   await test("tract SQL reads geo_values and draws geo_unit; county SQL is unchanged", () => {

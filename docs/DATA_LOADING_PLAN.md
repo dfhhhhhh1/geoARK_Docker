@@ -698,6 +698,10 @@ Phase E.
   gets that state (the grid question ranked all 613,889 US cells in 190 s for
   "in Colorado"; the same failure as the old `r-fire-stations-co` flake).
   "In the city of St. Louis" now passes the area gate.
+- **Ported 2026-11-11:** `nearest_distance` (from `geo_unit.pt`) and
+  `count_near` (a LATERAL probe per unit: the plain join was 95 s at tract,
+  1.5 s after), both equal to brute force; details in RESEARCH_PLAN.md
+  Phase E.
 - **Not done:** a crosswalk lookup ("which counties does ZIP 65721 fall in"),
   ZIP -> county roll-ups (they need crosswalk shares), `tract_neighbors` and
   the statistics ops at other levels, and city names with no state at tract

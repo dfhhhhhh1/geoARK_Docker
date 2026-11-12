@@ -1,0 +1,359 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 8,
+  "answer_correctness": 0.625,
+  "by_tier": {
+    "phase_e": {
+      "pass": 5,
+      "n": 8,
+      "rate": 0.625
+    }
+  },
+  "classes": {
+    "CORRECT": 5,
+    "INCOMPLETE": 1,
+    "WRONG_GEOGRAPHY": 1,
+    "NO_ANSWER": 1
+  },
+  "latency_mean": 47.5,
+  "api_container_created": "2026-11-11T18:13:31.270348793Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "e-stl-tract-poverty",
+      "tier": "phase_e",
+      "query": "Which census tracts in the city of St. Louis have the highest share of people below 150% of the poverty line?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 104,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_POV150"
+        }
+      },
+      "ops": "load->filter_place->rank->output",
+      "intent": "Census tracts in the city of St. Louis with the highest share of people below 150% of the poverty line",
+      "loaded": [
+        "SVI_EP_POV150 | Percent of persons below 150% of the poverty level | CDC Social Vulnerability Index"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which census tracts in the city of St. Louis have the highest share of people below 150% of the poverty line?",
+            "uses": [],
+            "ops": "load->filter_place->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.1
+    },
+    {
+      "id": "e-cook-zip-diabetes",
+      "tier": "phase_e",
+      "query": "Which ZIP codes in Cook County, Illinois have the highest diabetes prevalence?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 177,
+        "gold_rows": 177,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 1,
+        "bind": {
+          "m1": "PLACES_DIABETES_CrdPrv"
+        }
+      },
+      "ops": "load->filter_area->filter_place->output",
+      "intent": "ZIP codes in Cook County, Illinois with the highest diabetes prevalence",
+      "loaded": [
+        "PLACES_DIABETES_CrdPrv | Diagnosed diabetes among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 177,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which ZIP codes in Cook County, Illinois have the highest diabetes prevalence?",
+            "uses": [],
+            "ops": "load->filter_area->filter_place->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 41.1
+    },
+    {
+      "id": "e-mi-noveh-rollup",
+      "tier": "phase_e",
+      "query": "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 83,
+        "gold_rows": 83,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_NOVEH"
+        }
+      },
+      "ops": "load->aggregate_to->filter_area->output",
+      "intent": "Share of people in each Michigan county who live in households without a vehicle, weighted by tract population",
+      "loaded": [
+        "SVI_EP_NOVEH | Percent of households with no vehicle available | CDC Social Vulnerability Index"
+      ],
+      "row_count": 83,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
+            "uses": [],
+            "ops": "load->aggregate_to->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 28.1
+    },
+    {
+      "id": "e-co-grid-density",
+      "tier": "phase_e",
+      "query": "Where are the most densely populated 4 km grid cells in Colorado?",
+      "class": "INCOMPLETE",
+      "pass": false,
+      "detail": {
+        "rows": 4,
+        "gold_rows": 19967,
+        "outside": 0,
+        "outside_sample": [],
+        "why": "only 4 ranked rows",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "WORLDPOP_POP"
+        }
+      },
+      "ops": "load->filter_area->per_area->rank->output",
+      "intent": "The most densely populated 4 km grid cells in Colorado",
+      "loaded": [
+        "WORLDPOP_POP | Estimated population from the WorldPop 1 km gridded estimate | WorldPop population grid"
+      ],
+      "row_count": 4,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Where are the most densely populated 4 km grid cells in Colorado?",
+            "uses": [],
+            "ops": "load->filter_area->per_area->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 197.6
+    },
+    {
+      "id": "e-denver-tract-uninsured",
+      "tier": "phase_e",
+      "query": "Show the uninsured rate for every census tract in Denver.",
+      "class": "WRONG_GEOGRAPHY",
+      "pass": false,
+      "detail": {
+        "rows": 181,
+        "gold_rows": 176,
+        "outside": 5,
+        "outside_sample": [
+          "18103952000",
+          "29227960100",
+          "37109071101",
+          "42071010102",
+          "19017004600"
+        ],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_UNINSUR"
+        }
+      },
+      "ops": "load->filter_place->output",
+      "intent": "Percent of persons without health insurance in every census tract in Denver",
+      "loaded": [
+        "SVI_EP_UNINSUR | Percent of persons without health insurance | CDC Social Vulnerability Index"
+      ],
+      "row_count": 181,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Show the uninsured rate for every census tract in Denver.",
+            "uses": [],
+            "ops": "load->filter_place->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.4
+    },
+    {
+      "id": "e-mo-tract-poverty-spread",
+      "tier": "phase_e",
+      "query": "In which Missouri counties does poverty vary the most from one census tract to another?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 102,
+        "gold_rows": 102,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 0.7,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_POV150"
+        }
+      },
+      "ops": "load->aggregate_to->per_area->filter_area->output",
+      "intent": "Missouri counties where poverty varies the most from one census tract to another",
+      "loaded": [
+        "SVI_EP_POV150 | Percent of persons below 150% of the poverty level | CDC Social Vulnerability Index"
+      ],
+      "row_count": 102,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "In which Missouri counties does poverty vary the most from one census tract to another?",
+            "uses": [],
+            "ops": "load->aggregate_to->per_area->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 20.3
+    },
+    {
+      "id": "e-zip-65721-counties",
+      "tier": "phase_e",
+      "query": "Which counties does ZIP code 65721 fall in, and what percent of the ZIP is in each?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\""
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which counties does ZIP code 65721 fall in, and what percent of the ZIP is in each?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\""
+      },
+      "seconds": 25.9
+    },
+    {
+      "id": "e-co-worldpop-county",
+      "tier": "phase_e",
+      "query": "Estimate the population of each Colorado county from the 1 km population grid.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 64,
+        "gold_rows": 64,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "WORLDPOP_POP"
+        }
+      },
+      "ops": "load->filter_area->output",
+      "intent": "Estimated population from the WorldPop 1 km gridded estimate for each Colorado county",
+      "loaded": [
+        "WORLDPOP_POP | Estimated population from the WorldPop 1 km gridded estimate | WorldPop population grid"
+      ],
+      "row_count": 64,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Estimate the population of each Colorado county from the 1 km population grid.",
+            "uses": [],
+            "ops": "load->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 18.8
+    }
+  ]
+}

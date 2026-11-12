@@ -51,4 +51,21 @@ const TOTAL_POPULATION =
 
 const isTotalPopulation = (desc) => TOTAL_POPULATION.test(String(desc || "").trim());
 
-module.exports = { NEEDS_POPULATION, needsPopulation, asksPopulationSize, isTotalPopulation };
+/**
+ * A population COUNT a density can be built on: a total population, or the
+ * WorldPop gridded count, which is the only population at the grid level and
+ * which levels.js falls back to elsewhere.
+ *
+ * Used by the relevance check's population rule only, not by series_stats:
+ * there, isTotalPopulation decides which ACS series are coverage equivalents,
+ * and a grid estimate is not one. The rule missed WorldPop until 2026-11-11:
+ * "Where are the most densely populated 4 km grid cells in Colorado?" was
+ * refused as "population, which the question does not name" once a reasoning
+ * budget let the check finish. Before that the check timed out and failed
+ * open, so the miss never showed.
+ */
+const POPULATION_GRID = /^Estimated population from the WorldPop\b/i;
+const isPopulationCount = (desc) =>
+  isTotalPopulation(desc) || POPULATION_GRID.test(String(desc || "").trim());
+
+module.exports = { NEEDS_POPULATION, needsPopulation, asksPopulationSize, isTotalPopulation, isPopulationCount };

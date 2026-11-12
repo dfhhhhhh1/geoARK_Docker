@@ -1,6 +1,6 @@
 # Analyst GIS operations: plan
 
-Status (2026-11-11): **baseline measured, nothing built.** Follows
+Status (2026-11-11): **H0 built** (section 8); H1-H5 are a plan. Follows
 RESEARCH_PLAN.md (A-E built, F/G planned) and DATA_LOADING_PLAN.md (phases 1-7).
 
 Goal: answer the class of question a working GIS analyst asks, buffers,
@@ -233,3 +233,80 @@ Risks: op-set growth (gating, typed narrowing: an op whose input type is absent
 is never offered); latency (overlay on national NFHL is large; always restrict
 by the question's area first, as `count_near` does with `&&`); VRAM is
 unaffected (no new model).
+
+## 8. Progress
+
+### H0, built 2026-11-11
+
+`backend/planner/named_data.js`, tests `planner/test_named_data.js` (10) and
+one in `test_relevance.js`. On by default (`NAMED_DATA_CHECK`, per request
+`named_data_check: false`). Planner prompt and schema byte-identical across 48
+contexts. Evidence: `eval/gis_ops/h0-*`.
+
+- **Named-data check.** After the relevance check passes, one call lists what
+  the question names data about (copied phrases) and which used attribute
+  covers each. An uncovered phrase goes back through the repair loop as
+  `NOT_COVERED`; the planner then finds covering data or returns no steps.
+  Code decides three things the model got wrong in the prototype: `covered_by`
+  must be a listed label (it wrote "layer", "count_near"), the phrase must
+  occur in the question, and phrases made only of places, units, periods,
+  reporting units, remainders ("the rest of the country") or derived geometry
+  ("the center of each county") are exempt. It listed "the Midwest", "each
+  county" and "between 2019 and 2020" despite being told not to.
+- **Reasoning off for it.** With reasoning on, one prototype call reasoned for
+  16,000 tokens and timed out at 5 minutes; off, 0.5-2.3 s per call.
+- **Refusals name what is missing.** When no plan got as far as the check, the
+  same call runs over the retrieved candidates, so the error reads `the loaded
+  data does not include "current 100-year FEMA flood zones", "local county
+  tax parcel data", ...` instead of "could not produce a valid plan". The
+  answerability suite's refusals now read "pet dogs", "a gallon of milk".
+- **The single-word overrule is now a half-the-name overrule**
+  (`relevance.overrules`), and "value" is generic. Both recorded overrules
+  (heart 1/2, transmission 2/2) keep; mobile (1/3) and solar (1/8) no longer
+  overrule.
+
+| | before | after (3 runs) |
+|---|--:|--:|
+| held-out 16: confident wrong answers | 5 | **0, 0, 0** |
+| held-out 16: refusal names the missing data | 0 | 14, 14, 14 |
+| `research.yaml` answer correctness | 83.3, 83.3 | 83.3, 83.3, 83.3 |
+| answerability: nonsense refused / false refusals | 10/10, 1/20 | 10/10, 1/20 (one run) |
+
+- **One false refusal it caused, fixed before the repeat runs**:
+  `r-hospital-distance-mo` ("the center of each Missouri county") was refused
+  in r1; correct in r2 and r3 after the geometry exemption.
+- Remaining `research.yaml` misses are pre-existing, all plan-valid-on-attempt-1
+  or recorded failures: `r-poverty-top-mo` (the SNAP-household measure flake),
+  `r-uninsured-big-counties`, `r-obesity-top50-income` (needs `/api/research`).
+  The answerability false refusal is "where do seniors live", the recorded
+  flake: the relevance check rejected Medicare coverage, which shares no word
+  with the question, so the overrule change could not reach it.
+- **Imprecise names, not wrong outcomes**: Q7 lists "distance to the nearest
+  existing hospital" (Hospitals is loaded; tract median income and transit
+  stops are what is missing); Q14 lists "target county"; Q2 sometimes names
+  only "commercial zoning"; Q5 and Q16 still refuse with generic text. Each
+  changes the message only: the candidate-path call runs after planning has
+  already failed.
+- Cost: about 1 s per answered question (one extra call, reasoning off);
+  `research.yaml` mean latency 25.5 s.
+
+**Correction, same day (found by the Phase E distance work).** The guard runs
+above skipped `research_advanced.yaml`'s phase_e tier, and H0 broke three
+things the tier and a later answerability run then showed:
+
+- `overrules` counted the dataset name and the catalog's "(covers N
+  counties)" note as part of the attribute's name. "Percent of households
+  with no vehicle available" + "CDC Social Vulnerability Index" read 2 of 6
+  words shared instead of 2 of 3; "Coronary heart disease among adults (...)
+  (covers 2,957 counties)" read 1 of 3. The overrules that had rescued those
+  measures from false "none" verdicts stopped firing: the Michigan roll-up,
+  the Missouri tract spread and `a-expl-heart` were refused. Now the half is
+  of the attribute's own name with the note stripped, and "person, persons,
+  below, above" are generic. Mobile, solar and value still do not overrule
+  (tested with their real dataset names).
+- The named-data check read "How far, in miles" as data and refused
+  `r-hospital-distance-mo` once; question and distance words are now exempt.
+
+After the fixes (final build, RESEARCH_PLAN.md Phase E): held-out 16 still 0
+wrong answers, 15 or 14 of 16 naming the missing data; phase_e 5/8 twice;
+answerability 1/20 false refusals.

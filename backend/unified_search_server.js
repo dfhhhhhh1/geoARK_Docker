@@ -24,7 +24,17 @@ const fs = require("fs");
 const { Pool } = require("pg");
 const { DECOMPOSITION_SCHEMA, VERIFICATION_SCHEMA } = require("./schemas");
 const { generatePlan, executePlan } = require("./planner");
-const { levelOf, rollupOf } = require("./planner/levels");
+const { missingConcepts } = require("./planner/named_data");
+
+// Facility columns that record WHERE a feature is, not anything about it.
+// Built from the catalog's own column names (2026-11-11), including their
+// 10-character DBF truncations ("Postal Cod", "County Nam", "Longitude8").
+const LOCATION_COLUMN = new RegExp("^(?:" + [
+  "(?:state|county|city|country)(?:\\s*(?:nam(?:e)?|code|fips|id|loca(?:tion)?))?",
+  "zip(?:p?4|\\s*code)?", "postal\\s*cod(?:e)?", "address\\s*\\d*",
+  "latitude\\s*\\d*", "longitude\\s*\\d*", "countyfips", "fips(?:\\s*code)?",
+].join("|") + ")$", "i");
+const { levelOf, rollupOf, asksDistance } = require("./planner/levels");
 const planOps = require("./planner/ops");
 const { callGoogle, googleConfigured } = require("./llm_google");
 const {
@@ -1883,7 +1893,8 @@ async function runAnalysis(opts) {
   // The per-request knobs that change behaviour, so a failure can be reproduced.
   const flags = Object.fromEntries(Object.entries({
     top_k: opts.top_k, execute: opts.execute, expand: opts.expand, research: opts.research,
-    relevance_check: opts.relevanceCheck, population_denominator: opts.populationDenominator,
+    relevance_check: opts.relevanceCheck, named_data_check: opts.namedDataCheck,
+    population_denominator: opts.populationDenominator,
     plan_think: opts.planThink, plan_model: opts.planModel, coverage: opts.coverage,
     rerank: opts.rerank, executable_first: opts.executableFirst, definitions: opts.useDefinitions,
     provider: opts.provider, workflow_step: opts.extraSources ? true : undefined,
@@ -1920,6 +1931,8 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
                              research = undefined,
                              // Relevance check override; null = RELEVANCE_CHECK.
                              relevanceCheck = null,
+                             // planner/named_data.js override; null = NAMED_DATA_CHECK.
+                             namedDataCheck = null,
                              // addPopulationDenominator override; null = POPULATION_DENOMINATOR.
                              populationDenominator = null,
                              // planThinkExtra override ("on" | "off" | N); null = PLAN_THINK.
@@ -2178,6 +2191,7 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       const { rows: atLevel } = await pool.query(
         `SELECT DISTINCT code FROM geo_measure WHERE level = $1`, [namedLevel]);
       const levelCodes = new Set(atLevel.map(r => r.code));
+      const keepFeatures = levelOf(query) === namedLevel && asksDistance(query);
       // Only measures with values at that unit stay on the list, topped up
       // from everything retrieval found. A county-only measure can only fail
       // there: "uninsured rate for every census tract" chose CHR Uninsured,
@@ -2185,6 +2199,23 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       // plan instead of switching (reasoning off, 2026-11-11).
       const hasLevel = (c) => {
         const src = resolved.get(c.attr_id);
+        // A feature layer has no level: nearest_distance and count_near
+        // measure it from any unit's geometry. Dropping it here meant "how
+        // far is each census tract in Missouri from the nearest hospital"
+        // never saw Hospitals, and H0 then refused it as "the loaded data
+        // does not include nearest hospital" (2026-11-11). Kept only when
+        // the question asks about distance at the answer's unit
+        // (levels.asksDistance): offered to every unit question, the layers
+        // derailed the grid-density and Michigan roll-up questions.
+        // ...except a layer matched only through a column that records where
+        // a feature is (Zip, City, County, Address). At a named unit the
+        // unit's own word retrieves those: "Which ZIP codes in Montana are
+        // farthest from a hospital" offered the "Zip" columns of College
+        // Campuses and Biodiesel Plants, the planner loaded them as if they
+        // were ZIP data, and 3 of 4 runs never planned (2026-11-11).
+        if (src?.source_kind === "feature_table") {
+          return keepFeatures && !LOCATION_COLUMN.test(String(c.attr_desc || "").trim());
+        }
         return src?.source_kind === "acs_long" && levelCodes.has(src.census_code);
       };
       const kept = executable.filter(hasLevel);
@@ -2284,16 +2315,21 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
     }
 
     // 2. Plan, with validation and repair.
+    // Bind the planner to PLAN_MODEL, leaving decomposition on the small one.
+    // Reasoning is set here so it covers every PLAN_MODEL call in the
+    // analysis: the planner, its repairs, and the relevance check.
+    const planCall = (sys, usr, temp, schema, extra) =>
+      callLLM(sys, usr, temp, schema, planModel ?? CONFIG.llm.planModel,
+              { ...planThinkExtra(planThink ?? CONFIG.llm.planThink, extra?.role),
+                ...(extra || {}) });
+    // planner/named_data.js, on by default; named_data_check:false per
+    // request measures it without recreating the container.
+    const namedDataEnabled = typeof namedDataCheck === "boolean" ? namedDataCheck
+      : !/^(0|false|no)$/i.test(process.env.NAMED_DATA_CHECK ?? "1");
     const planning = await generatePlan({
       query,
       candidates: executable,
-      // Bind the planner to PLAN_MODEL, leaving decomposition on the small one.
-      // Reasoning is set here so it covers every PLAN_MODEL call in the
-      // analysis: the planner, its repairs, and the relevance check.
-      callLLM: (sys, usr, temp, schema, extra) =>
-        callLLM(sys, usr, temp, schema, planModel ?? CONFIG.llm.planModel,
-                { ...planThinkExtra(planThink ?? CONFIG.llm.planThink, extra?.role),
-                  ...(extra || {}) }),
+      callLLM: planCall,
       resolve: resolveAll,
       // Whether named boundaries are loaded. filter_place is useless without
       // them, and offering an op that can only fail costs a repair round.
@@ -2301,6 +2337,7 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       hasNeighbors: await countyNeighborsLoaded(),
       log: (m) => console.log(m),
       emit,
+      namedDataCheck: namedDataEnabled,
       // planner/relevance.js. On by default; eval runs can pass
       // relevance_check:false to measure it without recreating the container.
       relevanceCheck: typeof relevanceCheck === "boolean" ? relevanceCheck
@@ -2367,6 +2404,42 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
                   "this has values across that period. These are things the same data can answer:",
           period_not_covered: true,
           suggestions: buildSuggestions(executable),
+          validation_errors: planning.errors,
+          attempts: planning.attempts.length,
+          candidates: executable.slice(0, 10),
+          ms: Date.now() - started
+        });
+      }
+      // planner/named_data.js: the question names data that no plan covered
+      // ("FEMA flood zones", "tax parcel data"). Collected from the plans the
+      // check sent back; when no plan got that far (the planner could not
+      // express the question at all), the retrieved candidates are asked the
+      // same thing, so the refusal still says WHAT is missing. "Could not
+      // produce a valid plan" told the user nothing, and 7 of 16 analyst
+      // questions got exactly that (2026-11-11).
+      let uncovered = [...new Set(planning.attempts.flatMap(a => a.uncovered || []))];
+      let uncoveredFrom = "plan";
+      if (!uncovered.length && namedDataEnabled && !unaskedSubject && !periodErrors.length) {
+        const r = await missingConcepts({ query, candidates: executable, callLLM: planCall,
+                                          log: (m) => console.log(m) });
+        uncovered = r.uncovered;
+        uncoveredFrom = "candidates";
+      }
+      if (uncovered.length) {
+        const list = uncovered.slice(0, 4).map(p => `"${p}"`).join(", ");
+        throw new AnalyzeError(422, {
+          error: `the loaded data does not include ${list}`,
+          detail: `Nothing loaded covers ${list}, so any number built from what is ` +
+                  "loaded would answer a different question. " +
+                  (missing.length ? `${missing.join(", ")} ${missing.length > 1 ? "are" : "is"} in the ` +
+                    "catalog but the source data was never imported. " : "") +
+                  "These are things the same data can answer:",
+          not_measured: true,
+          not_covered: uncovered,
+          not_covered_from: uncoveredFrom,
+          rejected_attributes: rejected,
+          suggestions: buildSuggestions(executable),
+          unavailable_datasets: missing,
           validation_errors: planning.errors,
           attempts: planning.attempts.length,
           candidates: executable.slice(0, 10),
@@ -2553,6 +2626,8 @@ async function finishAnalysis({ query, started, planning, executable, candidates
     // is kept but should be shown: "median household income" answers "the
     // wealthiest" only by stand-in, and the reader deserves to know that.
     relevance: planning.relevance,
+    // What the question names and which attribute covers each.
+    named_data: planning.named_data,
     // ALL executable candidates, not the top 10. A plan may load an attribute
     // ranked below 10th, and the UI's step-by-step report has to be able to
     // name what each step operates on. The list is ~25 small rows.
@@ -2880,6 +2955,8 @@ app.post("/api/research", auth.requireAuth, limitAnalyze, async (req, res) => {
           executableFirst: typeof req.body?.executable_first === "boolean" ? req.body.executable_first : null,
           useDefinitions: typeof req.body?.definitions === "boolean" ? req.body.definitions : null,
           coverage: typeof req.body?.coverage === "boolean" ? req.body.coverage : null,
+          relevanceCheck: typeof req.body?.relevance_check === "boolean" ? req.body.relevance_check : null,
+          namedDataCheck: typeof req.body?.named_data_check === "boolean" ? req.body.named_data_check : null,
         },
       }),
       { isAbandoned: () => closed },
@@ -2913,6 +2990,8 @@ app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
         provider: req.body?.provider === "google" ? "google" : null,
         expand: typeof req.body?.expand === "boolean" ? req.body.expand : null,
         research: req.body?.research,
+        namedDataCheck: typeof req.body?.named_data_check === "boolean"
+          ? req.body.named_data_check : null,
         relevanceCheck: typeof req.body?.relevance_check === "boolean"
           ? req.body.relevance_check : null,
         populationDenominator: typeof req.body?.population_denominator === "boolean"
