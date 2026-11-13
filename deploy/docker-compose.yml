@@ -53,6 +53,7 @@ services:
       PLAN_MODEL: ${PLAN_MODEL:-}
       # Planner reasoning: on (model default) | off | a token budget, e.g. 512.
       PLAN_THINK: ${PLAN_THINK:-on}
+      LLM_THINK: ${LLM_THINK:-}
       # Other planners a request may name as `plan_model` (eval A/Bs, no
       # recreate). Each gets the planner's context window and deadline.
       PLAN_MODEL_CHOICES: ${PLAN_MODEL_CHOICES:-qwen3:14b,qwen3.5:9b}

@@ -403,6 +403,17 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
       },
       ...(extra.think !== undefined ? { think: extra.think } : {}),
     };
+    // Router-role calls (decomposition, follow-up rewrite, research keywords)
+    // carry no `think` of their own. With a reasoning model as LLM_MODEL
+    // (qwen3.5:9b) they reasoned ~1,150 tokens: 25 s vs 1.9 s with think:false.
+    // LLM_THINK=off turns that off; unset leaves the model default, so gemma3
+    // is untouched.
+    if (body.think === undefined && process.env.LLM_THINK) {
+      Object.assign(body, planThinkExtra(process.env.LLM_THINK));
+      if (body.think === false && schema) {
+        body.options.num_predict ??= Number(process.env.LLM_MAX_JSON_TOKENS ?? 3000);
+      }
+    }
     if (extra.thinkBudget > 0) return await budgetedChat(body, extra.thinkBudget);
     const response = await llmFetch(body);
     
