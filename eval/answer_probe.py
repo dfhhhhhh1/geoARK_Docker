@@ -599,6 +599,8 @@ def run(suite: dict, args) -> dict:
         extra["plan_model"] = args.plan_model
     if args.executable_first is not None:
         extra["executable_first"] = args.executable_first
+    if args.sibling_cap is not None:
+        extra["sibling_cap"] = args.sibling_cap
     created_before = api_created()
     cache: dict = {}
     rows = []
@@ -675,6 +677,7 @@ def run(suite: dict, args) -> dict:
         "plan_think": args.plan_think,
         "plan_model": args.plan_model,
         "executable_first": args.executable_first,
+        "sibling_cap": args.sibling_cap,
         "endpoint": args.endpoint,
         "detail": rows_all,
     }
@@ -692,6 +695,7 @@ def main() -> int:
     # A planner from the API's PLAN_MODEL_CHOICES; default is its PLAN_MODEL.
     ap.add_argument("--plan-model")
     # Executable-first retrieval, per request; default is the API's EXECUTABLE_FIRST.
+    ap.add_argument("--sibling-cap", type=int, help="per-request layer-column cap; 0 disables")
     ap.add_argument("--executable-first", dest="executable_first", action="store_const",
                     const=True, default=None)
     ap.add_argument("--no-executable-first", dest="executable_first", action="store_const",

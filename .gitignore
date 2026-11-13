@@ -49,7 +49,11 @@ data/embeddings/
 *.sbx
 *.gdb/
 *.zip
-
+*.csv.gz
+*.npz
+*.parquet
+*.pkl
+search_and_analysis/**/pre_ran_results/
 # ---- editors / OS ----
 .DS_Store
 .idea/

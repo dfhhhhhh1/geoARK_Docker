@@ -258,10 +258,49 @@ let executableIds = new Set();
  */
 const EXECUTABLE_FIRST_ENABLED = /^(1|true|yes)$/i.test(process.env.EXECUTABLE_FIRST ?? "0");
 
+/**
+ * Column siblings of a layer may take at most SIBLING_CAP rows of one
+ * sub-query's results (2026-11-13). A value series is a measure in its own
+ * right; a map layer's columns ("Name", "Telephone", "Zip4") are one thing
+ * the planner collapses to a single candidate anyway (runAnalysisInner). Uncapped,
+ * they filled the cut before that collapse: for "public schools" the
+ * never-loaded HSIP "Public Schools" table took ranks 1-17, and the loaded
+ * "Public School Locations" layer (3 catalog rows) came 18th of 20, so the
+ * named-data check refused "public schools" as not loaded. Ingested layers
+ * write 2-14 rows and rasters 1, against 30-70 for an HSIP layer, so every
+ * newer layer lost the same way. Capped rows: anything that is not an
+ * acs_long / table_column value series, i.e. feature-table columns, rasters,
+ * and rows with no data. 0 disables; `sibling_cap` per request for the A/B.
+ */
+const SIBLING_CAP = Number(process.env.SIBLING_CAP ?? 3);
+// attr_ids of value series (acs_long / table_column): never sibling-capped.
+let valueSeriesIds = new Set();
+
 async function loadExecutableIds() {
-  const { rows } = await pool.query("SELECT attr_id FROM attribute_source");
+  const { rows } = await pool.query("SELECT attr_id, source_kind FROM attribute_source");
   executableIds = new Set(rows.map(r => r.attr_id));
+  valueSeriesIds = new Set(rows.filter(r => r.source_kind === "acs_long" || r.source_kind === "table_column")
+    .map(r => r.attr_id));
   return executableIds.size;
+}
+
+/** Keep at most `cap` rows per dataset among rows that are not value series. */
+function capLayerSiblings(ranked, cap) {
+  if (!(cap > 0) || !valueSeriesIds.size) return ranked;
+  const taken = new Map();
+  return ranked.filter(({ index }) => {
+    const v = variables[index];
+    if (valueSeriesIds.has(v.attr_id)) return true;
+    const n = taken.get(v.dataset_id) || 0;
+    taken.set(v.dataset_id, n + 1);
+    return n < cap;
+  });
+}
+
+function siblingCapFor(override) {
+  const n = Number(override);
+  return override !== undefined && override !== null && override !== "" && Number.isFinite(n)
+    ? n : SIBLING_CAP;
 }
 let corpusCacheKey = null;    // the embedder cache key these vectors came from
 
@@ -1054,6 +1093,7 @@ async function performHybridSearch(query, topK = 20, searchPurpose = 'primary', 
       ranked = [...ce, ...unscored, ...ranked.slice(head.length)];
     }
   }
+  ranked = capLayerSiblings(ranked, siblingCapFor(options.siblingCap));
   if (options.executableFirst && executableIds.size) {
     // Extend the cut until it holds topK rows a plan can run on. Rows above
     // the cut that cannot run stay in the list: they are how the API tells a
@@ -1282,8 +1322,10 @@ async function unifiedSearch(query, options = {}) {
     rerank = undefined,
     // Executable-first retrieval (EXECUTABLE_FIRST, above). Planner path only.
     executableFirst = false,
+    // Per-dataset cap on layer columns (SIBLING_CAP, above); undefined = default.
+    siblingCap = undefined,
   } = options;
-  const search = (q, k, purpose) => performHybridSearch(q, k, purpose, { rerank, executableFirst });
+  const search = (q, k, purpose) => performHybridSearch(q, k, purpose, { rerank, executableFirst, siblingCap });
   
   const startTime = Date.now();
   
@@ -1517,7 +1559,7 @@ app.post("/api/unified-search", auth.requireAuth, limitSearch, async (req, res) 
     // much -- on one sample query it cut 18 retrieved rows to 3. That is a
     // reranker's job, and a cross-encoder should replace it (docs/AI-PIPELINE.md
     // section 4). Until then, opt in explicitly if you want the ranking.
-    const { q: query, use_llm_filter = false, top_k = 10, expand, research, rerank } = req.body;
+    const { q: query, use_llm_filter = false, top_k = 10, expand, research, rerank, sibling_cap } = req.body;
     
     if (!query || query.trim().length === 0) {
       return res.status(400).json({ error: "Query 'q' is required" });
@@ -1528,9 +1570,10 @@ app.post("/api/unified-search", auth.requireAuth, limitSearch, async (req, res) 
       topKPerConcept: top_k,
       ...(typeof expand === "boolean" ? { expand } : {}),
       ...(research !== undefined ? { research } : {}),
-      ...(rerank !== undefined ? { rerank } : {})
+      ...(rerank !== undefined ? { rerank } : {}),
+      ...(sibling_cap !== undefined ? { siblingCap: sibling_cap } : {})
     });
-    
+
     res.json(results);
     
   } catch (error) {
@@ -1575,7 +1618,8 @@ app.get("/api/search", auth.requireAuth, limitSearch, async (req, res) => {
       return res.json([]);
     }
     
-    const results = await performHybridSearch(query, 20, 'primary', { rerank: req.query.rerank });
+    const results = await performHybridSearch(query, 20, 'primary',
+      { rerank: req.query.rerank, siblingCap: req.query.sibling_cap });
     res.json(results);
     
   } catch (error) {
@@ -2041,7 +2085,7 @@ async function currentEnv() {
     catalog_rows: variables.length, resolvable_attributes: resolvableCount,
     rerank: process.env.RERANK ?? "off", expand: EXPANSION_CONFIG.enabled,
     coverage_prefer: COVERAGE_PREFER_ENABLED, executable_first: EXECUTABLE_FIRST_ENABLED,
-    queue: analysisQueue.stats(), node: process.version,
+    sibling_cap: SIBLING_CAP, queue: analysisQueue.stats(), node: process.version,
   };
 }
 
@@ -2067,7 +2111,8 @@ async function runAnalysis(opts) {
     relevance_check: opts.relevanceCheck, named_data_check: opts.namedDataCheck,
     population_denominator: opts.populationDenominator,
     plan_think: opts.planThink, plan_model: opts.planModel, coverage: opts.coverage,
-    rerank: opts.rerank, executable_first: opts.executableFirst, definitions: opts.useDefinitions,
+    rerank: opts.rerank, executable_first: opts.executableFirst, sibling_cap: opts.siblingCap,
+    definitions: opts.useDefinitions,
     provider: opts.provider, workflow_step: opts.extraSources ? true : undefined,
   }).filter(([, v]) => v !== null && v !== undefined));
   const base = { query: opts.query, trace, flags, started };
@@ -2116,6 +2161,8 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
                              rerank = undefined,
                              // Executable-first retrieval; null = EXECUTABLE_FIRST.
                              executableFirst = null,
+                             // Layer-column cap; undefined = SIBLING_CAP.
+                             siblingCap = undefined,
                              // Published definitions override; null = DEFINITIONS.
                              useDefinitions = null,
                              // Earlier workflow results this step may cite
@@ -2159,6 +2206,7 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       ...(typeof populationDenominator === "boolean" ? { populationDenominator } : {}),
       ...(rerank !== undefined ? { rerank } : {}),
       executableFirst: executableFirst ?? EXECUTABLE_FIRST_ENABLED,
+      siblingCap,
     });
     const candidates = search.all_results || [];
     emit({ stage: "decomposed", decomposition: search.decomposition,
@@ -3189,6 +3237,7 @@ app.post("/api/research", auth.requireAuth, limitAnalyze, async (req, res) => {
             ? String(req.body.plan_think) : null,
           planModel,
           executableFirst: typeof req.body?.executable_first === "boolean" ? req.body.executable_first : null,
+          siblingCap: Number.isFinite(req.body?.sibling_cap) ? req.body.sibling_cap : undefined,
           useDefinitions: typeof req.body?.definitions === "boolean" ? req.body.definitions : null,
           coverage: typeof req.body?.coverage === "boolean" ? req.body.coverage : null,
           relevanceCheck: typeof req.body?.relevance_check === "boolean" ? req.body.relevance_check : null,
@@ -3261,6 +3310,7 @@ app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
           ? String(req.body.plan_think) : null,
         planModel,
         executableFirst: typeof req.body?.executable_first === "boolean" ? req.body.executable_first : null,
+        siblingCap: Number.isFinite(req.body?.sibling_cap) ? req.body.sibling_cap : undefined,
         coverage: typeof req.body?.coverage === "boolean" ? req.body.coverage : null,
         rerank: typeof req.body?.rerank === "string" ? req.body.rerank : undefined,
         useDefinitions: typeof req.body?.definitions === "boolean" ? req.body.definitions : null,
@@ -3688,6 +3738,7 @@ app.get("/api/health", async (req, res) => {
     plan_think: CONFIG.llm.planThink,
     plan_model_choices: [...PLANNER_MODELS],
     executable_first: EXECUTABLE_FIRST_ENABLED,
+    sibling_cap: SIBLING_CAP,
     google_available: googleConfigured(),
     database: CONFIG.database.database,
     resolvable_attributes: resolvableCount,

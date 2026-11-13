@@ -1,0 +1,349 @@
+[
+ {
+  "id": "schools-buffer",
+  "secs": 28,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 360,
+  "ops": [
+   "select_features",
+   "select_features",
+   "within",
+   "output"
+  ]
+ },
+ {
+  "id": "schools-count",
+  "secs": 21,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 88,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ]
+ },
+ {
+  "id": "private-schools",
+  "secs": 22,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 221,
+  "ops": [
+   "select_features",
+   "output"
+  ]
+ },
+ {
+  "id": "superfund",
+  "secs": 19,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 169,
+  "ops": [
+   "select_features",
+   "output"
+  ]
+ },
+ {
+  "id": "brownfields",
+  "secs": 18,
+  "error": "could not produce a valid plan",
+  "offered": true,
+  "used": false,
+  "rows": null,
+  "ops": []
+ },
+ {
+  "id": "dialysis",
+  "secs": 26,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 3233,
+  "ops": [
+   "nearest_distance",
+   "output"
+  ]
+ },
+ {
+  "id": "hospice",
+  "secs": 32,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 57,
+  "ops": [
+   "select_features",
+   "output"
+  ]
+ },
+ {
+  "id": "ltch",
+  "secs": 18,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 254,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ]
+ },
+ {
+  "id": "nursing",
+  "secs": 31,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 115,
+  "ops": [
+   "count_near",
+   "filter_area",
+   "output"
+  ]
+ },
+ {
+  "id": "snap",
+  "secs": 35,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 10,
+  "ops": [
+   "count_features",
+   "load",
+   "normalize",
+   "rank",
+   "output"
+  ]
+ },
+ {
+  "id": "transit",
+  "secs": 21,
+  "error": "could not produce a valid plan",
+  "offered": false,
+  "used": false,
+  "rows": null,
+  "ops": []
+ },
+ {
+  "id": "interstates",
+  "secs": 20,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 1502,
+  "ops": [
+   "count_features",
+   "filter_attr",
+   "output"
+  ]
+ },
+ {
+  "id": "parks",
+  "secs": 18,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 3233,
+  "ops": [
+   "count_features",
+   "output"
+  ]
+ },
+ {
+  "id": "military",
+  "secs": 20,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 133,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ]
+ },
+ {
+  "id": "wetlands",
+  "secs": 23,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 115,
+  "ops": [
+   "zonal",
+   "filter_area",
+   "output"
+  ]
+ },
+ {
+  "id": "forest",
+  "secs": 17,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 405,
+  "ops": [
+   "zonal",
+   "output"
+  ]
+ },
+ {
+  "id": "cropland",
+  "secs": 19,
+  "error": "could not produce a valid plan",
+  "offered": true,
+  "used": false,
+  "rows": null,
+  "ops": []
+ },
+ {
+  "id": "elevation",
+  "secs": 38,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 15,
+  "ops": [
+   "zonal",
+   "filter_place",
+   "output"
+  ]
+ },
+ {
+  "id": "slope",
+  "secs": 28,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 8,
+  "ops": [
+   "zonal",
+   "filter_place",
+   "rank",
+   "output"
+  ]
+ },
+ {
+  "id": "fire",
+  "secs": 16,
+  "error": "could not produce a valid plan",
+  "offered": true,
+  "used": false,
+  "rows": null,
+  "ops": []
+ },
+ {
+  "id": "hospitals",
+  "secs": 31,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 3233,
+  "ops": [
+   "nearest_distance",
+   "output"
+  ]
+ },
+ {
+  "id": "tornado",
+  "secs": 22,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 10,
+  "ops": [
+   "count_features",
+   "rank",
+   "output"
+  ]
+ },
+ {
+  "id": "wildfire",
+  "secs": 23,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 58,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ]
+ },
+ {
+  "id": "powerlines",
+  "secs": 36,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 3233,
+  "ops": [
+   "select_features",
+   "summarize",
+   "output"
+  ]
+ },
+ {
+  "id": "childcare",
+  "secs": 37,
+  "error": null,
+  "offered": true,
+  "used": false,
+  "rows": 2991,
+  "ops": [
+   "load",
+   "load",
+   "normalize",
+   "output"
+  ]
+ },
+ {
+  "id": "police",
+  "secs": 25,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 1,
+  "ops": [
+   "count_features",
+   "filter_place",
+   "output"
+  ]
+ },
+ {
+  "id": "colleges",
+  "secs": 21,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 6,
+  "ops": [
+   "count_features",
+   "filter_place",
+   "output"
+  ]
+ },
+ {
+  "id": "refineries",
+  "secs": 19,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 1,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "aggregate",
+   "output"
+  ]
+ }
+]

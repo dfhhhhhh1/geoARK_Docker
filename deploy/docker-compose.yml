@@ -92,6 +92,10 @@ services:
       # Requests may pass {"rerank": "..."} to A/B without a recreate.
       RERANK: ${RERANK:-off}
       RERANK_DEPTH: ${RERANK_DEPTH:-50}
+      # Max rows per dataset among layer columns / rasters / dataless rows in
+      # one sub-query's results; value series are never capped. 0 disables.
+      # Requests may pass {"sibling_cap": N}. eval/siblingcap/README.md.
+      SIBLING_CAP: ${SIBLING_CAP:-3}
       # Swap a series covering < 95% of the analysis area for a verified
       # equivalent, or report its coverage (backend/planner/coverage.js).
       COVERAGE_PREFER: ${COVERAGE_PREFER:-1}

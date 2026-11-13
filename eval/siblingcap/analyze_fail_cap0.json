@@ -1,0 +1,46 @@
+[
+ {
+  "id": "brownfields",
+  "secs": 23,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 83,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ]
+ },
+ {
+  "id": "transit",
+  "secs": 32,
+  "error": "the loaded data does not measure what this question asks about",
+  "offered": true,
+  "used": false,
+  "rows": null,
+  "ops": []
+ },
+ {
+  "id": "cropland",
+  "secs": 20,
+  "error": "could not produce a valid plan",
+  "offered": true,
+  "used": false,
+  "rows": null,
+  "ops": []
+ },
+ {
+  "id": "fire",
+  "secs": 21,
+  "error": null,
+  "offered": true,
+  "used": true,
+  "rows": 1,
+  "ops": [
+   "count_features",
+   "filter_place",
+   "output"
+  ]
+ }
+]

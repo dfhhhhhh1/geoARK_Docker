@@ -1,0 +1,37 @@
+# Can a question reach a loaded map layer or raster when it names the CONCEPT
+# rather than the dataset? (2026-11-13, eval/siblingcap/README.md)
+#
+# `accept` lists the LOADED datasets (attribute_source feature_table / raster)
+# that answer the concept. A never-loaded twin ("Public Schools", HSIP, no
+# table) is deliberately not acceptable: retrieving it is the failure.
+# Scored by eval/siblingcap/concept_reach.py through /api/unified-search at the
+# planner's budget (top_k 60, split across sub-queries).
+queries:
+  - {id: schools-buffer, q: "Identify all public schools within a 2-mile buffer of Superfund sites in Missouri", accept: [ing_publicschool_01]}
+  - {id: schools-count, q: "how many public schools are in each county in Ohio", accept: [ing_publicschool_01]}
+  - {id: private-schools, q: "where are the private schools in Chicago", accept: [ing_privateschoo_01]}
+  - {id: superfund, q: "map the superfund sites in New Jersey", accept: [ing_epanplsites_01, ing_epasuperfund_01]}
+  - {id: brownfields, q: "count brownfield sites per county in Michigan", accept: [ing_epabrownfiel_01]}
+  - {id: dialysis, q: "how far is each county from the nearest dialysis center", accept: [ing_cmsdialysisf_01]}
+  - {id: hospice, q: "where are hospice providers in Florida", accept: [ing_cmshospices_01]}
+  - {id: ltch, q: "long-term care hospitals in Texas", accept: [ing_cmslongtermc_01]}
+  - {id: nursing, q: "nursing homes within 5 miles of a hospital in Missouri", accept: [ing_cmsnursingho_01, 5c91101d_01_01]}
+  - {id: snap, q: "which counties have the fewest stores that accept SNAP per person", accept: [ing_snapretailer_01]}
+  - {id: transit, q: "how many people live within half a mile of a bus stop in St. Louis", accept: [ing_transitstops_01]}
+  - {id: interstates, q: "counties with no interstate highway", accept: [ing_tigerprimary_01]}
+  - {id: parks, q: "which counties contain a national park", accept: [ing_npsparkunits_01]}
+  - {id: military, q: "military bases in Virginia", accept: [ing_dodmilitaryb_01]}
+  - {id: wetlands, q: "acres of wetlands in each Missouri county", accept: [ing_nwiwetlands_01, ing_nlcdlandcove_01]}
+  - {id: forest, q: "what share of each county is forest", accept: [ing_nlcdlandcove_01]}
+  - {id: cropland, q: "change in cropland area between 2019 and 2021 in Illinois counties", accept: [ing_nlcdlandcove_01]}
+  - {id: elevation, q: "average elevation of counties around St. Louis", accept: [ing_demelevation_01]}
+  - {id: slope, q: "which counties near Chicago have the steepest terrain", accept: [ing_terrainslope_01]}
+  - {id: fire, q: "fire stations in Springfield, Missouri", accept: [964c8e3d_01_01]}
+  - {id: hospitals, q: "how far is each county from the nearest hospital", accept: [443ff20b_01_01]}
+  - {id: tornado, q: "counties hit by the most tornadoes", accept: [3bfee43a_01_01]}
+  - {id: wildfire, q: "area burned by wildfires in each California county", accept: [55b3233d_01_01, b15f4c3c_01_01]}
+  - {id: powerlines, q: "miles of high voltage power lines per county", accept: [4247b381_01_01]}
+  - {id: childcare, q: "daycare centers per 1000 children by county", accept: [bfd307c1_01_01]}
+  - {id: police, q: "police stations in Kansas City", accept: [4daaa5fe_01_01]}
+  - {id: colleges, q: "college campuses in Boston", accept: [68bf7456_01_01]}
+  - {id: refineries, q: "how many oil refineries are in Louisiana", accept: [cc51c539_01_01]}

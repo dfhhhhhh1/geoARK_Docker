@@ -1,0 +1,1257 @@
+[
+ {
+  "id": "schools-buffer",
+  "cap": 0,
+  "rep": 0,
+  "rank": null,
+  "subqueries": [
+   "public schools",
+   "Superfund sites",
+   "2-mile buffer",
+   "Missouri"
+  ]
+ },
+ {
+  "id": "schools-buffer",
+  "cap": 3,
+  "rep": 0,
+  "rank": 4,
+  "subqueries": [
+   "public schools",
+   "Superfund sites",
+   "2-mile buffer",
+   "Missouri",
+   "population"
+  ]
+ },
+ {
+  "id": "schools-buffer",
+  "cap": 0,
+  "rep": 1,
+  "rank": null,
+  "subqueries": [
+   "public schools",
+   "Superfund sites",
+   "2-mile buffer",
+   "Missouri"
+  ]
+ },
+ {
+  "id": "schools-buffer",
+  "cap": 3,
+  "rep": 1,
+  "rank": 4,
+  "subqueries": [
+   "public schools",
+   "Superfund sites",
+   "2-mile buffer",
+   "Missouri"
+  ]
+ },
+ {
+  "id": "schools-count",
+  "cap": 0,
+  "rep": 0,
+  "rank": 18,
+  "subqueries": [
+   "public schools",
+   "Ohio counties",
+   "counties in Ohio"
+  ]
+ },
+ {
+  "id": "schools-count",
+  "cap": 3,
+  "rep": 0,
+  "rank": 4,
+  "subqueries": [
+   "public schools",
+   "Ohio counties",
+   "counties in Ohio"
+  ]
+ },
+ {
+  "id": "schools-count",
+  "cap": 0,
+  "rep": 1,
+  "rank": 18,
+  "subqueries": [
+   "public schools",
+   "Ohio counties",
+   "counties in Ohio"
+  ]
+ },
+ {
+  "id": "schools-count",
+  "cap": 3,
+  "rep": 1,
+  "rank": 4,
+  "subqueries": [
+   "public schools",
+   "Ohio counties",
+   "counties in Ohio"
+  ]
+ },
+ {
+  "id": "private-schools",
+  "cap": 0,
+  "rep": 0,
+  "rank": 19,
+  "subqueries": [
+   "private schools",
+   "Chicago",
+   "population"
+  ]
+ },
+ {
+  "id": "private-schools",
+  "cap": 3,
+  "rep": 0,
+  "rank": 4,
+  "subqueries": [
+   "private schools",
+   "Chicago"
+  ]
+ },
+ {
+  "id": "private-schools",
+  "cap": 0,
+  "rep": 1,
+  "rank": 19,
+  "subqueries": [
+   "private schools",
+   "Chicago"
+  ]
+ },
+ {
+  "id": "private-schools",
+  "cap": 3,
+  "rep": 1,
+  "rank": 4,
+  "subqueries": [
+   "private schools",
+   "Chicago"
+  ]
+ },
+ {
+  "id": "superfund",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "superfund sites",
+   "New Jersey"
+  ]
+ },
+ {
+  "id": "superfund",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "superfund sites",
+   "New Jersey",
+   "population"
+  ]
+ },
+ {
+  "id": "superfund",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "superfund sites",
+   "New Jersey"
+  ]
+ },
+ {
+  "id": "superfund",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "superfund sites",
+   "New Jersey"
+  ]
+ },
+ {
+  "id": "brownfields",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "brownfield sites",
+   "count sites",
+   "Michigan counties",
+   "population data"
+  ]
+ },
+ {
+  "id": "brownfields",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "brownfield sites",
+   "county",
+   "Michigan"
+  ]
+ },
+ {
+  "id": "brownfields",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "brownfield sites",
+   "county",
+   "Michigan"
+  ]
+ },
+ {
+  "id": "brownfields",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "brownfield sites",
+   "county",
+   "Michigan"
+  ]
+ },
+ {
+  "id": "dialysis",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "dialysis centers",
+   "county distance",
+   "population density"
+  ]
+ },
+ {
+  "id": "dialysis",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "dialysis centers",
+   "county distance",
+   "population density"
+  ]
+ },
+ {
+  "id": "dialysis",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "dialysis centers",
+   "county distance",
+   "county population"
+  ]
+ },
+ {
+  "id": "dialysis",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "dialysis centers",
+   "county distance",
+   "population density"
+  ]
+ },
+ {
+  "id": "hospice",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "hospice providers",
+   "Florida",
+   "population"
+  ]
+ },
+ {
+  "id": "hospice",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "hospice providers",
+   "Florida",
+   "population"
+  ]
+ },
+ {
+  "id": "hospice",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "hospice providers",
+   "Florida",
+   "population"
+  ]
+ },
+ {
+  "id": "hospice",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "hospice providers",
+   "Florida",
+   "population"
+  ]
+ },
+ {
+  "id": "ltch",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "long-term care hospitals",
+   "Texas",
+   "population"
+  ]
+ },
+ {
+  "id": "ltch",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "long-term care hospitals",
+   "Texas",
+   "population"
+  ]
+ },
+ {
+  "id": "ltch",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "long-term care hospitals",
+   "Texas",
+   "population"
+  ]
+ },
+ {
+  "id": "ltch",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "long-term care hospitals",
+   "Texas",
+   "population"
+  ]
+ },
+ {
+  "id": "nursing",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "nursing homes",
+   "hospitals",
+   "5 miles",
+   "Missouri"
+  ]
+ },
+ {
+  "id": "nursing",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "nursing homes",
+   "hospitals",
+   "5 miles",
+   "Missouri",
+   "population"
+  ]
+ },
+ {
+  "id": "nursing",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "nursing homes",
+   "hospitals",
+   "5 miles",
+   "Missouri",
+   "population"
+  ]
+ },
+ {
+  "id": "nursing",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "nursing homes",
+   "hospitals",
+   "5 miles",
+   "Missouri"
+  ]
+ },
+ {
+  "id": "snap",
+  "cap": 0,
+  "rep": 0,
+  "rank": 4,
+  "subqueries": [
+   "SNAP stores",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "snap",
+  "cap": 3,
+  "rep": 0,
+  "rank": 4,
+  "subqueries": [
+   "SNAP stores",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "snap",
+  "cap": 0,
+  "rep": 1,
+  "rank": 4,
+  "subqueries": [
+   "SNAP stores",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "snap",
+  "cap": 3,
+  "rep": 1,
+  "rank": 4,
+  "subqueries": [
+   "SNAP stores",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "transit",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "people",
+   "population",
+   "bus stops",
+   "half mile"
+  ]
+ },
+ {
+  "id": "transit",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "people",
+   "population",
+   "bus stops",
+   "half mile"
+  ]
+ },
+ {
+  "id": "transit",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "people",
+   "population",
+   "bus stops",
+   "half mile"
+  ]
+ },
+ {
+  "id": "transit",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "people",
+   "population",
+   "bus stops",
+   "half mile"
+  ]
+ },
+ {
+  "id": "interstates",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "counties",
+   "no interstate highway"
+  ]
+ },
+ {
+  "id": "interstates",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "counties",
+   "no interstate highway",
+   "population"
+  ]
+ },
+ {
+  "id": "interstates",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "counties",
+   "no interstate highway",
+   "population"
+  ]
+ },
+ {
+  "id": "interstates",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "counties",
+   "no interstate highway",
+   "population"
+  ]
+ },
+ {
+  "id": "parks",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "national parks",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "parks",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "national parks",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "parks",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "national parks",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "parks",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "national parks",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "military",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "military bases",
+   "Virginia",
+   "population"
+  ]
+ },
+ {
+  "id": "military",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "military bases",
+   "Virginia",
+   "population"
+  ]
+ },
+ {
+  "id": "military",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "military bases",
+   "Virginia",
+   "population"
+  ]
+ },
+ {
+  "id": "military",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "military bases",
+   "Virginia",
+   "population"
+  ]
+ },
+ {
+  "id": "wetlands",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "wetlands",
+   "acres",
+   "Missouri counties"
+  ]
+ },
+ {
+  "id": "wetlands",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "wetlands",
+   "acres",
+   "Missouri counties"
+  ]
+ },
+ {
+  "id": "wetlands",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "wetlands",
+   "acres",
+   "Missouri county"
+  ]
+ },
+ {
+  "id": "wetlands",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "wetlands",
+   "acres",
+   "Missouri counties"
+  ]
+ },
+ {
+  "id": "forest",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "forest share",
+   "county",
+   "population"
+  ]
+ },
+ {
+  "id": "forest",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "forest share",
+   "county data",
+   "county population"
+  ]
+ },
+ {
+  "id": "forest",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "forest share",
+   "county",
+   "population"
+  ]
+ },
+ {
+  "id": "forest",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "forest share",
+   "county data",
+   "county population"
+  ]
+ },
+ {
+  "id": "cropland",
+  "cap": 0,
+  "rep": 0,
+  "rank": 2,
+  "subqueries": [
+   "cropland area",
+   "change",
+   "Illinois counties",
+   "population"
+  ]
+ },
+ {
+  "id": "cropland",
+  "cap": 3,
+  "rep": 0,
+  "rank": 2,
+  "subqueries": [
+   "cropland area",
+   "change",
+   "Illinois",
+   "population"
+  ]
+ },
+ {
+  "id": "cropland",
+  "cap": 0,
+  "rep": 1,
+  "rank": 2,
+  "subqueries": [
+   "cropland area",
+   "change",
+   "Illinois counties",
+   "population"
+  ]
+ },
+ {
+  "id": "cropland",
+  "cap": 3,
+  "rep": 1,
+  "rank": 2,
+  "subqueries": [
+   "cropland area",
+   "change",
+   "Illinois counties",
+   "population"
+  ]
+ },
+ {
+  "id": "elevation",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "average elevation",
+   "counties around St. Louis"
+  ]
+ },
+ {
+  "id": "elevation",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "average elevation",
+   "counties around St. Louis",
+   "population"
+  ]
+ },
+ {
+  "id": "elevation",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "average elevation",
+   "counties around St. Louis",
+   "population"
+  ]
+ },
+ {
+  "id": "elevation",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "average elevation",
+   "counties around St. Louis"
+  ]
+ },
+ {
+  "id": "slope",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "steepest terrain",
+   "counties",
+   "near Chicago"
+  ]
+ },
+ {
+  "id": "slope",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "steepest terrain",
+   "counties near Chicago",
+   "terrain"
+  ]
+ },
+ {
+  "id": "slope",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "steepest terrain",
+   "counties near Chicago",
+   "terrain"
+  ]
+ },
+ {
+  "id": "slope",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "steepest terrain",
+   "counties near Chicago",
+   "terrain"
+  ]
+ },
+ {
+  "id": "fire",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "fire stations",
+   "Springfield",
+   "population"
+  ]
+ },
+ {
+  "id": "fire",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "fire stations",
+   "Springfield",
+   "population"
+  ]
+ },
+ {
+  "id": "fire",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "fire stations",
+   "Springfield",
+   "population"
+  ]
+ },
+ {
+  "id": "fire",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "fire stations",
+   "Springfield",
+   "population"
+  ]
+ },
+ {
+  "id": "hospitals",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "county distance",
+   "nearest hospital",
+   "county population"
+  ]
+ },
+ {
+  "id": "hospitals",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "county distance",
+   "nearest hospital",
+   "county population"
+  ]
+ },
+ {
+  "id": "hospitals",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "county distance",
+   "nearest hospital",
+   "population"
+  ]
+ },
+ {
+  "id": "hospitals",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "county distance",
+   "nearest hospital",
+   "population"
+  ]
+ },
+ {
+  "id": "tornado",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "tornadoes",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "tornado",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "tornadoes",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "tornado",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "tornadoes",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "tornado",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "tornadoes",
+   "counties",
+   "population"
+  ]
+ },
+ {
+  "id": "wildfire",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "wildfire area",
+   "burned area",
+   "California counties",
+   "population",
+   "Critical Illness"
+  ]
+ },
+ {
+  "id": "wildfire",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "wildfire area",
+   "burned area",
+   "California counties",
+   "population",
+   "Critical Illness"
+  ]
+ },
+ {
+  "id": "wildfire",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "wildfire area",
+   "burned area",
+   "California counties",
+   "population",
+   "Critical Illness"
+  ]
+ },
+ {
+  "id": "wildfire",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "area burned",
+   "wildfires",
+   "California counties",
+   "population density",
+   "Critical Illness"
+  ]
+ },
+ {
+  "id": "powerlines",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "high voltage power lines",
+   "county",
+   "county population"
+  ]
+ },
+ {
+  "id": "powerlines",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "high voltage power lines",
+   "county",
+   "county population"
+  ]
+ },
+ {
+  "id": "powerlines",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "high voltage lines",
+   "county data",
+   "miles distance"
+  ]
+ },
+ {
+  "id": "powerlines",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "high voltage lines",
+   "county data",
+   "miles distance"
+  ]
+ },
+ {
+  "id": "childcare",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "daycare centers",
+   "children",
+   "per 1000",
+   "county",
+   "total population"
+  ]
+ },
+ {
+  "id": "childcare",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "daycare centers",
+   "children",
+   "per 1000",
+   "county",
+   "total population"
+  ]
+ },
+ {
+  "id": "childcare",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "daycare centers",
+   "children",
+   "per 1000",
+   "county",
+   "total population"
+  ]
+ },
+ {
+  "id": "childcare",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "daycare centers",
+   "children",
+   "per 1000",
+   "county",
+   "total population"
+  ]
+ },
+ {
+  "id": "police",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "police stations",
+   "Kansas City"
+  ]
+ },
+ {
+  "id": "police",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "police stations",
+   "Kansas City",
+   "population"
+  ]
+ },
+ {
+  "id": "police",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "police stations",
+   "Kansas City",
+   "population"
+  ]
+ },
+ {
+  "id": "police",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "police stations",
+   "Kansas City",
+   "population"
+  ]
+ },
+ {
+  "id": "colleges",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "college campuses",
+   "Boston",
+   "population"
+  ]
+ },
+ {
+  "id": "colleges",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "college campuses",
+   "Boston"
+  ]
+ },
+ {
+  "id": "colleges",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "college campuses",
+   "Boston",
+   "population"
+  ]
+ },
+ {
+  "id": "colleges",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "college campuses",
+   "Boston",
+   "population"
+  ]
+ },
+ {
+  "id": "refineries",
+  "cap": 0,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "oil refineries",
+   "Louisiana",
+   "population"
+  ]
+ },
+ {
+  "id": "refineries",
+  "cap": 3,
+  "rep": 0,
+  "rank": 1,
+  "subqueries": [
+   "oil refineries",
+   "Louisiana",
+   "population"
+  ]
+ },
+ {
+  "id": "refineries",
+  "cap": 0,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "oil refineries",
+   "Louisiana"
+  ]
+ },
+ {
+  "id": "refineries",
+  "cap": 3,
+  "rep": 1,
+  "rank": 1,
+  "subqueries": [
+   "oil refineries",
+   "Louisiana"
+  ]
+ }
+]
