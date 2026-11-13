@@ -321,6 +321,8 @@ const AnalysisPage: React.FC = () => {
                   onPrefill={prefill}
                   onUpload={() => setShowUpload(true)}
                   onRemoveUpload={convo.removeUpload}
+                  layers={convo.layers}
+                  onRemoveLayer={convo.removeLayer}
                 />
               </div>
             ) : (
@@ -367,7 +369,8 @@ const AnalysisPage: React.FC = () => {
         <div className="fixed inset-0 z-[1200] bg-ink/30 flex items-start justify-center p-4 overflow-y-auto"
              onClick={e => { if (e.target === e.currentTarget) setShowUpload(false); }}>
           <div className="w-full max-w-2xl mt-16">
-            <UploadPanel onAdd={convo.addUploads} onClose={() => setShowUpload(false)} />
+            <UploadPanel onAdd={convo.addUploads} onAddLayer={convo.addLayer}
+                         onClose={() => setShowUpload(false)} />
           </div>
         </div>
       )}
@@ -588,6 +591,8 @@ const TurnView: React.FC<{
             onPrefill={onPrefill}
             onUpload={onUpload}
             onRemoveUpload={convo.removeUpload}
+            layers={convo.layers}
+            onRemoveLayer={convo.removeLayer}
           />}
           {/* Only under an answer that ran: the survey asks about the data
               layers recommended, which a failed or empty answer has none of. */}

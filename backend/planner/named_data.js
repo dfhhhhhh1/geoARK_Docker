@@ -41,6 +41,7 @@
 
 const { grounded } = require("./relevance");
 const { statesMentioned, LOCATIVE_PHRASE, REGION_WORDS } = require("../states");
+const { zoneWords } = require("./levels");
 
 const NAMED_SCHEMA = {
   type: "object",
@@ -105,6 +106,9 @@ const EXEMPT = new Set((
   // "How far, in miles" refused r-hospital-distance-mo (2026-11-11)
   "how what which where when why far farther farthest further furthest " +
   "near nearer nearest nearby close closer closest distance distances away " +
+  // a radius around something is geometry the ops derive, like a distance:
+  // "using a 30-mile catchment" refused the 2SFCA question (2026-11-11)
+  "catchment catchments radius radii buffer buffers " +
   // units
   "mile miles mi km kilometer kilometers kilometre kilometres meter meters metre " +
   "metres m foot feet ft yard yards acre acres hectare hectares square sq " +
@@ -129,10 +133,15 @@ function placeWords(query) {
  */
 function isExempt(phrase, query) {
   const places = placeWords(query);
+  // A loaded zone set's unit and place words (planner/levels.js): "each
+  // Chicago ward" is a reporting unit, as "each Missouri county" is.
+  const zones = zoneWords();
   const words = norm(phrase).split(" ").filter(Boolean);
   if (!words.length) return true;
-  return words.every(w => EXEMPT.has(w) || places.has(w) || /^\d/.test(w)
-    || REGION_WORDS.test(w));
+  // A workflow step id ("the counties from q1") names an earlier result, which
+  // is itself listed as an attribute; the id alone names no data.
+  return words.every(w => EXEMPT.has(w) || places.has(w) || zones.has(w) || /^\d/.test(w)
+    || /^q\d+$/.test(w) || REGION_WORDS.test(w));
 }
 
 /**
@@ -152,6 +161,9 @@ function attributeLines(items) {
  * @returns {{ named: Array, uncovered: string[], skipped?: string }}
  * Never throws: a check that did not run says so and blocks nothing.
  */
+const OWN_DATA = /\b(?:our|my)\b/i;
+const isUserLayer = (id) => String(id || "").startsWith("layer:");
+
 async function namedCoverage({ query, items, callLLM, log = () => {} }) {
   if (!items.length) return { named: [], uncovered: [] };
   let parsed;
@@ -169,14 +181,22 @@ async function namedCoverage({ query, items, callLLM, log = () => {} }) {
     return { named: [], uncovered: [], skipped: err.message };
   }
   const labels = new Set(items.map(i => norm(i.label)));
+  const byLabel = new Map(items.map(i => [norm(i.label), i]));
   const named = (Array.isArray(parsed.named) ? parsed.named : []).map(n => {
     const phrase = String(n?.phrase || "").trim();
     // "a3", "a3: Hospitals", "A3" all name a3; "layer" names nothing.
     const cov = norm(n?.covered_by).match(/^a\d+/)?.[0] || norm(n?.covered_by);
-    const covered = labels.has(cov) ? cov : null;
+    let covered = labels.has(cov) ? cov : null;
     const isGrounded = grounded(phrase, query);
     const exempt = isGrounded && isExempt(phrase, query);
-    return { phrase, covered_by: covered, grounded: isGrounded, exempt };
+    // The user's OWN data ("our transportation network", "my parcels") is
+    // covered only by a layer they uploaded. With none, held-out Q6 answered
+    // "road segments in our transportation network" with the national
+    // primary roads, silently (H3, 2026-11-12). Decided in code.
+    const own = !exempt && covered && OWN_DATA.test(phrase) &&
+      !isUserLayer(byLabel.get(covered)?.attr_id);
+    if (own) covered = null;
+    return { phrase, covered_by: covered, grounded: isGrounded, exempt, ...(own ? { own_data: true } : {}) };
   });
   // Seen once per phrase: the model sometimes lists a phrase twice.
   const uncovered = [...new Set(named
@@ -191,11 +211,14 @@ async function namedCoverage({ query, items, callLLM, log = () => {} }) {
  * @returns {{ errors: string[], named: Array, uncovered: string[], skipped?: string }}
  */
 async function checkNamedData({ query, used, candidates, refs, callLLM, log = () => {} }) {
-  const isEarlier = (id) => typeof id === "string" && id.startsWith("result:");
-  // An earlier workflow step's counties stand for whatever that step selected
-  // ("those counties"); the workflow grounds them, and with one in the plan
-  // the question's earlier concepts are covered by it. Not judged here.
-  if (used.some(u => isEarlier(u.attr_id))) return { errors: [], named: [], uncovered: [] };
+  // An earlier workflow step's result (backend/workflow.js, `result:q1`) is
+  // listed like any other attribute, under its own description: "Counties from
+  // q1: <intent> (N counties, values ...)". It covers "those counties" and q1's
+  // own measure, and nothing else. It used to exempt the whole plan, and a step
+  // that read ONLY q1's asthma counties answered "the average annual rainfall
+  // in the counties from q1" by averaging asthma (eval/gis_ops/h2/
+  // final-advanced.json, d-asthma-then-rainfall, 2026-11-12): no attribute
+  // measured rainfall and nothing asked.
   const labelOf = new Map([...refs.entries()].map(([label, id]) => [id, label]));
   const byId = new Map(candidates.map(c => [c.attr_id, c]));
   const items = used.map(u => {
@@ -206,10 +229,14 @@ async function checkNamedData({ query, used, candidates, refs, callLLM, log = ()
   });
   const r = await namedCoverage({ query, items, callLLM, log });
   for (const n of r.named) {
-    log(`   named "${n.phrase}" -> ${n.covered_by || (n.exempt ? "exempt" : !n.grounded ? "not in question, ignored" : "NOT COVERED")}`);
+    log(`   named "${n.phrase}" -> ${n.covered_by || (n.exempt ? "exempt" : !n.grounded ? "not in question, ignored" : n.own_data ? "NOT COVERED (their own data, not uploaded)" : "NOT COVERED")}`);
   }
-  const errors = r.uncovered.map(p =>
-    `NOT_COVERED: the question asks about "${p}", and no attribute the plan uses ` +
+  const own = new Set(r.named.filter(n => n.own_data).map(n => n.phrase));
+  const errors = r.uncovered.map(p => own.has(p)
+    ? `NOT_COVERED: "${p}" is the user's OWN data, and they have not uploaded it. ` +
+      `A catalog layer of the same kind is not theirs. Return an empty "steps" ` +
+      `array: the answer needs their upload.`
+    : `NOT_COVERED: the question asks about "${p}", and no attribute the plan uses ` +
     `measures it. Use an attribute that does. If none of the AVAILABLE ATTRIBUTES ` +
     `measures it, return an empty "steps" array: the data is not loaded, and ` +
     `saying so is the correct answer.`);

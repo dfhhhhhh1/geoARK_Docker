@@ -1,0 +1,163 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.25,
+  "by_tier": {
+    "aggregation_dev": {
+      "pass": 1,
+      "n": 4,
+      "rate": 0.25
+    }
+  },
+  "classes": {
+    "CORRECT": 1,
+    "NO_ANSWER": 3
+  },
+  "latency_mean": 32.5,
+  "api_container_created": "2026-11-12T03:23:08.003811569Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ag-stl-ward-childcare",
+      "tier": "aggregation_dev",
+      "query": "How many child care centers are there in each St. Louis ward?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 14,
+        "gold_rows": 14,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters"
+        }
+      },
+      "ops": "count_features->output",
+      "intent": "Number of child care centers in each St. Louis ward",
+      "loaded": [
+        "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters | Child Care Centers (mapped locations) | Child Care Centers"
+      ],
+      "row_count": 14,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many child care centers are there in each St. Louis ward?",
+            "uses": [],
+            "ops": "count_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 18.8
+    },
+    {
+      "id": "ag-chi-ca-schools",
+      "tier": "aggregation_dev",
+      "query": "Count the public schools in each Chicago community area.",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"Chicago community area\""
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"Chicago community area\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Count the public schools in each Chicago community area.",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"Chicago community area\""
+      },
+      "seconds": 43.5
+    },
+    {
+      "id": "ag-stl-nbhd-snap-top5",
+      "tier": "aggregation_dev",
+      "query": "Which five St. Louis neighborhoods have the most stores that accept SNAP?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which five St. Louis neighborhoods have the most stores that accept SNAP?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 26.1
+    },
+    {
+      "id": "ag-chi-ward-transit",
+      "tier": "aggregation_dev",
+      "query": "What is the number of transit stops in each Chicago ward?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"each Chicago ward\""
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"each Chicago ward\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What is the number of transit stops in each Chicago ward?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"each Chicago ward\""
+      },
+      "seconds": 41.4
+    }
+  ]
+}

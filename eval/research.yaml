@@ -422,5 +422,5 @@ queries:
   - id: r-refuse-schools
     tier: refuse
     query: "Which counties have the best public schools?"
-    note: "Public Schools is in the catalog but its data was never imported"
+    note: "no measure of school QUALITY is loaded. Until 2026-11-11 the reason was that Public Schools was never imported; NCES school locations are loaded now (H2), and counting schools is not 'best'"
     compare: {kind: refuse}

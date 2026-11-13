@@ -13,6 +13,15 @@ const UNIT: Record<string, [string, string]> = {
   grid64k: ['64 km grid cell', '64 km grid cells'],
 };
 
+/**
+ * A unit the server named for a level it alone knows: a zone set a user
+ * loaded ("ward" for z_stl_wards), sent as `level_unit` with the answer.
+ */
+export function rememberUnit(level: string | undefined | null, unit?: { singular: string; plural: string } | null) {
+  if (!level || !unit?.singular || UNIT[level]) return;
+  UNIT[level] = [unit.singular.charAt(0).toUpperCase() + unit.singular.slice(1), unit.plural];
+}
+
 /** "Census tract" (a column heading). */
 export const unitHeading = (level?: string | null) => (UNIT[level ?? 'county'] ?? UNIT.county)[0];
 

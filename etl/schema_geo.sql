@@ -352,3 +352,82 @@ BEGIN
                      p_to, p_weight_code, COALESCE(p_weight_year::text, 'NULL')) END,
     p_to, p_method);
 END $$;
+
+-- ------------------------------------------------------------ zone_set
+-- A user's own analysis units (docs/GIS_OPS_PLAN.md H2; etl/load_zones.py):
+-- wards, neighborhoods, planning areas. Each set is a geo_unit level of its
+-- own, `z_<id>`, with its own partitions (created by the loader). This row is
+-- how a question reaches it: planner/levels.js matches `unit` / `plural` /
+-- `aliases` in the question, and `places` tells two cities' wards apart.
+CREATE TABLE IF NOT EXISTS zone_set (
+    level       TEXT PRIMARY KEY CHECK (level ~ '^z_[a-z0-9_]{1,40}$'),
+    dataset_id  TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    unit        TEXT NOT NULL,      -- "ward"
+    plural      TEXT NOT NULL,      -- "wards"
+    aliases     TEXT[] NOT NULL DEFAULT '{}',
+    places      TEXT[] NOT NULL DEFAULT '{}',
+    state_fp    CHAR(2),
+    n_units     INT,
+    vintage     SMALLINT,
+    source      TEXT,
+    loaded_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ------------------------------------------------------------ feature_parts
+-- Large polygons of a feature layer, split by ST_Subdivide (docs/GIS_OPS_PLAN.md
+-- H3; etl/ingest.py build_parts). A river or floodplain polygon can hold
+-- 878,000 vertices, and every overlay that touches one intersects all of it:
+-- Missouri primary roads x NWI wetlands took 234 s on the polygons as loaded
+-- and 4.8 s on parts, the same 57 miles. Rows of `table_name` with more than
+-- `threshold` vertices (column geoark_npts) are read from `parts_table`
+-- instead, joined back on `key_column`, wherever only geometry matters.
+-- Feature identity (which / how many) always reads the original rows.
+CREATE TABLE IF NOT EXISTS feature_parts (
+    table_name  TEXT PRIMARY KEY,
+    parts_table TEXT NOT NULL,
+    key_column  TEXT NOT NULL,
+    threshold   INT  NOT NULL,
+    n_features  INT,
+    n_parts     INT,
+    built_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ------------------------------------------------------------ native rasters (H4)
+-- Rasters read on demand by the planner's `zonal` op, in their own equal-area
+-- CRS (etl/load_raster.py load_native). `kind` is NULL for the 4326 zonal +
+-- pyramid path (WorldPop), 'categorical' or 'continuous' for native ones.
+ALTER TABLE raster_layer ADD COLUMN IF NOT EXISTS kind TEXT;
+ALTER TABLE raster_layer ADD COLUMN IF NOT EXISTS pixel_area_m2 DOUBLE PRECISION;
+ALTER TABLE raster_layer ADD COLUMN IF NOT EXISTS units TEXT;
+ALTER TABLE raster_layer ADD COLUMN IF NOT EXISTS label TEXT;
+ALTER TABLE raster_layer DROP CONSTRAINT IF EXISTS raster_layer_aggregate_check;
+ALTER TABLE raster_layer ADD CONSTRAINT raster_layer_aggregate_check
+    CHECK (aggregate IN ('sum', 'mean', 'class'));
+
+-- A categorical raster's legend: the publisher's code, label and group
+-- (NLCD's level-I classes: Developed, Forest, Planted/Cultivated ...), from
+-- the sidecar, with the pixel count per class as loaded (the conservation
+-- check: they sum to valid_pixels).
+CREATE TABLE IF NOT EXISTS raster_class (
+    raster_id TEXT NOT NULL REFERENCES raster_layer(id) ON DELETE CASCADE,
+    value     INT  NOT NULL,
+    label     TEXT NOT NULL,
+    grp       TEXT,
+    pixels    BIGINT,
+    PRIMARY KEY (raster_id, value)
+);
+
+-- Per-county class histograms of a categorical native raster, computed at load
+-- with exactly the clip the planner's zonal op uses (pixel centre, ST_Clip),
+-- so reading them is the same answer, faster: a per-county change across two
+-- NLCD years over Missouri was ~42 s live, over the 30 s statement budget.
+ALTER TABLE raster_layer ADD COLUMN IF NOT EXISTS cached_levels TEXT[];
+CREATE TABLE IF NOT EXISTS raster_unit_count (
+    raster_id TEXT NOT NULL REFERENCES raster_layer(id) ON DELETE CASCADE,
+    level     TEXT NOT NULL,
+    geoid     TEXT NOT NULL,
+    value     INT  NOT NULL,
+    pixels    BIGINT NOT NULL,
+    PRIMARY KEY (raster_id, level, geoid, value)
+);

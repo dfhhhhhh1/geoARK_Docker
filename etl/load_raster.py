@@ -414,6 +414,8 @@ def code_for(meta: dict) -> str:
 
 def load(conn, dsn: str, path: Path, meta: dict, dataset_id: str) -> dict:
     """The whole data half: tiles, registry, zonal values, pyramid."""
+    if meta.get("mode") == "native":
+        return load_native(conn, path, meta, dataset_id)
     info = inspect(path)
     check(info, meta)
     rid = re.sub(r"[^a-z0-9]+", "", str(meta.get("id") or meta["name"]).lower())[:16]
@@ -478,3 +480,202 @@ def load(conn, dsn: str, path: Path, meta: dict, dataset_id: str) -> dict:
         print(f"    grid  {level:<8} {len(cells):,} cells of {factors(info)[level]}x"
               f"{factors(info)[level]} pixels")
     return report
+
+
+# --------------------------------------------------------------------------- #
+# native mode: rasters read on demand (docs/GIS_OPS_PLAN.md H4)
+# --------------------------------------------------------------------------- #
+#
+# `mode: native` keeps the raster in its own PROJECTED, equal-area CRS (NLCD and
+# a 3DEP-derived DEM in CONUS Albers, EPSG:5070) instead of the 4326 + zonal +
+# pyramid path above, which was written for a 1 km count raster. Two reasons:
+#
+#   - Area is exact. Every pixel of an equal-area raster has the same area,
+#     |pixel_x * pixel_y| square metres, so a class area is a pixel count. In
+#     4326 it would vary with latitude, and warping a CATEGORICAL raster to
+#     4326 resamples classes.
+#   - Nothing is precomputed. The planner's `zonal` op summarises the raster
+#     over whatever polygons the plan has (counties, tracts, wards, features),
+#     transforming THEM to the raster's CRS.
+#
+# `aggregate: class` marks a categorical raster; its legend is the sidecar's
+# `classes:` (code -> label, group), loaded into raster_class. The groups are
+# the publisher's own (NLCD's level-I classes), data, not code.
+
+PIXTYPES = {  # GDAL type -> (PostGIS pixtype code, numpy little-endian dtype)
+    "Byte": (4, "<u1"), "UInt8": (4, "<u1"), "Int16": (5, "<i2"),
+    "UInt16": (6, "<u2"), "Int32": (7, "<i4"), "Float32": (10, "<f4"), "Float64": (10, "<f4"),
+}
+NATIVE_TILE = 256
+
+
+def tile_wkb_native(arr: np.ndarray, ulx: float, uly: float, px: float, py: float,
+                    nodata: float, srid: int, pixtype: int, dtype: str) -> bytes:
+    """PostGIS raster WKB v0, one band of `pixtype` with a nodata value."""
+    h, w = arr.shape
+    head = struct.pack("<BHHddddddiHH", 1, 0, 1, px, py, ulx, uly, 0.0, 0.0, srid, w, h)
+    nd = np.array([nodata], dtype=dtype).tobytes()
+    return head + struct.pack("<B", 0x40 | pixtype) + nd + arr.astype(dtype, copy=False).tobytes()
+
+
+def inspect_native(path: Path) -> dict:
+    info = inspect(path)
+    ds = gdal.Open(str(path))
+    srs = osr.SpatialReference(wkt=ds.GetProjection())
+    ds = None
+    if info["rotated"]:
+        raise SystemExit("\n  REFUSED: rotated rasters are not supported; warp it north-up first\n")
+    if not srs.IsProjected():
+        raise SystemExit(
+            "\n  REFUSED: mode: native needs a PROJECTED equal-area CRS (e.g. EPSG:5070),\n"
+            "  so that every pixel has the same area. This raster is geographic.\n")
+    if not info["epsg"]:
+        raise SystemExit("\n  REFUSED: the raster's CRS has no EPSG code; warp it to one (EPSG:5070)\n")
+    if info["dtype"] not in PIXTYPES:
+        raise SystemExit(f"\n  REFUSED: pixel type {info['dtype']} is not supported\n")
+    info["linear_units"] = srs.GetLinearUnitsName()
+    info["pixel_area_m2"] = abs(info["pixel_x"] * info["pixel_y"]) * srs.GetLinearUnits() ** 2
+    return info
+
+
+def load_native(conn, path: Path, meta: dict, dataset_id: str) -> dict:
+    info = inspect_native(path)
+    agg = meta.get("aggregate")
+    if agg not in ("class", "mean", "sum"):
+        raise SystemExit("\n  REFUSED: aggregate must be class (categorical), mean or sum\n")
+    classes = {int(k): v for k, v in (meta.get("classes") or {}).items()}
+    if agg == "class" and not classes:
+        raise SystemExit("\n  REFUSED: aggregate: class needs a  classes:  legend in the sidecar\n")
+    year = int(meta["end_year"])
+    code = str(meta.get("code") or code_for(meta)).upper()
+    rid = re.sub(r"[^a-z0-9]+", "", f"{meta.get('id') or meta['name']}".lower())[:24]
+    table = f"raster_{rid}"
+    srid = int(info["epsg"])
+    pixtype, dtype = PIXTYPES[info["dtype"]]
+    nd = info["nodata"] if info["nodata"] is not None else (0 if dtype == "<u1" else -99999.0)
+    px, py, ox, oy = info["pixel_x"], info["pixel_y"], info["origin_x"], info["origin_y"]
+    with conn.cursor() as cur:
+        cur.execute(f'DROP TABLE IF EXISTS "{table}"')
+        cur.execute(f'CREATE TABLE "{table}" (rid serial PRIMARY KEY, rast raster NOT NULL)')
+    t0 = time.time()
+    tiles = valid = 0
+    total = 0.0
+    counts: dict[int, int] = {}
+    batch = []
+    ds = gdal.Open(str(path))
+    band = ds.GetRasterBand(1)
+    for r0 in range(0, info["height"], NATIVE_TILE):
+        rows = min(NATIVE_TILE, info["height"] - r0)
+        a = band.ReadAsArray(0, r0, info["width"], rows)
+        for c0 in range(0, info["width"], NATIVE_TILE):
+            t = a[:, c0:c0 + NATIVE_TILE]
+            ok = t != nd
+            if np.issubdtype(t.dtype, np.floating):
+                ok &= np.isfinite(t)
+            if not ok.any():
+                continue
+            n = int(ok.sum())
+            valid += n
+            if agg == "class":
+                vals, cnt = np.unique(t[ok], return_counts=True)
+                for v, c in zip(vals.tolist(), cnt.tolist()):
+                    counts[int(v)] = counts.get(int(v), 0) + int(c)
+            else:
+                total += float(t[ok].astype(np.float64).sum())
+            out = np.where(ok, t, nd)
+            batch.append((psycopg2.Binary(tile_wkb_native(
+                out, ox + c0 * px, oy + r0 * py, px, py, nd, srid, pixtype, dtype)),))
+            tiles += 1
+            if len(batch) >= 200:
+                with conn.cursor() as cur:
+                    execute_values(cur, f'INSERT INTO "{table}" (rast) VALUES %s', batch,
+                                   template="(ST_RastFromWKB(%s))")
+                batch = []
+    if batch:
+        with conn.cursor() as cur:
+            execute_values(cur, f'INSERT INTO "{table}" (rast) VALUES %s', batch,
+                           template="(ST_RastFromWKB(%s))")
+    ds = None
+    with conn.cursor() as cur:
+        cur.execute(f'CREATE INDEX ON "{table}" USING gist (ST_ConvexHull(rast))')
+        cur.execute(f'ANALYZE "{table}"')
+    print(f"    {tiles:,} tiles of {NATIVE_TILE}, {valid:,} valid pixels of "
+          f"{info['pixel_area_m2']:,.1f} m2  ({time.time() - t0:.0f}s)")
+
+    unknown = sorted(set(counts) - set(classes))
+    if agg == "class" and unknown:
+        print(f"    ! pixel values with no legend entry: {unknown} (kept, labelled 'class <n>')")
+    if agg == "class":
+        # Conservation: every valid pixel is in exactly one class.
+        assert sum(counts.values()) == valid, "class counts do not sum to the valid pixels"
+        total = float(valid)
+    units = meta.get("units") or (dataset_meta.column_meta(meta, meta.get("measure") or "value") or {}).get("units", "")
+    label = meta.get("measure_label") or meta.get("description") or meta["name"]
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO raster_layer (id, table_name, dataset_id, code, aggregate, year, srid,
+              origin_x, origin_y, pixel_x, pixel_y, width, height, nodata, tile_size, tiles,
+              valid_pixels, total, kind, pixel_area_m2, units, label)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (id) DO UPDATE SET table_name = EXCLUDED.table_name,
+              dataset_id = EXCLUDED.dataset_id, code = EXCLUDED.code,
+              aggregate = EXCLUDED.aggregate, year = EXCLUDED.year, srid = EXCLUDED.srid,
+              origin_x = EXCLUDED.origin_x, origin_y = EXCLUDED.origin_y,
+              pixel_x = EXCLUDED.pixel_x, pixel_y = EXCLUDED.pixel_y, width = EXCLUDED.width,
+              height = EXCLUDED.height, nodata = EXCLUDED.nodata, tile_size = EXCLUDED.tile_size,
+              tiles = EXCLUDED.tiles, valid_pixels = EXCLUDED.valid_pixels, total = EXCLUDED.total,
+              kind = EXCLUDED.kind, pixel_area_m2 = EXCLUDED.pixel_area_m2,
+              units = EXCLUDED.units, label = EXCLUDED.label, loaded_at = now()
+        """, (rid, table, dataset_id, code, agg, year, srid, ox, oy, px, py,
+              info["width"], info["height"], nd, NATIVE_TILE, tiles, valid, total,
+              "categorical" if agg == "class" else "continuous", info["pixel_area_m2"],
+              units, label))
+        cur.execute("DELETE FROM raster_class WHERE raster_id = %s", (rid,))
+        for v in sorted(set(classes) | set(counts)):
+            spec = classes.get(v) or {}
+            if isinstance(spec, str):
+                spec = {"label": spec}
+            cur.execute("INSERT INTO raster_class (raster_id, value, label, grp, pixels) "
+                        "VALUES (%s,%s,%s,%s,%s)",
+                        (rid, v, spec.get("label") or f"class {v}", spec.get("group"), counts.get(v, 0)))
+    conn.commit()
+    if agg == "class":
+        cache_county_counts(conn, rid, table, srid, ox, oy, px, py, info)
+    if agg == "class":
+        top = sorted(counts.items(), key=lambda kv: -kv[1])[:6]
+        print("    classes  " + ", ".join(
+            f"{(classes.get(v) or {}).get('label', v) if isinstance(classes.get(v), dict) else classes.get(v, v)} "
+            f"{c / valid:.1%}" for v, c in top))
+    return {"table": table, "code": code, "year": year, "tiles": tiles,
+            "valid_pixels": valid, "total": total, "levels": {}, "native": True,
+            "classes": {str(k): v for k, v in counts.items()} if agg == "class" else None}
+
+
+def cache_county_counts(conn, rid: str, table: str, srid: int, ox, oy, px, py, info) -> None:
+    """
+    Class histogram per county, with the SAME clip as ops/zonal.js (the unit
+    transformed to the raster CRS, ST_Clip, nodata dropped), so a zonal read
+    of the cache and a live clip are the same number. Counties outside the
+    raster's extent get no rows.
+    """
+    t0 = time.time()
+    x1, y1 = ox + px * info["width"], oy + py * info["height"]
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM raster_unit_count WHERE raster_id = %s AND level = 'county'", (rid,))
+        cur.execute(f"""
+            INSERT INTO raster_unit_count (raster_id, level, geoid, value, pixels)
+            SELECT %s, 'county', u.fips, v::int, count(*)
+              FROM county_geom u
+              CROSS JOIN LATERAL (SELECT ST_Transform(u.geom, {srid}) AS g) gg
+              CROSS JOIN LATERAL (
+                SELECT v FROM "{table}" r
+                CROSS JOIN LATERAL unnest(ST_DumpValues(ST_Clip(r.rast, 1, gg.g, true), 1)) AS v
+                WHERE ST_ConvexHull(r.rast) && gg.g AND ST_Intersects(r.rast, gg.g)) z
+             WHERE u.geom && ST_Transform(ST_MakeEnvelope(%s, %s, %s, %s, {srid}), 4326)
+               AND v IS NOT NULL
+             GROUP BY u.fips, v""", (rid, ox, y1, x1, oy))
+        cur.execute("SELECT count(DISTINCT geoid) FROM raster_unit_count WHERE raster_id = %s AND level = 'county'", (rid,))
+        n = cur.fetchone()[0]
+        cur.execute("UPDATE raster_layer SET cached_levels = ARRAY['county'] WHERE id = %s", (rid,))
+    conn.commit()
+    print(f"    cached   class histograms for {n:,} counties  ({time.time() - t0:.0f}s)")

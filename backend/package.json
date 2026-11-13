@@ -11,7 +11,7 @@
     "start": "node unified_search_server.js",
     "dev": "nodemon unified_search_server.js",
     "check": "node --check unified_search_server.js && node --check enhanced_search_server.js && node --check expansion.js",
-    "test": "node planner/test_planner.js && node planner/test_units.js && node planner/test_levels.js && node planner/test_dag.js && node planner/test_stats.js && node planner/test_relevance.js && node planner/test_named_data.js && node planner/test_conditions.js && node test_suggestions.js && node test_access.js && node test_expansion.js && node test_followup.js && node test_geo_layers.js && node test_workflow.js && node planner/test_rewire.js && node test_workflow_rerun.js && node test_failure_log.js"
+    "test": "node planner/test_planner.js && node planner/test_units.js && node planner/test_levels.js && node planner/test_dag.js && node planner/test_stats.js && node planner/test_relevance.js && node planner/test_named_data.js && node planner/test_zones.js && node planner/test_features.js && node planner/test_phase_f.js && node planner/test_conditions.js && node test_suggestions.js && node test_access.js && node test_expansion.js && node test_followup.js && node test_geo_layers.js && node test_workflow.js && node planner/test_rewire.js && node test_workflow_rerun.js && node test_failure_log.js && node test_user_layers.js && node planner/test_overlay.js && node planner/test_zonal.js"
   },
   "keywords": [
     "geospatial",

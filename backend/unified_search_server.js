@@ -34,7 +34,10 @@ const LOCATION_COLUMN = new RegExp("^(?:" + [
   "zip(?:p?4|\\s*code)?", "postal\\s*cod(?:e)?", "address\\s*\\d*",
   "latitude\\s*\\d*", "longitude\\s*\\d*", "countyfips", "fips(?:\\s*code)?",
 ].join("|") + ")$", "i");
-const { levelOf, rollupOf, asksDistance } = require("./planner/levels");
+const { levelOf, rollupOf, asksDistance, registerZoneSets, isZoneLevel, zoneSet } = require("./planner/levels");
+const { referencePhrase } = require("./planner/features");
+const { boundsQueries } = require("./planner/uncertainty");
+const { asksAccess } = require("./planner/ops/access");
 const planOps = require("./planner/ops");
 const { callGoogle, googleConfigured } = require("./llm_google");
 const {
@@ -50,7 +53,8 @@ const { createLimiter, rateLimit } = require("./ratelimit");
 const { createQueue, QueueFullError } = require("./queue");
 const { expandQuery, linkSeeds, EXPANSION_CONFIG, indexLoaded: expansionIndexLoaded } = require("./expansion");
 const { researchExpand, resolveSources, RESEARCH_CONFIG } = require("./research");
-const { needsPopulation } = require("./population");
+const { needsPopulation, asksPopulationSize, countsPeople } = require("./population");
+const userLayersLib = require("./user_layers");
 const { createSeriesStats } = require("./series_stats");
 const { createDefinitions } = require("./definitions");
 const workflow = require("./workflow");
@@ -73,7 +77,10 @@ app.use(cors(corsOrigin
   : {}));
 // Bounded: the analyze body is a short question, and an unbounded parser is a
 // free memory-exhaustion primitive on an unauthenticated endpoint.
-app.use(express.json({ limit: "256kb" }));
+// Not for /api/layers, which takes a file's raw bytes (a GeoJSON upload is
+// JSON, and far larger than an API body).
+const jsonBody = express.json({ limit: "256kb" });
+app.use((req, res, next) => (req.path === "/api/layers" ? next() : jsonBody(req, res, next)));
 
 // --- rate limits -------------------------------------------------------------
 // Two tiers, because the costs differ by three orders of magnitude: retrieval is
@@ -382,7 +389,18 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
       // for gemma3:4b -- not the 0.1-0.2 every measurement in CLAUDE.md
       // assumed. Verified: top-level temperature 0 logged "temp = 1.000",
       // options.temperature 0 logged "temp = 0.000".
-      options: { temperature, num_ctx: numCtxFor(model), ...(extra.options || {}) },
+      options: {
+        temperature, num_ctx: numCtxFor(model),
+        // A schema-constrained answer with reasoning off is a few hundred
+        // tokens; the largest plan the validator allows (24 steps) is well
+        // under this. Without a cap, one H4 dev question decoded 9,400
+        // tokens of runaway JSON at 53 t/s, overflowed the context and hit
+        // the 180 s timeout on all three attempts (2026-11-12). Capped, a
+        // runaway fails in ~1 minute and the repair loop moves on. Reasoning
+        // calls are not capped: their thinking counts against num_predict.
+        ...(schema && extra.think === false ? { num_predict: Number(process.env.LLM_MAX_JSON_TOKENS ?? 3000) } : {}),
+        ...(extra.options || {}),
+      },
       ...(extra.think !== undefined ? { think: extra.think } : {}),
     };
     if (extra.thinkBudget > 0) return await budgetedChat(body, extra.thinkBudget);
@@ -1168,7 +1186,10 @@ async function verifyResultsWithLLM(originalQuery, decomposition, allResults) {
 const POPULATION_DENOMINATOR_ENABLED = process.env.POPULATION_DENOMINATOR !== "0";
 
 function addPopulationDenominator(query, decomposition) {
-  if (!needsPopulation(query)) return false;
+  // Also for 2SFCA access (ops/access.js): demand IS a population, and "how
+  // many people each hospital has to serve" retrieved none, so the planner
+  // cited a label it was never given, three attempts (2026-11-11).
+  if (!needsPopulation(query) && !asksAccess(query)) return false;
   const queries = decomposition.search_queries || [];
   if (queries.some(q => /^\s*(?:total\s+)?population\s*$/i.test(q.query || ""))) return false;
   queries.push({ query: "total population", purpose: "normalization" });
@@ -1179,6 +1200,55 @@ function addPopulationDenominator(query, decomposition) {
   decomposition.population_denominator_added = true;
   console.log(`   Added "total population" (normalization): the question asks for a density or rate`);
   return true;
+}
+
+/**
+ * The layer a distance is measured TO ("farthest from a hospital"), as its own
+ * sub-query, for the questions the feature ops and the catchment rule answer
+ * (planner/features.js referencePhrase, which also says why). Every other
+ * question sees exactly the decomposition it saw before.
+ */
+function addReferenceLayer(query, decomposition) {
+  const phrase = referencePhrase(query);
+  if (!phrase) return false;
+  const queries = decomposition.search_queries || [];
+  const same = queries.find(q => String(q.query || "").toLowerCase().trim() === phrase);
+  if (same?.purpose === "primary") return false;
+  if (same) {
+    // The decomposer asked for it as a normalization, and the facility cap
+    // never gives a normalization sub-query a map layer ("a denominator is
+    // never a facility count"): "hospital" (normalization) left Hospitals off
+    // the list for the Montana nursing-home question, and tornado tracks took
+    // the slot (2026-11-11). Here it is the layer measured to, not a divisor.
+    console.log(`   "${phrase}" is the layer the question measures distance to: searched as primary, not ${same.purpose}`);
+    same.purpose = "primary";
+    decomposition.reference_layer_added = phrase;
+    return true;
+  }
+  queries.push({ query: phrase, purpose: "primary" });
+  decomposition.search_queries = queries;
+  decomposition.reference_layer_added = phrase;
+  console.log(`   Added "${phrase}" (primary): the layer the question measures distance to`);
+  return true;
+}
+
+/**
+ * The published confidence bounds of the measure a precision question names
+ * ("the least precise poverty rate estimates"), as their own sub-query
+ * (planner/uncertainty.js, which says why). Only for precision phrasing.
+ */
+function addPrecisionBounds(query, decomposition) {
+  const added = [];
+  const queries = decomposition.search_queries || [];
+  for (const q of boundsQueries(query, decomposition)) {
+    if (queries.some(x => String(x.query || "").toLowerCase() === q.toLowerCase())) continue;
+    queries.push({ query: q, purpose: "primary" });
+    added.push(q);
+    console.log(`   Added "${q}" (primary): the question asks how precise an estimate is`);
+  }
+  decomposition.search_queries = queries;
+  if (added.length) decomposition.precision_bounds_added = added;
+  return added.length > 0;
 }
 
 /**
@@ -1216,6 +1286,8 @@ async function unifiedSearch(query, options = {}) {
   console.log(`\n[STEP 1] Query Decomposition`);
   const decomposition = await decomposeQuery(query);
   if (populationDenominator) addPopulationDenominator(query, decomposition);
+  addReferenceLayer(query, decomposition);
+  addPrecisionBounds(query, decomposition);
   const queryCount = decomposition.search_queries.length; //# of queries
 
   const calculatedLimit = Math.max(1, Math.floor(topKPerConcept / queryCount));
@@ -1539,7 +1611,33 @@ async function checkCorpusFreshness() {
  * Refetch the corpus without restarting. Cheap enough to be the obvious fix
  * once staleness is detected.
  */
+// Zone sets (etl/load_zones.py, docs/GIS_OPS_PLAN.md H2): a user's wards,
+// neighborhoods or planning areas, each a geo_unit level of its own. Read at
+// startup and on every reload-corpus (make ingest ends there), so a newly
+// loaded set is reachable without a restart. A database without the table
+// (zone_set is created by etl/schema_geo.sql) simply has none.
+let zoneSets = [];
+async function loadZoneSets() {
+  try {
+    const { rows } = await pool.query(
+      `SELECT level, name, unit, plural, aliases, places, n_units FROM zone_set ORDER BY level`);
+    zoneSets = rows;
+  } catch (err) {
+    if (err.code !== "42P01") console.warn(`   zone sets unavailable: ${err.message}`);
+    zoneSets = [];
+  }
+  const levels = registerZoneSets(zoneSets);
+  if (levels.length) console.log(`  Zone sets: ${levels.join(", ")}`);
+  levelsCache.clear();
+  return levels;
+}
+
 async function reloadCorpus() {
+  // A layer ingested since startup: its label columns and parts were cached
+  // as absent (2026-11-12, NWI had no `type` filter until a restart).
+  featureColumnsCache = null;
+  featurePartsCache = null;
+  await loadZoneSets();
   const corpus = await fetchJSON(`${CONFIG.embedder.url}/corpus/vectors`, {}, 600000);
   // The ROWS are re-read too, not just the vectors. Before 2026-11-10 only the
   // vectors and BM25 text were swapped, so after a catalog edit retrieval
@@ -1668,6 +1766,53 @@ async function featureFilterValues(tableName, availableColumns) {
 
 // One information_schema query, cached: the layers do not change at runtime.
 let featureColumnsCache = null;
+/**
+ * Subdivided parts of large polygon layers (etl/ingest.py build_parts), by
+ * table. A read that needs only geometry (the layer an overlay tests against,
+ * an area total) uses them; one that needs the features themselves does not.
+ * Missouri primary roads x NWI wetlands: 234 s on the river polygons as
+ * loaded, 4.8 s on parts, the same 57 miles (2026-11-12).
+ */
+/**
+ * Native rasters by code (etl/load_raster.py load_native): one entry per
+ * code with every vintage loaded and, for a categorical raster, its legend.
+ */
+async function rasterLayers(codes) {
+  const out = new Map();
+  const { rows } = await pool.query(
+    `SELECT code, id, table_name, year, srid, kind, aggregate, pixel_area_m2, units, label,
+            origin_x, origin_y, pixel_x, pixel_y, width, height, cached_levels
+       FROM raster_layer WHERE code = ANY($1) AND kind IS NOT NULL ORDER BY code, year`, [codes]);
+  for (const r of rows) {
+    if (!out.has(r.code)) out.set(r.code, { raster_kind: r.kind, aggregate: r.aggregate,
+      pixel_area_m2: Number(r.pixel_area_m2), units: r.units, srid: r.srid, layers: [], classes: [] });
+    out.get(r.code).layers.push({ id: r.id, year: r.year, table_name: r.table_name, srid: r.srid,
+      cached_levels: r.cached_levels || [],
+      extent: [r.origin_x, r.origin_y + r.pixel_y * r.height, r.origin_x + r.pixel_x * r.width, r.origin_y] });
+  }
+  const ids = rows.map(r => r.id);
+  if (ids.length) {
+    const { rows: cls } = await pool.query(
+      `SELECT DISTINCT l.code, c.value, c.label, c.grp FROM raster_class c
+         JOIN raster_layer l ON l.id = c.raster_id WHERE c.raster_id = ANY($1) ORDER BY c.value`, [ids]);
+    for (const c of cls) out.get(c.code)?.classes.push({ value: c.value, label: c.label, grp: c.grp });
+  }
+  return out;
+}
+
+let featurePartsCache = null;
+async function featureParts() {
+  if (featurePartsCache) return featurePartsCache;
+  try {
+    const { rows } = await pool.query(
+      `SELECT table_name, parts_table, key_column, threshold FROM feature_parts`);
+    featurePartsCache = new Map(rows.map(r => [r.table_name, r]));
+  } catch {
+    featurePartsCache = new Map();   // no registry yet: nothing has parts
+  }
+  return featurePartsCache;
+}
+
 async function featureLabelColumns() {
   if (featureColumnsCache) return featureColumnsCache;
   const { rows } = await pool.query(
@@ -1790,6 +1935,7 @@ async function resolveAttributes(attrIds) {
   const labels = rows.some(r => r.source_kind === "feature_table")
     ? await featureLabelColumns()
     : null;
+  const parts = labels ? await featureParts() : null;
   // National min/max of each value series, which tells a percentage from a
   // count where the ACS label is wrong (planner/units.js). Advisory: if it
   // fails, units fall back to descriptions alone.
@@ -1800,13 +1946,27 @@ async function resolveAttributes(attrIds) {
         return new Map();
       })
     : new Map();
+  // Rasters read on demand (H4): every vintage of the code, and for a
+  // categorical one its legend. The legend's labels AND groups are the values
+  // a zonal step may filter on, exactly as a feature layer's `type` values.
+  const rasterCodes = rows.filter(r => r.source_kind === "raster").map(r => r.census_code);
+  const rasters = rasterCodes.length ? await rasterLayers(rasterCodes) : new Map();
   for (const r of rows) {
+    if (r.source_kind === "raster" && rasters.has(r.census_code)) {
+      const info = rasters.get(r.census_code);
+      Object.assign(r, info);
+      r.label_columns = info.classes.length ? ["type"] : [];
+      r.filter_values = info.classes.length
+        ? { type: [...new Set([...info.classes.map(c => c.grp).filter(Boolean), ...info.classes.map(c => c.label)])] }
+        : {};
+    }
     if (ranges.has(r.census_code)) r.value_range = ranges.get(r.census_code);
     if (r.source_kind === "feature_table" && labels) {
       r.label_columns = labels.get(r.table_name) || [];
       // Carried on the resolved row so the validator can check a filter against
       // real values and the compiler can bind them -- same path attr_ids take.
       r.filter_values = await featureFilterValues(r.table_name, r.label_columns);
+      if (parts?.has(r.table_name)) r.parts = parts.get(r.table_name);
     }
     out.set(r.attr_id, r);
   }
@@ -1949,7 +2109,9 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
                              useDefinitions = null,
                              // Earlier workflow results this step may cite
                              // (backend/workflow.js): Map<"result:qN", source>.
-                             extraSources = null }) {
+                             extraSources = null,
+                             // Layers uploaded this session (backend/user_layers.js): ids.
+                             userLayers = null }) {
   const started = Date.now();
   try {
     if (!query || !query.trim()) {
@@ -1996,8 +2158,20 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
     }
     // A workflow step resolves its earlier results from this request only,
     // exactly as an upload does: a plan can cite one only if it was handed it.
-    const resolveAll = workflow.withResultSources(resolveAttributes, extraSources);
+    // Uploaded layers resolve from this process's memory only, by the ids
+    // the browser holds; an expired one is said to be expired, not ignored.
+    const { sources: layerSources, missing: lostLayers } = userLayersLib.sourcesFor(userLayers);
+    if (lostLayers.length) {
+      throw new AnalyzeError(410, {
+        error: "an uploaded layer is no longer available",
+        detail: `Uploaded layers are kept in memory for a few hours and are lost on a restart. ` +
+                `Upload it again (${lostLayers.length} missing).`,
+      });
+    }
+    const resolveAll = userLayersLib.withLayers(
+      workflow.withResultSources(resolveAttributes, extraSources), layerSources);
     const resolved = await resolveAttributes(candidates.map(c => c.attr_id));
+    for (const [id, src] of layerSources) resolved.set(id, src);
 
     // Collapse feature tables to one candidate per dataset.
     //
@@ -2180,6 +2354,16 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       ...featureRows,
       ...picked.filter(c => c.search_purpose === "expanded"),
     ].slice(0, top_k);
+    // A raster (H4) is marked as one, with its classes as filter values, so
+    // the prompt says what it is and zonal's gate sees it.
+    for (const c of executable) {
+      const src = resolved.get(c.attr_id);
+      if (src?.source_kind !== "raster") continue;
+      c.is_raster = true;
+      c.raster_kind = src.raster_kind;
+      c.filter_values = src.filter_values || {};
+      c.years = (src.layers || []).map(l => l.year);
+    }
     // A unit the question names that holds only a few measures (the grid
     // levels hold one, WorldPop) gets all of them on the list: "the most
     // densely populated 4 km grid cells" retrieved SVI population, which has
@@ -2191,7 +2375,11 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       const { rows: atLevel } = await pool.query(
         `SELECT DISTINCT code FROM geo_measure WHERE level = $1`, [namedLevel]);
       const levelCodes = new Set(atLevel.map(r => r.code));
-      const keepFeatures = levelOf(query) === namedLevel && asksDistance(query);
+      // At a zone set (H2) counting features IS the question ("how many
+      // schools in each Chicago ward"), and the set holds one measure
+      // (WorldPop), so feature layers always stay.
+      const keepFeatures = levelOf(query) === namedLevel &&
+        (asksDistance(query) || isZoneLevel(namedLevel));
       // Only measures with values at that unit stay on the list, topped up
       // from everything retrieval found. A county-only measure can only fail
       // there: "uninsured rate for every census tract" chose CHR Uninsured,
@@ -2216,12 +2404,20 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
         if (src?.source_kind === "feature_table") {
           return keepFeatures && !LOCATION_COLUMN.test(String(c.attr_desc || "").trim());
         }
+        // A raster has no level: zonal summarises it over any unit's polygons.
+        if (src?.source_kind === "raster") return true;
         return src?.source_kind === "acs_long" && levelCodes.has(src.census_code);
       };
       const kept = executable.filter(hasLevel);
       const have = new Set(kept.map(c => c.attr_id));
       for (const c of candidates) {
         if (kept.length >= top_k) break;
+        // Feature layers only from `executable`, where each is ONE candidate
+        // per dataset. The raw list holds a row per column, and topping up
+        // from it offered "SNAP Authorized Food Retailers" three times as
+        // its Store name / type / city columns, which the planner `load`ed as
+        // values, 3 of 3 attempts (H2 r1, 2026-11-11).
+        if (resolved.get(c.attr_id)?.source_kind === "feature_table") continue;
         if (!have.has(c.attr_id) && hasLevel(c)) { kept.push(c); have.add(c.attr_id); }
       }
       // Searched again WITHIN the unit's measures, deeper than the planner's
@@ -2250,7 +2446,14 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       // A unit holding only a few measures gets all of them (the grid levels
       // hold one, WorldPop, which retrieval never found for "densely populated
       // 4 km grid cells").
-      if (atLevel.length <= 5) {
+      // At a zone set (H2) the one measure is WorldPop, and it is forced on
+      // only for a question about people: "SNAP retailers per square
+      // kilometer in each St. Louis neighborhood" was offered it unasked and
+      // the planner loaded it into a branch no output read (H2 r3). A
+      // density of features needs only land area.
+      const aboutPeople = needsPopulation(query) || asksPopulationSize(query) ||
+        countsPeople(query) || /\b(?:populat\w*|people|residents|persons|inhabitants)\b/i.test(query);
+      if (atLevel.length <= 5 && (!isZoneLevel(namedLevel) || aboutPeople)) {
         for (const { code } of atLevel) {
           const row = catalogRow(code);
           if (row && !have.has(code)) { kept.push({ ...row, search_purpose: "primary" }); have.add(code); }
@@ -2260,6 +2463,13 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
         console.log(`   level ${namedLevel}: offering the ${kept.length} candidates with values at that unit`);
         executable.splice(0, executable.length, ...kept);
       }
+    }
+    // The user's own layers lead the feature layers: "our clinics" means
+    // them (preferUserLayer). Absent without an upload, so every other prompt
+    // is unchanged.
+    if (layerSources.size) {
+      executable.unshift(...[...layerSources.values()].map(userLayersLib.candidate));
+      console.log(`   user layers: ${[...layerSources.values()].map(l => `${l.description} (${l.row_count})`).join(", ")}`);
     }
     // Earlier workflow results lead the list, under their own heading. Absent
     // outside a workflow, so every other prompt is unchanged.
@@ -2347,6 +2557,7 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
         : null,
       yearsOf,
       levelsOf,
+      userLayers: layerSources,
     });
 
     if (!planning.ok) {
@@ -2581,6 +2792,17 @@ async function finishAnalysis({ query, started, planning, executable, candidates
         rows: src.row_count,
       };
     }
+    if (src.user_layer) {
+      // An uploaded layer: named as the user's in every export, never as
+      // catalog data.
+      return {
+        attr_id: id, description: src.description, dataset: src.dataset,
+        original_name: src.file, source_kind: "user_layer", table_name: null,
+        value_column: null, geometry_column: "geometry", census_code: null,
+        entity_type: "COUNTY", start_date: null, end_date: null, srid: 4326,
+        user_rows: src.row_count,
+      };
+    }
     if (src.source_kind === "inline") {
       return {
         attr_id: id, description: src.description, dataset: src.dataset,
@@ -2699,6 +2921,9 @@ async function finishAnalysis({ query, started, planning, executable, candidates
       body.output_mode = result.mode;
       // The unit of every row: "county", or what the question named.
       body.level = result.level || "county";
+      // A loaded zone set's own unit name ("ward"), which the UI cannot know.
+      const zone = zoneSet(body.level);
+      if (zone) body.level_unit = { singular: zone.unit, plural: zone.plural };
       // Two-series results carry `value_b` on every row. Announced explicitly
       // so the UI can offer a series switch without having to sniff the rows.
       if (result.series === 2) body.series = 2;
@@ -2957,6 +3182,7 @@ app.post("/api/research", auth.requireAuth, limitAnalyze, async (req, res) => {
           coverage: typeof req.body?.coverage === "boolean" ? req.body.coverage : null,
           relevanceCheck: typeof req.body?.relevance_check === "boolean" ? req.body.relevance_check : null,
           namedDataCheck: typeof req.body?.named_data_check === "boolean" ? req.body.named_data_check : null,
+          userLayers: Array.isArray(req.body?.user_layers) ? req.body.user_layers : null,
         },
       }),
       { isAbandoned: () => closed },
@@ -2971,6 +3197,30 @@ app.post("/api/research", auth.requireAuth, limitAnalyze, async (req, res) => {
     return res.status(500).json({ error: "research failed", details: err.message });
   }
 });
+
+/**
+ * POST /api/layers?name=<file name>   body: the file's bytes
+ *
+ * A feature layer for this session (backend/user_layers.js): GeoJSON, a zipped
+ * shapefile, a GeoPackage or KML, converted to WGS84 and held in memory only.
+ * Returns the id the browser sends back as `user_layers` / `layers=`.
+ */
+app.post("/api/layers", auth.requireAuth, limitSearch,
+  express.raw({ type: () => true, limit: userLayersLib.MAX_BYTES }),
+  async (req, res) => {
+    try {
+      const name = String(req.query.name || "").slice(0, 200);
+      const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      const layer = await userLayersLib.ingest(bytes, name, req.query.label);
+      console.log(`   uploaded layer ${layer.id}: ${layer.name}, ${layer.features} ${layer.geometry}s`);
+      return res.json(layer);
+    } catch (err) {
+      if (err instanceof userLayersLib.UploadError) return res.status(400).json({ error: err.message });
+      if (err?.type === "entity.too.large") return res.status(413).json({ error: "the file is too large" });
+      console.error("Layer upload error:", err);
+      return res.status(500).json({ error: "upload failed", details: err.message });
+    }
+  });
 
 app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
   const { q, top_k, execute, include_geometry } = req.body || {};
@@ -3003,6 +3253,7 @@ app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
         coverage: typeof req.body?.coverage === "boolean" ? req.body.coverage : null,
         rerank: typeof req.body?.rerank === "string" ? req.body.rerank : undefined,
         useDefinitions: typeof req.body?.definitions === "boolean" ? req.body.definitions : null,
+        userLayers: Array.isArray(req.body?.user_layers) ? req.body.user_layers : null,
       }),
       { isAbandoned: () => closed },
     );
@@ -3067,7 +3318,8 @@ app.get("/api/analyze/stream", auth.requireAuth, limitAnalyze, async (req, res) 
     // miss runs as one plan, which is the behaviour before workflows existed.
     if (req.query.workflow !== "false" && workflow.needsWorkflow(req.query.q)) {
       const body = await analysisQueue.submit(
-        () => runResearch({ query: req.query.q, emit: (ev) => send(ev.stage, ev) }),
+        () => runResearch({ query: req.query.q, emit: (ev) => send(ev.stage, ev),
+                            flags: { userLayers: req.query.layers ? String(req.query.layers).split(",") : null } }),
         {
           onPosition: (position, total) => send("queued", { stage: "queued", position, total }),
           isAbandoned: () => !open,
@@ -3080,6 +3332,7 @@ app.get("/api/analyze/stream", auth.requireAuth, limitAnalyze, async (req, res) 
     const body = await analysisQueue.submit(
       () => runAnalysis({
         query: req.query.q,
+        userLayers: req.query.layers ? String(req.query.layers).split(",") : null,
         top_k: req.query.top_k ? Number(req.query.top_k) : undefined,
         execute: req.query.execute !== "false",
         includeGeometry: req.query.include_geometry === "true",
@@ -3145,6 +3398,7 @@ async function hydrateCandidates(attrIds, resolver) {
       out.push(src.workflow_step ? workflow.resultCandidate(src) : followup.userCandidate(src));
       continue;
     }
+    if (src.user_layer) { out.push(userLayersLib.candidate(src)); continue; }
     const row = catalogRow(id) || { attr_id: id, attr_desc: src.description || id };
     out.push(src.source_kind === "feature_table"
       ? { ...row, attr_desc: `${row.dataset_clean || src.table_name} (mapped locations)`,
@@ -3322,13 +3576,23 @@ app.post("/api/analyze/revise", auth.requireAuth, limitSearch, async (req, res) 
   if (userErrors.length) {
     return res.status(400).json({ error: "uploaded data is not usable", detail: userErrors.join("; ") });
   }
-  const resolver = followup.withUserSeries(resolveAttributes, userSources);
+  // Layers uploaded this session (backend/user_layers.js), by the ids the
+  // browser holds, exactly as /api/analyze takes them.
+  const { sources: layerSources, missing: lostLayers } =
+    userLayersLib.sourcesFor(Array.isArray(req.body?.user_layers) ? req.body.user_layers : null);
+  if (lostLayers.length) {
+    return res.status(410).json({ error: "an uploaded layer is no longer available",
+                                  detail: "Upload it again; uploaded layers are kept for a few hours." });
+  }
+  const resolver = userLayersLib.withLayers(
+    followup.withUserSeries(resolveAttributes, userSources), layerSources);
 
   try {
     console.log(`\n${"=".repeat(70)}\nREVISE: "${query}" ${JSON.stringify(edit).slice(0, 200)}\n${"=".repeat(70)}`);
     const body = await executeGivenPlan({
       query, plan, edit, resolver, started,
-      candidateIds: req.body?.candidate_ids, extraIds: [...userSources.keys()],
+      candidateIds: req.body?.candidate_ids,
+      extraIds: [...userSources.keys(), ...layerSources.keys()],
       decomposition: req.body?.decomposition ?? null,
     });
     return res.json(body);
@@ -3424,6 +3688,9 @@ app.get("/api/health", async (req, res) => {
     // embeddings, and results are silently wrong until POST /api/reload-corpus.
     corpus_stale: freshness.stale,
     corpus_available_key: freshness.available,
+    // Zone sets a question can name ("each St. Louis ward"), etl/load_zones.py.
+    zone_sets: zoneSets.map(z => ({ level: z.level, name: z.name, unit: z.unit,
+                                    places: z.places, units: z.n_units })),
     // Literature expansion: whether it is on by default, and whether its index
     // is built. Enabled with no index means it silently does nothing.
     expansion_enabled: EXPANSION_CONFIG.enabled,
@@ -3490,6 +3757,7 @@ async function initializeEmbeddings() {
                    `/api/analyze will return 422 until etl/load_reference_data.py runs.`);
     }
 
+    await loadZoneSets();
     console.log(`  ${embeddings.length} embeddings ready (${corpus.model}, cache ${corpus.cache_key})`);
     isEmbeddingsReady = true;
 

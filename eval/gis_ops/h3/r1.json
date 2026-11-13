@@ -1,0 +1,175 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "overlay_dev": {
+      "pass": 2,
+      "n": 4,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 2,
+    "CORRECT": 2
+  },
+  "latency_mean": 31.6,
+  "api_container_created": "2026-11-12T14:16:19.73220693Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ov-mo-roads-wetland-miles",
+      "tier": "overlay_dev",
+      "query": "How many miles of primary roads in Missouri pass through wetlands?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: syntax error at or near \"AS\""
+      },
+      "ops": "select_features->select_features->overlay->summarize->output",
+      "intent": "Total miles of primary roads in Missouri that pass through wetlands",
+      "loaded": [
+        "tiger_primary_roads | Primary Roads and Interstates (mapped locations) | Primary Roads and Interstates",
+        "nwi_wetlands | National Wetlands Inventory wetlands (mapped locations) | National Wetlands Inventory wetlands"
+      ],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: syntax error at or near \"AS\"",
+      "exec_error": "syntax error at or near \"AS\"",
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many miles of primary roads in Missouri pass through wetlands?",
+            "uses": [],
+            "ops": "select_features->select_features->overlay->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: syntax error at or near \"AS\""
+      },
+      "seconds": 39.4
+    },
+    {
+      "id": "ov-ca-fire-in-perimeter",
+      "tier": "overlay_dev",
+      "query": "Which fire stations in California are inside a wildfire perimeter?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 22,
+        "gold_features": 22,
+        "jaccard": 1.0,
+        "extra": 0,
+        "missed": 0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations",
+          "m2": "table_48f1211b6a3b41619cd4d72dc1c99b1e_public_nifs_perimeters"
+        }
+      },
+      "ops": "select_features->select_features->overlay->output",
+      "intent": "Fire stations in California that are inside a wildfire perimeter",
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations",
+        "table_48f1211b6a3b41619cd4d72dc1c99b1e_public_nifs_perimeters | Public Nifs Perimeters (mapped locations) | Public Nifs Perimeters"
+      ],
+      "row_count": 22,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which fire stations in California are inside a wildfire perimeter?",
+            "uses": [],
+            "ops": "select_features->select_features->overlay->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 28.8
+    },
+    {
+      "id": "ov-stl-ward-wetland-acres",
+      "tier": "overlay_dev",
+      "query": "How many acres of wetlands are in each St. Louis ward?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many acres of wetlands are in each St. Louis ward?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "seconds": 28.4
+    },
+    {
+      "id": "ov-mo-campus-wetland",
+      "tier": "overlay_dev",
+      "query": "How many college campuses in Missouri overlap a wetland?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 49.0,
+        "got": 49.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse",
+          "m2": "nwi_wetlands"
+        }
+      },
+      "ops": "select_features->select_features->overlay->summarize->output",
+      "intent": "Number of college campuses in Missouri that overlap a wetland",
+      "loaded": [
+        "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse | College University Campuses (mapped locations) | College University Campuses",
+        "nwi_wetlands | National Wetlands Inventory wetlands (mapped locations) | National Wetlands Inventory wetlands"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many college campuses in Missouri overlap a wetland?",
+            "uses": [],
+            "ops": "select_features->select_features->overlay->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 29.6
+    }
+  ]
+}

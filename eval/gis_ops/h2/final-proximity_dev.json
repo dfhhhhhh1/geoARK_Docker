@@ -1,0 +1,191 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "proximity_dev": {
+      "pass": 4,
+      "n": 4,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 4
+  },
+  "latency_mean": 25.4,
+  "api_container_created": "2026-11-12T06:48:09.477912655Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "p-oh-hospitals-near-fire",
+      "tier": "proximity_dev",
+      "query": "Which hospitals in Ohio are within 2 miles of a fire station?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 276,
+        "gold_features": 276,
+        "jaccard": 1.0,
+        "extra": 0,
+        "missed": 0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "d968f276355a41d1bd1451be6ee4dbac_fire_stations"
+        }
+      },
+      "ops": "select_features->select_features->within->output",
+      "intent": "Hospitals in Ohio within 2 miles of a fire station",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals",
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations"
+      ],
+      "row_count": 276,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which hospitals in Ohio are within 2 miles of a fire station?",
+            "uses": [],
+            "ops": "select_features->select_features->within->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.2
+    },
+    {
+      "id": "p-az-childcare-far-hospital-km",
+      "tier": "proximity_dev",
+      "query": "How many child care centers in Arizona are more than 5 kilometers from the nearest hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 568.0,
+        "got": 568.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters",
+          "m2": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "select_features->select_features->within->summarize->output",
+      "intent": "Number of child care centers in Arizona that are more than 5 kilometers from the nearest hospital",
+      "loaded": [
+        "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters | Child Care Centers (mapped locations) | Child Care Centers",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many child care centers in Arizona are more than 5 kilometers from the nearest hospital?",
+            "uses": [],
+            "ops": "select_features->select_features->within->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 28.7
+    },
+    {
+      "id": "p-mt-nursing-farthest-hospital",
+      "tier": "proximity_dev",
+      "query": "List the 10 nursing homes in Montana that are farthest from a hospital.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 10,
+        "gold_features": 81,
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 1,
+        "bind": {
+          "m1": "f2628a3f051b4e8aa02a6217207b8b86_nursinghomes",
+          "m2": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "select_features->select_features->within->rank->output",
+      "intent": "List the 10 nursing homes in Montana that are farthest from a hospital",
+      "loaded": [
+        "f2628a3f051b4e8aa02a6217207b8b86_nursinghomes | Nursing Homes (mapped locations) | Nursing Homes",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "List the 10 nursing homes in Montana that are farthest from a hospital.",
+            "uses": [],
+            "ops": "select_features->select_features->within->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 21.9
+    },
+    {
+      "id": "p-ga-police-hospital-1mi",
+      "tier": "proximity_dev",
+      "query": "How many law enforcement offices in Georgia have a hospital within 1 mile?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 158.0,
+        "got": 158.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "e936ab9aa9724c2f82cc0d78991aed55_local_law_enforcement",
+          "m2": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "select_features->select_features->within->summarize->output",
+      "intent": "Number of law enforcement offices in Georgia that have a hospital within one mile",
+      "loaded": [
+        "e936ab9aa9724c2f82cc0d78991aed55_local_law_enforcement | Local Law Enforcement (mapped locations) | Local Law Enforcement",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many law enforcement offices in Georgia have a hospital within 1 mile?",
+            "uses": [],
+            "ops": "select_features->select_features->within->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 26.9
+    }
+  ]
+}

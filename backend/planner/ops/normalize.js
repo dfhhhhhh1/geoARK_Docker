@@ -4,6 +4,12 @@ module.exports = {
   inputs: 2,
   needs: [],
   produces: "series",
+  // A total on either side, like combine (GIS_OPS_PLAN.md H1): "what share of
+  // the population" is one total over another, and qwen3 reaches for
+  // normalize to say it. Two scalars make a scalar.
+  accepts: [["series", "scalar"], ["series", "scalar"]],
+  resultType: (step, inTypes) =>
+    (inTypes[0] === "scalar" && inTypes[1] === "scalar" ? "scalar" : "series"),
   kind: "sql",
 
   enumComment: "numerator / denominator * scale",
@@ -26,6 +32,12 @@ PLAN: {"intent":"Poverty count divided by total population, by county",
     // NULLIF guards division by zero, which is common: many ACS denominators
     // are legitimately 0 for small counties.
     const scale = step.scale ?? 1;
+    const [tn, td] = ctx.inTypes || [];
+    if (tn === "scalar" || td === "scalar") {
+      const fips = tn !== "scalar" ? "n.fips" : td !== "scalar" ? "d.fips" : "NULL::char(5)";
+      return `${ctx.name} AS (SELECT ${fips} AS fips, n.value / NULLIF(d.value, 0) * ${ctx.bind(scale)} AS value ` +
+             `FROM ${ctx.ins[0]} n CROSS JOIN ${ctx.ins[1]} d)`;
+    }
     return `${ctx.name} AS (SELECT n.fips, n.value / NULLIF(d.value, 0) * ${ctx.bind(scale)} AS value ` +
            `FROM ${ctx.ins[0]} n JOIN ${ctx.ins[1]} d USING (fips))`;
   },

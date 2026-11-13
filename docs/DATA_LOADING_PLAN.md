@@ -4,7 +4,13 @@ Status (2026-10-30): **Phases 1-5 built**, Phase 6 in part (the cross-level
 SQL and its use on the map; the planner's ops are not yet ported), Phase 7 not
 started. Phase 2 has no blocks; Phase 4 no COG conversion or `mode`. See
 "Progress" at the end for what was measured and where it departed from the
-plan. Usage is in [RUNBOOK.md §5a](RUNBOOK.md). This file plans for three things:
+plan. > **KNOWN GAP (2026-11-12), blocks use of tract and block-group data: measures
+> that exist only below the county cannot be found by the planner.** They load,
+> and they draw on `/explore`, but no question can reach them. See
+> "Open: tract-only measures are not findable" in section 10. Fix before relying
+> on any tract or block-group dataset for research questions.
+
+Usage is in [RUNBOOK.md §5a](RUNBOOK.md). This file plans for three things:
 
 1. A drop-in loading process, with metadata, that the server can replay.
 2. Geographies other than counties (tract, block group, block, ZCTA, place,
@@ -395,6 +401,7 @@ Leaflet.VectorGrid vs MapLibre decision.
 | Blocks: per state on request, or national | per state | Phase 2 size measurement |
 | Grid shape: raster-aligned squares, or H3 hexagons | squares (exact sums, no extension); H3 is a later option for equal-area analysis | Phase 4 |
 | How long to keep the old county tables | until every op is ported | Phase 6 |
+| **Make tract / block-group-only measures findable** (catalog rows, and how to keep them out of county retrieval) | catalog rows that default retrieval skips unless the question names a unit; see section 10 | **before more tract data is loaded** |
 
 ## 10. Progress
 
@@ -706,6 +713,65 @@ Phase E.
   ZIP -> county roll-ups (they need crosswalk shares), `tract_neighbors` and
   the statistics ops at other levels, and city names with no state at tract
   level (Denver: five other states' Denvers, which is the user's to settle).
+
+### Open: tract-only measures are not findable (found 2026-11-12)
+
+**What happens.** "Which census tracts in Missouri have the highest PM2.5?"
+returns `the loaded data does not include "PM2.5"`, although EPA EJScreen's
+PM2.5 is loaded for 83,776 tracts.
+
+**Why.** `make ingest` writes no catalog rows for a measure below the county
+(`ingest.py`, around line 706: "No catalog rows: nothing can plan over a
+{level} measure"). That was true when it was written. Phase E made the planner
+level-aware, but a measure is still reached only through a catalog row. At a
+named unit, `unified_search_server.js` (around line 2376, `hasLevel`) keeps a
+candidate only if it resolves to `acs_long` and its `census_code` has values at
+that level in `geo_measure`; the "second search within the unit's measures"
+searches the catalog, so it cannot find what the catalog does not hold. The
+`ingest.py` message is now stale.
+
+**Who is affected.** Tract-only and block-group-only measures: USALEEP (2),
+USDA Food Access (31), EPA EJScreen (37), EPA Smart Location (36), **106
+measures in all**, and anything tract-level loaded later. SVI and the
+Opportunity Atlas work at tract level only because each also has a county file
+with catalog rows under the same measure codes.
+
+**Why it matters.** Several of the datasets loaded for research questions are
+below the county (environmental justice, food access, walkability, life
+expectancy). Loaded and visible on the map, they answer nothing in the planner,
+and nothing says so beyond a "does not include" refusal that reads as missing
+data.
+
+**Options, not yet decided.**
+
+1. *Catalog rows, retrieved only when the question names a unit.* Write rows
+   for tract / bg measures (tagged and described like county rows, with an
+   `entity_type` of TRACT or BG) and have default retrieval skip them unless
+   `levelOf(query)` or `rollupOf(query)` is set. County questions rank exactly
+   as before, so `known_item.yaml` and `queries.yaml` cannot move by
+   construction (the same argument as literature expansion). Leaning here.
+2. *Catalog rows retrieved always.* Simplest, but a tract measure then competes
+   for county questions ("PM2.5" would retrieve EJScreen's tract series) and the
+   planner may load it at the county and fail or roll it up. Measure before
+   choosing it.
+3. *A separate index of non-county measures* searched only at a named unit.
+   Cleanest separation; most new code.
+
+Tagging then has to run for these measures (it does not today), which is a
+local, per-dataset step like the county ones.
+
+**Done when.** These return rows, each checked against hand-written SQL gold
+(add to `eval/research_advanced.yaml`, `phase_e`): highest PM2.5 tracts in
+Missouri; lowest life expectancy tracts in a named county; low-income
+low-access (food desert) tracts in a state; most walkable block groups in a
+named city; and the same at county level by roll-up. And these have not moved
+from their recorded values: `known_item.yaml` 91.7% / 0.944, `queries.yaml`
+97.8 / 97.3%, `plan_correctness.yaml`, `research.yaml`, answerability 10/10 and
+1/20 false refusals, and the 48-context prompt snapshot.
+
+**Until then.** Do not describe tract or block-group data as available to
+questions. Loading more of it is fine (it is correct and replayable), but
+nothing about it can be tested end to end.
 
 ## 11. Sources
 

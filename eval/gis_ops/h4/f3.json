@@ -1,0 +1,197 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "raster_dev": {
+      "pass": 4,
+      "n": 4,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 4
+  },
+  "latency_mean": 40.1,
+  "api_container_created": "2026-11-12T20:25:05.502400682Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ra-chi-ca-developed-share-2021",
+      "tier": "raster_dev",
+      "query": "What percentage of each Chicago community area was developed land in 2021?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 77,
+        "gold_rows": 77,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "NLCD_LANDCOVER"
+        }
+      },
+      "ops": "zonal->output",
+      "intent": "Share of each Chicago community area in developed land, 2021",
+      "loaded": [
+        "NLCD_LANDCOVER | Land cover class of every 30 m pixel from the National Land Cover Database (USGS MRLC), for land area, share and change of cover types such as cropland, forest, developed land, wetlands, water and pasture. Classes: Barren, Developed, Forest, Herbaceous, Planted/Cultivated, Shrubland, Water, Wetlands. | NLCD land cover (National Land Cover Database)"
+      ],
+      "row_count": 77,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What percentage of each Chicago community area was developed land in 2021?",
+            "uses": [],
+            "ops": "zonal->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 81.4
+    },
+    {
+      "id": "ra-stl-ward-elev-mean",
+      "tier": "raster_dev",
+      "query": "What is the average elevation of each St. Louis ward?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 14,
+        "gold_rows": 14,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "DEM_ELEVATION"
+        }
+      },
+      "ops": "zonal->filter_attr->output",
+      "intent": "Average elevation in each St. Louis ward",
+      "loaded": [
+        "DEM_ELEVATION | Ground elevation above sea level in meters from the USGS 3D Elevation Program digital elevation model (DEM), 10 m, St. Louis and Chicago metro counties. | Elevation (USGS 3DEP digital elevation model)"
+      ],
+      "row_count": 14,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What is the average elevation of each St. Louis ward?",
+            "uses": [],
+            "ops": "zonal->filter_attr->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 31.1
+    },
+    {
+      "id": "ra-mo-county-crop-change-acres",
+      "tier": "raster_dev",
+      "query": "How many acres of cultivated cropland did each Missouri county gain or lose between 2001 and 2021?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 115,
+        "gold_rows": 115,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "NLCD_LANDCOVER"
+        }
+      },
+      "ops": "zonal->zonal->filter_area->filter_area->combine->output",
+      "intent": "Change in acres of cultivated cropland in each Missouri county between 2001 and 2021",
+      "loaded": [
+        "NLCD_LANDCOVER | Land cover class of every 30 m pixel from the National Land Cover Database (USGS MRLC), for land area, share and change of cover types such as cropland, forest, developed land, wetlands, water and pasture. Classes: Barren, Developed, Forest, Herbaceous, Planted/Cultivated, Shrubland, Water, Wetlands. | NLCD land cover (National Land Cover Database)"
+      ],
+      "row_count": 115,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many acres of cultivated cropland did each Missouri county gain or lose between 2001 and 2021?",
+            "uses": [],
+            "ops": "zonal->zonal->filter_area->filter_area->combine->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 25.7
+    },
+    {
+      "id": "ra-stl-nbhd-steepest5",
+      "tier": "raster_dev",
+      "query": "Which five St. Louis neighborhoods have the steepest average slope?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 5,
+        "gold_rows": 88,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 5,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "TERRAIN_SLOPE"
+        }
+      },
+      "ops": "zonal->filter_attr->rank->output",
+      "intent": "The five St. Louis neighborhoods with the highest average slope",
+      "loaded": [
+        "TERRAIN_SLOPE | Terrain slope or steepness of the ground in percent rise over run, derived from the USGS 3DEP 10 m digital elevation model, St. Louis and Chicago metro counties. | Terrain slope (percent, from the USGS 3DEP elevation model)"
+      ],
+      "row_count": 5,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which five St. Louis neighborhoods have the steepest average slope?",
+            "uses": [],
+            "ops": "zonal->filter_attr->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 22.1
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "aggregation_dev": {
+      "pass": 4,
+      "n": 4,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 4
+  },
+  "latency_mean": 21.4,
+  "api_container_created": "2026-11-12T06:48:09.477912655Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ag-stl-ward-childcare",
+      "tier": "aggregation_dev",
+      "query": "How many child care centers are there in each St. Louis ward?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 14,
+        "gold_rows": 14,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters"
+        }
+      },
+      "ops": "count_features->output",
+      "intent": "Number of child care centers in each St. Louis ward",
+      "loaded": [
+        "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters | Child Care Centers (mapped locations) | Child Care Centers"
+      ],
+      "row_count": 14,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many child care centers are there in each St. Louis ward?",
+            "uses": [],
+            "ops": "count_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 20.7
+    },
+    {
+      "id": "ag-chi-ca-schools",
+      "tier": "aggregation_dev",
+      "query": "Count the public schools in each Chicago community area.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 77,
+        "gold_rows": 77,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "public_schools_nces"
+        }
+      },
+      "ops": "count_features->output",
+      "intent": "Number of public schools in each Chicago community area",
+      "loaded": [
+        "public_schools_nces | Public School Locations (mapped locations) | Public School Locations"
+      ],
+      "row_count": 77,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Count the public schools in each Chicago community area.",
+            "uses": [],
+            "ops": "count_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 23.5
+    },
+    {
+      "id": "ag-stl-nbhd-snap-top5",
+      "tier": "aggregation_dev",
+      "query": "Which five St. Louis neighborhoods have the most stores that accept SNAP?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 5,
+        "gold_rows": 88,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 5,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "snap_retailers"
+        }
+      },
+      "ops": "count_features->rank->output",
+      "intent": "The five St. Louis neighborhoods with the most SNAP authorized food retailers",
+      "loaded": [
+        "snap_retailers | SNAP Authorized Food Retailers (mapped locations) | SNAP Authorized Food Retailers"
+      ],
+      "row_count": 5,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which five St. Louis neighborhoods have the most stores that accept SNAP?",
+            "uses": [],
+            "ops": "count_features->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 20.9
+    },
+    {
+      "id": "ag-chi-ward-transit",
+      "tier": "aggregation_dev",
+      "query": "What is the number of transit stops in each Chicago ward?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 50,
+        "gold_rows": 50,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "transit_stops"
+        }
+      },
+      "ops": "count_features->output",
+      "intent": "Number of public transit stops in each Chicago ward",
+      "loaded": [
+        "transit_stops | Public Transit Stops (mapped locations) | Public Transit Stops"
+      ],
+      "row_count": 50,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What is the number of transit stops in each Chicago ward?",
+            "uses": [],
+            "ops": "count_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 20.5
+    }
+  ]
+}

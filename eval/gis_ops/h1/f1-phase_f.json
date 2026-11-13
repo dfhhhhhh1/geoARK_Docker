@@ -1,0 +1,298 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 7,
+  "answer_correctness": 0.7142857142857143,
+  "by_tier": {
+    "phase_f": {
+      "pass": 5,
+      "n": 7,
+      "rate": 0.7142857142857143
+    }
+  },
+  "classes": {
+    "CORRECT": 5,
+    "NO_ANSWER": 2
+  },
+  "latency_mean": 33.8,
+  "api_container_created": "2026-11-12T01:26:39.322476643Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "f-mo-pop-far-hospital",
+      "tier": "phase_f",
+      "query": "How many people in Missouri live more than 20 miles from the nearest hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 185976.0,
+        "got": 185976.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "SVI_E_TOTPOP"
+        }
+      },
+      "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->output",
+      "intent": "Number of people in Missouri living more than 20 miles from the nearest hospital",
+      "loaded": [
+        "SVI_E_TOTPOP | Total population estimate | ",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many people in Missouri live more than 20 miles from the nearest hospital?",
+            "uses": [],
+            "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 51.5
+    },
+    {
+      "id": "f-co-share-within-5mi",
+      "tier": "phase_f",
+      "query": "What share of Colorado's population lives within 5 miles of a hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 76.4334,
+        "got": 76.4334,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "SVI_E_TOTPOP"
+        }
+      },
+      "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->aggregate->normalize->output",
+      "intent": "Share of Colorado's population living within five miles of a hospital",
+      "loaded": [
+        "SVI_E_TOTPOP | Total population estimate | ",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What share of Colorado's population lives within 5 miles of a hospital?",
+            "uses": [],
+            "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->aggregate->normalize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 39.2
+    },
+    {
+      "id": "f-tx-hospital-access-2sfca",
+      "tier": "phase_f",
+      "query": "Which Texas counties have the worst access to hospitals once you account for how many people each hospital has to serve, using a 30-mile catchment?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"how many people each hospital has to serve\", \"30-mile catchment\""
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"how many people each hospital has to serve\", \"30-mile catchment\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Texas counties have the worst access to hospitals once you account for how many people each hospital has to serve, using a 30-mile catchment?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"how many people each hospital has to serve\", \"30-mile catchment\""
+      },
+      "seconds": 23.3
+    },
+    {
+      "id": "f-unemp-neighbor-gap",
+      "tier": "phase_f",
+      "query": "Which counties have a much higher unemployment rate than the average of their neighboring counties?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 20,
+        "gold_rows": 3126,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 20,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_UNEMP"
+        }
+      },
+      "ops": "load->neighbors->rank->output",
+      "intent": "Unemployment rate minus the average of neighboring counties' unemployment rates, highest first",
+      "loaded": [
+        "SVI_EP_UNEMP | Unemployment rate | CDC Social Vulnerability Index"
+      ],
+      "row_count": 20,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which counties have a much higher unemployment rate than the average of their neighboring counties?",
+            "uses": [],
+            "ops": "load->neighbors->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 22.2
+    },
+    {
+      "id": "f-midwest-unemp-change",
+      "tier": "phase_f",
+      "query": "Which Midwest counties saw the largest increase in the unemployment rate between 2019 and 2023?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 1055,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 1,
+        "bind": {
+          "m1": "UNEMPLOYMENT_RATE"
+        }
+      },
+      "ops": "load->load->combine->filter_area->rank->output",
+      "intent": "Midwest counties with the largest increase in the unemployment rate between 2019 and 2023",
+      "loaded": [
+        "UNEMPLOYMENT_RATE | Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS) | USDA ERS"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Midwest counties saw the largest increase in the unemployment rate between 2019 and 2023?",
+            "uses": [],
+            "ops": "load->load->combine->filter_area->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 22.4
+    },
+    {
+      "id": "f-mo-poverty-precision",
+      "tier": "phase_f",
+      "query": "Which 10 Missouri counties have the least precise poverty rate estimates?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 10 Missouri counties have the least precise poverty rate estimates?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "seconds": 53.6
+    },
+    {
+      "id": "f-diabetes-residual-income",
+      "tier": "phase_f",
+      "query": "For each county, how much higher or lower is the diabetes rate than its median household income would predict?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 2944,
+        "gold_rows": 2944,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PLACES_DIABETES_AgeAdjPrv",
+          "m2": "CHR_V063_RAWVALUE"
+        }
+      },
+      "ops": "load->load->residual->output",
+      "intent": "How much higher or lower the diabetes rate is than what the median household income predicts, by county",
+      "loaded": [
+        "PLACES_DIABETES_AgeAdjPrv | Diagnosed diabetes among adults (age-adjusted prevalence) (covers 2,957 counties) | CDC PLACES",
+        "CHR_V063_RAWVALUE | Median household income | County Health Rankings"
+      ],
+      "row_count": 2944,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "For each county, how much higher or lower is the diabetes rate than its median household income would predict?",
+            "uses": [],
+            "ops": "load->load->residual->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.2
+    }
+  ]
+}

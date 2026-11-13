@@ -1,7 +1,7 @@
 # Research workflows: plan
 
-Status (2026-11-11): **Phases A-D built; Phase E in progress.** Each has a
-"Progress" entry below with the numbers; E, F and G are still a plan.
+Status (2026-11-11): **Phases A-D and F built; Phase E in progress.** Each has a
+"Progress" entry below with the numbers; G is still a plan.
 Analyst-style GIS questions (buffers, overlays, zonal, network) continue as
 Phases H0-H5 in [GIS_OPS_PLAN.md](GIS_OPS_PLAN.md); baseline 0/16 correct,
 5/16 confidently wrong.
@@ -193,6 +193,14 @@ Climate and environment rasters (PRISM / gridMET, NLCD, 3DEP) via
 `load_raster.py` + `zonal`, which turns "rainfall" from a refusal into an
 answer; kidney disease; the 22 never-imported catalog datasets; block
 population for `w_pop`.
+
+**Blocking Phase G, found 2026-11-12: tract and block-group measures are loaded
+but not findable.** EJScreen, Food Access, USALEEP and Smart Location (106
+measures) have no catalog rows, so the planner refuses "highest PM2.5 tracts in
+Missouri" as missing data. Loading more tract-level data does not help research
+questions until this is fixed. Plan, options and done-when:
+[DATA_LOADING_PLAN.md](DATA_LOADING_PLAN.md), "Open: tract-only measures are
+not findable".
 
 ## 3. Order
 
@@ -593,3 +601,51 @@ the overrule rule counted the dataset name and the "(covers N counties)"
 note as part of the attribute's name, so the overrules that had rescued SVI
 poverty, SVI no-vehicle and coronary heart disease from false "none" verdicts
 stopped firing; and the named-data check read "How far, in miles" as data.
+
+### Phase F
+
+Built 2026-11-11, with GIS_OPS_PLAN.md H1 (the catchment questions are its
+done-when). Evidence: `eval/gis_ops/h1/`; tests `planner/test_phase_f.js`
+(6) and `planner/test_features.js` (19). Every op gated on its own phrasing;
+a scan of all eval questions shows each gate fires only on its target
+question; snapshot byte-identical.
+
+| question | before | after | how |
+|---|---|---|---|
+| people > 20 mi from a hospital (MO) | WRONG_MEASURE | CORRECT x4 | catchment by tract (`planner/catchment.js`) |
+| share within 5 mi of a hospital (CO) | WRONG_MEASURE | CORRECT x4 | same, + scalar ratio, `totalTheDenominator` |
+| 2SFCA hospital access (TX) | EMPTY | INCOMPLETE, values exact | `access` op; see below |
+| unemployment vs neighbours | NO_ANSWER | CORRECT x2 | `neighbors` (spatial lag over county_neighbors) |
+| Midwest unemployment change | CORRECT | CORRECT | unchanged |
+| least precise poverty estimates (MO) | WRONG_MEASURE | CORRECT x2 | bounds sub-queries + combine example + `repairPrecision` |
+| diabetes vs income residual | INCOMPLETE | CORRECT x2 | `residual` (regr_slope / regr_intercept) |
+
+phase_f tier **1/7 -> 6/7** (`final-advanced.json`).
+
+- **`access` (2SFCA)** is one pass over (county, facility) pairs, each county
+  centroid an index probe of the facility layer; compiled SQL equals the
+  gold on all 254 Texas counties (max difference 7e-15). The plan is right
+  (`load -> access -> filter_area -> rank asc 10`) and its 10 values match
+  the gold exactly, all 0.0. The suite still scores INCOMPLETE because its
+  compare is `values` over ~all 254 counties, chosen so that a distance list
+  cannot pass, and 24 counties tie at zero access, so a top 10 is an
+  arbitrary 10 of them. Not edited after the run. Options: score a ranked
+  answer by its values plus tie-aware membership, or have `rank` return the
+  ties at its cut (`FETCH ... WITH TIES`); both are changes to measure.
+- **The precision question needed three things, all found by running it**:
+  one combined "confidence interval upper and lower bound for poverty rate"
+  sub-query ranked the bounds 10th-12th (two bound-specific ones rank them
+  first); combine was not offered on precision phrasing; and the plan ranked
+  `asc` for "least precise" (overlap 0.0). Interval width is upper minus
+  lower and a wider interval is less precise, both stated by the question and
+  the bounds' own descriptions, so code sets them (`planner/uncertainty.js`).
+- **`derefPlan` kept its own list of label-carrying ops**, and `access` was
+  not on it: the 2SFCA question was refused three attempts running for
+  citing "a8", a label that was on its list. The list now comes from each
+  op's `grounds` in the registry (the same trap count_features hit when it
+  was added).
+- **The named-data check read "30-mile catchment" as missing data.**
+  catchment / radius / buffer are now exempt, like distance words.
+- Not built: LISA (local Moran's I), spatial regression (lag / error), ACS
+  MOE propagation for differences. The table above covers the questions
+  `research_advanced.yaml` asks.

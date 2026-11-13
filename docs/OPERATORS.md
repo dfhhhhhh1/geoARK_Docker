@@ -78,21 +78,47 @@ whether the plan answers the question.
 
 ---
 
-## The two result shapes
+## The types (GIS_OPS_PLAN.md H1, 2026-11-11)
 
-This decides whether a new op is cheap or expensive.
+Every step yields one of five types, and the validator checks every edge with
+ONE rule: the type an input carries must be one its consumer `accepts`. That
+rule replaced three special cases, each a version of "this may only feed an
+output". The three old repair messages are kept word for word for the cases
+they covered, because the repair loop has always read them.
 
-| Shape | Ops | Composes |
+| Type | Produced by | Read by |
 |---|---|---|
-| `(fips, value)` | everything except `select_features` and `correlate` | Yes, with all of them |
-| one statistic row + `statColumns` | `correlate` | No: read only by an `output`; the extra columns reach the response as `stats` |
-| computed factor table | `explain` | No: read only by an `output`. SQL builds the matrix, `compute()` runs after execution; the response carries `explain` |
-| GeoJSON features | `select_features` | No: read only by an `output` |
+| `series` `(fips, value)` | load, the bridges, filters, arithmetic, statistics per county | every series op |
+| `features` (geom, value, labels) | `select_features`, `within`, `overlay`; `rank` / `filter_attr` on features | `within`, `overlay`, `summarize`, `rank`, `filter_attr`, `output` |
+| `scalar` (one row, no unit) | ungrouped `aggregate`, `summarize` with `group_by: "none"` | `combine`, `normalize`, `output` |
+| `statistic` (one row + `statColumns`) | `correlate` | `output` |
+| `factors` (computed table) | `explain` | `output` |
 
-An op that consumes and returns `(fips, value)` chains with `normalize`, `rank`,
-`filter_area` and the rest for nothing. An op that returns something else needs
-its own terminal handling and its own frontend component, which is what
-`select_features` cost.
+An op declares `accepts` (per input, default `["series"]`) and
+`resultType(step, inTypes)` (else `produces`); `ops/index.js` `stepTypes`
+computes the map and the compiler passes `ctx.inTypes` so an op can compile a
+different form per input type (`rank` on features is `SELECT *`, `combine` of
+two scalars is a CROSS JOIN).
+
+A `features` step that something other than an output reads is a CTE with the
+fixed column list of `_sql.js` `FEATURE_COLUMNS`, whatever layer it came from.
+`select_features` declares it `NOT MATERIALIZED`, so a probe of it is a GIST
+index scan of the base table: materialized, `within` scanned 52,184 fire
+stations per hospital. A `select_features` read only by an output still
+compiles standalone, unchanged.
+
+**Parts (H3).** A `select_features` read only as geometry (the layer an
+`overlay` tests against, or features an amount is totalled over) carries
+`geometry_only`, set by `features.applyMeasures`, and then reads a large
+layer's subdivided parts (`feature_parts`, `etl/ingest.py build_parts`) as a
+`UNION ALL` of small rows and parts. Anything that lists, counts or ranks the
+features reads the original rows. Per-unit totals probe with `LEFT JOIN
+LATERAL`, because a plain join did not push the unit's box into the `UNION
+ALL` and scanned every row per county.
+
+A step may carry its own `level`; a step without one inherits a finer level
+from its inputs until `aggregate_to` brings it back to counties. That is how a
+catchment counts tracts inside a county plan (planner/catchment.js).
 
 ---
 
@@ -148,6 +174,13 @@ an empty result.
 | `outlier` | 1 | | | only the unusual counties, in IQRs **(signed)** |
 | `correlate` | 2 | | | **one row**: Spearman rho, CI, p on effective n (see [CORRELATE.md](CORRELATE.md)) |
 | `explain` | 1 | | *(factors attached by code)* | **ranked factor table**, partial rho after controls ([EXPLAIN.md](EXPLAIN.md)) |
+| `within` | 2 *(features)* | | `miles`, `exclude` | the first layer's features within N miles of the second (or farther); value = miles to the nearest |
+| `overlay` | 2 *(features)* | | `exclude` | the first layer's features that intersect any polygon of the second (or none); value = length / area inside, unit set by code (H3) |
+| `summarize` | 1 *(features)* | | `group_by` | count per county / unit, per state, or one total (`"none"`); for a line or polygon layer asked for an amount, the total length or area, clipped to each unit (`measure` / `unit` set by code, H3) |
+| `neighbors` | 1 | | `operation` | value minus (or over) the mean of contiguous neighbours **(signed)** |
+| `residual` | 2 | | | outcome minus a least-squares line on the predictor **(signed)** |
+| `access` | 1 *(population)* | `attr_id` *(layer)*, `miles` | | 2SFCA: facilities within reach per 100,000, shared by their catchments |
+| `zonal` | 0 | `attr_id` *(a raster)* | `attribute_filters` *(classes)*, `operator` + `value` *(pixel threshold)*, `year` | a raster per county / unit: share or area of classes or of pixels passing a threshold, or the mean; what it reports and the unit are set by code (H4) |
 | `output` | 1 | | | terminal |
 
 ### Gated on the question, not just on the data

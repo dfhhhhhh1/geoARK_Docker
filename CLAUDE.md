@@ -50,6 +50,12 @@ metric *can* move. See the correction in [eval/README.md](eval/README.md).
   (a raw rate passed as a residual, raw unemployment as a neighbour gap,
   nearest distance as 2SFCA); `--self-test` caught all three before any API
   run. Re-run it after editing a question.
+- `eval/gis_ops.yaml`, analyst GIS operations by family (proximity so far),
+  tiers `<family>_dev` / `<family>_heldout`; only dev may inform a change.
+  The same scorer; `compare.features: true` scores returned features keyed by
+  first coordinate (`{fkey:...}`, `{table:m1}` in gold). Gold is brute force.
+  `eval/gis_ops/heldout_analyst_queries.csv` (16) is held out entirely and
+  scored only at phase boundaries (`eval/gis_ops/run_heldout.py`).
 
 ## Traps that have already burned time
 
@@ -68,6 +74,8 @@ metric *can* move. See the correction in [eval/README.md](eval/README.md).
 | **Rebuilding the embedder upgrades torch** (2026-10-30) | `/health` reports `drift: true` after an embedder rebuild that changed nothing but app.py | `requirements.txt` does not pin torch, so the CUDA index served 2.15.0+cu132 where the cache was written by 2.14.0+cu130 and the canary fingerprint moved. Measured: cosine fresh vs cached >= 0.9999999 on 400 rows, and `queries.yaml` reproduced 97.8 / 97.3 / MRR 0.740 exactly, so the corpus was NOT re-embedded. Pin torch before the next rebuild if the flag matters |
 | **`reload-corpus` swapped vectors but not rows** (fixed 2026-11-10) | After a catalog edit, retrieval ranks on the new text while the planner prompt still shows the old descriptions | `reloadCorpus` re-read only the embedder's vectors and BM25 text; the API's `variables` rows (what the planner, provenance and suggestions read) stayed as loaded at startup. It now re-reads the CSV too. Also: a catalog edit needs `make reindex` BEFORE `reload-corpus`, or the cache key does not move and both arms of an A/B read the old corpus. `make county-descriptions` does both |
 | **Catalog rows the ledger records can vanish** (found 2026-11-11) | A loaded, resolvable measure that no question ever retrieves | All 31 rows `etl/data_manifest.yaml` lists for CDC SVI (county) and WorldPop were missing from `backend/geoark_attributes.csv` and from the last commit: something rewrote the catalog after the 2026-10-16 ingests. `python etl/restore_ledger_catalog.py` reports any gap (`--write` restores, then `make reindex reload-corpus`). Run it after anything that rewrites the catalog |
+| **Tract / block-group-only measures load but cannot be found** (2026-11-12) | "Which census tracts in Missouri have the highest PM2.5?" -> `the loaded data does not include "PM2.5"`, with EJScreen loaded | `make ingest` writes no catalog rows below the county, and the planner reaches a measure only through one (`hasLevel`, `unified_search_server.js` ~2376). Affects USALEEP, USDA Food Access, EJScreen, Smart Location (106 measures); SVI and the Opportunity Atlas work only via their county twins. **Unfixed.** Plan and done-when: DATA_LOADING_PLAN.md "Open: tract-only measures are not findable" |
+| **The API caches a feature layer's filter values forever** (2026-11-13) | After `make ingest DIR=<layer> ARGS=--replace` changes a label column's values, the planner still emits the OLD value in `attribute_filters` | `featureFilterValues` memoises per table (`filterValuesCache`); `reload-corpus` does not clear it. `docker restart geoark-api-1` does (no rebuild needed; check the queue is idle) |
 | **Several sessions share this working tree and stack** (2026-10-30) | The api image picks up another session's half-written files; an eval round dies mid-run | `api` is built from the working tree, so any rebuild ships whatever is on disk. Coordinate before `--force-recreate api` (ListAgents / SendMessage) |
 | **VRAM stall on Windows: no error, just a crawl** (2026-10-15) | Planner calls time out at 90s; `ollama ps` still says `100% GPU`, `OOMKilled=false`, DeviceRequests fine. Ollama log shows `tg_3s` falling from ~22 t/s to 0.05 t/s | qwen3:14b (9.8 GB) + gemma3:4b (2.8 GB) resident + ~2.9 GB of desktop (launchers, browsers, Spotify, iCUE all draw on the GPU) is ~15.5 GB of 16. WDDM pages VRAM to system RAM instead of failing. `nvidia-smi` reads ~15.9 GB at ~100% util with nothing running. `docker restart geoark-ollama-1` clears it and keeps the GPU. The 2026-10-15 measurements ran at `OLLAMA_MAX_LOADED_MODELS=1` for this reason: zero stalls, at the cost of a model swap per step |
 
@@ -1378,6 +1386,135 @@ heated by solar; "mobile inspection sites" -> Mobile Home Parks).
   the equator (7,491 vs 7,517 hospitals within 3 mi of a fire station). Fix in
   progress in another session.
 
+### Typed DAG, feature algebra, Phase F methods (2026-11-11)
+
+docs/GIS_OPS_PLAN.md H1, docs/RESEARCH_PLAN.md Phase F, docs/OPERATORS.md
+"The types". Evidence `eval/gis_ops/h1/`; tests `planner/test_features.js`,
+`planner/test_phase_f.js`. Snapshot byte-identical; every new op, field
+variant and example is phrasing-gated, and a scan of all 167 eval questions
+shows each gate reaches only its target question.
+
+- **One type rule replaced three special cases.** Steps yield `series`,
+  `features`, `scalar`, `statistic` or `factors`; ops declare `accepts` /
+  `resultType`. The old repair messages are kept verbatim for the cases they
+  covered. Scalars now feed `combine` / `normalize` (a share is total over
+  total).
+- **Features compose**: `select_features` (a `NOT MATERIALIZED` CTE, so a
+  probe is a GIST index scan; materialized it was a scan of 52,184 fire
+  stations per hospital), `within` (exact geodesic, `exclude`), `summarize`,
+  `rank` / `filter_attr` on features, NOT filters. Equal to brute force on
+  every shape checked.
+- **Units and direction in code** (`planner/features.js`): km / m / ft to
+  miles, and "more than N from" sets `exclude`: the model converted 5 km
+  correctly itself and still counted the centers NEAR a hospital.
+- **Catchments are counted by tract** (`planner/catchment.js`): "how many
+  people live more than 20 miles from a hospital" planned at the county puts
+  every resident of a county in or out by its centroid. Per-step levels in
+  the compiler; MO compiled 185,976 = gold.
+- **Phase F ops**: `neighbors` (spatial lag), `residual` (OLS), `access`
+  (2SFCA; equals gold on all 254 TX counties to 7e-15), precision via the
+  published CI bounds (`planner/uncertainty.js`).
+- Measured: proximity_dev **4/4 x3**, catchments 2/2 x3 (one build);
+  research_advanced phase_f **1/7 -> 6/7**, whole suite 37.5 -> 70.8%;
+  research.yaml 77.8% with the same four misses as the last two runs;
+  answerability 10/10, 1/20 unchanged.
+- **`derefPlan` had its own list of label-carrying ops** and the new `access`
+  was not on it ("a8 is not a known attribute", 3 of 3 attempts, for a label
+  on the list). It now reads each op's `grounds`. The same trap
+  count_features hit; any list kept beside the registry will be missed.
+- **Decomposition is nondeterministic in what layers it asks for.** The same
+  question retrieved Hospitals on one run and tornado tracks the next, and
+  once asked for "hospital" as a *normalization*, which the facility cap never
+  serves. The layer a distance is measured to is now its own primary
+  sub-query (`referencePhrase`), for gated questions only.
+- Open: 2SFCA scores INCOMPLETE by suite design (values over all 254
+  counties; 24 tie at zero, so any top 10 is arbitrary; its 10 values match
+  gold exactly). Numeric / date feature filters not built.
+
+### Zones as data, uploaded layers (H2, 2026-11-12)
+
+docs/GIS_OPS_PLAN.md H2; RUNBOOK "Zone sets" and "Uploaded map layers".
+Evidence `eval/gis_ops/h2/`. Snapshot byte-identical throughout.
+
+- **A user's units are a geo_unit level** (`kind: zones`, `etl/load_zones.py`,
+  registry `zone_set`), so every op that runs at a tract runs at a ward. The
+  question reaches a set only by naming its unit AND a place it lists; the
+  model never picks one. aggregation_dev 4/4 x3, density_dev 4/4 x3; held-out
+  1/2 each (planner habits, recorded). Guards unmoved (table in the plan).
+- **county_geom keeps inland water.** It is clipped at coasts and the Great
+  Lakes, not at rivers (St. Louis city 171.5 km2 polygon, 159.9 land). Any
+  area computed from it outside per_area's `aland` overstates land; zone land
+  uses each tract's TIGER land share instead.
+- **Uploaded layers are never stored** (`backend/user_layers.js`, in memory 4 h,
+  `POST /api/layers`). `ops/_sql.featureFrom` is the one place a feature
+  source becomes SQL; route any new feature op through it or uploads break.
+- **The shell layer here collapses a doubled backslash to one.** Python
+  heredocs that edit JS regexes lost their escapes three times this session
+  (`\b` became a backspace character). Edit regex lines with the Edit tool,
+  and check with `grep -c $'\x08' <file>`.
+- `npm run build` in frontend/ is the type check that matters; `tsc -p .`
+  passed while `lib/layers.ts` (the map's layer stack) had been overwritten.
+
+### Overlay, amounts and polygon parts (H3, 2026-11-12)
+
+docs/GIS_OPS_PLAN.md H3; RUNBOOK "Polygon layers for overlay". Evidence
+`eval/gis_ops/h3/`. Snapshot byte-identical throughout.
+
+- **General by construction**: `overlay` takes any polygon layer; which
+  polygons count is the layer's own `type` (sidecar `as: type`) or a cited
+  definition. No hazard or class is named in code. overlay_dev 4/4 x3.
+- **Count, length or area, and the unit, are code** (`features.applyMeasures`),
+  including turning `count_features` into a measured `summarize` when the
+  question asks for acres of a polygon layer (the planner counted polygons).
+- **Giant polygons are the performance problem, not row counts.** One NWI river
+  polygon has 878k vertices and every overlay touching it intersects all of
+  it. Parts (`feature_parts`, `make parts`) fixed it: 234 s -> 4.8 s. A probe
+  into the parts `UNION ALL` must be a LATERAL subquery; a plain join or a
+  `NOT EXISTS` scans every row (the latter is still open: overlay `exclude`
+  times out on NWI).
+- **NWI `ACRES` is the whole published polygon**, not the state's part (28%
+  over the geometry statewide). Sum the geometry.
+- **Opaque catalog names now cause wrong answers.** Overlay made held-out Q6
+  plannable, and "Public Nifs Archive Perimeters" passed both checks as
+  "critical wildlife corridors": held-out wrong answers 0 -> 1. Every new op
+  that makes a question plannable exposes the catalog text it relies on.
+- **The CSV catalog is hand-editable and unforgiving**: an unquoted comma in
+  one description shifted that row's columns, blanked `spatial_rep`, and
+  silently closed overlay's gate. Run `validate_catalog.py` after any edit,
+  and quote with the csv module, not string replace.
+
+### Rasters on demand: `zonal` (H4, 2026-11-12)
+
+docs/GIS_OPS_PLAN.md H4; RUNBOOK "Rasters read on demand". Evidence
+`eval/gis_ops/h4/`; tests `planner/test_zonal.js`. Snapshot byte-identical.
+
+- **Native equal-area rasters** (`mode: native`): NLCD and 3DEP stay in EPSG:5070,
+  every pixel the same area; query polygons are transformed instead. ST_Clip
+  counts a pixel by its CENTRE (checked against pixel centroids and against
+  GDAL rasterization of the source files: identical counts).
+- **Class names are data**: a categorical raster's legend and the publisher's
+  groups are its `type` values. When the model leaves a land-class zonal step
+  without classes (it did, every attempt), code fills the ones the question
+  names from the legend (`fillRasterClasses`); share / area / mean and the unit
+  are code (`applyRasterMeasures`).
+- **County histograms are cached at load** (`raster_unit_count`, same clip):
+  a two-year change over Missouri's 115 counties live was ~42 s, over the 30 s
+  budget; cached, milliseconds and the identical number.
+- **Raster gold comes from the source GeoTIFFs** (`eval/gis_ops/raster_gold.py`,
+  GDAL), not PostGIS: pixel-centroid SQL took >10 minutes per question. Re-run
+  it after reloading a raster.
+- **qwen3 (reasoning off) runs away in constrained JSON**: `filter_attr "= 1"`
+  (or "= 2021", the raster's year) chained to step s61, 9,400 tokens, every
+  attempt identical. Three general guards now: `num_predict` 3,000 on
+  schema calls with reasoning off; a runaway's op is WITHHELD from the next
+  attempt's decoding enum; a zonal `= <loaded year>` is read as the year.
+  Quoting the runaway back in the repair text made it worse.
+- **Lists kept beside the registry bit again**: `levels.LEVEL_OPS` (ops allowed
+  below the county) refused zonal at a ward until it was added; the source-kind
+  CHECK on attribute_source refused `raster` during relink.
+- `dataset_id_for` truncates to 12 characters: two vintages of one raster got
+  the same id. Native rasters use the full id.
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence
@@ -1405,4 +1542,9 @@ deploy/         the single build definition; Makefile is the interface
 - Anything outward-facing (push, deploy) is confirmed first.
 - Findings go in the docs with the number that supports them, and corrections
   stay visible rather than being quietly edited away.
+- Every dataset prepared for `make ingest` gets an entry in
+  [docs/DATA_CARPENTRY.md](docs/DATA_CARPENTRY.md) (source, what was reshaped,
+  renamed or dropped and why, match rate), made by an `etl/prep_*.py` script that
+  reproduces the loaded file byte for byte. Replay on the server needs the
+  prepared folders, not the raw downloads.
 - New retrieval claims need `known_item.yaml`, not `queries.yaml`.

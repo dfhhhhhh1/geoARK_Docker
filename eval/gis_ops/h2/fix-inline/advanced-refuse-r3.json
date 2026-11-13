@@ -1,0 +1,125 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 3,
+  "answer_correctness": 0.6666666666666666,
+  "by_tier": {
+    "refuse": {
+      "pass": 2,
+      "n": 3,
+      "rate": 0.6666666666666666
+    }
+  },
+  "classes": {
+    "CORRECT_REFUSAL": 2,
+    "FALSE_ANSWER": 1
+  },
+  "latency_mean": 30.7,
+  "api_container_created": "2026-11-12T08:02:29.534050378Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "d-asthma-then-rainfall",
+      "tier": "refuse",
+      "query": "Find the 20 counties with the highest asthma rates. What is the average annual rainfall in those counties?",
+      "class": "CORRECT_REFUSAL",
+      "pass": true,
+      "detail": {},
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q2: q2 could not be answered: the loaded data does not include \"average annual rainfall\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 20 counties have the highest asthma rates?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "What is the average annual rainfall in the counties from q1?",
+            "uses": [
+              "q1"
+            ],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": "q2 could not be answered: the loaded data does not include \"average annual rainfall\""
+      },
+      "seconds": 31.8
+    },
+    {
+      "id": "x-denver-tract-rainfall",
+      "tier": "refuse",
+      "query": "Which census tracts in Denver get the most rainfall?",
+      "class": "CORRECT_REFUSAL",
+      "pass": true,
+      "detail": {},
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"get the most rainfall\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which census tracts in Denver get the most rainfall?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"get the most rainfall\""
+      },
+      "seconds": 30.9
+    },
+    {
+      "id": "x-hospital-closures-mortality",
+      "tier": "refuse",
+      "query": "Did rural hospital closures since 2010 increase mortality in the counties that lost a hospital?",
+      "class": "FALSE_ANSWER",
+      "pass": false,
+      "detail": {},
+      "ops": "count_features->count_features->filter_attr->filter_attr->intersect->load->join->output",
+      "intent": "Did rural hospital closures since 2010 increase mortality in the counties that lost a hospital?",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals",
+        "R_DEATH | Death rate per 1,000 midyear population | USDA ERS"
+      ],
+      "row_count": 2542,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Did rural hospital closures since 2010 increase mortality in the counties that lost a hospital?",
+            "uses": [],
+            "ops": "count_features->count_features->filter_attr->filter_attr->intersect->load->join->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 29.5
+    }
+  ]
+}

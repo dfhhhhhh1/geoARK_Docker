@@ -30,7 +30,7 @@
  * plan back, never remove a candidate.
  */
 
-const { needsPopulation, asksPopulationSize, isPopulationCount } = require("../population");
+const { needsPopulation, asksPopulationSize, countsPeople, isPopulationCount } = require("../population");
 
 const VERDICTS = ["direct", "proxy", "denominator", "unrelated"];
 
@@ -296,13 +296,13 @@ async function judge({ query, plan, candidates, refs, callLLM, log, used }) {
     // sharedWords cannot see ("people" and "population" are generic there).
     // See backend/population.js for the two refusals this prevents.
     const popRule = fit === "none" && !shared.length &&
-      (needsPopulation(query) || asksPopulationSize(query)) && isPopulationCount(desc);
+      (needsPopulation(query) || asksPopulationSize(query) || countsPeople(query)) && isPopulationCount(desc);
     if (popRule) verdict = "unchecked";
     const measures = String(v?.measures || "").trim();
     const reason = !fit ? null
       : fit === "none" && shared.length
         ? `model said it measures nothing asked about, overruled: it shares "${shared.join(", ")}" with the question`
-      : popRule ? `model said it measures nothing asked about, overruled: a density, per-person or population-size question is defined by a total population`
+      : popRule ? `model said it measures nothing asked about, overruled: a density, per-person or population-size question, or one that counts people, is defined by a total population`
       : fit === "none" ? `measures ${measures || "something else"}, which the question does not name`
       : fit === "denominator" ? `scales the result (${measures})`
       : fit === "same" ? `measures ${phrase ? `"${phrase}"` : measures}`

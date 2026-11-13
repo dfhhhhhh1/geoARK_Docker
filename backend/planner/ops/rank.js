@@ -4,6 +4,11 @@ module.exports = {
   inputs: 1,
   needs: [],
   produces: "series",
+  // Features too (GIS_OPS_PLAN.md H1): a features step's value is whatever an
+  // op put there, the distance `within` measured, and ranking it orders the
+  // features themselves. The result is the same type as the input.
+  accepts: [["series", "features"]],
+  resultType: (step, inTypes) => (inTypes[0] === "features" ? "features" : "series"),
   kind: "sql",
 
   enumComment: "order and take the top/bottom n",
@@ -25,7 +30,8 @@ PLAN: {"intent":"The ten counties ranked highest on median household income",
     const dir = step.direction === "asc" ? "ASC" : "DESC";
     const limit = Number.isInteger(step.limit) && step.limit > 0
       ? Math.min(step.limit, 1000) : 20;
-    return `${ctx.name} AS (SELECT fips, value FROM ${ctx.ins[0]} ` +
+    const cols = ctx.inTypes?.[0] === "features" ? "*" : "fips, value";
+    return `${ctx.name} AS (SELECT ${cols} FROM ${ctx.ins[0]} ` +
            `WHERE value IS NOT NULL ORDER BY value ${dir} LIMIT ${ctx.bind(limit)})`;
   },
 };

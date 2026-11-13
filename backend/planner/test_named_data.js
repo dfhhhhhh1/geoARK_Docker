@@ -103,13 +103,43 @@ const candidates = [
     assert.strictEqual(r.skipped, "timeout");
   });
 
-  await test("an earlier workflow result is not judged", async () => {
-    let called = false;
-    const r = await checkNamedData({ query: "income in those counties",
-      used: [{ attr_id: "result:q1", op: "load", feeds: [] }, ...used("A")], candidates, refs,
-      callLLM: async () => { called = true; return "{}"; } });
+  // d-asthma-then-rainfall (eval/research_advanced.yaml): step q2 planned a
+  // load of result:q1 -> aggregate and was never checked, because any earlier
+  // result exempted the whole plan. Nothing it reads measures rainfall.
+  const q1 = { attr_id: "result:q1", attr_desc:
+    "Counties from q1: Top 20 counties by current asthma prevalence (20 counties, values 11.9 to 14.1)",
+    dataset_clean: "Result of step q1" };
+  const wfRefs = new Map([["a1", "result:q1"], ["a2", "A"]]);
+
+  await test("a step that reads only an earlier result is still checked", async () => {
+    let user = "";
+    const r = await checkNamedData({
+      query: "What is the average annual rainfall in the counties from q1?",
+      used: [{ attr_id: "result:q1", op: "load", feeds: ["aggregate"] }],
+      candidates: [q1], refs: wfRefs,
+      callLLM: async (s, u) => { user = u;
+        return JSON.stringify({ named: [n("average annual rainfall", ""), n("the counties from q1", "a1")] }); } });
+    assert.match(user, /a1: Counties from q1: Top 20 counties by current asthma prevalence/);
+    assert.deepStrictEqual(r.uncovered, ["average annual rainfall"]);
+    assert.match(r.errors[0], /^NOT_COVERED: the question asks about "average annual rainfall"/);
+  });
+
+  await test("an earlier result covers its own counties; a real measure beside it passes", async () => {
+    const r = await checkNamedData({
+      query: "What is the median household income in the counties from q1?",
+      used: [{ attr_id: "result:q1", op: "load", feeds: ["intersect"] }, ...used("A")],
+      candidates: [q1, ...candidates], refs: wfRefs,
+      callLLM: scripted([n("median household income", "a2"), n("the counties from q1", "")]) });
+    // Even listed as uncovered, "the counties from q1" names no data.
     assert.deepStrictEqual(r.errors, []);
-    assert.ok(!called);
+  });
+
+  await test("a step id names no data", () => {
+    for (const [phrase, q] of [
+      ["the counties from q1", "income in the counties from q1"],
+      ["q2", "compare q1 and q2"],
+    ]) assert.ok(isExempt(phrase, q), `${phrase} / ${q}`);
+    assert.ok(!isExempt("q1 asthma", "q1 asthma"));
   });
 
   await test("the call asks for reasoning off with no budget", async () => {
@@ -128,6 +158,27 @@ const candidates = [
     assert.match(user, /a1: Estimate!!VALUE!!Owner-occupied units/);
     assert.match(user, /a3: Hospitals/);
     assert.deepStrictEqual(r.uncovered, ["residential parcel", "planned transit stop"]);
+  });
+
+  await test("the user's own data is covered only by their upload", async () => {
+    // H3 held-out Q6: "road segments in our transportation network" was
+    // answered with the national primary roads, no upload in the request.
+    const q = "Find all road segments in our transportation network that intersect wetlands";
+    const cands = [{ attr_id: "ROADS", attr_desc: "Primary Roads (mapped locations)" },
+                   { attr_id: "WET", attr_desc: "Wetlands (mapped locations)" },
+                   { attr_id: "layer:abc", attr_desc: "roads.geojson (your uploaded layer)" }];
+    const script = scripted([n("road segments in our transportation network", "a1"), n("wetlands", "a2")]);
+    const catalog = await checkNamedData({ query: q, used: used("ROADS", "WET"), candidates: cands,
+      refs: new Map([["a1", "ROADS"], ["a2", "WET"]]), callLLM: script });
+    assert.deepStrictEqual(catalog.uncovered, ["road segments in our transportation network"]);
+    assert.match(catalog.errors[0], /user's OWN data/);
+    const uploaded = await checkNamedData({ query: q, used: used("layer:abc", "WET"), candidates: cands,
+      refs: new Map([["a1", "layer:abc"], ["a2", "WET"]]), callLLM: script });
+    assert.deepStrictEqual(uploaded.uncovered, []);
+    // "our" in a place is not data: exemptions run first.
+    const place = await checkNamedData({ query: "hospitals in our state of Missouri", used: used("C"),
+      candidates, refs, callLLM: scripted([n("Missouri", "a3"), n("hospitals", "a3")]) });
+    assert.deepStrictEqual(place.uncovered, []);
   });
 
   console.log(`\n  ${pass} passed, ${fail} failed`);

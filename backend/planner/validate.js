@@ -126,26 +126,66 @@ async function validatePlan(plan, resolve) {
     outputSources.set(src, out.id);
   }
 
-  // --- a features step yields a different SHAPE, so it may not compose ------
+  // --- TYPES: every edge must carry a type its consumer accepts -------------
   //
-  // Every series op yields (fips, value) and chains. Features carry their own
-  // geometry and no county key, so normalize/rank/per_area have nothing to
-  // operate on. The rule is therefore about CONSUMERS rather than about being
-  // alone in the plan: a features step may only be read by an output, which
-  // lets it sit alongside a value series that has its own output while still
-  // refusing to be chained into one.
+  // One rule (docs/GIS_OPS_PLAN.md H1) where there used to be three special
+  // cases, "features may only feed an output", "an ungrouped aggregate may only
+  // feed an output" and "a statistic may only feed an output". Each op declares
+  // what it accepts per input and what it yields (ops/index.js typeOf); output
+  // accepts anything. The three old messages are kept, word for word, for the
+  // cases they covered, because the repair loop has always read them; a type
+  // pair none of them describes gets a generic sentence.
+  const types = ops.stepTypes(steps);
+  const typeErrors = new Map();   // one message per producing step
   for (const st of steps) {
-    if (ops.byName(st.op)?.produces !== "features") continue;
-    const consumers = steps.filter(s => (s.inputs || []).includes(st.id));
-    const chained = consumers.filter(c => !ops.byName(c.op)?.terminal);
-    if (chained.length) {
+    const mod = ops.byName(st.op);
+    (st.inputs || []).forEach((ref, i) => {
+      const allowed = ops.acceptsOf(mod, i);
+      const t = types.get(ref);
+      if (!allowed || !t || allowed.includes(t)) return;
+      if (!typeErrors.has(ref)) typeErrors.set(ref, { type: t, consumers: [] });
+      typeErrors.get(ref).consumers.push(st);
+    });
+  }
+  const byIdT = new Map(steps.map(s => [s.id, s]));
+  for (const [ref, { type, consumers }] of typeErrors) {
+    const src = byIdT.get(ref);
+    const names = [...new Set(consumers.map(s => s.op))].join(", ");
+    if (type === "features") {
       errors.push(
-        `${st.op} returns individual locations, not per-county values, so ` +
-        `it cannot be combined with ${[...new Set(chained.map(s => s.op))].join(", ")}. ` +
+        `${src.op} returns individual locations, not per-county values, so ` +
+        `it cannot be combined with ${names}. ` +
         `Feed it straight into an "output" step, and put any state or city ` +
-        `restriction in the ${st.op} step itself.`);
+        `restriction in the ${src.op} step itself.`);
+    } else if (type === "scalar" && src.op === "aggregate") {
+      errors.push(
+        `step "${src.id}" (aggregate) returns one national number, so it cannot feed ` +
+        `${names}: there is no county to match. ` +
+        `Feed it straight into an "output"; to compare two groups of counties, use compare_groups.`);
+    } else if (type === "statistic" || type === "factors") {
+      errors.push(
+        `${src.op} returns one summary row, not per-county values, so it cannot ` +
+        `feed ${names}. ` +
+        `Feed it straight into an "output" step.`);
+    } else {
+      const wants = consumers.map(c => {
+        const i = (c.inputs || []).indexOf(ref);
+        return `${c.op} needs ${ops.acceptsOf(ops.byName(c.op), i).join(" or ")}`;
+      });
+      errors.push(
+        `step "${src.id}" (${src.op}) returns ${type === "scalar" ? "one number" : type}, ` +
+        `and ${[...new Set(wants)].join("; ")} there. ` +
+        (type === "series"
+          ? `Individual locations come from select_features.`
+          : `Feed it straight into an "output" step.`));
     }
-    if (!consumers.length) {
+  }
+
+  // A features step nothing reads (the dead-step rule below skips features,
+  // whose message has always been this one).
+  for (const st of steps) {
+    if (types.get(st.id) !== "features") continue;
+    if (!steps.some(s => (s.inputs || []).includes(st.id))) {
       errors.push(`step "${st.id}" (${st.op}) is never used by an output step`);
     }
   }
@@ -169,7 +209,8 @@ async function validatePlan(plan, resolve) {
       live.add(id);
       stack.push(...(byId.get(id).inputs || []));
     }
-    const dead = steps.filter(s => !live.has(s.id) && ops.byName(s.op)?.produces !== "features");
+    const unread = (s) => !steps.some(o => (o.inputs || []).includes(s.id));
+    const dead = steps.filter(s => !live.has(s.id) && !(types.get(s.id) === "features" && unread(s)));
     if (dead.length) {
       const live1 = outputs[0].inputs?.[0];
       errors.push(
@@ -177,40 +218,6 @@ async function validatePlan(plan, resolve) {
         `${dead.length > 1 ? "are" : "is"} not used by any output, so ${dead.length > 1 ? "their results are" : "its result is"} ` +
         `discarded. Every step must lead to an output: put a filter on the chain the output ` +
         `reads${live1 ? ` (the output reads "${live1}")` : ""}, or remove the step.`);
-    }
-  }
-
-  // --- an ungrouped aggregate is one row with no county ---------------------
-  //
-  // Its fips is NULL, so join / normalize / intersect / compare_groups on it
-  // match nothing. "Is poverty in the outlier counties different from
-  // everywhere else" planned mean(group a), mean(group b), join: EMPTY, from a
-  // plan that validated (2026-11-11). Two groups are compare_groups' job.
-  for (const st of steps) {
-    if (st.op !== "aggregate" || st.group_by === "state") continue;
-    const chained = steps.filter(s => (s.inputs || []).includes(st.id) && !ops.byName(s.op)?.terminal);
-    if (chained.length) {
-      errors.push(
-        `step "${st.id}" (aggregate) returns one national number, so it cannot feed ` +
-        `${[...new Set(chained.map(s => s.op))].join(", ")}: there is no county to match. ` +
-        `Feed it straight into an "output"; to compare two groups of counties, use compare_groups.`);
-    }
-  }
-
-  // --- a statistic is one row, so it may only be read by an output ---------
-  //
-  // correlate yields a single row with no county key. Ranking or normalizing
-  // it would validate, compile and return a plausible-looking nothing.
-  for (const st of steps) {
-    const m = ops.byName(st.op);
-    if (!m?.statColumns && m?.produces !== "factors") continue;
-    const consumers = steps.filter(s => (s.inputs || []).includes(st.id));
-    const chained = consumers.filter(c => !ops.byName(c.op)?.terminal);
-    if (chained.length) {
-      errors.push(
-        `${st.op} returns one summary row, not per-county values, so it cannot ` +
-        `feed ${[...new Set(chained.map(s => s.op))].join(", ")}. ` +
-        `Feed it straight into an "output" step.`);
     }
   }
 
@@ -287,6 +294,19 @@ async function validatePlan(plan, resolve) {
       const src = resolved.get(c.id);
       if (!src) continue;
       const isFeature = src.source_kind === "feature_table";
+      const isRaster = src.source_kind === "raster";
+      // A raster (H4) is summarised over units by zonal; read as a series or
+      // as features it has no rows to read.
+      if (isRaster && c.sourceKind !== "raster") {
+        errors.push(
+          `step "${st.id}": "${c.id}" is a raster (pixels, no county key). Use op ` +
+          `"zonal" to summarise it per county or unit, not "${st.op}".`);
+        continue;
+      }
+      if (c.sourceKind === "raster" && !isRaster) {
+        errors.push(`step "${st.id}": ${c.field} "${c.id}" ${c.message || "is not a raster."}`);
+        continue;
+      }
       if (c.sourceKind === "value" && isFeature) {
         errors.push(
           `step "${st.id}": "${c.id}" is a facility dataset (point/polygon ` +
@@ -300,6 +320,24 @@ async function validatePlan(plan, resolve) {
             `Use op "load", not "${st.op}".`);
       }
     }
+  }
+
+  // --- a land-class raster needs its classes -------------------------------
+  //
+  // zonal over a CATEGORICAL raster with no classes chosen would average the
+  // class codes (H4 dev: "acres of cultivated cropland" lost its class filter
+  // and reported the mean code, 82-ish, per county). Which classes is the
+  // question's, so the repair loop is told the choices.
+  for (const st of steps) {
+    if (st.op !== "zonal") continue;
+    const src = resolved.get(st.attr_id);
+    if (src?.source_kind !== "raster" || src.raster_kind !== "categorical") continue;
+    if (st.attribute_filters?.length) continue;
+    const vals = src.filter_values?.type || [];
+    errors.push(
+      `step "${st.id}" (zonal): "${st.attr_id}" is a land-class raster; say which ` +
+      `classes the question means with attribute_filters, column "type". ` +
+      `Values: ${vals.map(v => `"${v}"`).join(", ")}.`);
   }
 
   // --- a rate divided by a count is not a rate -----------------------------

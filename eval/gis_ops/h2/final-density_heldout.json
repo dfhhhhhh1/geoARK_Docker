@@ -1,0 +1,101 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "density_heldout": {
+      "pass": 1,
+      "n": 2,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 1,
+    "CORRECT": 1
+  },
+  "latency_mean": 23.6,
+  "api_container_created": "2026-11-12T06:48:09.477912655Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "de-stl-nbhd-popdens-km2",
+      "tier": "density_heldout",
+      "query": "Population per square kilometer for each neighborhood in St. Louis",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Population per square kilometer for each neighborhood in St. Louis",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 19.8
+    },
+    {
+      "id": "de-chi-ward-schools-mi2",
+      "tier": "density_heldout",
+      "query": "Public schools per square mile in every Chicago ward",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 50,
+        "gold_rows": 50,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "public_schools_nces"
+        }
+      },
+      "ops": "count_features->per_area->output",
+      "intent": "Number of public schools per square mile in each Chicago ward",
+      "loaded": [
+        "public_schools_nces | Public School Locations (mapped locations) | Public School Locations"
+      ],
+      "row_count": 50,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Public schools per square mile in every Chicago ward",
+            "uses": [],
+            "ops": "count_features->per_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 27.4
+    }
+  ]
+}

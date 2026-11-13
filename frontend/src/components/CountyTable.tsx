@@ -37,6 +37,11 @@ const fmt = (v: number | null | undefined) =>
   v === null || v === undefined ? '–' : v.toLocaleString(undefined, { maximumFractionDigits: 3 });
 
 const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, heightClass = 'max-h-64', level }) => {
+  // Counties and tracts begin with their state's FIPS code; a ZIP area or a
+  // user's zone ("Ward 12") does not, and read as Florida.
+  const stateOf = (fips: string) =>
+    (!level || level === 'county' || level === 'tract' || level === 'bg')
+      ? STATE_ABBR[fips.slice(0, 2)] ?? '' : '';
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'value', dir: 'desc' });
 
@@ -54,7 +59,7 @@ const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, h
     const needle = q.trim().toLowerCase();
     const filtered = needle
       ? rows.filter(r => {
-          const st = STATE_ABBR[r.fips.slice(0, 2)] ?? '';
+          const st = stateOf(r.fips);
           return `${r.name ?? ''} ${st} ${r.fips}`.toLowerCase().includes(needle);
         })
       : rows;
@@ -132,7 +137,7 @@ const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, h
                     <span className="inline-flex items-center gap-1">
                       {isSel && <MapPin className="w-3 h-3 text-amber-600" />}
                       {r.name ?? r.fips}
-                      <span className="text-xs text-slate-400">{STATE_ABBR[r.fips.slice(0, 2)] ?? ''}</span>
+                      <span className="text-xs text-slate-400">{stateOf(r.fips)}</span>
                     </span>
                   </td>
                   {series.map(s => (

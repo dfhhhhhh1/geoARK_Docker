@@ -2,162 +2,6 @@
 # read by `make replay` on another machine. See docs/DATA_LOADING_PLAN.md.
 version: 1
 datasets:
-- loaded_at: 2026-10-16T21:25Z
-  id: ing_svi_01@tract
-  dataset_id: ing_svi_01
-  name: CDC Social Vulnerability Index
-  kind: table
-  level: tract
-  files:
-  - path: svi_tract/SVI_2022_US.csv
-    sha256: 58df3dca3d4194879ffbd4b5e753eae48676ef691da1fa669f5fc40c3f79bc6a
-    bytes: 61102059
-  - path: svi_tract/svi.meta.yaml
-    sha256: d2a538262be36c465d186912ad87ec8360e90d7a70bbdebcd92f24c563e0578c
-    bytes: 2423
-  rows: 2505539
-  units: 84120
-  unmatched_units: 0
-  codes:
-  - SVI_EP_AFAM
-  - SVI_EP_AGE17
-  - SVI_EP_AGE65
-  - SVI_EP_AIAN
-  - SVI_EP_ASIAN
-  - SVI_EP_CROWD
-  - SVI_EP_DISABL
-  - SVI_EP_GROUPQ
-  - SVI_EP_HBURD
-  - SVI_EP_HISP
-  - SVI_EP_LIMENG
-  - SVI_EP_MINRTY
-  - SVI_EP_MOBILE
-  - SVI_EP_MUNIT
-  - SVI_EP_NHPI
-  - SVI_EP_NOHSDP
-  - SVI_EP_NOINT
-  - SVI_EP_NOVEH
-  - SVI_EP_OTHERRACE
-  - SVI_EP_POV150
-  - SVI_EP_SNGPNT
-  - SVI_EP_TWOMORE
-  - SVI_EP_UNEMP
-  - SVI_EP_UNINSUR
-  - SVI_E_TOTPOP
-  - SVI_RPL_THEME1
-  - SVI_RPL_THEME2
-  - SVI_RPL_THEME3
-  - SVI_RPL_THEME4
-  - SVI_RPL_THEMES
-  catalog_labels: []
-  tag_model: null
-  metadata:
-    description: Social vulnerability of every census tract, ranked on 16 census variables in four themes.
-    originator: CDC/ATSDR
-    source_url: https://svi.cdc.gov/Documents/Data/2022/csv/states/SVI_2022_US.csv
-    license: public domain
-    start_year: 2022
-    end_year: 2022
-    probe: which areas are most socially vulnerable
-  dump: null
-- loaded_at: 2026-10-16T21:27Z
-  id: ing_svi_01@county
-  dataset_id: ing_svi_01
-  name: CDC Social Vulnerability Index
-  kind: table
-  level: county
-  files:
-  - path: svi_county/SVI_2022_US_county.csv
-    sha256: bc47d244153e359d5c09f621a4bf344a1e593159c16fbd3c28a15461b70a6c0f
-    bytes: 2301480
-  - path: svi_county/svi.meta.yaml
-    sha256: ffc71b3424d872176133bb56a7b13ba090d17db1c2c22334663aaeea18c41257
-    bytes: 2523
-  rows: 93990
-  units: 3133
-  unmatched_units: 11
-  codes:
-  - SVI_EP_AFAM
-  - SVI_EP_AGE17
-  - SVI_EP_AGE65
-  - SVI_EP_AIAN
-  - SVI_EP_ASIAN
-  - SVI_EP_CROWD
-  - SVI_EP_DISABL
-  - SVI_EP_GROUPQ
-  - SVI_EP_HBURD
-  - SVI_EP_HISP
-  - SVI_EP_LIMENG
-  - SVI_EP_MINRTY
-  - SVI_EP_MOBILE
-  - SVI_EP_MUNIT
-  - SVI_EP_NHPI
-  - SVI_EP_NOHSDP
-  - SVI_EP_NOINT
-  - SVI_EP_NOVEH
-  - SVI_EP_OTHERRACE
-  - SVI_EP_POV150
-  - SVI_EP_SNGPNT
-  - SVI_EP_TWOMORE
-  - SVI_EP_UNEMP
-  - SVI_EP_UNINSUR
-  - SVI_E_TOTPOP
-  - SVI_RPL_THEME1
-  - SVI_RPL_THEME2
-  - SVI_RPL_THEME3
-  - SVI_RPL_THEME4
-  - SVI_RPL_THEMES
-  catalog_labels:
-  - SVI_E_TOTPOP
-  - SVI_EP_POV150
-  - SVI_EP_UNEMP
-  - SVI_EP_HBURD
-  - SVI_EP_NOHSDP
-  - SVI_EP_UNINSUR
-  - SVI_EP_AGE65
-  - SVI_EP_AGE17
-  - SVI_EP_DISABL
-  - SVI_EP_SNGPNT
-  - SVI_EP_LIMENG
-  - SVI_EP_MINRTY
-  - SVI_EP_MUNIT
-  - SVI_EP_MOBILE
-  - SVI_EP_CROWD
-  - SVI_EP_NOVEH
-  - SVI_EP_GROUPQ
-  - SVI_RPL_THEME1
-  - SVI_RPL_THEME2
-  - SVI_RPL_THEME3
-  - SVI_RPL_THEME4
-  - SVI_RPL_THEMES
-  - SVI_EP_NOINT
-  - SVI_EP_AFAM
-  - SVI_EP_HISP
-  - SVI_EP_ASIAN
-  - SVI_EP_AIAN
-  - SVI_EP_NHPI
-  - SVI_EP_TWOMORE
-  - SVI_EP_OTHERRACE
-  tag_model: gemma3:4b
-  metadata:
-    description: Social vulnerability of every county, ranked on 16 census variables in four themes.
-    originator: CDC/ATSDR
-    source_url: https://svi.cdc.gov/Documents/Data/2022/csv/states_counties/SVI_2022_US_county.csv
-    license: public domain
-    start_year: 2022
-    end_year: 2022
-    probe: which areas are most socially vulnerable
-  dump:
-    files:
-    - path: ing_svi_01_county/acs_county_values.csv.gz
-      sha256: 3d18e38448b9ddcf07a5c7035b94a9d33cf6b62502f14cdce2c8c3b591e7e32d
-      bytes: 423381
-    - path: ing_svi_01_county/geo_measure.csv.gz
-      sha256: fb9f1c047e947f3d0d5617f5abe6c1f63042974b5c00417e8094e0352cbd568a
-      bytes: 831
-    - path: ing_svi_01_county/manifest.json
-      sha256: 2f1bb669af0e4f280e78b7c2a6b26998b2886b9dda5f8f5530f37e1a036ba49c
-      bytes: 130
 - loaded_at: 2026-10-16T21:26Z
   id: ing_places_01@zcta
   dataset_id: ing_places_01
@@ -326,3 +170,2514 @@ datasets:
     - path: ing_worldpop_01/manifest.json
       sha256: 0aeb3d07385592e7ffb2634ee66456896a45ea6da44e3e5b39f0829f8fdfe549
       bytes: 129
+- loaded_at: 2026-11-12T03:18Z
+  id: ing_stlwards_01
+  dataset_id: ing_stlwards_01
+  name: St. Louis wards
+  kind: zones
+  files:
+  - path: stl_wards/Wards_2020.cpg
+    sha256: 3ad3031f5503a4404af825262ee8232cc04d4ea6683d42c5dd0a2f2a27ac9824
+    bytes: 5
+  - path: stl_wards/Wards_2020.dbf
+    sha256: 98874c3cf88ebca7fc0b84078dcac2ba2602effb86d0d933de2144dd7190d77c
+    bytes: 44524
+  - path: stl_wards/Wards_2020.prj
+    sha256: 5de576ed3ccdb71b893e89708366df1ecfe97199248447231cd85d151f9e57c7
+    bytes: 503
+  - path: stl_wards/Wards_2020.sbn
+    sha256: b44484560ca0d5390f021ee738a1d862c3621496108809baf49735609e1ad0f3
+    bytes: 268
+  - path: stl_wards/Wards_2020.sbx
+    sha256: 56c0f7306fda6b53e06ef76fc6e9822526214206e2ea19849c09ab2c44503abe
+    bytes: 132
+  - path: stl_wards/Wards_2020.shp
+    sha256: 895e1623bbdfa74b6cdbb686748268776b04d9ba5613e48b83bc27280bb3e2b2
+    bytes: 105172
+  - path: stl_wards/Wards_2020.shx
+    sha256: 8e4ce3f85a4a6dba1d168a917ce5cfe333c3a25bd68b776ae23a907517ee810c
+    bytes: 212
+  - path: stl_wards/stl_wards.meta.yaml
+    sha256: ac4a80fcdc49ac844409e78849d90947b791d70502be9c46f7ead2437ce2590e
+    bytes: 551
+  - path: stl_wards/Wards_2020.shp.xml
+    sha256: 279dc33635e5d1728d71c90aae8745910815ad291729b61d10b7841b43872a39
+    bytes: 209471
+  layer: Wards_2020
+  level: z_stl_wards
+  zones:
+    unit: ward
+    plural: wards
+    aliases:
+    - aldermanic ward
+    places:
+    - St. Louis
+    - St. Louis city
+    id_column: DISTRICT
+    name_column: NAME
+  rows: 14
+  land_km2: 159.926
+  population:
+    code: WORLDPOP_POP
+    year: 2025
+    units: 14
+    covered: 14
+    tiny_filled: 0
+    total: 292139.5
+    exact_overlap_total: 292188.5
+    relative_gap: -0.00017
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: The 14 aldermanic wards of the City of St. Louis, redistricted after the 2020 census.
+    originator: City of St. Louis Planning and Urban Design Agency
+    source_url: https://www.stlouis-mo.gov/data/datasets/dataset.cfm?id=131
+    license: public domain
+    start_year: 2023
+    end_year: 2023
+  dump: null
+- loaded_at: 2026-11-12T03:18Z
+  id: ing_stlneighborh_01
+  dataset_id: ing_stlneighborh_01
+  name: St. Louis neighborhoods
+  kind: zones
+  files:
+  - path: stl_neighborhoods/Neighborhoods.cpg
+    sha256: 3ad3031f5503a4404af825262ee8232cc04d4ea6683d42c5dd0a2f2a27ac9824
+    bytes: 5
+  - path: stl_neighborhoods/Neighborhoods.dbf
+    sha256: e9a3f2c71e92c700975b7dd3be8c457b723f86357fafa632157e8c571f02bfaa
+    bytes: 11370
+  - path: stl_neighborhoods/Neighborhoods.prj
+    sha256: 5de576ed3ccdb71b893e89708366df1ecfe97199248447231cd85d151f9e57c7
+    bytes: 503
+  - path: stl_neighborhoods/Neighborhoods.sbn
+    sha256: 8593f1f484181375a2f91716963622782c49dd8d5b7a4abef6ceb2ffdaadb965
+    bytes: 1020
+  - path: stl_neighborhoods/Neighborhoods.sbx
+    sha256: f1fb78ae4ed6c12c2f85d444858fc926f9fcbaaa1d48b6fe5b9b249c147395f3
+    bytes: 196
+  - path: stl_neighborhoods/Neighborhoods.shp
+    sha256: 3c614ad4625f0e9e8a801eb6170799b2662c559dd345873f9391b4445095f454
+    bytes: 64312
+  - path: stl_neighborhoods/Neighborhoods.shx
+    sha256: 13a5a7064df65ec534444b51cdf40b3aa4f967edd96f3f5b14588c2cbb262ce8
+    bytes: 804
+  - path: stl_neighborhoods/stl_neighborhoods.meta.yaml
+    sha256: 9c1abc7a9820a268d6e6c867eb8031f790e8331eda2fa28a59f19c84bf01046f
+    bytes: 630
+  - path: stl_neighborhoods/Neighborhoods.shp.xml
+    sha256: 219fe636cd423b41b800d66425e2607f7501ad790468539af5e6b4a515376ba3
+    bytes: 267320
+  layer: Neighborhoods
+  level: z_stl_neighborhoods
+  zones:
+    unit: neighborhood
+    plural: neighborhoods
+    aliases:
+    - neighbourhood
+    places:
+    - St. Louis
+    - St. Louis city
+    id_column: NHD_NUM
+    name_column: NHD_NAME
+  rows: 88
+  land_km2: 152.033
+  population:
+    code: WORLDPOP_POP
+    year: 2025
+    units: 88
+    covered: 88
+    tiny_filled: 0
+    total: 290738.0
+    exact_overlap_total: 290600.6
+    relative_gap: 0.00047
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: The 88 neighborhood units of the City of St. Louis, including large parks.
+    originator: City of St. Louis Planning and Urban Design Agency
+    source_url: https://www.stlouis-mo.gov/data/datasets/dataset.cfm?id=85
+    license: public domain
+    keywords:
+    - Neighborhood
+    - 79 Neighborhoods
+    - 88 Neighborhoods
+    - Neighborhood parks
+    - Citywide Neighborhood
+    start_year: 2023
+    end_year: 2023
+  dump: null
+- loaded_at: 2026-11-12T03:18Z
+  id: ing_chicommunity_01
+  dataset_id: ing_chicommunity_01
+  name: Chicago community areas
+  kind: zones
+  files:
+  - path: chi_community_areas/community_areas.geojson
+    sha256: 0921a90f21ee433da800194c62044dbc6fc208f3a6828e2e358b382082ecd719
+    bytes: 2072024
+  - path: chi_community_areas/chi_community_areas.meta.yaml
+    sha256: e280f188bd16de9358167fca8bb0da3001a7831e87449b0dd867aecb3e501b34
+    bytes: 466
+  layer: community_areas
+  level: z_chi_community_areas
+  zones:
+    unit: community area
+    plural: community areas
+    aliases: []
+    places:
+    - Chicago
+    id_column: area_numbe
+    name_column: community
+  rows: 77
+  land_km2: 586.293
+  population:
+    code: WORLDPOP_POP
+    year: 2025
+    units: 77
+    covered: 77
+    tiny_filled: 0
+    total: 2855330.9
+    exact_overlap_total: 2855663.2
+    relative_gap: -0.00012
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: The 77 community areas of the City of Chicago.
+    originator: City of Chicago
+    source_url: https://data.cityofchicago.org/d/igwz-8jzy
+    license: City of Chicago Data Portal terms of use
+    start_year: 2018
+    end_year: 2018
+  dump: null
+- loaded_at: 2026-11-12T03:18Z
+  id: ing_chiwards_01
+  dataset_id: ing_chiwards_01
+  name: Chicago wards
+  kind: zones
+  files:
+  - path: chi_wards/wards_2023.geojson
+    sha256: 283eb1a6ed1b92c11ef61aefe8b1ac29d25946239296e9ae281488977100d8a5
+    bytes: 3509505
+  - path: chi_wards/chi_wards.meta.yaml
+    sha256: b9f716f69bf139502ab1a61e6a13ba2f29086a504f5d0507f67f53155d86c0c2
+    bytes: 429
+  layer: wards_2023
+  level: z_chi_wards
+  zones:
+    unit: ward
+    plural: wards
+    aliases:
+    - aldermanic ward
+    places:
+    - Chicago
+    id_column: ward
+    name_column: null
+  rows: 50
+  land_km2: 587.481
+  population:
+    code: WORLDPOP_POP
+    year: 2025
+    units: 50
+    covered: 50
+    tiny_filled: 0
+    total: 2857053.7
+    exact_overlap_total: 2857500.5
+    relative_gap: -0.00016
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: The 50 aldermanic wards of the City of Chicago, effective May 2023.
+    originator: City of Chicago
+    source_url: https://data.cityofchicago.org/d/p293-wvbd
+    license: City of Chicago Data Portal terms of use
+    start_year: 2023
+    end_year: 2023
+  dump: null
+- loaded_at: 2026-11-12T03:19Z
+  id: ing_publicschool_01
+  name: Public School Locations
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: public_schools/EDGE_GEOCODE_PUBLICSCH_2425.cpg
+    sha256: 3ad3031f5503a4404af825262ee8232cc04d4ea6683d42c5dd0a2f2a27ac9824
+    bytes: 5
+  - path: public_schools/EDGE_GEOCODE_PUBLICSCH_2425.dbf
+    sha256: 76eb53935c34bb025878a8c09504429153b91c5defefbd05b408e27a5a23618e
+    bytes: 54870356
+  - path: public_schools/EDGE_GEOCODE_PUBLICSCH_2425.prj
+    sha256: a02a27b1d1982c8516d83398e85a3c8b1aef1713c13ef4d84d7bde17430c07c4
+    bytes: 145
+  - path: public_schools/EDGE_GEOCODE_PUBLICSCH_2425.sbn
+    sha256: 8303a9cc197a61cf088b3c0620e3deb7c5d39f62c5ae085b0fc5a93f7f73410f
+    bytes: 960116
+  - path: public_schools/EDGE_GEOCODE_PUBLICSCH_2425.sbx
+    sha256: 61e792ea975807335fba3224ec4849b739c98985a1650441199a52675d798c5d
+    bytes: 11636
+  - path: public_schools/EDGE_GEOCODE_PUBLICSCH_2425.shp
+    sha256: ce15c9208e224e24ab6570f5ac5b3cdc632946b9bc8071cab548520d125972ba
+    bytes: 2861084
+  - path: public_schools/EDGE_GEOCODE_PUBLICSCH_2425.shx
+    sha256: f4b8b0990720a58912606e3eca590d5373dc6420f562be58ee60dbba0929c40d
+    bytes: 817524
+  - path: public_schools/public_schools.meta.yaml
+    sha256: 091b5d5468fb00637ab7e809b64252c5b63876cbe7ec9366564be32efdef6a7e
+    bytes: 782
+  - path: public_schools/EDGE_GEOCODE_PUBLICSCH_2425.shp.xml
+    sha256: 1d5eab24eacc3cba2fbf4fdf224faffe14a81c5f9ad93cfd6aceebbbeb8e47fa
+    bytes: 26691
+  layer: EDGE_GEOCODE_PUBLICSCH_2425
+  table: public_schools_nces
+  rows: 102178
+  geometry: Point
+  catalog_labels:
+  - ing_publicschool_01_01
+  - ing_publicschool_01_02
+  - ing_publicschool_01_03
+  tag_model: gemma3:4b
+  metadata:
+    description: Locations of public elementary and secondary schools from the NCES Common Core of Data,
+      2024-25 school year.
+    originator: National Center for Education Statistics (NCES) EDGE
+    source_url: https://nces.ed.gov/programs/edge/Geographic/SchoolLocations
+    license: public domain
+    keywords:
+    - public schools
+    - K-12 schools
+    - elementary schools
+    - high schools
+    - school locations
+    start_year: 2025
+    end_year: 2025
+    probe: how many public schools are in each county
+  dump: null
+- loaded_at: 2026-11-12T03:19Z
+  id: ing_privateschoo_01
+  name: Private School Locations
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: private_schools/EDGE_GEOCODE_PRIVATESCH_2324.cpg
+    sha256: 3ad3031f5503a4404af825262ee8232cc04d4ea6683d42c5dd0a2f2a27ac9824
+    bytes: 5
+  - path: private_schools/EDGE_GEOCODE_PRIVATESCH_2324.dbf
+    sha256: 9cc0a45a57186f0b8e35a2bc243a72136e14020ae69b1e85e4148649add526d7
+    bytes: 12921446
+  - path: private_schools/EDGE_GEOCODE_PRIVATESCH_2324.prj
+    sha256: a02a27b1d1982c8516d83398e85a3c8b1aef1713c13ef4d84d7bde17430c07c4
+    bytes: 145
+  - path: private_schools/EDGE_GEOCODE_PRIVATESCH_2324.shp
+    sha256: c907d62da98b6b99ab013bc3addcdf1a52cc787eeafc23b21fa3dfbba55aa9f3
+    bytes: 630380
+  - path: private_schools/EDGE_GEOCODE_PRIVATESCH_2324.shx
+    sha256: cc984e62e14c19090d4129f4ba79d3f67676da6120472bc3a3dab9ae358be498
+    bytes: 180180
+  - path: private_schools/private_schools.meta.yaml
+    sha256: e61cb2ee4384c5576d2a8bbd7a77b76a09616bc1f7b8a3a90d84b29522ccdf62
+    bytes: 765
+  - path: private_schools/EDGE_GEOCODE_PRIVATESCH_2324.shp.xml
+    sha256: 563899626c04e72a4b5ba42d37d638711b9cd4ea914b327181b4ddffb29040b0
+    bytes: 22215
+  layer: EDGE_GEOCODE_PRIVATESCH_2324
+  table: private_schools_nces
+  rows: 22510
+  geometry: Point
+  catalog_labels:
+  - ing_privateschoo_01_01
+  - ing_privateschoo_01_02
+  - ing_privateschoo_01_03
+  tag_model: gemma3:4b
+  metadata:
+    description: Locations of private elementary and secondary schools from the NCES Private School Universe
+      Survey, 2023-24.
+    originator: National Center for Education Statistics (NCES) EDGE
+    source_url: https://nces.ed.gov/programs/edge/Geographic/SchoolLocations
+    license: public domain
+    keywords:
+    - private schools
+    - parochial schools
+    - independent schools
+    - school locations
+    start_year: 2024
+    end_year: 2024
+    probe: private schools in each county
+  dump: null
+- loaded_at: 2026-11-12T03:19Z
+  id: ing_tigerprimary_01
+  name: Primary Roads and Interstates
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: tiger_primary_roads/tl_2024_us_primaryroads.cpg
+    sha256: 3ad3031f5503a4404af825262ee8232cc04d4ea6683d42c5dd0a2f2a27ac9824
+    bytes: 5
+  - path: tiger_primary_roads/tl_2024_us_primaryroads.dbf
+    sha256: 98bd3600c7d7a85c16d8e27654d9a9b578815e8b9d99b1ad20b9b69746711df0
+    bytes: 2260500
+  - path: tiger_primary_roads/tl_2024_us_primaryroads.prj
+    sha256: 0b9041e921d9ebb43247d314608fe9e38a0b008ee793067fc1806199ea1fb9dd
+    bytes: 165
+  - path: tiger_primary_roads/tl_2024_us_primaryroads.shp
+    sha256: a0390cf9218b3c1dbedae8d62d6b60aba899f1e6646c1a24a978fe8d4eca3722
+    bytes: 58335044
+  - path: tiger_primary_roads/tl_2024_us_primaryroads.shx
+    sha256: 31b92766a80f4460b8043e445a66aca2d743e91a88ae149a27a0983488543c6b
+    bytes: 140276
+  - path: tiger_primary_roads/tiger_primary_roads.meta.yaml
+    sha256: 0ad92579368ee9328be867f26fc1d275dad13209c07c5eaf80f1c81809d6d02a
+    bytes: 726
+  - path: tiger_primary_roads/tl_2024_us_primaryroads.shp.ea.iso.xml
+    sha256: 54c301bd10ff0059f4cf5c5a764da48118f3cd70768a074668ec24d2e9ddaba5
+    bytes: 12587
+  layer: tl_2024_us_primaryroads
+  table: tiger_primary_roads
+  rows: 17522
+  geometry: Line String
+  catalog_labels:
+  - ing_tigerprimary_01_01
+  - ing_tigerprimary_01_02
+  tag_model: gemma3:4b
+  metadata:
+    description: Primary roads (limited-access divided highways, chiefly the Interstate system) from Census
+      TIGER/Line 2024.
+    originator: U.S. Census Bureau, TIGER/Line
+    source_url: https://www2.census.gov/geo/tiger/TIGER2024/PRIMARYROADS/
+    license: public domain
+    keywords:
+    - interstate highways
+    - freeways
+    - primary roads
+    - highways
+    - road network
+    start_year: 2024
+    end_year: 2024
+    probe: which counties have an interstate highway
+  dump: null
+- loaded_at: 2026-11-12T03:20Z
+  id: ing_snapretailer_01
+  name: SNAP Authorized Food Retailers
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: snap_retailers/snap_retailers_current.csv
+    sha256: a7a3d84b4685268676d0b3d9be922c661538392bf1c9278956722f5a3a5fbf84
+    bytes: 27850220
+  - path: snap_retailers/snap_retailers.meta.yaml
+    sha256: d3984bf7a25d6f445d301ac0318d4451a4d1ad696d7eb23ac297796b865360b7
+    bytes: 928
+  layer: snap_retailers_current
+  table: snap_retailers
+  rows: 249063
+  geometry: Point
+  catalog_labels:
+  - ing_snapretailer_01_01
+  - ing_snapretailer_01_02
+  - ing_snapretailer_01_03
+  tag_model: gemma3:4b
+  metadata:
+    description: Grocery stores, supermarkets, convenience stores, farmers markets and other food retailers
+      currently authorized to accept SNAP benefits (EBT).
+    originator: USDA Food and Nutrition Service
+    source_url: https://www.fns.usda.gov/snap/retailer/historicaldata
+    license: public domain
+    keywords:
+    - food store
+    - grocery store
+    - supermarket
+    - food retailer
+    - SNAP
+    - EBT
+    - food stamps
+    - food access
+    start_year: 2025
+    end_year: 2025
+    probe: where are the grocery stores that accept food stamps
+  dump: null
+- loaded_at: 2026-11-12T03:20Z
+  id: ing_transitstops_01
+  name: Public Transit Stops
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: transit_stops/transit_stops.csv
+    sha256: 298f3afe3d824d50f5060096054dff1bfeaf962e35dd515c05d57aef588472f4
+    bytes: 43697273
+  - path: transit_stops/transit_stops.meta.yaml
+    sha256: bdfc7e0d4e7191241846b17c1fc6f8c3b442c778f5aca78f749ef288575b43e5
+    bytes: 950
+  layer: transit_stops
+  table: transit_stops
+  rows: 654300
+  geometry: Point
+  catalog_labels:
+  - ing_transitstops_01_01
+  - ing_transitstops_01_02
+  tag_model: gemma3:4b
+  metadata:
+    description: Bus stops, rail and subway platforms, light rail, streetcar and ferry stops of fixed-route
+      public transit, from agency GTFS feeds.
+    originator: U.S. DOT Bureau of Transportation Statistics, National Transit Map
+    source_url: https://geodata.bts.gov/datasets/usdot::national-transit-map-stops
+    license: public domain
+    keywords:
+    - transit stops
+    - bus stops
+    - train stations
+    - subway stops
+    - light rail
+    - public transportation
+    start_year: 2026
+    end_year: 2026
+    probe: how many bus stops are in each county
+  dump: null
+- loaded_at: 2026-11-12T12:45Z
+  id: ing_nwiwetlands_01
+  name: National Wetlands Inventory wetlands
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/.synoemptyblob
+    sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    bytes: 0
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000001.TablesByName.atx
+    sha256: f7076acbe50596644d347440b8ebbcb0a477b21d6e09cdaa06ef804d34fcbc19
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000001.freelist
+    sha256: 5c5b4f8b94af5f3da625fa58f9bcfb9f7b401d494ae110fc7425f1b0157d6ce4
+    bytes: 12632
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000001.gdbindexes
+    sha256: 80ba95b873e151074244f7655f9e29ce8967aab1bd57ff4c06a329b723a3d46c
+    bytes: 110
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000001.gdbtable
+    sha256: a0dda06c7f981960a71f1629fc563a9a380f511bbbea80a1599902a68263059f
+    bytes: 567
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000001.gdbtablx
+    sha256: d1b322101e27aa8a535a7612c78bb8ccc727a9e2aad6a9a01450d566a9725666
+    bytes: 5152
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000002.gdbtable
+    sha256: 9efa50dc62a40e109a546054943ae5ad4b3d41aa81ece0dfa026b7b23cb09da8
+    bytes: 2055
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000002.gdbtablx
+    sha256: f3ac9865dec6ab40e73d91dd1f5c2eef0248e66e359d4abb1d97edba92b5df88
+    bytes: 5152
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000003.gdbindexes
+    sha256: de0911d18e2f304380c04ae123ea18057d262d788301f7cc3148298231c7c618
+    bytes: 42
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000003.gdbtable
+    sha256: 67f61b4a716839794e29fa6e57e4040524f2ee081d9cb1c7d8008dddfd70171a
+    bytes: 1589
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000003.gdbtablx
+    sha256: 5582733d04eea72f7386093fa9452921fc24a896c8ddf2513f3ac4e55bfa1eff
+    bytes: 5152
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000004.CatItemsByPhysicalName.atx
+    sha256: 6ce92fe1f0772a1d59fbf3da49e8c5009e730e17027c128e880c7ccfead93a2f
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000004.CatItemsByType.atx
+    sha256: ad65a916ef90dfe19f8fa292ba0d41542ef7708c713fcdaaaaeb30a5e6df4521
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000004.FDO_UUID.atx
+    sha256: 36f5c0f114191d869c734aa63ea72c5333136fa8975033fdd3141767b5b2d1f1
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000004.freelist
+    sha256: 84e9a5b73065543da4c0a35e45a7e30a3b2b0ce834d309f465b7f32498814a73
+    bytes: 82264
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000004.gdbindexes
+    sha256: f29887c93b126a3feb0e20958cd73cc774f76ab79284b9c7286dc12eb05db858
+    bytes: 310
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000004.gdbtable
+    sha256: ad0416cfbc766fdf663d733dc19903dbdd53b424adb44a504fee1eef0d3696fb
+    bytes: 2245338
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000004.gdbtablx
+    sha256: bfe02b0c176417718b778ea96ee5cc72b12aced7375bab00e6c21beac4de4363
+    bytes: 5152
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000004.horizon
+    sha256: 9fab34115b351a30fb6adb5818d8f08e4dd3a024b7247dbbc61c56929ab6e223
+    bytes: 32
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000004.spx
+    sha256: 5620f2a558ba93d89b00c0ed680e84969f48f8e0687ac09ab6a3756d0e828a97
+    bytes: 12310
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000005.CatItemTypesByName.atx
+    sha256: 5e901522888a8153c398e005ac61c7352e3fe920bf2b7a84d76d2b4caeee9817
+    bytes: 12310
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000005.CatItemTypesByParentTypeID.atx
+    sha256: d8ba35a73b3e10a55caae8ccf875f10ca3288d1c0d18aad51bf52182b322ec0e
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000005.CatItemTypesByUUID.atx
+    sha256: 480f1f90818c3dc361c6e9ffc09330781a1c55ba52f7cb1a1925b2d791beba5e
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000005.gdbindexes
+    sha256: c21e650994b48cc72d174b3caf2ac1bd19e2d7305c8087aaae97e24caecf98a5
+    bytes: 296
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000005.gdbtable
+    sha256: 457b2ef15090d858e7c3e88d41131d1054b241836d2f4cc6d61d082bbf7e6aa3
+    bytes: 2071
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000005.gdbtablx
+    sha256: fbe2191ecb633ff3a4c3d449dd4dcd964389c72dc6686aa02f6ce6fcea31cc6f
+    bytes: 5152
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000006.CatRelsByDestinationID.atx
+    sha256: 72984438bc63a6cb08efbc7f789974e909c623227bf75717dcbdd4ad764e213d
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000006.CatRelsByOriginID.atx
+    sha256: 5556d0424575244897665273622ef3bf8cf89296eebb67dfde1ad9caddf4d991
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000006.CatRelsByType.atx
+    sha256: 347f54cbf33e311966d795322fb2810bc373877c029545566575744b66a4b4b5
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000006.FDO_UUID.atx
+    sha256: b9f6187b6dd60259de26ea8a5e8d3ea3f1a033103bbd68e0cfc1457c04bf951d
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000006.freelist
+    sha256: a0a1bde1d07afcb58f056fe3f9a263a6a1f9e9dad4746362ada1f6e2eadf2a04
+    bytes: 4440
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000006.gdbindexes
+    sha256: 1919a00326f198a90dc97545ec448c10b2b90d367020222212f7b00433fe09b5
+    bytes: 318
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000006.gdbtable
+    sha256: 84722cc0a1811cabfce17849bbad84ff0072a577c66499d95bf73a0a2e552b27
+    bytes: 628
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000006.gdbtablx
+    sha256: de76da4f319448368928454dbf15fdc926042ada483daca6d3ca024c5e6fe6de
+    bytes: 5152
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000007.CatRelTypesByBackwardLabel.atx
+    sha256: 1d51717d5b9de760d2488edb544637d875f131ad96483b96bf95aecff7f679d5
+    bytes: 12310
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000007.CatRelTypesByDestItemTypeID.atx
+    sha256: 655a5548325b8adf939e69851f9f52ae3b61244d998df60811169142a1a77648
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000007.CatRelTypesByForwardLabel.atx
+    sha256: c3471d1b80a6cc2ac1a094743a52f72a6dd6bbcca787604cacaa0ba409a9b583
+    bytes: 12310
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000007.CatRelTypesByName.atx
+    sha256: 3e4d57cabb14dc7b1f3510441e0b5ebd94f01e7412f272993b98502eea3d9577
+    bytes: 12310
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000007.CatRelTypesByOriginItemTypeID.atx
+    sha256: 9c7f665eb045df2a910a6800d0919af507bed2a42d2e9547a4004ba235fec5de
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000007.CatRelTypesByUUID.atx
+    sha256: 209099cc5bdb713a603488740c831b805af7138397499f5d946a2c8aed69d446
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000007.gdbindexes
+    sha256: dc98e24d04eddd7f38905d176c1ea43c547a3a2daa0c80091a20d3443c726621
+    bytes: 602
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000007.gdbtable
+    sha256: f6cc24256e330ab468b5c594309b1493c2028fe072c9f13e5fe41b2084ce9a16
+    bytes: 3626
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000007.gdbtablx
+    sha256: 1d81aa3c399da5feba68a24ae6461edfca18cfaa9d81a1f1dab9b8b8a64e590c
+    bytes: 5152
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000013.freelist
+    sha256: 46150210b4af1d7ccc052f57c4a771d57d9bd3ac361f28bed5229b4de8fe5a40
+    bytes: 4440
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000013.gdbindexes
+    sha256: 760bd4864717c60d5e7c0c6461a622062680e6f79f51250f49456aa609b43774
+    bytes: 116
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000013.gdbtable
+    sha256: 41e5f633a064b3469eb40c7d7eda5ea097be5955e8665759658c00bc24cab319
+    bytes: 5666
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000013.gdbtablx
+    sha256: 88c578367d73964187a4fc4409ddcf5a25a9941da4303233c0d685b7d8485f92
+    bytes: 5152
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000013.horizon
+    sha256: db55621dbad19fce9798f39e58789245536906ef1c78b05a8e2c20587238c3da
+    bytes: 32
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000013.spx
+    sha256: cbcf92ec94eef822d0b6e70248740e3485c121f7f355b5e8d8288ac357b8cd99
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000017.gdbindexes
+    sha256: 760bd4864717c60d5e7c0c6461a622062680e6f79f51250f49456aa609b43774
+    bytes: 116
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000017.gdbtable
+    sha256: 8f8ae2179e91bb5c14cb766bc9ded0f36a4513c3235c88d070b5076474e85c1a
+    bytes: 46018
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000017.gdbtablx
+    sha256: 10c87374467c3dc71922ddd001b0950d136bccb26eae3993aba7aa0d04dbc267
+    bytes: 5156
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000017.horizon
+    sha256: db55621dbad19fce9798f39e58789245536906ef1c78b05a8e2c20587238c3da
+    bytes: 32
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000017.spx
+    sha256: 4d83982b96e9f1ba3162ac689b2d472bae22935d0db11d045ae5ac23564fe6e3
+    bytes: 65566
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000021.gdbindexes
+    sha256: 760bd4864717c60d5e7c0c6461a622062680e6f79f51250f49456aa609b43774
+    bytes: 116
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000021.gdbtable
+    sha256: 2c40d5a65ef3f9454ee02fcc4915fc66ce9cab7eec9d861f27160fbf9a701179
+    bytes: 1831
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000021.gdbtablx
+    sha256: 166c984c3763d845b3eaa61c81ad9c24e5c8ab9a92842fb5d13421146e25e7a0
+    bytes: 5152
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000021.horizon
+    sha256: 4432434821e7a1170193af008bfc3901e2bb72889290d0c9256c9e8ce2bc0338
+    bytes: 32
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000021.spx
+    sha256: e1a4d95750dab82b8cfeaa431917db22081523a0bc6936f3a33a1d97732e7b58
+    bytes: 4118
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000022.gdbindexes
+    sha256: 760bd4864717c60d5e7c0c6461a622062680e6f79f51250f49456aa609b43774
+    bytes: 116
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000022.gdbtable
+    sha256: 679c20f0122c06300b1f7f6d09f988c5fe5a09c01109f647dc33a666b93df22b
+    bytes: 1131808
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000022.gdbtablx
+    sha256: 9874e0868ad79ac947ab52e54879b0392cca97a6ae78a6fb069fb37988f06dab
+    bytes: 10272
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000022.horizon
+    sha256: 4432434821e7a1170193af008bfc3901e2bb72889290d0c9256c9e8ce2bc0338
+    bytes: 32
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000022.spx
+    sha256: cb0307404fbaf7ad544e23dd3c879530b6f81a8d297203aa40ded1647395ee71
+    bytes: 61462
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000023.gdbindexes
+    sha256: 760bd4864717c60d5e7c0c6461a622062680e6f79f51250f49456aa609b43774
+    bytes: 116
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000023.gdbtable
+    sha256: e97cdc7b4d35c7e2dd5a2206a1a67793058af5f06199bfa2212427eb0a1ac22b
+    bytes: 386995
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000023.gdbtablx
+    sha256: 3813dec4d25255462b5dd447e269c4f0a84a774001bfb4eb576115c1349e629d
+    bytes: 5152
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000023.horizon
+    sha256: 4432434821e7a1170193af008bfc3901e2bb72889290d0c9256c9e8ce2bc0338
+    bytes: 32
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000023.spx
+    sha256: 5e04e5e367d32dd0a453a8d5d7129d5c7b54e77e65deb2c476b31cf3d83b29a1
+    bytes: 24598
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000024.freelist
+    sha256: 99517746e95b36c4dfae60b9ad5d4eca8bd3dcd5d5b527c1374cfd7af7e558f4
+    bytes: 4440
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000024.gdbindexes
+    sha256: 760bd4864717c60d5e7c0c6461a622062680e6f79f51250f49456aa609b43774
+    bytes: 116
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000024.gdbtable
+    sha256: 4a07db1209ac6e73fc673ee4fe6cb355241f2521272e6687f3c262f0e572361e
+    bytes: 1535565234
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000024.gdbtablx
+    sha256: 8b246e38aa7d4faa297cc34f531a69569986b6ff120681f3abe921977db7e4e7
+    bytes: 6548512
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000024.horizon
+    sha256: 4432434821e7a1170193af008bfc3901e2bb72889290d0c9256c9e8ce2bc0338
+    bytes: 32
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/a00000024.spx
+    sha256: eea0249be76d90fa601e9059c098908f7cb8d1e35092cc90182e0f4fc9217848
+    bytes: 18874390
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/gdb
+    sha256: 2594b6a92ebfb1c3312deb7d01c015fb95e9fbe9bd7bc6b527af07813ec7b910
+    bytes: 4
+  - path: nwi_mo/MO_geodatabase_wetlands.gdb/timestamps
+    sha256: e9cbcd822f7a35b6c41c297106ede83fe2157ee40f171c403f50f297352255a4
+    bytes: 400
+  - path: nwi_mo/nwi_mo.meta.yaml
+    sha256: 200a392b8a648aa8e3dbde840d56e95271c9fc295a2da42411d763c2eff77972
+    bytes: 1605
+  layer: MO_Wetlands
+  table: nwi_wetlands
+  renames:
+    WETLAND_TYPE: type
+  rows: 1309180
+  geometry: Multi Polygon
+  catalog_labels:
+  - ing_nwiwetlands_01_01
+  - ing_nwiwetlands_01_02
+  - ing_nwiwetlands_01_03
+  tag_model: gemma3:4b
+  metadata:
+    description: Wetland and deepwater habitat polygons mapped by the U.S. Fish and Wildlife Service National
+      Wetlands Inventory, classified by the Cowardin system (freshwater emergent, forested/shrub, ponds,
+      lakes, riverine). Missouri only.
+    originator: U.S. Fish and Wildlife Service
+    source_url: https://www.fws.gov/program/national-wetlands-inventory/download-state-wetlands-data
+    license: public domain
+    start_year: 2026
+    end_year: 2026
+    probe: how many acres of wetlands are in each Missouri county
+  dump: null
+- loaded_at: 2026-11-12T17:32Z
+  id: ing_nlcdlandcover2021_01
+  dataset_id: ing_nlcdlandcover2021_01
+  name: NLCD land cover 2021
+  kind: raster
+  mode: native
+  files:
+  - path: nlcd2021/nlcd_2021_mo_il.tif
+    sha256: f783529254d7f1c6269b8aa1e0207360f94965091e4fce4e7c4b0ee713b7ae57
+    bytes: 76172188
+  - path: nlcd2021/nlcd2021.meta.yaml
+    sha256: 8bbf4b1ba54f213f029972a0432e9333bea9199624c89bbc9ab17e436dbb278a
+    bytes: 2171
+  table: raster_nlcdlandcover2021
+  code: NLCD_LANDCOVER
+  year: 2021
+  aggregate: class
+  rows: 587167342
+  tiles: 9021
+  total: 587167342.0
+  classes:
+    '11': 14949917
+    '21': 19325858
+    '22': 17947428
+    '23': 8663676
+    '24': 3007519
+    '31': 993563
+    '43': 12371645
+    '52': 1916157
+    '71': 5829644
+    '81': 114482605
+    '82': 249813827
+    '95': 2959881
+    '41': 119518855
+    '42': 3190867
+    '90': 12195900
+  levels: {}
+  catalog_labels:
+  - NLCD_LANDCOVER
+  tag_model: gemma3:4b
+  metadata:
+    description: National Land Cover Database land cover, 2021, 30 m, Missouri and Illinois extent.
+    originator: U.S. Geological Survey, Multi-Resolution Land Characteristics Consortium
+    source_url: https://www.mrlc.gov/data
+    license: public domain
+    start_year: 2021
+    end_year: 2021
+    probe: what share of each Missouri county was cropland in 2021
+  dump: null
+- loaded_at: 2026-11-12T17:33Z
+  id: ing_nlcdlandcover2001_01
+  dataset_id: ing_nlcdlandcover2001_01
+  name: NLCD land cover 2001
+  kind: raster
+  mode: native
+  files:
+  - path: nlcd2001/nlcd_2001_mo_il.tif
+    sha256: b9a03dafc667384c93d02993b79cd97f03e2b5e085e0c7609d845124be114821
+    bytes: 72602219
+  - path: nlcd2001/nlcd2001.meta.yaml
+    sha256: 9f37861ab6fb509bf812337de92a713fe8c6766752d7c18e68e74b7e46bd3421
+    bytes: 2171
+  table: raster_nlcdlandcover2001
+  code: NLCD_LANDCOVER
+  year: 2001
+  aggregate: class
+  rows: 587167342
+  tiles: 9021
+  total: 587167342.0
+  classes:
+    '11': 14776522
+    '21': 19633818
+    '22': 17267259
+    '23': 6656498
+    '24': 2351889
+    '31': 806403
+    '43': 12219057
+    '52': 608337
+    '71': 5374709
+    '81': 126921432
+    '82': 241342325
+    '95': 2686928
+    '41': 120963127
+    '42': 3233729
+    '90': 12325309
+  levels: {}
+  catalog_labels:
+  - NLCD_LANDCOVER
+  tag_model: gemma3:4b
+  metadata:
+    description: National Land Cover Database land cover, 2001, 30 m, Missouri and Illinois extent.
+    originator: U.S. Geological Survey, Multi-Resolution Land Characteristics Consortium
+    source_url: https://www.mrlc.gov/data
+    license: public domain
+    start_year: 2001
+    end_year: 2001
+    probe: what share of each Missouri county was cropland in 2021
+  dump: null
+- loaded_at: 2026-11-12T17:41Z
+  id: ing_dem3depfixture_01
+  dataset_id: ing_dem3depfixture_01
+  name: 3DEP elevation (St. Louis and Chicago metros)
+  kind: raster
+  mode: native
+  files:
+  - path: dem3dep/dem_10m_fixture.tif
+    sha256: c02943d4391baa9227cae3cc4190c78c144aa8b649440db1ab4bca45dcfeac60
+    bytes: 275562849
+  - path: dem3dep/dem3dep.meta.yaml
+    sha256: 84aec2e4de82b4ad527cb3b1a7844f30b02a5607fd7af31b5888502e2af88383
+    bytes: 1298
+  table: raster_dem3depfixture
+  code: DEM_ELEVATION
+  year: 2026
+  aggregate: mean
+  rows: 114610575
+  tiles: 1926
+  total: 20498923548.654
+  classes: null
+  levels: {}
+  catalog_labels:
+  - DEM_ELEVATION
+  tag_model: gemma3:4b
+  metadata:
+    description: USGS 3DEP 1/3 arc-second DEM, 10 m, St. Louis and Chicago metro counties.
+    originator: U.S. Geological Survey, 3D Elevation Program
+    source_url: https://www.usgs.gov/3d-elevation-program
+    license: public domain
+    start_year: 2026
+    end_year: 2026
+    probe: what is the average elevation of each St. Louis ward
+  dump: null
+- loaded_at: 2026-11-12T17:42Z
+  id: ing_slope3depfixture_01
+  dataset_id: ing_slope3depfixture_01
+  name: Terrain slope (St. Louis and Chicago metros)
+  kind: raster
+  mode: native
+  files:
+  - path: slope3dep/slope_pct_10m_fixture.tif
+    sha256: 6880a8f3ecde270914a6ea1ff62d1791e6718a1d4b8a3c9444ba946f3d2b7f57
+    bytes: 394418647
+  - path: slope3dep/slope3dep.meta.yaml
+    sha256: a8fb6ecff9d18a2811490193872838cf7f59ddff2a8fdbabba9a21d46326840f
+    bytes: 969
+  table: raster_slope3depfixture
+  code: TERRAIN_SLOPE
+  year: 2026
+  aggregate: mean
+  rows: 114610575
+  tiles: 1926
+  total: 519360124.784
+  classes: null
+  levels: {}
+  catalog_labels:
+  - TERRAIN_SLOPE
+  tag_model: gemma3:4b
+  metadata:
+    description: Percent slope derived from the USGS 3DEP 1/3 arc-second DEM, St. Louis and Chicago metro
+      counties.
+    originator: derived from U.S. Geological Survey 3DEP
+    source_url: https://www.usgs.gov/3d-elevation-program
+    license: public domain
+    start_year: 2026
+    end_year: 2026
+    probe: average slope of each St. Louis neighborhood
+  dump: null
+- loaded_at: 2026-11-13T01:05Z
+  id: ing_usaleep_01@tract
+  dataset_id: ing_usaleep_01
+  name: CDC USALEEP life expectancy
+  kind: table
+  level: tract
+  files:
+  - path: usaleep/usaleep_tract.csv
+    sha256: 59a96f58447ec5010ff0a5fcf76cce83eabdf583e63682683c647d044990de6b
+    bytes: 1657959
+  - path: usaleep/usaleep.meta.yaml
+    sha256: 9c97756494bfbf8d0459756f2b7cb049284f19ce7b819db75675e1fe16b97267
+    bytes: 925
+  rows: 111896
+  units: 55948
+  unmatched_units: 11200
+  codes:
+  - USALEEP_LIFE_EXPECTANCY
+  - USALEEP_LIFE_EXPECTANCY_SE
+  definitions: []
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: 'Life expectancy at birth for census tracts, estimated from 2010-2015 deaths. Dated and
+      on 2010 tract boundaries: tracts that were split or merged in 2020 do not match. Some tracts are
+      suppressed for small populations.'
+    originator: CDC/NCHS
+    source_url: https://www.cdc.gov/nchs/nvss/usaleep/usaleep.html
+    license: public domain
+    start_year: 2010
+    end_year: 2015
+    probe: which census tracts have the lowest life expectancy
+  dump: null
+- loaded_at: 2026-11-13T01:07Z
+  id: ing_nri_01@county
+  dataset_id: ing_nri_01
+  name: FEMA National Risk Index
+  kind: table
+  level: county
+  files:
+  - path: nri_county/nri_counties.csv
+    sha256: 5884af688bb2f006d0d57e6e894ca831cdfba39f4deb044652a7227225322e39
+    bytes: 19174154
+  - path: nri_county/nri.meta.yaml
+    sha256: 0013cc9989ec476c7fdc4188e5cebb511b6965329d67b65556c6f24bdc78b51d
+    bytes: 1992
+  rows: 115497
+  units: 3221
+  unmatched_units: 11
+  codes:
+  - NRI_AVALANCHE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_AVALANCHE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_COASTAL_FLOODING_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_COASTAL_FLOODING_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_COLD_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_COLD_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_COMMUNITY_RESILIENCE_SCORE
+  - NRI_COMMUNITY_RISK_FACTOR_VALUE
+  - NRI_DROUGHT_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_DROUGHT_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_EARTHQUAKE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_EARTHQUAKE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_EXPECTED_ANNUAL_LOSS_POPULATION_EQUIVALENCE_COMPOSITE
+  - NRI_EXPECTED_ANNUAL_LOSS_SCORE_COMPOSITE
+  - NRI_EXPECTED_ANNUAL_LOSS_TOTAL_COMPOSITE
+  - NRI_HAIL_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_HAIL_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_HURRICANE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_HURRICANE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_ICE_STORM_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_ICE_STORM_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_INLAND_FLOODING_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_INLAND_FLOODING_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_LANDSLIDE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_LANDSLIDE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_LIGHTNING_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_LIGHTNING_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_NATIONAL_RISK_INDEX_SCORE_COMPOSITE
+  - NRI_NATIONAL_RISK_INDEX_VALUE_COMPOSITE
+  - NRI_SOCIAL_VULNERABILITY_SCORE
+  - NRI_STRONG_WIND_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_STRONG_WIND_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_TORNADO_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_TORNADO_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_TSUNAMI_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_TSUNAMI_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_VOLCANIC_ACTIVITY_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_VOLCANIC_ACTIVITY_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_WILDFIRE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_WILDFIRE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_WINTER_WEATHER_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_WINTER_WEATHER_HAZARD_TYPE_RISK_INDEX_SCORE
+  definitions: []
+  catalog_labels:
+  - NRI_NATIONAL_RISK_INDEX_VALUE_COMPOSITE
+  - NRI_NATIONAL_RISK_INDEX_SCORE_COMPOSITE
+  - NRI_EXPECTED_ANNUAL_LOSS_SCORE_COMPOSITE
+  - NRI_EXPECTED_ANNUAL_LOSS_TOTAL_COMPOSITE
+  - NRI_EXPECTED_ANNUAL_LOSS_POPULATION_EQUIVALENCE_COMPOSITE
+  - NRI_SOCIAL_VULNERABILITY_SCORE
+  - NRI_COMMUNITY_RESILIENCE_SCORE
+  - NRI_COMMUNITY_RISK_FACTOR_VALUE
+  - NRI_AVALANCHE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_AVALANCHE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_COASTAL_FLOODING_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_COLD_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_COLD_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_DROUGHT_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_DROUGHT_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_EARTHQUAKE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_EARTHQUAKE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_HAIL_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_HAIL_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_HURRICANE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_HURRICANE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_ICE_STORM_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_ICE_STORM_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_LANDSLIDE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_LANDSLIDE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_LIGHTNING_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_LIGHTNING_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_INLAND_FLOODING_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_INLAND_FLOODING_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_STRONG_WIND_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_STRONG_WIND_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_TORNADO_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_TORNADO_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_WILDFIRE_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_WILDFIRE_HAZARD_TYPE_RISK_INDEX_SCORE
+  - NRI_WINTER_WEATHER_EXPECTED_ANNUAL_LOSS_TOTAL
+  - NRI_WINTER_WEATHER_HAZARD_TYPE_RISK_INDEX_SCORE
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Natural hazard risk for every county: expected annual loss, social vulnerability, community
+      resilience and the composite National Risk Index, plus per-hazard event frequency, expected annual
+      loss and risk index for 18 natural hazards.'
+    originator: FEMA
+    source_url: https://hazards.fema.gov/nri/data-resources
+    license: public domain
+    start_year: 2025
+    end_year: 2025
+    probe: which counties have the highest risk from natural hazards
+  dump: null
+- loaded_at: 2026-11-13T01:12Z
+  id: ing_oimobility_01@county
+  dataset_id: ing_oimobility_01
+  name: Opportunity Atlas economic mobility
+  kind: table
+  level: county
+  files:
+  - path: oi_mobility_county/oi_mobility_county.csv
+    sha256: d2c0b9a5e2b9bf584068a9f1b02db1b02b2bc3daf9a89f97ae75c7633a514b77
+    bytes: 384113
+  - path: oi_mobility_county/oi_mobility_county.meta.yaml
+    sha256: 72821180e30b516648563b1c7b9e8be29b790d8ad17ca930e78c4d59a7273ed1
+    bytes: 3404
+  rows: 33686
+  units: 3219
+  unmatched_units: 0
+  codes:
+  - OI_MOBILITY_JAIL_BLACK_POOLED_P25
+  - OI_MOBILITY_JAIL_HISP_POOLED_P25
+  - OI_MOBILITY_JAIL_POOLED_FEMALE_P25
+  - OI_MOBILITY_JAIL_POOLED_MALE_P25
+  - OI_MOBILITY_JAIL_POOLED_POOLED_P25
+  - OI_MOBILITY_JAIL_WHITE_POOLED_P25
+  - OI_MOBILITY_KFR_BLACK_POOLED_P25
+  - OI_MOBILITY_KFR_HISP_POOLED_P25
+  - OI_MOBILITY_KFR_POOLED_FEMALE_P25
+  - OI_MOBILITY_KFR_POOLED_MALE_P25
+  - OI_MOBILITY_KFR_POOLED_POOLED_P25
+  - OI_MOBILITY_KFR_WHITE_POOLED_P25
+  definitions: []
+  catalog_labels:
+  - OI_MOBILITY_KFR_POOLED_POOLED_P25
+  - OI_MOBILITY_KFR_BLACK_POOLED_P25
+  - OI_MOBILITY_KFR_HISP_POOLED_P25
+  - OI_MOBILITY_KFR_WHITE_POOLED_P25
+  - OI_MOBILITY_KFR_POOLED_FEMALE_P25
+  - OI_MOBILITY_KFR_POOLED_MALE_P25
+  - OI_MOBILITY_JAIL_POOLED_POOLED_P25
+  - OI_MOBILITY_JAIL_BLACK_POOLED_P25
+  - OI_MOBILITY_JAIL_HISP_POOLED_P25
+  - OI_MOBILITY_JAIL_WHITE_POOLED_P25
+  - OI_MOBILITY_JAIL_POOLED_FEMALE_P25
+  - OI_MOBILITY_JAIL_POOLED_MALE_P25
+  tag_model: gemma3:4b
+  metadata:
+    description: Economic mobility outcomes of children who grew up in low-income households, by where
+      they grew up, from the Opportunity Atlas (tax records, children born 1978-83).
+    originator: Opportunity Insights (Harvard University)
+    source_url: https://opportunityinsights.org/data/
+    license: CC BY 4.0
+    start_year: 1978
+    end_year: 1983
+    probe: which counties have the lowest upward mobility for low-income children
+  dump: null
+- loaded_at: 2026-11-13T01:13Z
+  id: ing_oimobility_01@tract
+  dataset_id: ing_oimobility_01
+  name: Opportunity Atlas economic mobility
+  kind: table
+  level: tract
+  files:
+  - path: oi_mobility_tract/oi_mobility_tract.csv
+    sha256: 8416b7ed61931468b4fa812a31cdc47c2e929bc7994237d249a5feadf2fb4c0c
+    bytes: 8613982
+  - path: oi_mobility_tract/oi_mobility_tract.meta.yaml
+    sha256: 049a000b4ac2b462d99eba6b0d205427aa364c1c3fb149d0d67f087512d7dfab
+    bytes: 3503
+  rows: 580671
+  units: 60963
+  unmatched_units: 12315
+  codes:
+  - OI_MOBILITY_JAIL_BLACK_POOLED_P25
+  - OI_MOBILITY_JAIL_HISP_POOLED_P25
+  - OI_MOBILITY_JAIL_POOLED_FEMALE_P25
+  - OI_MOBILITY_JAIL_POOLED_MALE_P25
+  - OI_MOBILITY_JAIL_POOLED_POOLED_P25
+  - OI_MOBILITY_JAIL_WHITE_POOLED_P25
+  - OI_MOBILITY_KFR_BLACK_POOLED_P25
+  - OI_MOBILITY_KFR_HISP_POOLED_P25
+  - OI_MOBILITY_KFR_POOLED_FEMALE_P25
+  - OI_MOBILITY_KFR_POOLED_MALE_P25
+  - OI_MOBILITY_KFR_POOLED_POOLED_P25
+  - OI_MOBILITY_KFR_WHITE_POOLED_P25
+  definitions: []
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: Economic mobility outcomes of children who grew up in low-income households, by where
+      they grew up, from the Opportunity Atlas (tax records, children born 1978-83). Tract values use
+      2010 census tract boundaries, so tracts split or merged in 2020 do not match.
+    originator: Opportunity Insights (Harvard University)
+    source_url: https://opportunityinsights.org/data/
+    license: CC BY 4.0
+    start_year: 1978
+    end_year: 1983
+    probe: which census tracts have the lowest upward mobility for low-income children
+  dump: null
+- loaded_at: 2026-11-13T01:16Z
+  id: ing_ahrfworkforc_01@county
+  dataset_id: ing_ahrfworkforc_01
+  name: AHRF health workforce
+  kind: table
+  level: county
+  files:
+  - path: ahrf_workforce/ahrf_workforce.csv
+    sha256: c87e2fc7954334d5f8cde2aa9058b91da2923ef8eff1ebfc08aaf40f73f3b262
+    bytes: 806593
+  - path: ahrf_workforce/ahrf_workforce.meta.yaml
+    sha256: fc5db5d30e2cbee749c9038119ac6276b14159a864bea59f1b87d2920843ccdb
+    bytes: 5430
+  rows: 244868
+  units: 3223
+  unmatched_units: 11
+  codes:
+  - AHRF_WORKFORCE_APN_MIDWVS_NPI
+  - AHRF_WORKFORCE_APRN_NPI
+  - AHRF_WORKFORCE_CHIRO_NPI
+  - AHRF_WORKFORCE_CRNA_NPI
+  - AHRF_WORKFORCE_DENT_NF_PRVPRAC
+  - AHRF_WORKFORCE_DENT_NPI
+  - AHRF_WORKFORCE_DO_NF_PRIM_CARE_PC_EXCL_RSDNT
+  - AHRF_WORKFORCE_MD_NF_ACTIV
+  - AHRF_WORKFORCE_MD_NF_ALLERGY_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_ALL_MED_SPEC_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_ALL_SURG_SPEC_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_ANESTH_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_CHILD_PSYCH_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_DERM_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_DIAG_RADLGY_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_EMERG_MED_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_FAMMED_GEN_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_GASTR_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_GENINTMED_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_GEN_SURG_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_NEURO_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_NEURO_SURG_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_OBGYN_GEN_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_OPHTH_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_ORTHO_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_OTOLRYN_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_PED_GEN_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_PSYCH_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_PULM_DIS_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_RAD_ONCOLGY_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_UROLGY_ALL_PC
+  - AHRF_WORKFORCE_NP_NPI
+  - AHRF_WORKFORCE_OPTO_NPI
+  - AHRF_WORKFORCE_PA_NPI
+  - AHRF_WORKFORCE_PHYS_NF_PRIM_CARE_PC_EXC_RSDT
+  - AHRF_WORKFORCE_PODTRST_NPI
+  definitions: []
+  catalog_labels:
+  - AHRF_WORKFORCE_MD_NF_ACTIV
+  - AHRF_WORKFORCE_MD_NF_ALL_PC
+  - AHRF_WORKFORCE_PHYS_NF_PRIM_CARE_PC_EXC_RSDT
+  - AHRF_WORKFORCE_DO_NF_PRIM_CARE_PC_EXCL_RSDNT
+  - AHRF_WORKFORCE_MD_NF_ALLERGY_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_DERM_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_GASTR_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_GENINTMED_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_PED_GEN_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_PULM_DIS_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_GEN_SURG_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_NEURO_SURG_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_OBGYN_GEN_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_OPHTH_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_ORTHO_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_OTOLRYN_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_UROLGY_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_ANESTH_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_CHILD_PSYCH_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_DIAG_RADLGY_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_EMERG_MED_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_NEURO_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_PSYCH_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_RAD_ONCOLGY_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_FAMMED_GEN_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_ALL_MED_SPEC_ALL_PC
+  - AHRF_WORKFORCE_MD_NF_ALL_SURG_SPEC_ALL_PC
+  - AHRF_WORKFORCE_NP_NPI
+  - AHRF_WORKFORCE_PA_NPI
+  - AHRF_WORKFORCE_APRN_NPI
+  - AHRF_WORKFORCE_CRNA_NPI
+  - AHRF_WORKFORCE_APN_MIDWVS_NPI
+  - AHRF_WORKFORCE_CHIRO_NPI
+  - AHRF_WORKFORCE_OPTO_NPI
+  - AHRF_WORKFORCE_PODTRST_NPI
+  - AHRF_WORKFORCE_DENT_NPI
+  - AHRF_WORKFORCE_DENT_NF_PRVPRAC
+  tag_model: gemma3:4b
+  metadata:
+    description: Counts of physicians by specialty, nurse practitioners, physician assistants, dentists
+      and other clinicians in each county, from the HRSA Area Health Resources File.
+    originator: HRSA National Center for Health Workforce Analysis
+    source_url: https://data.hrsa.gov/topics/health-workforce/ahrf
+    license: public domain
+    probe: how many physicians are in each county
+  dump: null
+- loaded_at: 2026-11-13T01:16Z
+  id: ing_ahrffaciliti_01@county
+  dataset_id: ing_ahrffaciliti_01
+  name: AHRF health facilities and utilization
+  kind: table
+  level: county
+  files:
+  - path: ahrf_facilities/ahrf_facilities.csv
+    sha256: 098a02b26b8a23e16bf60bf5ddedbfe835a38ebde671fb7e24bb5e2de2c9260a
+    bytes: 1102013
+  - path: ahrf_facilities/ahrf_facilities.meta.yaml
+    sha256: 8970922ee8fb39b088352b331b21ef95c3002cafba9de10124914e39cec0797c
+    bytes: 4216
+  rows: 208806
+  units: 3224
+  unmatched_units: 11
+  codes:
+  - AHRF_FACILITIES_ACTL_FFS_COSTS
+  - AHRF_FACILITIES_ACTL_PER_CAP_FFS_COST
+  - AHRF_FACILITIES_COMN_HLTH_CTR_GRANTS_ONLY
+  - AHRF_FACILITIES_COMN_MENTL_HLTH_CTR
+  - AHRF_FACILITIES_CRITCL_ACCESS_HOSP
+  - AHRF_FACILITIES_ED_VISTS_PER_1K_MEDCR_FFS
+  - AHRF_FACILITIES_HOME_HLTH_AGENCS
+  - AHRF_FACILITIES_HOSP
+  - AHRF_FACILITIES_HOSPCS
+  - AHRF_FACILITIES_HOSP_ADM
+  - AHRF_FACILITIES_HOSP_BEDS
+  - AHRF_FACILITIES_HOSP_INPAT_DYS
+  - AHRF_FACILITIES_HOSP_LICD_BEDS
+  - AHRF_FACILITIES_HOSP_NH_BEDS
+  - AHRF_FACILITIES_INPAT_ACTL_FFS_COST_PER_CAP
+  - AHRF_FACILITIES_NHSC_ACTIV_SITES
+  - AHRF_FACILITIES_NHSC_FTE_DENT_PROVDRS
+  - AHRF_FACILITIES_NHSC_FTE_MENTL_HLTH_PROVDR
+  - AHRF_FACILITIES_NHSC_FTE_PRIM_CARE_PROVDRS
+  - AHRF_FACILITIES_RURAL_HLTH_CLINCS
+  - AHRF_FACILITIES_STGH
+  - AHRF_FACILITIES_STGH_BURN_CARE
+  - AHRF_FACILITIES_STGH_ED_VISTS
+  - AHRF_FACILITIES_STGH_HOSP_BEDS
+  - AHRF_FACILITIES_STGH_MEDCD_INPAT_DYS
+  - AHRF_FACILITIES_STGH_MEDCR_INPAT_DYS
+  - AHRF_FACILITIES_STGH_MED_SCH_AFFIL
+  - AHRF_FACILITIES_STGH_MED_SURG_ICU
+  - AHRF_FACILITIES_STGH_NEONAT_ICU
+  - AHRF_FACILITIES_STGH_OBSTETRC_CARE
+  - AHRF_FACILITIES_STGH_OPERTNG_RMS
+  - AHRF_FACILITIES_STGH_OUTPT_VISTS
+  - AHRF_FACILITIES_STGH_PSYCH_CARE
+  - AHRF_FACILITIES_STGH_RESDNCY_TRANNG
+  - AHRF_FACILITIES_STGH_SURG_OPERTN
+  definitions: []
+  catalog_labels:
+  - AHRF_FACILITIES_HOSP
+  - AHRF_FACILITIES_STGH
+  - AHRF_FACILITIES_CRITCL_ACCESS_HOSP
+  - AHRF_FACILITIES_STGH_RESDNCY_TRANNG
+  - AHRF_FACILITIES_STGH_MED_SCH_AFFIL
+  - AHRF_FACILITIES_STGH_OBSTETRC_CARE
+  - AHRF_FACILITIES_STGH_NEONAT_ICU
+  - AHRF_FACILITIES_STGH_MED_SURG_ICU
+  - AHRF_FACILITIES_STGH_PSYCH_CARE
+  - AHRF_FACILITIES_STGH_BURN_CARE
+  - AHRF_FACILITIES_HOSP_ADM
+  - AHRF_FACILITIES_HOSP_BEDS
+  - AHRF_FACILITIES_STGH_HOSP_BEDS
+  - AHRF_FACILITIES_HOSP_LICD_BEDS
+  - AHRF_FACILITIES_HOSP_NH_BEDS
+  - AHRF_FACILITIES_RURAL_HLTH_CLINCS
+  - AHRF_FACILITIES_COMN_HLTH_CTR_GRANTS_ONLY
+  - AHRF_FACILITIES_HOME_HLTH_AGENCS
+  - AHRF_FACILITIES_HOSPCS
+  - AHRF_FACILITIES_COMN_MENTL_HLTH_CTR
+  - AHRF_FACILITIES_NHSC_ACTIV_SITES
+  - AHRF_FACILITIES_NHSC_FTE_PRIM_CARE_PROVDRS
+  - AHRF_FACILITIES_NHSC_FTE_MENTL_HLTH_PROVDR
+  - AHRF_FACILITIES_NHSC_FTE_DENT_PROVDRS
+  - AHRF_FACILITIES_HOSP_INPAT_DYS
+  - AHRF_FACILITIES_STGH_ED_VISTS
+  - AHRF_FACILITIES_ED_VISTS_PER_1K_MEDCR_FFS
+  - AHRF_FACILITIES_STGH_OUTPT_VISTS
+  - AHRF_FACILITIES_STGH_SURG_OPERTN
+  - AHRF_FACILITIES_STGH_MEDCR_INPAT_DYS
+  - AHRF_FACILITIES_STGH_MEDCD_INPAT_DYS
+  - AHRF_FACILITIES_STGH_OPERTNG_RMS
+  - AHRF_FACILITIES_ACTL_FFS_COSTS
+  - AHRF_FACILITIES_ACTL_PER_CAP_FFS_COST
+  - AHRF_FACILITIES_INPAT_ACTL_FFS_COST_PER_CAP
+  tag_model: gemma3:4b
+  metadata:
+    description: Hospitals, beds, clinics, health centers, emergency department visits, inpatient days
+      and Medicare costs for each county, from the HRSA Area Health Resources File.
+    originator: HRSA National Center for Health Workforce Analysis
+    source_url: https://data.hrsa.gov/topics/health-workforce/ahrf
+    license: public domain
+    probe: which counties have the fewest hospital beds
+  dump: null
+- loaded_at: 2026-11-13T01:17Z
+  id: ing_ahrfpopulati_01@county
+  dataset_id: ing_ahrfpopulati_01
+  name: AHRF Medicare, births, deaths and air quality
+  kind: table
+  level: county
+  files:
+  - path: ahrf_population_health/ahrf_population_health.csv
+    sha256: ec9eb4fda1742591354f343891a87c37280325f818d0206e6ec8570ae8c43cbf
+    bytes: 1202660
+  - path: ahrf_population_health/ahrf_population_health.meta.yaml
+    sha256: 5ed739dede20ec5f1c13888a5bc8b6fbcab7e45a57d93f2e989f2fa470278053
+    bytes: 3247
+  rows: 127001
+  units: 3224
+  unmatched_units: 11
+  codes:
+  - AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG
+  - AHRF_POPULATION_HEAL_BIRTHS_3YR_AVG
+  - AHRF_POPULATION_HEAL_BIRTHS_PRETRM_3YR_AVG
+  - AHRF_POPULATION_HEAL_BIRTHS_TO_TEENS_3YR_LT18_AVG
+  - AHRF_POPULATION_HEAL_BIRTH_UNMARRD_3YR_AVG
+  - AHRF_POPULATION_HEAL_COVID_DETH
+  - AHRF_POPULATION_HEAL_DESG_TOX_SITE_CTRL
+  - AHRF_POPULATION_HEAL_DESG_TOX_SITE_NOT_CTRL
+  - AHRF_POPULATION_HEAL_DETH_3YR_AVG
+  - AHRF_POPULATION_HEAL_DYS_8_HR_OZONE_OVER_NAAQS_AVG
+  - AHRF_POPULATION_HEAL_GOOD_AIR_QULTY_DYS_PCT
+  - AHRF_POPULATION_HEAL_INF_MORT_RATE_5YR_LT1_AVG
+  - AHRF_POPULATION_HEAL_LO_BIRTH_WGT_3YR_AVG
+  - AHRF_POPULATION_HEAL_MEDCR_ADV_PENET_ENROLL_PCT
+  - AHRF_POPULATION_HEAL_MEDCR_AGED_ENROLLD_MED
+  - AHRF_POPULATION_HEAL_MEDCR_DISBLD_ENROLLD_MED
+  - AHRF_POPULATION_HEAL_MEDCR_FFS
+  - AHRF_POPULATION_HEAL_MEDCR_FFS_ELIGBL_MEDCD_PCT
+  - AHRF_POPULATION_HEAL_MEDCR_FFS_HCC_SCORE_AVG
+  - AHRF_POPULATION_HEAL_MEDCR_PDP_PENET_ENROLL_PCT
+  - AHRF_POPULATION_HEAL_PERS_DEEP_POVTY_PCT
+  - AHRF_POPULATION_HEAL_URBAN_POPN_PCT
+  - AHRF_POPULATION_HEAL_VERY_LO_BIRTH_WGT_3YR_AVG
+  - AHRF_POPULATION_HEAL_VETN_POPN_EST
+  definitions: []
+  catalog_labels:
+  - AHRF_POPULATION_HEAL_MEDCR_AGED_ENROLLD_MED
+  - AHRF_POPULATION_HEAL_MEDCR_DISBLD_ENROLLD_MED
+  - AHRF_POPULATION_HEAL_MEDCR_FFS
+  - AHRF_POPULATION_HEAL_MEDCR_FFS_ELIGBL_MEDCD_PCT
+  - AHRF_POPULATION_HEAL_MEDCR_FFS_HCC_SCORE_AVG
+  - AHRF_POPULATION_HEAL_MEDCR_ADV_PENET_ENROLL_PCT
+  - AHRF_POPULATION_HEAL_MEDCR_PDP_PENET_ENROLL_PCT
+  - AHRF_POPULATION_HEAL_VETN_POPN_EST
+  - AHRF_POPULATION_HEAL_URBAN_POPN_PCT
+  - AHRF_POPULATION_HEAL_PERS_DEEP_POVTY_PCT
+  - AHRF_POPULATION_HEAL_BIRTHS_3YR_AVG
+  - AHRF_POPULATION_HEAL_LO_BIRTH_WGT_3YR_AVG
+  - AHRF_POPULATION_HEAL_VERY_LO_BIRTH_WGT_3YR_AVG
+  - AHRF_POPULATION_HEAL_BIRTHS_PRETRM_3YR_AVG
+  - AHRF_POPULATION_HEAL_BIRTHS_TO_TEENS_3YR_LT18_AVG
+  - AHRF_POPULATION_HEAL_BIRTH_UNMARRD_3YR_AVG
+  - AHRF_POPULATION_HEAL_DETH_3YR_AVG
+  - AHRF_POPULATION_HEAL_COVID_DETH
+  - AHRF_POPULATION_HEAL_GOOD_AIR_QULTY_DYS_PCT
+  - AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG
+  - AHRF_POPULATION_HEAL_DYS_8_HR_OZONE_OVER_NAAQS_AVG
+  - AHRF_POPULATION_HEAL_DESG_TOX_SITE_CTRL
+  - AHRF_POPULATION_HEAL_DESG_TOX_SITE_NOT_CTRL
+  tag_model: gemma3:4b
+  metadata:
+    description: Medicare enrollment, births, low birth weight, infant mortality, deaths, air quality
+      and toxic sites for each county, from the HRSA Area Health Resources File.
+    originator: HRSA National Center for Health Workforce Analysis
+    source_url: https://data.hrsa.gov/topics/health-workforce/ahrf
+    license: public domain
+    probe: which counties have the highest infant mortality
+  dump: null
+- loaded_at: 2026-11-13T01:29Z
+  id: ing_usdafara_01@tract
+  dataset_id: ing_usdafara_01
+  name: USDA Food Access Research Atlas
+  kind: table
+  level: tract
+  files:
+  - path: usda_fara/usda_fara.csv
+    sha256: 8c372c5f4dcb5d03e2c94ba2313e2b2e3936a2271ebb90c7366ba5dade7486c4
+    bytes: 9099819
+  - path: usda_fara/usda_fara.meta.yaml
+    sha256: 7a92b966847a65c0d2305c27b512666e5cbafcddbe75e8f011126ac4852ab6a0
+    bytes: 5634
+  rows: 2578164
+  units: 83240
+  unmatched_units: 879
+  codes:
+  - USDA_FARA_DD_SRAM_HUNVFLAG
+  - USDA_FARA_DD_SRAM_LA1AND10
+  - USDA_FARA_DD_SRAM_LAKIDSHALFSHARE
+  - USDA_FARA_DD_SRAM_LALOWI1_10
+  - USDA_FARA_DD_SRAM_LALOWIHALF
+  - USDA_FARA_DD_SRAM_LALOWIHALFSHARE
+  - USDA_FARA_DD_SRAM_LAPOP1_10
+  - USDA_FARA_DD_SRAM_LAPOP1_20
+  - USDA_FARA_DD_SRAM_LAPOPHALF
+  - USDA_FARA_DD_SRAM_LAPOPHALFSHARE
+  - USDA_FARA_DD_SRAM_LASENIORSHALFSHARE
+  - USDA_FARA_DD_SRAM_LATRACTS1
+  - USDA_FARA_DD_SRAM_LATRACTS10
+  - USDA_FARA_DD_SRAM_LATRACTS20
+  - USDA_FARA_DD_SRAM_LATRACTSVEHICLE_20
+  - USDA_FARA_DD_SRAM_LATRACTS_HALF
+  - USDA_FARA_DD_SRAM_LILATRACTS_1AND10
+  - USDA_FARA_DD_SRAM_LILATRACTS_1AND20
+  - USDA_FARA_DD_SRAM_LILATRACTS_HALFAND10
+  - USDA_FARA_DD_SRAM_LILATRACTS_VEHICLE
+  - USDA_FARA_LOWINCOMETRACTS
+  - USDA_FARA_SD_SRAM_LATRACTS1
+  - USDA_FARA_SD_SRAM_LILATRACTS_1AND10
+  - USDA_FARA_SD_SRAM_LILATRACTS_VEHICLE
+  - USDA_FARA_TRACTHUNV
+  - USDA_FARA_TRACTKIDS
+  - USDA_FARA_TRACTLOWI
+  - USDA_FARA_TRACTSENIORS
+  - USDA_FARA_TRACTSNAP
+  - USDA_FARA_TRACTVETERAN
+  - USDA_FARA_URBAN
+  definitions: []
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: 'Food access for every 2020 census tract: low-income and low-access (food desert) flags
+      measured by driving distance and straight-line distance to a SNAP-authorized retailer, vehicle access,
+      and the low-access population. Distances are to SNAP-authorized retailers, not only supermarkets.'
+    originator: USDA Economic Research Service
+    source_url: https://www.ers.usda.gov/data-products/food-access-research-atlas/
+    license: public domain
+    start_year: 2025
+    end_year: 2025
+    probe: which census tracts are low-income and low-access food deserts
+  dump: null
+- loaded_at: 2026-11-13T01:30Z
+  id: ing_epaejscreen_01@tract
+  dataset_id: ing_epaejscreen_01
+  name: EPA EJScreen
+  kind: table
+  level: tract
+  files:
+  - path: epa_ejscreen_tract/epa_ejscreen_tract.csv
+    sha256: 80c4d4754b8651613853661512a74b99a4a01ce8a295d92d28c7986d859f2941
+    bytes: 59518707
+  - path: epa_ejscreen_tract/epa_ejscreen_tract.meta.yaml
+    sha256: c09c32b28c9393b1767a19c37d4cbeece2b24be719ed8155ebcb9badf1ca83a9
+    bytes: 5969
+  rows: 3128072
+  units: 85396
+  unmatched_units: 0
+  codes:
+  - EPA_EJSCREEN_D2_DSLPM
+  - EPA_EJSCREEN_D2_DWATER
+  - EPA_EJSCREEN_D2_LDPNT
+  - EPA_EJSCREEN_D2_NO2
+  - EPA_EJSCREEN_D2_OZONE
+  - EPA_EJSCREEN_D2_PM25
+  - EPA_EJSCREEN_D2_PNPL
+  - EPA_EJSCREEN_D2_PRMP
+  - EPA_EJSCREEN_D2_PTRAF
+  - EPA_EJSCREEN_D2_PTSDF
+  - EPA_EJSCREEN_D2_PWDIS
+  - EPA_EJSCREEN_D2_RSEI_AIR
+  - EPA_EJSCREEN_D2_UST
+  - EPA_EJSCREEN_DEMOGIDX_2
+  - EPA_EJSCREEN_DEMOGIDX_5
+  - EPA_EJSCREEN_DISABILITYPCT
+  - EPA_EJSCREEN_DSLPM
+  - EPA_EJSCREEN_DWATER
+  - EPA_EJSCREEN_LESSHSPCT
+  - EPA_EJSCREEN_LIFEEXPPCT
+  - EPA_EJSCREEN_LINGISOPCT
+  - EPA_EJSCREEN_LOWINCPCT
+  - EPA_EJSCREEN_NO2
+  - EPA_EJSCREEN_OVER64PCT
+  - EPA_EJSCREEN_OZONE
+  - EPA_EJSCREEN_PEOPCOLORPCT
+  - EPA_EJSCREEN_PM25
+  - EPA_EJSCREEN_PNPL
+  - EPA_EJSCREEN_PRE1960PCT
+  - EPA_EJSCREEN_PRMP
+  - EPA_EJSCREEN_PTRAF
+  - EPA_EJSCREEN_PTSDF
+  - EPA_EJSCREEN_PWDIS
+  - EPA_EJSCREEN_RSEI_AIR
+  - EPA_EJSCREEN_UNDER5PCT
+  - EPA_EJSCREEN_UNEMPPCT
+  - EPA_EJSCREEN_UST
+  definitions: []
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: 'Environmental justice screening for every census tract: air pollution (PM2.5, ozone,
+      diesel, NO2), traffic, toxic releases, proximity to Superfund sites and hazardous waste facilities,
+      lead paint, wastewater and drinking water violations, demographic indicators, and the EJ indexes
+      that combine them.'
+    originator: US EPA Office of Environmental Justice and External Civil Rights
+    source_url: https://www.epa.gov/ejscreen
+    license: public domain
+    start_year: 2024
+    end_year: 2024
+    probe: which census tracts have the highest air pollution and the most low-income residents
+  dump: null
+- loaded_at: 2026-11-13T01:32Z
+  id: ing_epasld_01@bg
+  dataset_id: ing_epasld_01
+  name: EPA Smart Location Database
+  kind: table
+  level: bg
+  files:
+  - path: epa_sld_bg/epa_sld_bg.csv
+    sha256: c5bf16f0b7013cfdd9dba07834f562e1cdb59b069fd007a0085c13839f7003d3
+    bytes: 89964975
+  - path: epa_sld_bg/epa_sld_bg.meta.yaml
+    sha256: b0684091995ac4b26beae9ee68ab03263f443c2fb25fb3b0f162c799d0c7a0b7
+    bytes: 5225
+  rows: 5611512
+  units: 171726
+  unmatched_units: 49013
+  codes:
+  - EPA_SLD_ANNUAL_GHG
+  - EPA_SLD_COM_VMT_PER_WORKER
+  - EPA_SLD_D1A
+  - EPA_SLD_D1C
+  - EPA_SLD_D1D
+  - EPA_SLD_D2A_EPHHM
+  - EPA_SLD_D2A_JPHH
+  - EPA_SLD_D2B_E8MIXA
+  - EPA_SLD_D3A
+  - EPA_SLD_D3AAO
+  - EPA_SLD_D3APO
+  - EPA_SLD_D3B
+  - EPA_SLD_D4A
+  - EPA_SLD_D4B025
+  - EPA_SLD_D4B050
+  - EPA_SLD_D4C
+  - EPA_SLD_D4D
+  - EPA_SLD_D4E
+  - EPA_SLD_D5AR
+  - EPA_SLD_D5BR
+  - EPA_SLD_D5CR
+  - EPA_SLD_D5DR
+  - EPA_SLD_E8_ED
+  - EPA_SLD_E8_HLTH
+  - EPA_SLD_E8_IND
+  - EPA_SLD_E8_OFF
+  - EPA_SLD_E8_RET
+  - EPA_SLD_E_PCTLOWWAGE
+  - EPA_SLD_GHG_PER_WORKER
+  - EPA_SLD_NATWALKIND
+  - EPA_SLD_NONCOM_VMT_PER_WORKER
+  - EPA_SLD_PCT_AO0
+  - EPA_SLD_P_WRKAGE
+  - EPA_SLD_R_PCTLOWWAGE
+  - EPA_SLD_TOTEMP
+  - EPA_SLD_VMT_PER_WORKER
+  definitions: []
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: 'Built-environment measures for every census block group: walkability index, residential
+      and employment density, street network density, transit access and frequency, job accessibility
+      by car and transit, car ownership, and work-related vehicle travel and greenhouse gas emissions
+      per worker.'
+    originator: US EPA Smart Location Mapping
+    source_url: https://www.epa.gov/smartgrowth/smart-location-mapping
+    license: public domain
+    start_year: 2018
+    end_year: 2018
+    probe: which block groups are the most walkable
+  dump: null
+- loaded_at: 2026-11-13T01:48Z
+  id: ing_cdcoverdose_01@county
+  dataset_id: ing_cdcoverdose_01
+  name: CDC provisional drug overdose deaths
+  kind: table
+  level: county
+  files:
+  - path: cdc_overdose_county/cdc_overdose_county.csv
+    sha256: e499131a1e7c98e77f43b684360a567105e3ff0a3be92d5a7be9781bd5479c6d
+    bytes: 357686
+  - path: cdc_overdose_county/cdc_overdose_county.meta.yaml
+    sha256: 892d9b486c2931473eef6f808d2864b8270b9b53ffa390cf406ddc89c34c71c6
+    bytes: 1348
+  rows: 28805
+  units: 3142
+  unmatched_units: 0
+  codes:
+  - CDC_OVERDOSE_OVERDOSE_DEATHS
+  - CDC_OVERDOSE_OVERDOSE_PCT_PENDING
+  definitions: []
+  catalog_labels:
+  - CDC_OVERDOSE_OVERDOSE_DEATHS
+  - CDC_OVERDOSE_OVERDOSE_PCT_PENDING
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Provisional counts of drug overdose deaths in each county for each calendar year, from
+      CDC NCHS Vital Statistics Rapid Release. Counties with fewer than 10 deaths are suppressed, so small
+      counties are missing and a ranking covers larger counties only. Counts, not rates: divide by population
+      to compare counties.'
+    originator: CDC National Center for Health Statistics
+    source_url: https://data.cdc.gov/NCHS/VSRR-Provisional-County-Level-Drug-Overdose-Death-Counts
+    license: public domain
+    probe: which counties have the most drug overdose deaths
+  dump: null
+- loaded_at: 2026-11-13T01:51Z
+  id: ing_noaaclimdiv_01@county
+  dataset_id: ing_noaaclimdiv_01
+  name: NOAA nClimDiv county climate
+  kind: table
+  level: county
+  files:
+  - path: noaa_climdiv_county/noaa_climdiv_county.csv
+    sha256: 82752027fad53078b137034495e38b1d436fcc39c36d8f0b0fb3d007b1c3c441
+    bytes: 25439782
+  - path: noaa_climdiv_county/noaa_climdiv_county.meta.yaml
+    sha256: 790e15d8238b27c1385fa9185999039cc41d0eaf16edd8b56459779daca65f64
+    bytes: 2381
+  rows: 2866302
+  units: 3139
+  unmatched_units: 3
+  codes:
+  - NOAA_CLIMDIV_CDD_NORMAL_1991_2020
+  - NOAA_CLIMDIV_COOLING_DEGREE_DAYS
+  - NOAA_CLIMDIV_HDD_NORMAL_1991_2020
+  - NOAA_CLIMDIV_HEATING_DEGREE_DAYS
+  - NOAA_CLIMDIV_PDSI_AVG
+  - NOAA_CLIMDIV_PRECIP_ANNUAL_IN
+  - NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020
+  - NOAA_CLIMDIV_TEMP_AVG_F
+  - NOAA_CLIMDIV_TEMP_MAX_AVG_F
+  - NOAA_CLIMDIV_TEMP_MIN_AVG_F
+  - NOAA_CLIMDIV_TEMP_NORMAL_1991_2020
+  definitions: []
+  catalog_labels:
+  - NOAA_CLIMDIV_PRECIP_ANNUAL_IN
+  - NOAA_CLIMDIV_TEMP_AVG_F
+  - NOAA_CLIMDIV_TEMP_MAX_AVG_F
+  - NOAA_CLIMDIV_TEMP_MIN_AVG_F
+  - NOAA_CLIMDIV_HEATING_DEGREE_DAYS
+  - NOAA_CLIMDIV_COOLING_DEGREE_DAYS
+  - NOAA_CLIMDIV_PDSI_AVG
+  - NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020
+  - NOAA_CLIMDIV_TEMP_NORMAL_1991_2020
+  - NOAA_CLIMDIV_HDD_NORMAL_1991_2020
+  - NOAA_CLIMDIV_CDD_NORMAL_1991_2020
+  tag_model: gemma3:4b
+  metadata:
+    description: Annual precipitation (rainfall), temperature, heating and cooling degree days and drought
+      index for each county, 1895 to the latest complete year, from NOAA's nClimDiv county dataset (grid-based,
+      area-weighted). Covers all 50 states. The 1991-2020 normals are averages computed from the annual
+      values.
+    originator: NOAA National Centers for Environmental Information
+    source_url: https://www.ncei.noaa.gov/products/land-based-station/nclimdiv
+    license: public domain
+    probe: which counties get the most rainfall
+  dump: null
+- loaded_at: 2026-11-13T02:00Z
+  id: ing_npsparkunits_01
+  name: National Park Service units
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: nps_park_units/nps_park_units.geojson
+    sha256: 4cae8a4e449f43c6419612edc3130cdc15a7cfb8c0db18b94137ff4bbf3db37e
+    bytes: 61572422
+  - path: nps_park_units/nps_park_units.meta.yaml
+    sha256: c21e50dec9f8d205b7a549d6dc99df27bdaace7a6f293eb13d89d7073f83602d
+    bytes: 1139
+  layer: nps_park_units
+  table: nps_park_units
+  renames:
+    unit_name: name
+    unit_type: type
+    state: state
+  rows: 437
+  geometry: Unknown (any)
+  catalog_labels:
+  - ing_npsparkunits_01_01
+  - ing_npsparkunits_01_02
+  - ing_npsparkunits_01_03
+  - ing_npsparkunits_01_04
+  - ing_npsparkunits_01_05
+  - ing_npsparkunits_01_06
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Boundary polygons of National Park Service units: national parks, monuments, historic
+      sites, historical parks, memorials, preserves, recreation areas, battlefields, seashores and others,
+      with type and state.'
+    originator: National Park Service
+    source_url: https://irma.nps.gov/DataStore/
+    license: public domain
+    start_year: 2025
+    end_year: 2025
+    probe: where are the national parks in Utah
+  dump: null
+- loaded_at: 2026-11-13T02:02Z
+  id: ing_dodmilitaryb_01
+  name: Military installations
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: dod_military_bases/dod_military_bases.geojson
+    sha256: adee095464afca50a2e04f7c762c17e240cca708f670cf9577deabd5d9d2fe7f
+    bytes: 4670139
+  - path: dod_military_bases/dod_military_bases.meta.yaml
+    sha256: f458db5b0134e5d6f7aee767d56847f684bdd0830d121bdce23eeb2ce04a621e
+    bytes: 1380
+  layer: dod_military_bases
+  table: dod_military_bases
+  renames:
+    site_name: name
+    state: state
+    operational_status: status
+    branch: owner
+  rows: 815
+  geometry: Unknown (any)
+  catalog_labels:
+  - ing_dodmilitaryb_01_01
+  - ing_dodmilitaryb_01_02
+  - ing_dodmilitaryb_01_03
+  - ing_dodmilitaryb_01_04
+  - ing_dodmilitaryb_01_05
+  - ing_dodmilitaryb_01_06
+  tag_model: gemma3:4b
+  metadata:
+    description: Polygons of US military installations, bases and training sites, with the owning branch
+      (Army, Navy, Air Force, Marine Corps, National Guard and reserves), operational status (active,
+      semi-active, caretaker, excess, closed), and whether it is a joint base.
+    originator: US Department of Defense, via Bureau of Transportation Statistics NTAD
+    source_url: https://www.bts.gov/ntad
+    license: public domain
+    start_year: 2025
+    end_year: 2025
+    probe: where are the military bases in Texas
+  dump: null
+- loaded_at: 2026-11-13T02:11Z
+  id: ing_epabrownfiel_01
+  name: EPA Brownfields properties
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: epa_brownfields/epa_brownfields.geojson
+    sha256: 31ed66296d95e63e039a213708f862c985f1603134c96972e8e2d1dd523ec540
+    bytes: 19393382
+  - path: epa_brownfields/epa_brownfields.meta.yaml
+    sha256: 72791dccbdf3ef7a4848691c6793545f4dd3893444de6039318af80880743a4d
+    bytes: 1926
+  layer: epa_brownfields
+  table: epa_brownfields
+  renames:
+    name: name
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+  rows: 44706
+  geometry: Point
+  catalog_labels:
+  - ing_epabrownfiel_01_01
+  - ing_epabrownfiel_01_02
+  - ing_epabrownfiel_01_03
+  - ing_epabrownfiel_01_04
+  - ing_epabrownfiel_01_05
+  - ing_epabrownfiel_01_06
+  - ing_epabrownfiel_01_07
+  - ing_epabrownfiel_01_08
+  - ing_epabrownfiel_01_09
+  - ing_epabrownfiel_01_10
+  - ing_epabrownfiel_01_11
+  - ing_epabrownfiel_01_12
+  - ing_epabrownfiel_01_13
+  - ing_epabrownfiel_01_14
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Properties in EPA''s Brownfields program (ACRES): sites where redevelopment may be complicated
+      by the presence or possible presence of a hazardous substance, pollutant or contaminant, with address
+      and county. Points are placed from addresses and are approximate. Some of these properties are also
+      Superfund sites.'
+    originator: US EPA Office of Brownfields and Land Revitalization, via the Facility Registry Service
+    source_url: https://www.epa.gov/frs/frs-data-download-options
+    license: public domain
+    start_year: 2025
+    end_year: 2025
+    probe: how many Brownfields properties are in each county
+  dump: null
+- loaded_at: 2026-11-13T02:12Z
+  id: ing_epasuperfund_01
+  name: EPA Superfund sites not on the NPL
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: epa_superfund_nonnpl/epa_superfund_nonnpl.geojson
+    sha256: 3433632c6cb368e08c6b404338c1390c01193e8ecdad42f75cf6a01a816cc41f
+    bytes: 13526541
+  - path: epa_superfund_nonnpl/epa_superfund_nonnpl.meta.yaml
+    sha256: 42116ecbb0af0b902739bf0b5ed7031906913ee91e3615d9dfd7b00d8d131619
+    bytes: 2252
+  layer: epa_superfund_nonnpl
+  table: epa_superfund_nonnpl
+  renames:
+    name: name
+    status: status
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+  rows: 30181
+  geometry: Point
+  catalog_labels:
+  - ing_epasuperfund_01_01
+  - ing_epasuperfund_01_02
+  - ing_epasuperfund_01_03
+  - ing_epasuperfund_01_04
+  - ing_epasuperfund_01_05
+  - ing_epasuperfund_01_06
+  - ing_epasuperfund_01_07
+  - ing_epasuperfund_01_08
+  - ing_epasuperfund_01_09
+  - ing_epasuperfund_01_10
+  - ing_epasuperfund_01_11
+  - ing_epasuperfund_01_12
+  - ing_epasuperfund_01_13
+  - ing_epasuperfund_01_14
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Sites in EPA''s Superfund inventory (SEMS) that are not on the National Priorities List:
+      sites assessed or tracked under CERCLA that were not listed, were removed from or withdrawn from
+      proposal, or are part of an NPL site. For sites on the NPL see the Superfund NPL site boundaries
+      layer. Points are placed from addresses and are approximate.'
+    originator: US EPA Superfund Enterprise Management System, via the Facility Registry Service
+    source_url: https://www.epa.gov/frs/frs-data-download-options
+    license: public domain
+    start_year: 2025
+    end_year: 2025
+    probe: how many Superfund sites that are not on the NPL are in each state
+  dump: null
+- loaded_at: 2026-11-13T02:22Z
+  id: ing_epanplsites_01
+  name: EPA Superfund NPL site boundaries
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: epa_npl_sites/epa_npl_sites.geojson
+    sha256: 578691c09c9169dfc9e13ac07fba6452d849dd9288d133d1cc95661c763c3a36
+    bytes: 30115625
+  - path: epa_npl_sites/epa_npl_sites.meta.yaml
+    sha256: 4b4c92bdb16a56863a6a67809980685173407c13d30c85171482d30988c07f45
+    bytes: 1828
+  layer: epa_npl_sites
+  table: epa_npl_sites
+  renames:
+    site_name: name
+    npl_status: status
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+  rows: 1908
+  geometry: Multi Polygon
+  catalog_labels:
+  - ing_epanplsites_01_01
+  - ing_epanplsites_01_02
+  - ing_epanplsites_01_03
+  - ing_epanplsites_01_04
+  - ing_epanplsites_01_05
+  - ing_epanplsites_01_06
+  - ing_epanplsites_01_07
+  - ing_epanplsites_01_08
+  - ing_epanplsites_01_09
+  - ing_epanplsites_01_10
+  - ing_epanplsites_01_11
+  - ing_epanplsites_01_12
+  tag_model: gemma3:4b
+  metadata:
+    description: Boundaries of Superfund sites on or formerly on the National Priorities List (final,
+      proposed and deleted), one polygon per site, with status, whether the site is a federal facility,
+      and address. The boundary is the site's comprehensive area where EPA publishes one, otherwise its
+      site boundary.
+    originator: US EPA Superfund Enterprise Management System
+    source_url: https://www.epa.gov/superfund/superfund-data-and-reports
+    license: public domain
+    start_year: 2025
+    end_year: 2025
+    probe: where are the Superfund sites in Missouri
+  dump: null
+- loaded_at: 2026-11-13T04:14Z
+  id: ing_epaejscreen_01@bg
+  dataset_id: ing_epaejscreen_01
+  name: EPA EJScreen
+  kind: table
+  level: bg
+  files:
+  - path: epa_ejscreen_bg/epa_ejscreen_bg.csv
+    sha256: 0d77d57ec332a5ef58ee2a224e9c18a41d5ba1d1b2a40d0e7506330fedf9bb28
+    bytes: 168785429
+  - path: epa_ejscreen_bg/epa_ejscreen_bg.meta.yaml
+    sha256: c47386d27e43cecbbf286d6ab5f96ecbb37c9988f722a83ab225cb53dfe48299
+    bytes: 5977
+  rows: 8871212
+  units: 242336
+  unmatched_units: 0
+  codes:
+  - EPA_EJSCREEN_D2_DSLPM
+  - EPA_EJSCREEN_D2_DWATER
+  - EPA_EJSCREEN_D2_LDPNT
+  - EPA_EJSCREEN_D2_NO2
+  - EPA_EJSCREEN_D2_OZONE
+  - EPA_EJSCREEN_D2_PM25
+  - EPA_EJSCREEN_D2_PNPL
+  - EPA_EJSCREEN_D2_PRMP
+  - EPA_EJSCREEN_D2_PTRAF
+  - EPA_EJSCREEN_D2_PTSDF
+  - EPA_EJSCREEN_D2_PWDIS
+  - EPA_EJSCREEN_D2_RSEI_AIR
+  - EPA_EJSCREEN_D2_UST
+  - EPA_EJSCREEN_DEMOGIDX_2
+  - EPA_EJSCREEN_DEMOGIDX_5
+  - EPA_EJSCREEN_DISABILITYPCT
+  - EPA_EJSCREEN_DSLPM
+  - EPA_EJSCREEN_DWATER
+  - EPA_EJSCREEN_LESSHSPCT
+  - EPA_EJSCREEN_LIFEEXPPCT
+  - EPA_EJSCREEN_LINGISOPCT
+  - EPA_EJSCREEN_LOWINCPCT
+  - EPA_EJSCREEN_NO2
+  - EPA_EJSCREEN_OVER64PCT
+  - EPA_EJSCREEN_OZONE
+  - EPA_EJSCREEN_PEOPCOLORPCT
+  - EPA_EJSCREEN_PM25
+  - EPA_EJSCREEN_PNPL
+  - EPA_EJSCREEN_PRE1960PCT
+  - EPA_EJSCREEN_PRMP
+  - EPA_EJSCREEN_PTRAF
+  - EPA_EJSCREEN_PTSDF
+  - EPA_EJSCREEN_PWDIS
+  - EPA_EJSCREEN_RSEI_AIR
+  - EPA_EJSCREEN_UNDER5PCT
+  - EPA_EJSCREEN_UNEMPPCT
+  - EPA_EJSCREEN_UST
+  definitions: []
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: 'Environmental justice screening for every census block group: air pollution (PM2.5,
+      ozone, diesel, NO2), traffic, toxic releases, proximity to Superfund sites and hazardous waste facilities,
+      lead paint, wastewater and drinking water violations, demographic indicators, and the EJ indexes
+      that combine them.'
+    originator: US EPA Office of Environmental Justice and External Civil Rights
+    source_url: https://www.epa.gov/ejscreen
+    license: public domain
+    start_year: 2024
+    end_year: 2024
+    probe: which block groups have the highest air pollution and the most low-income residents
+  dump: null
+- loaded_at: 2026-11-13T04:21Z
+  id: ing_cmsnursingho_01
+  name: CMS Medicare and Medicaid nursing homes
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: cms_nursing_homes/cms_nursing_homes.geojson
+    sha256: cd95f02a7752b157fab5dfc4cb3d6a47c515b6e265781a692722a3fb1906125b
+    bytes: 9818228
+  - path: cms_nursing_homes/cms_nursing_homes.meta.yaml
+    sha256: 2e03ac5d91bf16451f5cd8e758e811e69cbbaf1578f7a233877fc714da8776bc
+    bytes: 3423
+  layer: cms_nursing_homes
+  table: cms_nursing_homes
+  renames:
+    name: name
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+    ownership: owner
+    provider_type: type
+  rows: 13481
+  geometry: Point
+  catalog_labels:
+  - ing_cmsnursingho_01_01
+  - ing_cmsnursingho_01_02
+  - ing_cmsnursingho_01_03
+  - ing_cmsnursingho_01_04
+  - ing_cmsnursingho_01_05
+  - ing_cmsnursingho_01_06
+  - ing_cmsnursingho_01_07
+  - ing_cmsnursingho_01_08
+  - ing_cmsnursingho_01_09
+  - ing_cmsnursingho_01_10
+  - ing_cmsnursingho_01_11
+  - ing_cmsnursingho_01_12
+  - ing_cmsnursingho_01_13
+  - ing_cmsnursingho_01_14
+  - ing_cmsnursingho_01_15
+  - ing_cmsnursingho_01_16
+  - ing_cmsnursingho_01_17
+  - ing_cmsnursingho_01_18
+  - ing_cmsnursingho_01_19
+  - ing_cmsnursingho_01_20
+  - ing_cmsnursingho_01_21
+  - ing_cmsnursingho_01_22
+  - ing_cmsnursingho_01_23
+  tag_model: gemma3:4b
+  metadata:
+    description: Nursing homes certified for Medicare or Medicaid, from CMS Care Compare provider information
+      (October 2026), with ownership, beds, Five-Star ratings, staffing, turnover and fines. Positions
+      come from the US Census Bureau geocoder, matched on street address. 1,205 of 14,686 facilities in
+      the CMS file could not be matched to an address and are not shown.
+    originator: Centers for Medicare & Medicaid Services (CMS Care Compare)
+    source_url: https://data.cms.gov/provider-data/
+    license: public domain
+    start_year: 2026
+    end_year: 2026
+    probe: which nursing homes have the lowest overall star rating
+  dump: null
+- loaded_at: 2026-11-13T04:22Z
+  id: ing_cmsdialysisf_01
+  name: CMS dialysis facilities
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: cms_dialysis_facilities/cms_dialysis_facilities.geojson
+    sha256: 4ac85fe3cb0bb2c6c07a4e1836fb976e95ca093ea8211d96bd3b2d444eba0d30
+    bytes: 3920024
+  - path: cms_dialysis_facilities/cms_dialysis_facilities.meta.yaml
+    sha256: 5e9aae24fed89ede8448a3293ae0dbb187630a410dbbdf4d3d48d58f4d1218d5
+    bytes: 2770
+  layer: cms_dialysis_facilities
+  table: cms_dialysis_facilities
+  renames:
+    name: name
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+    ownership: owner
+  rows: 6660
+  geometry: Point
+  catalog_labels:
+  - ing_cmsdialysisf_01_01
+  - ing_cmsdialysisf_01_02
+  - ing_cmsdialysisf_01_03
+  - ing_cmsdialysisf_01_04
+  - ing_cmsdialysisf_01_05
+  - ing_cmsdialysisf_01_06
+  - ing_cmsdialysisf_01_07
+  - ing_cmsdialysisf_01_08
+  - ing_cmsdialysisf_01_09
+  - ing_cmsdialysisf_01_10
+  - ing_cmsdialysisf_01_11
+  - ing_cmsdialysisf_01_12
+  - ing_cmsdialysisf_01_13
+  - ing_cmsdialysisf_01_14
+  - ing_cmsdialysisf_01_15
+  - ing_cmsdialysisf_01_16
+  - ing_cmsdialysisf_01_17
+  tag_model: gemma3:4b
+  metadata:
+    description: Medicare-certified dialysis facilities from CMS Dialysis Facility Compare, with ownership,
+      chain, five-star rating, number of stations, services offered, and survival and hospitalization
+      compared with national rates. Positions come from the US Census Bureau geocoder, matched on street
+      address. 811 of 7,471 facilities in the CMS file could not be matched to an address and are not
+      shown.
+    originator: Centers for Medicare & Medicaid Services (CMS Dialysis Facility Compare)
+    source_url: https://data.cms.gov/provider-data/
+    license: public domain
+    start_year: 2026
+    end_year: 2026
+    probe: where are the dialysis facilities in Missouri
+  dump: null
+- loaded_at: 2026-11-13T04:22Z
+  id: ing_cmshospices_01
+  name: CMS hospices
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: cms_hospices/cms_hospices.geojson
+    sha256: 34f568dc80d8e575307e499c8f01f07e8fc4105ab8712b2c6f0245ec27ce8c11
+    bytes: 2151050
+  - path: cms_hospices/cms_hospices.meta.yaml
+    sha256: 0166eb649c9366ce40c0f7bf2eedfaaaf56ff6e5d21569f2f5cd9b499078bd44
+    bytes: 1715
+  layer: cms_hospices
+  table: cms_hospices
+  renames:
+    name: name
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+    ownership: owner
+  rows: 6195
+  geometry: Point
+  catalog_labels:
+  - ing_cmshospices_01_01
+  - ing_cmshospices_01_02
+  - ing_cmshospices_01_03
+  - ing_cmshospices_01_04
+  - ing_cmshospices_01_05
+  - ing_cmshospices_01_06
+  - ing_cmshospices_01_07
+  - ing_cmshospices_01_08
+  - ing_cmshospices_01_09
+  - ing_cmshospices_01_10
+  tag_model: gemma3:4b
+  metadata:
+    description: Medicare-certified hospices from CMS Hospice General Information (August 2026), with
+      ownership and certification date. Positions come from the US Census Bureau geocoder, matched on
+      street address. 474 of 6,669 facilities in the CMS file could not be matched to an address and are
+      not shown.
+    originator: Centers for Medicare & Medicaid Services (CMS Hospice Compare)
+    source_url: https://data.cms.gov/provider-data/
+    license: public domain
+    start_year: 2026
+    end_year: 2026
+    probe: where are the hospices in Ohio
+  dump: null
+- loaded_at: 2026-11-13T04:22Z
+  id: ing_cmslongtermc_01
+  name: CMS long-term care hospitals
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: cms_long_term_care_hospitals/cms_long_term_care_hospitals.geojson
+    sha256: faa7d79eaa90a60ae56925cb197e0e2b046ac213ca64b472c3a3ba0f0361d5d4
+    bytes: 102550
+  - path: cms_long_term_care_hospitals/cms_long_term_care_hospitals.meta.yaml
+    sha256: f9ee5072ad8c7d7f7e9b522d268efd93e30eae678bf1063930bc5f290b732eac
+    bytes: 2012
+  layer: cms_long_term_care_hospitals
+  table: cms_long_term_care_hospitals
+  renames:
+    name: name
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+    ownership: owner
+  rows: 280
+  geometry: Point
+  catalog_labels:
+  - ing_cmslongtermc_01_01
+  - ing_cmslongtermc_01_02
+  - ing_cmslongtermc_01_03
+  - ing_cmslongtermc_01_04
+  - ing_cmslongtermc_01_05
+  - ing_cmslongtermc_01_06
+  - ing_cmslongtermc_01_07
+  - ing_cmslongtermc_01_08
+  - ing_cmslongtermc_01_09
+  - ing_cmslongtermc_01_10
+  - ing_cmslongtermc_01_11
+  tag_model: gemma3:4b
+  metadata:
+    description: Medicare-certified long-term care hospitals from CMS general information (September 2026),
+      with ownership, beds and certification date. Positions come from the US Census Bureau geocoder,
+      matched on street address. 31 of 311 facilities in the CMS file could not be matched to an address
+      and are not shown.
+    originator: Centers for Medicare & Medicaid Services (CMS Long-Term Care Hospital Compare)
+    source_url: https://data.cms.gov/provider-data/
+    license: public domain
+    start_year: 2026
+    end_year: 2026
+    probe: where are the long-term care hospitals in Texas
+  dump: null
+- loaded_at: 2026-11-13T04:32Z
+  id: ing_oineighborho_01@county
+  dataset_id: ing_oineighborho_01
+  name: Opportunity Atlas neighborhood characteristics
+  kind: table
+  level: county
+  files:
+  - path: oi_neighborhood_county/oi_neighborhood_county.csv
+    sha256: 5ae8bc886fc400914eec4c66eba63c6ab922008ed801e88713408d9722fbaeec
+    bytes: 1013624
+  - path: oi_neighborhood_county/oi_neighborhood_county.meta.yaml
+    sha256: 42249f3463672c0489469dcb283943d8f584a884b7c741c7963825a9283b0d83
+    bytes: 3513
+  rows: 91254
+  units: 3220
+  unmatched_units: 1
+  codes:
+  - OI_NEIGHBORHOOD_ANN_AVG_JOB_GROWTH_2004_2013
+  - OI_NEIGHBORHOOD_EMP2000
+  - OI_NEIGHBORHOOD_FOREIGN_SHARE2010
+  - OI_NEIGHBORHOOD_FRAC_COLL_PLUS2000
+  - OI_NEIGHBORHOOD_FRAC_COLL_PLUS2010
+  - OI_NEIGHBORHOOD_GSMN_MATH_G3_2013
+  - OI_NEIGHBORHOOD_HHINC_MEAN2000
+  - OI_NEIGHBORHOOD_JOB_DENSITY_2013
+  - OI_NEIGHBORHOOD_LN_WAGE_GROWTH_HS_GRAD
+  - OI_NEIGHBORHOOD_MAIL_RETURN_RATE2010
+  - OI_NEIGHBORHOOD_MEAN_COMMUTETIME2000
+  - OI_NEIGHBORHOOD_MED_HHINC1990
+  - OI_NEIGHBORHOOD_MED_HHINC2016
+  - OI_NEIGHBORHOOD_NONWHITE_SHARE2010
+  - OI_NEIGHBORHOOD_POOR_SHARE1990
+  - OI_NEIGHBORHOOD_POOR_SHARE2000
+  - OI_NEIGHBORHOOD_POOR_SHARE2010
+  - OI_NEIGHBORHOOD_RENT_TWOBED2015
+  - OI_NEIGHBORHOOD_SHARE_ASIAN2000
+  - OI_NEIGHBORHOOD_SHARE_ASIAN2010
+  - OI_NEIGHBORHOOD_SHARE_BLACK2000
+  - OI_NEIGHBORHOOD_SHARE_BLACK2010
+  - OI_NEIGHBORHOOD_SHARE_HISP2000
+  - OI_NEIGHBORHOOD_SHARE_HISP2010
+  - OI_NEIGHBORHOOD_SHARE_WHITE2000
+  - OI_NEIGHBORHOOD_SINGLEPARENT_SHARE1990
+  - OI_NEIGHBORHOOD_SINGLEPARENT_SHARE2000
+  - OI_NEIGHBORHOOD_SINGLEPARENT_SHARE2010
+  - OI_NEIGHBORHOOD_TRAVELTIME15_2010
+  definitions: []
+  catalog_labels:
+  - OI_NEIGHBORHOOD_HHINC_MEAN2000
+  - OI_NEIGHBORHOOD_MED_HHINC1990
+  - OI_NEIGHBORHOOD_MED_HHINC2016
+  - OI_NEIGHBORHOOD_MEAN_COMMUTETIME2000
+  - OI_NEIGHBORHOOD_TRAVELTIME15_2010
+  - OI_NEIGHBORHOOD_FRAC_COLL_PLUS2000
+  - OI_NEIGHBORHOOD_FRAC_COLL_PLUS2010
+  - OI_NEIGHBORHOOD_FOREIGN_SHARE2010
+  - OI_NEIGHBORHOOD_POOR_SHARE1990
+  - OI_NEIGHBORHOOD_POOR_SHARE2000
+  - OI_NEIGHBORHOOD_POOR_SHARE2010
+  - OI_NEIGHBORHOOD_SHARE_BLACK2000
+  - OI_NEIGHBORHOOD_SHARE_WHITE2000
+  - OI_NEIGHBORHOOD_SHARE_HISP2000
+  - OI_NEIGHBORHOOD_SHARE_ASIAN2000
+  - OI_NEIGHBORHOOD_SHARE_BLACK2010
+  - OI_NEIGHBORHOOD_SHARE_HISP2010
+  - OI_NEIGHBORHOOD_SHARE_ASIAN2010
+  - OI_NEIGHBORHOOD_NONWHITE_SHARE2010
+  - OI_NEIGHBORHOOD_SINGLEPARENT_SHARE1990
+  - OI_NEIGHBORHOOD_SINGLEPARENT_SHARE2000
+  - OI_NEIGHBORHOOD_SINGLEPARENT_SHARE2010
+  - OI_NEIGHBORHOOD_GSMN_MATH_G3_2013
+  - OI_NEIGHBORHOOD_RENT_TWOBED2015
+  - OI_NEIGHBORHOOD_EMP2000
+  - OI_NEIGHBORHOOD_MAIL_RETURN_RATE2010
+  - OI_NEIGHBORHOOD_LN_WAGE_GROWTH_HS_GRAD
+  - OI_NEIGHBORHOOD_ANN_AVG_JOB_GROWTH_2004_2013
+  - OI_NEIGHBORHOOD_JOB_DENSITY_2013
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Neighborhood characteristics from the Opportunity Atlas: income, poverty, education,
+      family structure, race, commuting, jobs and school scores.'
+    originator: Opportunity Insights (Harvard University)
+    source_url: https://opportunityinsights.org/data/
+    license: CC BY 4.0
+    start_year: 1990
+    end_year: 2016
+    probe: which counties have the highest share of single-parent households
+  dump: null
+- loaded_at: 2026-11-13T04:33Z
+  id: ing_oineighborho_01@tract
+  dataset_id: ing_oineighborho_01
+  name: Opportunity Atlas neighborhood characteristics
+  kind: table
+  level: tract
+  files:
+  - path: oi_neighborhood_tract/oi_neighborhood_tract.csv
+    sha256: aacd68d781b299f26aa33c4710e32d7d5b5f58a7307f7306f1c38083f51d3e29
+    bytes: 22316354
+  - path: oi_neighborhood_tract/oi_neighborhood_tract.meta.yaml
+    sha256: 82bfbcd7bb2d147e79b17325382ec7f279974a72568ffb098a4374340d939eed
+    bytes: 3808
+  rows: 1842196
+  units: 61749
+  unmatched_units: 12374
+  codes:
+  - OI_NEIGHBORHOOD_ANN_AVG_JOB_GROWTH_2004_2013
+  - OI_NEIGHBORHOOD_EMP2000
+  - OI_NEIGHBORHOOD_FOREIGN_SHARE2010
+  - OI_NEIGHBORHOOD_FRAC_COLL_PLUS2000
+  - OI_NEIGHBORHOOD_FRAC_COLL_PLUS2010
+  - OI_NEIGHBORHOOD_GSMN_MATH_G3_2013
+  - OI_NEIGHBORHOOD_HHINC_MEAN2000
+  - OI_NEIGHBORHOOD_JOBS_HIGHPAY_5MI_2015
+  - OI_NEIGHBORHOOD_JOBS_TOTAL_5MI_2015
+  - OI_NEIGHBORHOOD_JOB_DENSITY_2013
+  - OI_NEIGHBORHOOD_LN_WAGE_GROWTH_HS_GRAD
+  - OI_NEIGHBORHOOD_MAIL_RETURN_RATE2010
+  - OI_NEIGHBORHOOD_MEAN_COMMUTETIME2000
+  - OI_NEIGHBORHOOD_MED_HHINC1990
+  - OI_NEIGHBORHOOD_MED_HHINC2016
+  - OI_NEIGHBORHOOD_NONWHITE_SHARE2010
+  - OI_NEIGHBORHOOD_POOR_SHARE1990
+  - OI_NEIGHBORHOOD_POOR_SHARE2000
+  - OI_NEIGHBORHOOD_POOR_SHARE2010
+  - OI_NEIGHBORHOOD_RENT_TWOBED2015
+  - OI_NEIGHBORHOOD_SHARE_ASIAN2000
+  - OI_NEIGHBORHOOD_SHARE_ASIAN2010
+  - OI_NEIGHBORHOOD_SHARE_BLACK2000
+  - OI_NEIGHBORHOOD_SHARE_BLACK2010
+  - OI_NEIGHBORHOOD_SHARE_HISP2000
+  - OI_NEIGHBORHOOD_SHARE_HISP2010
+  - OI_NEIGHBORHOOD_SHARE_WHITE2000
+  - OI_NEIGHBORHOOD_SINGLEPARENT_SHARE1990
+  - OI_NEIGHBORHOOD_SINGLEPARENT_SHARE2000
+  - OI_NEIGHBORHOOD_SINGLEPARENT_SHARE2010
+  - OI_NEIGHBORHOOD_TRAVELTIME15_2010
+  definitions: []
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: 'Neighborhood characteristics from the Opportunity Atlas: income, poverty, education,
+      family structure, race, commuting, jobs and school scores. Tract values use 2010 census tract boundaries,
+      so tracts split or merged in 2020 do not match.'
+    originator: Opportunity Insights (Harvard University)
+    source_url: https://opportunityinsights.org/data/
+    license: CC BY 4.0
+    start_year: 1990
+    end_year: 2016
+    probe: which census tracts have the highest share of single-parent households
+  dump: null
+- loaded_at: 2026-11-13T04:38Z
+  id: ing_svi_01@county
+  dataset_id: ing_svi_01
+  name: CDC Social Vulnerability Index
+  kind: table
+  level: county
+  files:
+  - path: svi_county/SVI_2022_US_county.csv
+    sha256: bc47d244153e359d5c09f621a4bf344a1e593159c16fbd3c28a15461b70a6c0f
+    bytes: 2301480
+  - path: svi_county/svi.meta.yaml
+    sha256: 1812736a1293fc76dc543866716d5759ab684e0cb9fc3cba47eba40456e1c385
+    bytes: 3288
+  rows: 93990
+  units: 3133
+  unmatched_units: 11
+  codes:
+  - SVI_EP_AFAM
+  - SVI_EP_AGE17
+  - SVI_EP_AGE65
+  - SVI_EP_AIAN
+  - SVI_EP_ASIAN
+  - SVI_EP_CROWD
+  - SVI_EP_DISABL
+  - SVI_EP_GROUPQ
+  - SVI_EP_HBURD
+  - SVI_EP_HISP
+  - SVI_EP_LIMENG
+  - SVI_EP_MINRTY
+  - SVI_EP_MOBILE
+  - SVI_EP_MUNIT
+  - SVI_EP_NHPI
+  - SVI_EP_NOHSDP
+  - SVI_EP_NOINT
+  - SVI_EP_NOVEH
+  - SVI_EP_OTHERRACE
+  - SVI_EP_POV150
+  - SVI_EP_SNGPNT
+  - SVI_EP_TWOMORE
+  - SVI_EP_UNEMP
+  - SVI_EP_UNINSUR
+  - SVI_E_TOTPOP
+  - SVI_RPL_THEME1
+  - SVI_RPL_THEME2
+  - SVI_RPL_THEME3
+  - SVI_RPL_THEME4
+  - SVI_RPL_THEMES
+  definitions: []
+  catalog_labels:
+  - SVI_E_TOTPOP
+  - SVI_EP_POV150
+  - SVI_EP_UNEMP
+  - SVI_EP_HBURD
+  - SVI_EP_NOHSDP
+  - SVI_EP_UNINSUR
+  - SVI_EP_AGE65
+  - SVI_EP_AGE17
+  - SVI_EP_DISABL
+  - SVI_EP_SNGPNT
+  - SVI_EP_LIMENG
+  - SVI_EP_MINRTY
+  - SVI_EP_MUNIT
+  - SVI_EP_MOBILE
+  - SVI_EP_CROWD
+  - SVI_EP_NOVEH
+  - SVI_EP_GROUPQ
+  - SVI_RPL_THEME1
+  - SVI_RPL_THEME2
+  - SVI_RPL_THEME3
+  - SVI_RPL_THEME4
+  - SVI_RPL_THEMES
+  - SVI_EP_NOINT
+  - SVI_EP_AFAM
+  - SVI_EP_HISP
+  - SVI_EP_ASIAN
+  - SVI_EP_AIAN
+  - SVI_EP_NHPI
+  - SVI_EP_TWOMORE
+  - SVI_EP_OTHERRACE
+  tag_model: gemma3:4b
+  metadata:
+    description: Social vulnerability of every county, ranked on 16 census variables in four themes.
+    originator: CDC/ATSDR
+    source_url: https://svi.cdc.gov/Documents/Data/2022/csv/states_counties/SVI_2022_US_county.csv
+    license: public domain
+    start_year: 2022
+    end_year: 2022
+    probe: which areas are most socially vulnerable
+  dump: null
+- loaded_at: 2026-11-13T04:39Z
+  id: ing_svi_01@tract
+  dataset_id: ing_svi_01
+  name: CDC Social Vulnerability Index
+  kind: table
+  level: tract
+  files:
+  - path: svi_tract/SVI_2022_US.csv
+    sha256: 58df3dca3d4194879ffbd4b5e753eae48676ef691da1fa669f5fc40c3f79bc6a
+    bytes: 61102059
+  - path: svi_tract/svi.meta.yaml
+    sha256: b16ea854f38a3ac50eecf463d4a2e221d1b9721ebe5633842e9714a299351558
+    bytes: 3188
+  rows: 2505539
+  units: 84120
+  unmatched_units: 0
+  codes:
+  - SVI_EP_AFAM
+  - SVI_EP_AGE17
+  - SVI_EP_AGE65
+  - SVI_EP_AIAN
+  - SVI_EP_ASIAN
+  - SVI_EP_CROWD
+  - SVI_EP_DISABL
+  - SVI_EP_GROUPQ
+  - SVI_EP_HBURD
+  - SVI_EP_HISP
+  - SVI_EP_LIMENG
+  - SVI_EP_MINRTY
+  - SVI_EP_MOBILE
+  - SVI_EP_MUNIT
+  - SVI_EP_NHPI
+  - SVI_EP_NOHSDP
+  - SVI_EP_NOINT
+  - SVI_EP_NOVEH
+  - SVI_EP_OTHERRACE
+  - SVI_EP_POV150
+  - SVI_EP_SNGPNT
+  - SVI_EP_TWOMORE
+  - SVI_EP_UNEMP
+  - SVI_EP_UNINSUR
+  - SVI_E_TOTPOP
+  - SVI_RPL_THEME1
+  - SVI_RPL_THEME2
+  - SVI_RPL_THEME3
+  - SVI_RPL_THEME4
+  - SVI_RPL_THEMES
+  definitions: []
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: Social vulnerability of every census tract, ranked on 16 census variables in four themes.
+    originator: CDC/ATSDR
+    source_url: https://svi.cdc.gov/Documents/Data/2022/csv/states/SVI_2022_US.csv
+    license: public domain
+    start_year: 2022
+    end_year: 2022
+    probe: which areas are most socially vulnerable
+  dump: null

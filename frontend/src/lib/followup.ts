@@ -78,7 +78,7 @@ function referencedAttrs(plan: AnalysisResponse['plan'] | null, edit: FollowUpEd
  * past the request size limit for no reason.
  */
 export function reviseAnalysis(base: AnalysisResponse | null, edit: FollowUpEdit,
-                               uploads: UserSeries[]) {
+                               uploads: UserSeries[], layers: string[] = []) {
   const refs = referencedAttrs(base?.plan ?? null, edit);
   const missing = [...refs].filter(id => isUserAttr(id) &&
     !uploads.some(u => USER_PREFIX + u.id === id));
@@ -93,8 +93,10 @@ export function reviseAnalysis(base: AnalysisResponse | null, edit: FollowUpEdit
     query: base?.query ?? '',
     plan: base?.plan ?? null,
     edit,
-    candidate_ids: (base?.candidates ?? []).map(c => c.attr_id).filter(id => !isUserAttr(id)),
+    candidate_ids: (base?.candidates ?? []).map(c => c.attr_id)
+      .filter(id => !isUserAttr(id) && !id.startsWith('layer:')),
     user_series,
+    user_layers: layers,
     decomposition: base?.decomposition ?? null,
   });
 }

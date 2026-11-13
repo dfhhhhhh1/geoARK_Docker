@@ -1,0 +1,1111 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 24,
+  "answer_correctness": 0.7083333333333334,
+  "by_tier": {
+    "phase_d": {
+      "pass": 4,
+      "n": 6,
+      "rate": 0.6666666666666666
+    },
+    "refuse": {
+      "pass": 2,
+      "n": 3,
+      "rate": 0.6666666666666666
+    },
+    "phase_e": {
+      "pass": 5,
+      "n": 8,
+      "rate": 0.625
+    },
+    "phase_f": {
+      "pass": 6,
+      "n": 7,
+      "rate": 0.8571428571428571
+    }
+  },
+  "classes": {
+    "CORRECT": 15,
+    "INCOMPLETE": 3,
+    "WRONG_VALUE": 1,
+    "CORRECT_REFUSAL": 2,
+    "WRONG_GEOGRAPHY": 1,
+    "NO_ANSWER": 1,
+    "FALSE_ANSWER": 1
+  },
+  "latency_mean": 40.5,
+  "api_container_created": "2026-11-12T20:25:05.502400682Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "d-uninsured100-diabetes",
+      "tier": "phase_d",
+      "query": "Find the 100 counties with the highest uninsured rates. Is diabetes more common in those counties than in all other counties?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "groups": {
+          "rest": {
+            "gold_median": 0.107,
+            "got_median": 0.107,
+            "jaccard": 1.0,
+            "ok": true
+          },
+          "top100": {
+            "gold_median": 0.141,
+            "got_median": 0.141,
+            "jaccard": 1.0,
+            "ok": true
+          }
+        },
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V085_RAWVALUE",
+          "m2": "CHR_V060_RAWVALUE"
+        }
+      },
+      "ops": "load->load->intersect->load->intersect->compare_groups->output",
+      "intent": "Diabetes prevalence in counties from q1 compared with all other counties",
+      "loaded": [
+        "CHR_V085_RAWVALUE | Uninsured | County Health Rankings",
+        "CHR_V060_RAWVALUE | Diabetes prevalence | County Health Rankings"
+      ],
+      "row_count": 3133,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 100 counties have the highest uninsured rates?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "Is diabetes more common in the counties from q1 than in all other counties?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->intersect->load->intersect->compare_groups->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 46.7
+    },
+    {
+      "id": "d-mo-poverty20-distance",
+      "tier": "phase_d",
+      "query": "Find the 20 Missouri counties with the highest poverty rates. How far, in miles, is the center of each of those counties from the nearest hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 20,
+        "gold_rows": 20,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PCTPOVALL",
+          "m2": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "load->nearest_distance->intersect->output",
+      "intent": "Distance in miles from the center of each of the 20 Missouri counties with the highest poverty rates to the nearest hospital",
+      "loaded": [
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 20,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 20 Missouri counties have the highest poverty rates?",
+            "uses": [],
+            "ops": "load->filter_area->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "How far, in miles, is the center of each of the counties from q1 from the nearest hospital?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->nearest_distance->intersect->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 45.8
+    },
+    {
+      "id": "d-unemp-outliers-poverty",
+      "tier": "phase_d",
+      "query": "Which counties are statistical outliers for the unemployment rate? Is the poverty rate in those outlier counties different from everywhere else?",
+      "class": "INCOMPLETE",
+      "pass": false,
+      "detail": {
+        "groups": {
+          "rest": {
+            "gold_median": 13.5,
+            "got_median": 13.5,
+            "jaccard": 1.0,
+            "ok": true
+          },
+          "outlier": {
+            "gold_median": 18.85,
+            "matched": false
+          }
+        },
+        "unmatched": [
+          "outlier"
+        ],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "UNEMPLOYMENT_RATE",
+          "m2": "PCTPOVALL"
+        }
+      },
+      "ops": "load->filter_attr->load->intersect->load->intersect->compare_groups->output",
+      "intent": "Compare the poverty rate in counties from q1 with the poverty rate in all other counties",
+      "loaded": [
+        "UNEMPLOYMENT_RATE | Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS) | USDA ERS",
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS"
+      ],
+      "row_count": 3087,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which counties are statistical outliers for the unemployment rate?",
+            "uses": [],
+            "ops": "load->outlier->output"
+          },
+          {
+            "id": "q2",
+            "question": "Is the poverty rate in the counties from q1 different from the poverty rate in all other counties?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->filter_attr->load->intersect->load->intersect->compare_groups->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 41.3
+    },
+    {
+      "id": "d-smallest50-diabetes10-distance",
+      "tier": "phase_d",
+      "query": "Take the 50 least populous counties in the country. Of those, which 10 have the highest diabetes prevalence? How far is each of those 10 from the nearest hospital, in miles?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 10,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V051_RAWVALUE",
+          "m2": "PLACES_DIABETES_AgeAdjPrv",
+          "m3": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "load->nearest_distance->intersect->output",
+      "intent": "Distance in miles from each county in q2 to the nearest hospital",
+      "loaded": [
+        "CHR_V051_RAWVALUE | Population | County Health Rankings",
+        "PLACES_DIABETES_AgeAdjPrv | Diagnosed diabetes among adults (age-adjusted prevalence) (covers 2,957 counties) | CDC PLACES",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which are the 50 least populous counties in the country?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "Of the counties from q1, which 10 have the highest diabetes prevalence?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->intersect->rank->output"
+          },
+          {
+            "id": "q3",
+            "question": "How far is each of the counties from q2 from the nearest hospital, in miles?",
+            "uses": [
+              "q2"
+            ],
+            "ops": "load->nearest_distance->intersect->output"
+          }
+        ],
+        "planned_steps": 3,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 64.5
+    },
+    {
+      "id": "d-poor-quarter-smoking-copd",
+      "tier": "phase_d",
+      "query": "Take the poorest quarter of counties by median household income. Within those counties, how strongly is adult smoking related to COPD?",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "gold": 0.6645,
+        "got": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "MEDIAN_HOUSEHOLD_INCOME",
+          "m2": "CHR_V009_RAWVALUE",
+          "m3": "PLACES_COPD_CrdPrv"
+        }
+      },
+      "ops": "load->load->load->intersect->intersect->correlate->output",
+      "intent": "How strongly adult smoking and COPD go together in counties from q1",
+      "loaded": [
+        "MEDIAN_HOUSEHOLD_INCOME | Median household income in dollars | USDA ERS",
+        "CHR_V009_RAWVALUE | Adult smoking | County Health Rankings",
+        "PLACES_COPD_CrdPrv | Chronic obstructive pulmonary disease among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which counties are in the poorest quarter by median household income?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "How strongly is adult smoking related to COPD in the counties from q1?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->load->intersect->intersect->correlate->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 47.4
+    },
+    {
+      "id": "d-co-firestations-income",
+      "tier": "phase_d",
+      "query": "Find the 10 Colorado counties with the most fire stations per 10,000 residents. What is the median household income in each of them?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 10,
+        "outside": 0,
+        "outside_sample": [],
+        "jaccard": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations",
+          "m2": "SVI_E_TOTPOP",
+          "m3": "MEDIAN_HOUSEHOLD_INCOME"
+        }
+      },
+      "ops": "load->load->intersect->output",
+      "intent": "Median household income in each of the ten Colorado counties with the highest number of fire stations per 10,000 residents",
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations",
+        "SVI_E_TOTPOP | Total population estimate | CDC Social Vulnerability Index",
+        "MEDIAN_HOUSEHOLD_INCOME | Median household income in dollars | USDA ERS"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 10 Colorado counties have the most fire stations per 10,000 residents?",
+            "uses": [],
+            "ops": "count_features->load->normalize->filter_area->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "What is the median household income in each of the counties from q1?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->intersect->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 46.8
+    },
+    {
+      "id": "d-asthma-then-rainfall",
+      "tier": "refuse",
+      "query": "Find the 20 counties with the highest asthma rates. What is the average annual rainfall in those counties?",
+      "class": "CORRECT_REFUSAL",
+      "pass": true,
+      "detail": {},
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q2: q2 could not be answered: the loaded data does not include \"average annual rainfall\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 20 counties have the highest asthma rates?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "What is the average annual rainfall in the counties from q1?",
+            "uses": [
+              "q1"
+            ],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": "q2 could not be answered: the loaded data does not include \"average annual rainfall\""
+      },
+      "seconds": 50.1
+    },
+    {
+      "id": "e-stl-tract-poverty",
+      "tier": "phase_e",
+      "query": "Which census tracts in the city of St. Louis have the highest share of people below 150% of the poverty line?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 104,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_POV150"
+        }
+      },
+      "ops": "load->filter_place->rank->output",
+      "intent": "Census tracts in the city of St. Louis with the highest share of people below 150% of the poverty line",
+      "loaded": [
+        "SVI_EP_POV150 | Percent of persons below 150% of the poverty level | CDC Social Vulnerability Index"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which census tracts in the city of St. Louis have the highest share of people below 150% of the poverty line?",
+            "uses": [],
+            "ops": "load->filter_place->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 31.9
+    },
+    {
+      "id": "e-cook-zip-diabetes",
+      "tier": "phase_e",
+      "query": "Which ZIP codes in Cook County, Illinois have the highest diabetes prevalence?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 177,
+        "gold_rows": 177,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 1,
+        "bind": {
+          "m1": "PLACES_DIABETES_CrdPrv"
+        }
+      },
+      "ops": "load->filter_area->filter_place->output",
+      "intent": "ZIP codes in Cook County, Illinois with the highest diabetes prevalence",
+      "loaded": [
+        "PLACES_DIABETES_CrdPrv | Diagnosed diabetes among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 177,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which ZIP codes in Cook County, Illinois have the highest diabetes prevalence?",
+            "uses": [],
+            "ops": "load->filter_area->filter_place->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 41.4
+    },
+    {
+      "id": "e-mi-noveh-rollup",
+      "tier": "phase_e",
+      "query": "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 83,
+        "gold_rows": 83,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_NOVEH"
+        }
+      },
+      "ops": "load->aggregate_to->filter_area->output",
+      "intent": "Share of people in each Michigan county who live in households without a vehicle, weighted by tract population",
+      "loaded": [
+        "SVI_EP_NOVEH | Percent of households with no vehicle available | CDC Social Vulnerability Index"
+      ],
+      "row_count": 83,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
+            "uses": [],
+            "ops": "load->aggregate_to->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 31.8
+    },
+    {
+      "id": "e-co-grid-density",
+      "tier": "phase_e",
+      "query": "Where are the most densely populated 4 km grid cells in Colorado?",
+      "class": "INCOMPLETE",
+      "pass": false,
+      "detail": {
+        "rows": 1,
+        "gold_rows": 19967,
+        "outside": 0,
+        "outside_sample": [],
+        "why": "only 1 ranked rows",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "WORLDPOP_POP"
+        }
+      },
+      "ops": "load->filter_area->per_area->rank->output",
+      "intent": "The most densely populated 4 km grid cells in Colorado",
+      "loaded": [
+        "WORLDPOP_POP | Estimated population from the WorldPop 1 km gridded estimate | WorldPop population grid"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Where are the most densely populated 4 km grid cells in Colorado?",
+            "uses": [],
+            "ops": "load->filter_area->per_area->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 60.7
+    },
+    {
+      "id": "e-denver-tract-uninsured",
+      "tier": "phase_e",
+      "query": "Show the uninsured rate for every census tract in Denver.",
+      "class": "WRONG_GEOGRAPHY",
+      "pass": false,
+      "detail": {
+        "rows": 181,
+        "gold_rows": 176,
+        "outside": 5,
+        "outside_sample": [
+          "18103952000",
+          "29227960100",
+          "37109071101",
+          "42071010102",
+          "19017004600"
+        ],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_UNINSUR"
+        }
+      },
+      "ops": "load->filter_place->output",
+      "intent": "Percent of persons without health insurance in every census tract in Denver",
+      "loaded": [
+        "SVI_EP_UNINSUR | Percent of persons without health insurance | CDC Social Vulnerability Index"
+      ],
+      "row_count": 181,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Show the uninsured rate for every census tract in Denver.",
+            "uses": [],
+            "ops": "load->filter_place->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.2
+    },
+    {
+      "id": "e-mo-tract-poverty-spread",
+      "tier": "phase_e",
+      "query": "In which Missouri counties does poverty vary the most from one census tract to another?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 102,
+        "gold_rows": 102,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 0.7,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_POV150"
+        }
+      },
+      "ops": "load->aggregate_to->per_area->filter_area->output",
+      "intent": "Missouri counties where poverty varies the most from one census tract to another",
+      "loaded": [
+        "SVI_EP_POV150 | Percent of persons below 150% of the poverty level | CDC Social Vulnerability Index"
+      ],
+      "row_count": 102,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "In which Missouri counties does poverty vary the most from one census tract to another?",
+            "uses": [],
+            "ops": "load->aggregate_to->per_area->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 21.8
+    },
+    {
+      "id": "e-zip-65721-counties",
+      "tier": "phase_e",
+      "query": "Which counties does ZIP code 65721 fall in, and what percent of the ZIP is in each?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\""
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which counties does ZIP code 65721 fall in, and what percent of the ZIP is in each?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\""
+      },
+      "seconds": 21.1
+    },
+    {
+      "id": "e-co-worldpop-county",
+      "tier": "phase_e",
+      "query": "Estimate the population of each Colorado county from the 1 km population grid.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 64,
+        "gold_rows": 64,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "WORLDPOP_POP"
+        }
+      },
+      "ops": "load->filter_area->output",
+      "intent": "Estimated population from the WorldPop 1 km gridded estimate for each Colorado county",
+      "loaded": [
+        "WORLDPOP_POP | Estimated population from the WorldPop 1 km gridded estimate | WorldPop population grid"
+      ],
+      "row_count": 64,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Estimate the population of each Colorado county from the 1 km population grid.",
+            "uses": [],
+            "ops": "load->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 20.7
+    },
+    {
+      "id": "f-mo-pop-far-hospital",
+      "tier": "phase_f",
+      "query": "How many people in Missouri live more than 20 miles from the nearest hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 185976.0,
+        "got": 185976.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "SVI_E_TOTPOP"
+        }
+      },
+      "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->output",
+      "intent": "Number of people in Missouri living more than 20 miles from the nearest hospital",
+      "loaded": [
+        "SVI_E_TOTPOP | Total population estimate | ",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many people in Missouri live more than 20 miles from the nearest hospital?",
+            "uses": [],
+            "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 61.2
+    },
+    {
+      "id": "f-co-share-within-5mi",
+      "tier": "phase_f",
+      "query": "What share of Colorado's population lives within 5 miles of a hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 76.4334,
+        "got": 76.4334,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "SVI_E_TOTPOP"
+        }
+      },
+      "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->aggregate->normalize->output",
+      "intent": "Share of Colorado's population that lives within five miles of a hospital",
+      "loaded": [
+        "SVI_E_TOTPOP | Total population estimate | ",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What share of Colorado's population lives within 5 miles of a hospital?",
+            "uses": [],
+            "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->aggregate->normalize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 54.1
+    },
+    {
+      "id": "f-tx-hospital-access-2sfca",
+      "tier": "phase_f",
+      "query": "Which Texas counties have the worst access to hospitals once you account for how many people each hospital has to serve, using a 30-mile catchment?",
+      "class": "INCOMPLETE",
+      "pass": false,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 254,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 0.039,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "CHR_V051_RAWVALUE"
+        }
+      },
+      "ops": "load->access->filter_area->rank->output",
+      "intent": "Texas counties with the worst access to hospitals, accounting for how many people each hospital serves within a 30-mile catchment",
+      "loaded": [
+        "CHR_V051_RAWVALUE | Population | ",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Texas counties have the worst access to hospitals once you account for how many people each hospital has to serve, using a 30-mile catchment?",
+            "uses": [],
+            "ops": "load->access->filter_area->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 64.2
+    },
+    {
+      "id": "f-unemp-neighbor-gap",
+      "tier": "phase_f",
+      "query": "Which counties have a much higher unemployment rate than the average of their neighboring counties?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 20,
+        "gold_rows": 3126,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 20,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_UNEMP"
+        }
+      },
+      "ops": "load->neighbors->rank->output",
+      "intent": "Counties where the unemployment rate is much higher than the average of neighboring counties",
+      "loaded": [
+        "SVI_EP_UNEMP | Unemployment rate | CDC Social Vulnerability Index"
+      ],
+      "row_count": 20,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which counties have a much higher unemployment rate than the average of their neighboring counties?",
+            "uses": [],
+            "ops": "load->neighbors->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.1
+    },
+    {
+      "id": "f-midwest-unemp-change",
+      "tier": "phase_f",
+      "query": "Which Midwest counties saw the largest increase in the unemployment rate between 2019 and 2023?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 1055,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 1,
+        "bind": {
+          "m1": "UNEMPLOYMENT_RATE"
+        }
+      },
+      "ops": "load->load->combine->filter_area->rank->output",
+      "intent": "Midwest counties with the largest increase in the unemployment rate between 2019 and 2023",
+      "loaded": [
+        "UNEMPLOYMENT_RATE | Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS) | USDA ERS"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Midwest counties saw the largest increase in the unemployment rate between 2019 and 2023?",
+            "uses": [],
+            "ops": "load->load->combine->filter_area->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.9
+    },
+    {
+      "id": "f-mo-poverty-precision",
+      "tier": "phase_f",
+      "query": "Which 10 Missouri counties have the least precise poverty rate estimates?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 115,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CI90UBALLP",
+          "m2": "CI90LBALLP"
+        }
+      },
+      "ops": "load->load->combine->filter_area->rank->output",
+      "intent": "The ten Missouri counties with the least precise poverty rate estimates",
+      "loaded": [
+        "CI90UBALLP | Upper bound of the 90% confidence interval, margin of error for the percent of people of all ages in poverty | USDA ERS",
+        "CI90LBALLP | Lower bound of the 90% confidence interval, margin of error for the percent of people of all ages in poverty | USDA ERS"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 10 Missouri counties have the least precise poverty rate estimates?",
+            "uses": [],
+            "ops": "load->load->combine->filter_area->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 38.0
+    },
+    {
+      "id": "f-diabetes-residual-income",
+      "tier": "phase_f",
+      "query": "For each county, how much higher or lower is the diabetes rate than its median household income would predict?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 2944,
+        "gold_rows": 2944,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PLACES_DIABETES_AgeAdjPrv",
+          "m2": "CHR_V063_RAWVALUE"
+        }
+      },
+      "ops": "load->load->residual->output",
+      "intent": "For each county, how much higher or lower is the diabetes rate than its median household income would predict?",
+      "loaded": [
+        "PLACES_DIABETES_AgeAdjPrv | Diagnosed diabetes among adults (age-adjusted prevalence) (covers 2,957 counties) | CDC PLACES",
+        "CHR_V063_RAWVALUE | Median household income | County Health Rankings"
+      ],
+      "row_count": 2944,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "For each county, how much higher or lower is the diabetes rate than its median household income would predict?",
+            "uses": [],
+            "ops": "load->load->residual->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 31.9
+    },
+    {
+      "id": "x-denver-tract-rainfall",
+      "tier": "refuse",
+      "query": "Which census tracts in Denver get the most rainfall?",
+      "class": "CORRECT_REFUSAL",
+      "pass": true,
+      "detail": {},
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"get the most rainfall\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which census tracts in Denver get the most rainfall?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"get the most rainfall\""
+      },
+      "seconds": 41.2
+    },
+    {
+      "id": "x-hospital-closures-mortality",
+      "tier": "refuse",
+      "query": "Did rural hospital closures since 2010 increase mortality in the counties that lost a hospital?",
+      "class": "FALSE_ANSWER",
+      "pass": false,
+      "detail": {},
+      "ops": "count_features->count_features->filter_attr->intersect->load->join->output",
+      "intent": "Did rural hospital closures since 2010 increase mortality in the counties that lost a hospital?",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals",
+        "R_DEATH | Death rate per 1,000 midyear population | USDA ERS"
+      ],
+      "row_count": 2542,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Did rural hospital closures since 2010 increase mortality in the counties that lost a hospital?",
+            "uses": [],
+            "ops": "count_features->count_features->filter_attr->intersect->load->join->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 35.7
+    }
+  ]
+}

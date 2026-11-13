@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, Upload, X } from 'lucide-react';
-import type { UserSeries } from '../types';
+import type { UserLayer, UserSeries } from '../types';
+import { LAYER_EXT, uploadLayer } from '../lib/userLayers';
 import {
   countyFips, detectFipsColumn, extractSeries, numericColumns, parseCsv, type ParsedCsv,
 } from '../lib/csv';
@@ -19,6 +20,9 @@ import {
  */
 interface Props {
   onAdd: (series: UserSeries[]) => void;
+  /** A map layer (GeoJSON, zipped shapefile, GeoPackage, KML), sent to the
+   *  server once and held there in memory for this session. */
+  onAddLayer?: (layer: UserLayer) => void;
   onClose: () => void;
 }
 
@@ -33,7 +37,7 @@ interface Draft {
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
-const UploadPanel: React.FC<Props> = ({ onAdd, onClose }) => {
+const UploadPanel: React.FC<Props> = ({ onAdd, onAddLayer, onClose }) => {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,6 +46,20 @@ const UploadPanel: React.FC<Props> = ({ onAdd, onClose }) => {
 
   const read = async (file: File) => {
     setError(null);
+    if (onAddLayer && LAYER_EXT.test(file.name)) {
+      // A map layer: converted and checked on the server, which says what
+      // is wrong (no .prj, mixed geometry, too many features).
+      setBusy(true);
+      try {
+        onAddLayer(await uploadLayer(file));
+        onClose();
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (file.size > MAX_BYTES) {
       setError(`That file is ${(file.size / 1e6).toFixed(1)} MB. A county file is well under 1 MB; the limit is 5 MB.`);
       return;
@@ -116,10 +134,11 @@ const UploadPanel: React.FC<Props> = ({ onAdd, onClose }) => {
       <div className="flex items-start gap-3">
         <FileSpreadsheet className="w-5 h-5 text-emerald-700 mt-0.5" />
         <div className="min-w-0">
-          <h3 className="text-base font-semibold text-slate-800">Add your own county data</h3>
+          <h3 className="text-base font-semibold text-slate-800">Add your own data</h3>
           <p className="text-sm text-slate-600 mt-0.5">
-            A CSV with a county FIPS column and one or more number columns. It stays in this
-            browser tab: nothing is saved on the server, and it is forgotten when you reload.
+            A CSV with a county FIPS column and one or more number columns, kept in this browser
+            tab. Or a map layer (GeoJSON, zipped shapefile, GeoPackage, KML): the server holds it in
+            memory for a few hours and never saves it. Ask about it as "our ...".
           </p>
         </div>
         <button type="button" onClick={onClose} className="ml-auto p-1 text-slate-400 hover:text-slate-700"
@@ -137,11 +156,11 @@ const UploadPanel: React.FC<Props> = ({ onAdd, onClose }) => {
         >
           {busy ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
                 : <Upload className="w-6 h-6 text-slate-400" />}
-          <span className="text-sm text-slate-700">Drop a .csv here, or click to choose one</span>
+          <span className="text-sm text-slate-700">Drop a .csv or a map layer here, or click to choose one</span>
           <span className="text-xs text-slate-500">
             Example header: <code className="font-mono">fips,clinic_visits,wait_days</code>
           </span>
-          <input type="file" accept=".csv,.tsv,.txt,text/csv" className="sr-only"
+          <input type="file" accept=".csv,.tsv,.txt,text/csv,.geojson,.json,.zip,.gpkg,.kml" className="sr-only"
                  onChange={e => { const f = e.target.files?.[0]; if (f) void read(f); }} />
         </label>
       )}

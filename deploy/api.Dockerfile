@@ -12,6 +12,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 
 FROM node:20-slim AS dev
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends gdal-bin     && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm npm install
 COPY . .
@@ -20,6 +21,10 @@ EXPOSE 4000
 FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+# ogr2ogr, for per-session layer uploads (backend/user_layers.js): a zipped
+# shapefile, GeoPackage or KML is converted to WGS84 GeoJSON in a temp dir.
+# GeoJSON uploads need none of it. ~150 MB; the only reason it is here.
+RUN apt-get update && apt-get install -y --no-install-recommends gdal-bin     && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 EXPOSE 4000

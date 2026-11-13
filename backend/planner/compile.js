@@ -25,11 +25,11 @@
  * question return, say, a point layer and a choropleth.
  */
 
-const { planLevel } = require("./levels");
+const { planLevel, LEVELS: LEVEL_SET } = require("./levels");
 const ops = require("./ops");
 const { describeGroup } = require("./conditions");
 const {
-  CompileError, SAFE_DB_IDENT, cte,
+  CompileError, SAFE_DB_IDENT, cte, featureFrom,
   OPERATORS, AGGREGATES, MAX_FEATURES, MAX_RESULT_ROWS,
 } = require("./ops/_sql");
 
@@ -44,23 +44,35 @@ function compilePlan(plan, resolved) {
   const level = planLevel(plan);
   const steps = plan.steps || [];
   const byId = new Map(steps.map(s => [s.id, s]));
+  // The type each step yields (ops/index.js): which form an op compiles to
+  // depends on whether its input is a series, features or a scalar.
+  const types = ops.stepTypes(steps);
+  // The unit each step runs at. A step may carry its own `level` (a load
+  // rolled up to counties, applyRollup; a catchment's tract steps,
+  // planner/catchment.js), and a step with none inherits a finer level from
+  // its inputs, until aggregate_to brings it back to counties. Every plan
+  // without step levels runs entirely at the plan's level, as before.
+  const stepLevel = new Map();
+  for (const st of steps) {
+    let lv = LEVEL_SET.has(st.level) ? st.level : null;
+    if (!lv && st.op !== "aggregate_to") {
+      lv = (st.inputs || []).map(i => stepLevel.get(i)).find(l => l && l !== level) || null;
+    }
+    stepLevel.set(st.id, lv || (st.op === "aggregate_to" ? "county" : level));
+  }
 
   /**
    * Resolve a label to a feature table, with identifier checks. Identifiers
    * come from attribute_source, which only the ETL writes -- never from the
    * model -- and are pattern-checked anyway before interpolation.
    */
-  const featureSource = (attrId, field = "attr_id") => {
+  // `bind` is the statement's own: an uploaded layer (backend/user_layers.js)
+  // binds its features into whichever statement reads it.
+  const featureSource = (attrId, field = "attr_id", bind = null) => {
     const src = resolved.get(attrId);
     if (!src) throw new CompileError(`unresolved ${field} ${attrId}`);
-    if (src.source_kind !== "feature_table") {
-      throw new CompileError(`${attrId} is not a feature table`);
-    }
-    const geom = src.geom_column || "geom";
-    if (!SAFE_DB_IDENT.test(src.table_name) || !SAFE_DB_IDENT.test(geom)) {
-      throw new CompileError(`unsafe identifier in attribute_source for ${attrId}`);
-    }
-    return { table: src.table_name, geom };
+    const { from, geom } = featureFrom(src, bind, attrId);
+    return { table: from, geom };
   };
 
   /**
@@ -75,9 +87,11 @@ function compilePlan(plan, resolved) {
       const st = byId.get(id);
       if (!st || needed.has(id)) return;
       const mod = ops.byName(st.op);
-      // Terminal and features steps contribute no CTE.
-      if (mod && !mod.terminal && mod.produces !== "features" &&
-          mod.produces !== "factors") needed.add(id);
+      // Terminal steps contribute no CTE, nor do factors. A features step does
+      // when something reads it as a CTE (GIS_OPS_PLAN.md H1): a select_features
+      // read only by an output still compiles standalone, as it always has.
+      if (mod && !mod.terminal && mod.produces !== "factors" &&
+          !(types.get(id) === "features" && !mod.compile)) needed.add(id);
       for (const dep of st.inputs || []) visit(dep);
     };
     visit(rootId);
@@ -113,7 +127,10 @@ function compilePlan(plan, resolved) {
       if (!mod) throw new CompileError(`unknown op ${st.op}`);
       const name = cte(st.id);
       declared.push(mod.compile(st, {
-        name, ins: (st.inputs || []).map(cte), bind, resolved, featureSource, level,
+        name, ins: (st.inputs || []).map(cte), bind, resolved,
+        featureSource: (id, field) => featureSource(id, field, bind),
+        level: stepLevel.get(st.id),
+        inTypes: (st.inputs || []).map(i => types.get(i)),
       }));
       // Only the CTE this output actually reads decides whether a second
       // measure survives: every other op selects (fips, value) and drops it.
@@ -132,6 +149,32 @@ function compilePlan(plan, resolved) {
       // WITH list and must keep binding into the same parameter list.
       declared, bind,
     };
+  };
+
+  // The root layer of a features chain (input 1 all the way down), for its
+  // label columns; and whether an op on the way put a value (a distance) there.
+  const featureRoot = (id) => {
+    let st = byId.get(id);
+    while (st && st.op !== "select_features") st = byId.get((st.inputs || [])[0]);
+    return st;
+  };
+  const featureLabelsOf = (id) => {
+    const root = featureRoot(id);
+    return root ? ops.byName("select_features").labelsOf(root, { resolved }) : [];
+  };
+  // What a features result's `value` is: set by the op nearest the output
+  // that measured something (within: a distance; overlay: the amount inside
+  // the second layer, H3), passed through by rank / filter_attr. null when
+  // nothing did, or when overlay only selected (exclude).
+  const featureValueOf = (id) => {
+    for (let st = byId.get(id); st && st.op !== "select_features"; st = byId.get((st.inputs || [])[0])) {
+      if (st.op === "within") return { column: "miles_to_nearest", label: "miles to the nearest feature of the second layer" };
+      if (st.op === "overlay") {
+        return st.exclude === true ? null
+          : { column: "amount_inside", label: `${st.unit || "miles or square miles"} inside the second layer (none for points)` };
+      }
+    }
+    return null;
   };
 
   // --- one statement per output ---------------------------------------------
@@ -174,12 +217,35 @@ function compilePlan(plan, resolved) {
     if (!srcStep) throw new CompileError(`output "${out.id}" names no known step`);
     const srcMod = ops.byName(srcStep.op);
 
+    if (types.get(srcId) === "features" && srcStep.op !== "select_features") {
+      // A features result built by other ops (within, rank, filter_attr on
+      // features): the prelude, then the features contract's columns. Labels
+      // are the ones the layer at the root of the chain actually has.
+      const { sql: prelude, params } = preludeFor(srcId);
+      const labels = featureLabelsOf(srcId);
+      const valued = featureValueOf(srcId);
+      const rank = srcStep.op === "rank" ? (srcStep.direction === "asc" ? "ASC" : "DESC") : null;
+      const sql =
+        prelude +
+        `SELECT ST_AsGeoJSON(r.geom) AS geometry` +
+        (valued ? `, r.value AS ${valued.column}` : "") +
+        labels.map(c => `, r.${c}`).join("") + `\n` +
+        `FROM ${cte(srcId)} r\n` +
+        (rank ? `ORDER BY r.value ${rank} NULLS LAST\n` : valued ? `ORDER BY r.value ASC NULLS LAST\n` : "") +
+        `LIMIT ${MAX_FEATURES}`;
+      return {
+        id: out.id, step: srcStep.id, mode: "features",
+        sql, params, labels: valued ? [valued.column, ...labels] : labels, series: 0,
+        valueLabel: valued ? valued.label : null,
+      };
+    }
+
     if (srcMod?.produces === "features") {
       // Standalone: its own parameter list, no prelude.
       const fParams = [];
       const fBind = (v) => { fParams.push(v); return `$${fParams.length}`; };
       const built = srcMod.compileStandalone(srcStep, {
-        resolved, bind: fBind, featureSource,
+        resolved, bind: fBind, featureSource: (id, field) => featureSource(id, field, fBind),
       });
       return {
         id: out.id, step: srcStep.id, mode: "features",

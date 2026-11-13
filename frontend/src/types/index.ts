@@ -394,6 +394,8 @@ export interface AnalysisResponse {
   geometry?: Array<{ fips: string; geometry: GeoJSON.Geometry }>;
   /** The unit of every row: "county", or tract / zcta / grid4k ... when the question named one. */
   level?: string;
+  /** The unit's own name, for a level only the server knows (a loaded zone set). */
+  level_unit?: { singular: string; plural: string } | null;
   execution_ms?: number;
   execution_error?: string;
   provenance?: AnalysisProvenance;
@@ -593,6 +595,21 @@ export interface Revision {
 }
 
 /** A county series the user uploaded. Lives in the browser; sent per request. */
+/**
+ * A map layer the user uploaded (POST /api/layers). The server holds the
+ * features in memory for a few hours; the browser keeps only this summary and
+ * sends the id with each question.
+ */
+export interface UserLayer {
+  id: string;
+  name: string;
+  file: string;
+  geometry: 'point' | 'line' | 'polygon';
+  features: number;
+  bbox: [number, number, number, number];
+  columns: string[];
+}
+
 export interface UserSeries {
   id: string;
   name: string;

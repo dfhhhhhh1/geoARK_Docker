@@ -147,8 +147,15 @@ def inspect(path: Path) -> dict:
         srs = layer.GetSpatialRef()
         epsg = None
         if srs is not None:
-            srs.AutoIdentifyEPSG()
-            epsg = srs.GetAuthorityCode(None)
+            # A projection with no EPSG code (NWI's "NAD_1983_Albers") makes
+            # AutoIdentifyEPSG raise. It is still a CRS GDAL reprojects from,
+            # so it is reported by name rather than refused or called missing.
+            try:
+                srs.AutoIdentifyEPSG()
+                epsg = srs.GetAuthorityCode(None)
+            except RuntimeError:
+                epsg = None
+            epsg = epsg or (srs.GetName() or "custom CRS")
         fields = [
             (defn.GetFieldDefn(f).GetName(),
              ogr.GetFieldTypeName(defn.GetFieldDefn(f).GetType()))
@@ -259,16 +266,30 @@ def load_to_postgis(path: Path, layer_name: str, table: str, dsn: str) -> None:
     currently 4326. Normalising on import keeps that true and keeps the facility
     GIST indexes usable.
     """
+    src = open_vector(path)
+    # A CSV's points come from its latitude / longitude columns
+    # (CSV_OPEN_OPTIONS) and carry no CRS, and ogr2ogr then refuses to
+    # reproject: "source layer has no coordinate system". Decimal-degree
+    # columns are WGS84 by definition, so say so (2026-11-11: the first two
+    # lat/lon CSVs ever committed, SNAP retailers and transit stops, both
+    # failed here).
+    lyr = src.GetLayerByName(layer_name)
+    src_srs = ("EPSG:4326" if path.suffix.lower() == ".csv" and lyr is not None
+               and lyr.GetSpatialRef() is None else None)
     gdal.VectorTranslate(
         f"PG:{dsn}",
-        open_vector(path),
+        src,
         options=gdal.VectorTranslateOptions(
             format="PostgreSQL",
             layerName=table,
             layers=[layer_name],
+            srcSRS=src_srs,
             dstSRS="EPSG:4326",
             reproject=True,
-            geometryType="PROMOTE_TO_MULTI",
+            # CONVERT_TO_LINEAR first: file geodatabases hold curves (NWI's
+            # MultiSurface), which a MultiPolygon column refuses mid-COPY
+            # (2026-11-12, row 40,567 of 1.3M). Arcs are densified.
+            options=["-nlt", "CONVERT_TO_LINEAR", "-nlt", "PROMOTE_TO_MULTI"],
             accessMode="overwrite",
             layerCreationOptions=[
                 f"GEOMETRY_NAME=geom",
@@ -282,9 +303,118 @@ def load_to_postgis(path: Path, layer_name: str, table: str, dsn: str) -> None:
     )
 
 
-def finalize_table(conn, table: str) -> int:
-    """Index and ANALYZE, then report the true row count."""
+# Sidecar `as:` targets. The label columns the planner reads (FEATURE_LABELS
+# in backend/planner/ops/_sql.js) plus measure-ish names; anything else is a
+# typo the loader should not silently create.
+RENAME_TARGETS = {"name", "city", "state", "county", "address", "type", "status", "owner", "zip"}
+
+
+def column_renames(meta: dict, present: list[str]) -> dict[str, str]:
+    """{source column: table column} from sidecar `columns: X: {as: type}`."""
+    out = {}
+    for col in present:
+        dst = dataset_meta.column_meta(meta, col).get("as")
+        if not dst:
+            continue
+        dst = str(dst).strip().lower()
+        if dst not in RENAME_TARGETS:
+            sys.exit(f"\n  REFUSED: column {col!r} as {dst!r}; `as:` must be one of "
+                     f"{', '.join(sorted(RENAME_TARGETS))}\n")
+        if dst in (c.lower() for c in present) and dst != col.lower():
+            print(f"  ! {dst!r} already exists; it is replaced by {col!r}")
+        out[col] = dst
+    if len(set(out.values())) != len(out):
+        sys.exit("\n  REFUSED: two columns renamed to the same name\n")
+    return out
+
+
+PARTS_THRESHOLD = 1024    # vertices; a polygon above this is read as parts
+PARTS_MAX_VERTICES = 256  # ST_Subdivide's per-part cap
+
+
+def build_parts(conn, table: str, threshold: int = PARTS_THRESHOLD) -> dict | None:
+    """
+    Subdivide a polygon layer's large features into `fp_<table>` and register
+    it in feature_parts (schema_geo.sql says why). Rebuilt on every load, so a
+    replaced layer never reads stale parts. Nothing is built when no feature
+    exceeds the threshold. Area is conserved by construction: ST_Subdivide's
+    parts tile the polygon exactly.
+    """
+    parts = ("fp_" + table)[:63]
     with conn.cursor() as cur:
+        cur.execute(Path(__file__).with_name("schema_geo.sql").read_text())
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = %s "
+                    "AND column_name IN ('ogc_fid', 'geoark_fid')", (table,))
+        have = {r[0] for r in cur.fetchall()}
+        key = "ogc_fid" if "ogc_fid" in have else "geoark_fid"
+        if key not in have:
+            cur.execute(f'ALTER TABLE "{table}" ADD COLUMN geoark_fid BIGSERIAL')
+        cur.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{("ux_" + table)[:63]}" ON "{table}" ("{key}")')
+        cur.execute(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS geoark_npts INT')
+        cur.execute(f'UPDATE "{table}" SET geoark_npts = ST_NPoints(geom)')
+        cur.execute(f'DROP TABLE IF EXISTS "{parts}"')
+        cur.execute("DELETE FROM feature_parts WHERE table_name = %s", (table,))
+        cur.execute(f'SELECT count(*) FROM "{table}" WHERE geoark_npts > %s', (threshold,))
+        big = cur.fetchone()[0]
+        if not big:
+            print(f"  parts      none needed (no polygon over {threshold:,} vertices)")
+            return None
+        # From the repaired polygon where it is invalid: layers loaded before
+        # finalize_table repaired them still hold self-intersecting rings
+        # (81 of 1,670 wildfire perimeters), and their parts must tile the
+        # area the overlay will measure.
+        cur.execute(f'CREATE TABLE "{parts}" AS SELECT "{key}" AS fid, '
+                    f'ST_Subdivide(CASE WHEN ST_IsValid(geom) THEN geom ELSE '
+                    f'ST_CollectionExtract(ST_MakeValid(geom), 3) END, {PARTS_MAX_VERTICES}) AS geom '
+                    f'FROM "{table}" WHERE geoark_npts > %s', (threshold,))
+        n = cur.rowcount
+        # The states each LARGE feature touches, once, so a state restriction
+        # on a parts read tests the whole feature as it does for a small one.
+        # Testing each part instead dropped the out-of-state parts of a
+        # perimeter across the Oregon line: 551.7 km for 563.8 (H3 held-out).
+        cur.execute(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS geoark_states TEXT[]')
+        cur.execute(f'UPDATE "{table}" t SET geoark_states = (SELECT array_agg(DISTINCT LEFT(c.fips, 2)) '
+                    f'FROM county_geom c WHERE c.geom && t.geom AND ST_Intersects(c.geom, t.geom)) '
+                    f'WHERE geoark_npts > %s', (threshold,))
+        cur.execute(f'CREATE INDEX ON "{parts}" USING GIST (geom)')
+        cur.execute(f'CREATE INDEX ON "{parts}" (fid)')
+        cur.execute(f'ANALYZE "{parts}"')
+        cur.execute(f'ANALYZE "{table}"')
+        cur.execute("INSERT INTO feature_parts (table_name, parts_table, key_column, threshold, n_features, n_parts) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)", (table, parts, key, threshold, big, n))
+        print(f"  parts      {big:,} polygons over {threshold:,} vertices -> {n:,} parts in {parts}")
+        return {"parts_table": parts, "features": big, "parts": n}
+
+
+def finalize_table(conn, table: str, renames: dict[str, str] | None = None) -> int:
+    """
+    Rename, repair, index and ANALYZE, then report the true row count.
+
+    RENAMES (sidecar `columns: X: {as: type}`) put a layer's own class column
+    under the label name the planner filters on (type / status / owner, see
+    FILTERABLE_COLUMNS in backend/planner/ops/_sql.js). NWI calls it
+    WETLAND_TYPE, NFHL FLD_ZONE, a zoning layer ZONE_CLASS: one sidecar line
+    each, no per-dataset code.
+
+    INVALID POLYGONS ARE REPAIRED. Overlay (ST_Intersection) raises on a
+    self-intersecting ring, and 81 of 1,670 wildfire perimeters and 20 of 94
+    planning areas were invalid (2026-11-12). ST_MakeValid keeps the area;
+    the polygonal part is kept so the column type is unchanged.
+    """
+    with conn.cursor() as cur:
+        for src, dst in (renames or {}).items():
+            cur.execute("SELECT 1 FROM information_schema.columns "
+                        "WHERE table_name = %s AND column_name = %s", (table, src.lower()))
+            if cur.fetchone() and src.lower() != dst:
+                cur.execute(f'ALTER TABLE "{table}" DROP COLUMN IF EXISTS "{dst}"')
+                cur.execute(f'ALTER TABLE "{table}" RENAME COLUMN "{src.lower()}" TO "{dst}"')
+        cur.execute("SELECT GeometryType(geom) FROM \"%s\" WHERE geom IS NOT NULL LIMIT 1" % table)
+        gt = (cur.fetchone() or [""])[0] or ""
+        if "POLYGON" in gt.upper():
+            cur.execute(f'UPDATE "{table}" SET geom = ST_Multi(ST_CollectionExtract(ST_MakeValid(geom), 3)) '
+                        f'WHERE NOT ST_IsValid(geom)')
+            if cur.rowcount:
+                print(f"  repaired   {cur.rowcount:,} invalid polygons (ST_MakeValid)")
         cur.execute(f'CREATE INDEX IF NOT EXISTS "idx_{table[:50]}_geom" '
                     f'ON "{table}" USING GIST (geom)')
         # ANALYZE matters more than it looks: without it pg_class.reltuples stays
@@ -292,7 +422,10 @@ def finalize_table(conn, table: str) -> int:
         # layers looked empty for exactly this reason.
         cur.execute(f'ANALYZE "{table}"')
         cur.execute(f'SELECT count(*) FROM "{table}"')
-        return cur.fetchone()[0]
+        n = cur.fetchone()[0]
+    if "POLYGON" in gt.upper():
+        build_parts(conn, table)
+    return n
 
 
 def sample_values(conn, table: str, column: str, n: int = 5) -> list[str]:
@@ -348,17 +481,24 @@ def describe(meta: dict, column: str) -> tuple[str, str]:
 
 
 def build_rows(meta: dict, dsid: str, table: str, columns: list[str],
-               entity_type: str, spatial_rep: str, tagger, conn
+               entity_type: str, spatial_rep: str, tagger, conn,
+               renames: dict[str, str] | None = None,
                ) -> tuple[list[dict], list[dict]]:
-    """One catalog row and one feature-map row per usable column."""
+    """One catalog row and one feature-map row per usable column.
+
+    A renamed column is catalogued under its table name (attr_orig is what
+    relink matches against the table); its description is still looked up
+    under the source name the sidecar used.
+    """
     name = meta["name"]
     start = str(meta.get("start_year") or "")
     end = str(meta.get("end_year") or "")
     catalog_rows, map_rows = [], []
     for i, col in enumerate(columns, start=1):
         attr_label = f"{dsid}_{i:02d}"
+        db_col = (renames or {}).get(col, col)
         try:
-            sample = sample_values(conn, table, col) if conn else []
+            sample = sample_values(conn, table, db_col.lower()) if conn else []
         except psycopg2.Error:
             sample = []
         attr_desc, origin = describe(meta, col)
@@ -368,7 +508,7 @@ def build_rows(meta: dict, dsid: str, table: str, columns: list[str],
             "dataset_id": dsid,
             "dataset_clean": one_line(name),
             "attr_label": attr_label,
-            "attr_orig": col,
+            "attr_orig": db_col,
             "attr_desc": one_line(attr_desc),
             "attr_id": "",
             # Years are embedded as text ("2018 to 2022"): users ask for "2015"
@@ -384,7 +524,7 @@ def build_rows(meta: dict, dsid: str, table: str, columns: list[str],
         map_rows.append({
             "attr_label": attr_label,
             "dataset_clean": one_line(name),
-            "attr_orig": col,
+            "attr_orig": db_col,
             "table_name": table,
         })
     return catalog_rows, map_rows
@@ -663,6 +803,8 @@ def ingest_raster(args, meta: dict, data_path: Path) -> int:
     into a grid pyramid; see etl/load_raster.py.
     """
     import load_raster  # noqa: PLC0415
+    if meta.get("mode") == "native":
+        return ingest_native_raster(args, meta, data_path)
     info = load_raster.inspect(data_path)
     load_raster.check(info, meta)
     dsid = dataset_id_for(meta.get("id") or meta["name"])
@@ -735,6 +877,159 @@ def ingest_raster(args, meta: dict, data_path: Path) -> int:
         "dump": None,
     })
     print(f"  ledger     {dataset_meta.LEDGER.name}: {dsid} recorded\n")
+    return 0
+
+
+def ingest_native_raster(args, meta: dict, data_path: Path) -> int:
+    """
+    kind: raster, mode: native (GIS_OPS_PLAN.md H4): tiles in the raster's own
+    equal-area CRS, a legend for a categorical one, and ONE catalog row per
+    measure code that every vintage shares (the year is a field of the plan,
+    not a row, as for the county measures). See load_raster.load_native.
+    """
+    import load_raster  # noqa: PLC0415
+    info = load_raster.inspect_native(data_path)
+    # The whole id, not dataset_id_for's 12-character slug: vintages of one
+    # raster differ only at the end ("nlcd_landcover_2001" / "_2021") and the
+    # slug made them one id, so the second year was refused as a reload.
+    dsid = "ing_" + re.sub(r"[^a-z0-9]+", "", str(meta.get("id") or meta["name"]).lower())[:40] + "_01"
+    code = str(meta.get("code") or load_raster.code_for(meta)).upper()
+    if not meta.get("end_year"):
+        sys.exit("\n  REFUSED: no year; give  vintage:  in the sidecar\n")
+    print(f"\n  source     {data_path.name}  ({info['dtype']}, EPSG:{info['epsg']})")
+    print(f"  size       {info['width']:,} x {info['height']:,} pixels of "
+          f"{info['pixel_area_m2']:,.1f} m2  |  nodata {info['nodata']}")
+    print(f"  aggregate  {meta.get('aggregate')}  ({len(meta.get('classes') or {})} classes)")
+    print(f"  measure    {code}  (year {meta['end_year']})")
+    print(f"  dataset_id {dsid}")
+    conn = psycopg2.connect(pg_dsn())
+    ensure_schema(conn)
+    with conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM dataset_load WHERE id = %s", (dsid,))
+        loaded = cur.fetchone() is not None
+    if loaded and not args.replace:
+        conn.close()
+        sys.exit(f"\n  REFUSED: {dsid} is already loaded. Re-run with --replace.\n")
+    if not args.commit:
+        conn.close()
+        print("\n  Nothing written. Re-run with --commit to load.\n")
+        return 0
+    print("\n  loading ...")
+    report = load_raster.load_native(conn, data_path, meta, dsid)
+    with conn.cursor() as cur:
+        cur.execute("SELECT min(year), max(year) FROM raster_layer WHERE code = %s", (code,))
+        y0, y1 = cur.fetchone()
+    conn.close()
+
+    # One searchable row per code. Its description names the classes, because
+    # that is what a question asks for ("cropland", "forest"), and the years
+    # span every vintage loaded.
+    cat_id = dataset_id_for(code)
+    desc = meta.get("measure_label") or meta.get("description") or meta["name"]
+    groups = sorted({(v.get("group") if isinstance(v, dict) else None) or "" for v in
+                     (meta.get("classes") or {}).values()} - {""})
+    if groups:
+        desc = f"{desc} Classes: {', '.join(groups)}."
+    tagger = make_tagger(args, meta["name"], code)
+    tags, gen_desc = tagger(meta["name"], code, [], desc)
+    row = {"dataset_id": cat_id, "dataset_clean": one_line(meta.get("catalog_name") or meta["name"]),
+           "attr_label": code, "attr_orig": code, "attr_desc": one_line(desc), "attr_id": code,
+           "start_date": str(y0), "end_date": str(y1), "spatial_rep": "RASTER",
+           "entity_type": "COUNTY", "tags": str(tags), "gen_desc": one_line(gen_desc)}
+    in_catalog = existing_rows(CATALOG, f"{cat_id},")
+    backup = write_rows(CATALOG, [row], f"{cat_id}," if in_catalog else None)
+    print(f"  catalog    {'replaced' if in_catalog else '+1'} row {code} ({y0}-{y1})  (backup: {backup.name})")
+
+    extra = [x for x in (meta["sidecar_path"], meta["xml_path"]) if x]
+    files = dataset_meta.file_records(data_path, extra)
+    record_db_load(dsid, "raster", files, report["valid_pixels"], "ingest", meta, dsid)
+    dataset_meta.record_load({
+        "id": dsid, "dataset_id": dsid, "name": meta["name"], "kind": "raster", "mode": "native",
+        "files": files, "table": report["table"], "code": code, "year": report["year"],
+        "aggregate": meta["aggregate"], "rows": report["valid_pixels"],
+        "tiles": report["tiles"], "total": round(report["total"], 3),
+        "classes": report.get("classes"), "levels": {},
+        "catalog_labels": [code],
+        "tag_model": None if args.no_tags else TAG_MODEL,
+        "metadata": {k: meta.get(k) for k in (
+            "description", "originator", "source_url", "license", "keywords",
+            "start_year", "end_year", "probe") if meta.get(k)},
+        "dump": None,
+    })
+    print(f"  ledger     {dataset_meta.LEDGER.name}: {dsid} recorded\n")
+    return 0
+
+
+def worldpop_file() -> Path | None:
+    """The WorldPop raster the ledger recorded, if it is on disk here."""
+    for e in dataset_meta.read_ledger()["datasets"]:
+        if e.get("kind") == "raster" and e.get("code") == "WORLDPOP_POP":
+            for f in e.get("files") or []:
+                p = Path("/incoming") / f["path"]
+                if p.suffix.lower() in dataset_meta.RASTER_EXT and p.exists():
+                    return p
+    return None
+
+
+def ingest_zones(args, meta: dict, data_path: Path, chosen: dict) -> int:
+    """
+    kind: zones. A geo_unit level of its own, not a catalog dataset; see
+    etl/load_zones.py. Nothing is tagged or embedded: no row is searchable.
+    """
+    import load_zones  # noqa: PLC0415
+    fields = [f for f, _ in chosen["fields"]]
+    cfg = load_zones.config(meta, fields)
+    level = load_zones.level_for(meta)
+    dsid = dataset_id_for(meta.get("id") or meta["name"])
+    if "POLYGON" not in chosen["geometry"].upper():
+        sys.exit(f"\n  REFUSED: zones must be polygons; this layer is {chosen['geometry']}\n")
+    wp = worldpop_file()
+    print(f"\n  source     {data_path.name}  layer {chosen['name']}  ({chosen['features']:,} features)")
+    print(f"  level      {level}")
+    print(f"  unit       {cfg['unit']} / {cfg['plural']}"
+          + (f"  (also: {', '.join(cfg['aliases'])})" if cfg["aliases"] else ""))
+    print(f"  place      {', '.join(cfg['places'])}")
+    print(f"  id / name  {cfg['id_column']} / {cfg['name_column'] or '-'}")
+    print(f"  population {'WorldPop, ' + wp.name if wp else 'none (WorldPop raster not on disk)'}")
+    conn = psycopg2.connect(pg_dsn())
+    ensure_schema(conn)
+    with conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM zone_set WHERE level = %s", (level,))
+        loaded = cur.fetchone() is not None
+    if loaded and not args.replace:
+        conn.close()
+        sys.exit(f"\n  REFUSED: {level} is already loaded. Re-run with --replace.\n")
+    if not args.commit:
+        conn.close()
+        print("\n  Nothing written. Re-run with --commit to load.\n")
+        return 0
+    print("\n  loading ...")
+    report = load_zones.load(conn, pg_dsn(), data_path, chosen["name"], fields, meta, dsid, wp)
+    conn.close()
+    print(f"  {report['units']} zones from {report['source_rows']} rows "
+          f"({report['ids']} distinct ids), {report['land_km2']:.2f} km2 land, "
+          f"{report['water_km2']:.2f} km2 water, {report['seconds']}s")
+    print(f"  states     {report['states']}  |  no county {report['no_county']}  |  invalid {report['invalid']}")
+    pop = report.get("population")
+    if pop:
+        print(f"  WorldPop   {pop['total']:,.0f} people in {pop['covered']} of {pop['units']} zones; "
+              f"exact-overlap total {pop['exact_overlap_total']:,.0f} (gap {pop['relative_gap']:+.3%})")
+    extra = [x for x in (meta["sidecar_path"], meta["xml_path"]) if x]
+    files = dataset_meta.file_records(data_path, extra)
+    record_db_load(dsid, "zones", files, report["units"], "ingest", meta, dsid)
+    dataset_meta.record_load({
+        "id": dsid, "dataset_id": dsid, "name": meta["name"], "kind": "zones",
+        "files": files, "layer": chosen["name"], "level": level,
+        "zones": {k: v for k, v in report["config"].items()},
+        "rows": report["units"], "land_km2": report["land_km2"],
+        "population": pop, "catalog_labels": [], "tag_model": None,
+        "metadata": {k: meta.get(k) for k in (
+            "description", "originator", "source_url", "license", "keywords",
+            "start_year", "end_year") if meta.get(k)},
+        "dump": None,
+    })
+    print(f"  ledger     {dataset_meta.LEDGER.name}: {dsid} recorded")
+    print("\n  The API reads zone_set at startup and on  make reload-corpus.\n")
     return 0
 
 
@@ -816,6 +1111,8 @@ def main() -> int:
         return ingest_table(args, meta, data_path)
     if kind == "raster":
         return ingest_raster(args, meta, data_path)
+    if kind == "zones":
+        return ingest_zones(args, meta, data_path, chosen)
     if kind != "features":
         refuse_kind(kind, data_path, raster)
         return 2
@@ -828,6 +1125,7 @@ def main() -> int:
     present = [f for f, _ in chosen["fields"] if f.lower() not in SKIP_COLUMNS]
     usable = [f for f in present if dataset_meta.column_selected(meta, f)]
     described = [f for f in usable if describe(meta, f)[1] != "column name"]
+    renames = column_renames(meta, present)
     geom = chosen["geometry"].upper()
     spatial_rep = ("POINT" if "POINT" in geom else "LINE" if "LINE" in geom
                    else "POLYGON" if "POLYGON" in geom else "")
@@ -868,7 +1166,8 @@ def main() -> int:
               f"{'replaced' if already else 'added'}:")
         for c in usable[:12]:
             desc, origin = describe(meta, c)
-            print(f"     {c:<24} {desc[:60]}  [{origin}]")
+            shown = f"{c} -> {renames[c]}" if c in renames else c
+            print(f"     {shown:<24} {desc[:60]}  [{origin}]")
         if len(usable) > 12:
             print(f"     ... and {len(usable) - 12} more")
         print("\n  Nothing written. Re-run with --commit to load.\n")
@@ -885,13 +1184,13 @@ def main() -> int:
 
     conn = psycopg2.connect(dsn)
     conn.autocommit = True
-    rows = finalize_table(conn, table)
+    rows = finalize_table(conn, table, renames)
     print(f"  loaded {rows:,} rows into {table}, GIST index built, ANALYZEd")
     if not args.no_tags:
         print(f"  tagging {len(usable)} columns with {TAG_MODEL} ...")
 
     catalog_rows, map_rows = build_rows(
-        meta, dsid, table, usable, entity_type, spatial_rep, tagger, conn)
+        meta, dsid, table, usable, entity_type, spatial_rep, tagger, conn, renames)
     conn.close()
 
     replace = f"{dsid}," if already else None
@@ -911,6 +1210,7 @@ def main() -> int:
         "files": files,
         "layer": chosen["name"],
         "table": table,
+        "renames": renames or None,
         "rows": rows,
         "geometry": chosen["geometry"],
         "catalog_labels": [r["attr_label"] for r in catalog_rows],

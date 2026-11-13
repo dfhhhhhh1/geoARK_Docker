@@ -31,7 +31,88 @@ const LEVEL_OPS = new Set([
   "per_area", "join", "intersect", "combine", "output",
   // Distance ops measure from each unit's own geometry (2026-11-11).
   "nearest_distance", "count_near",
+  // Counting features per unit, from the unit's geometry (H2, 2026-11-11):
+  // "how many schools in each Chicago community area". Features steps have
+  // no level of their own; summarize counts them into the plan's units.
+  "count_features", "summarize", "select_features", "within",
+  // H3: overlay is features in and out, summarized into the units like
+  // within. H4: zonal clips the raster to each unit's own polygon.
+  "overlay", "zonal",
 ]);
+
+/*
+ * ZONE SETS (docs/GIS_OPS_PLAN.md H2): a user's own units, wards, neighborhoods,
+ * planning areas, loaded as geo_unit levels `z_<id>` by etl/load_zones.py and
+ * listed in zone_set. The server registers them at startup and on
+ * reload-corpus. Matching is in code like every other unit: the question must
+ * name the unit word (plural, or singular after each / every / per / by /
+ * which / what) AND one of the set's places, because two cities both have
+ * wards and a unit word alone cannot say whose. A question naming wards in a
+ * city that has none loaded matches nothing and plans as before.
+ */
+const ZONE_LEVEL = /^z_[a-z0-9_]{1,40}$/;
+const ZONES = new Map();
+const esc = (t) => String(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+
+function registerZoneSets(rows) {
+  for (const lv of ZONES.keys()) { LEVELS.delete(lv); delete LEVEL_LABEL[lv]; }
+  ZONES.clear();
+  for (const r of rows || []) {
+    if (!ZONE_LEVEL.test(String(r.level || "")) || !r.unit || !(r.places || []).length) continue;
+    const unit = String(r.unit).toLowerCase();
+    const plural = String(r.plural || `${unit}s`).toLowerCase();
+    const aliases = (r.aliases || []).map(a => String(a).toLowerCase());
+    const singulars = [unit, ...aliases];
+    const plurals = [plural, ...aliases.map(a => `${a}s`)];
+    const z = {
+      level: r.level, name: r.name, unit, plural, aliases,
+      places: r.places.map(String),
+      plural_re: new RegExp(`\\b(?:${plurals.map(esc).join("|")})\\b`, "i"),
+      single_re: new RegExp(`\\b(?:each|every|per|by|which|what)\\s+(?:[\\w.'-]+\\s+){0,3}?` +
+                            `(?:${singulars.map(esc).join("|")})\\b`, "i"),
+      place_re: new RegExp(`(?:^|[^A-Za-z])(?:${r.places.map(esc).join("|")})(?![A-Za-z])`, "i"),
+    };
+    ZONES.set(r.level, z);
+    LEVELS.add(r.level);
+    LEVEL_LABEL[r.level] = unit;
+  }
+  return [...ZONES.keys()];
+}
+
+/** The zone set a question names, or null. */
+function zoneOf(q) {
+  const hits = [...ZONES.values()].filter(z =>
+    (z.plural_re.test(q) || z.single_re.test(q)) && z.place_re.test(q));
+  if (hits.length === 1) return hits[0].level;
+  // Two sets in one place with the same word (none today): the longer unit
+  // phrase wins ("community area" over "area"), else nothing is guessed.
+  if (hits.length > 1) {
+    const best = hits.sort((a, b) => b.unit.length - a.unit.length);
+    return best[0].unit.length > best[1].unit.length ? best[0].level : null;
+  }
+  return null;
+}
+
+/**
+ * Every word of every registered set's unit names and places ("ward",
+ * "community", "area", "st", "louis", "chicago"). They name a reporting unit,
+ * not data, which is how planner/named_data.js treats "tract" and "county":
+ * "each Chicago ward" was refused as missing data on the first H2 run.
+ */
+function zoneWords() {
+  const out = new Set();
+  for (const z of ZONES.values()) {
+    for (const t of [z.unit, z.plural, ...(z.aliases || []), ...z.places]) {
+      for (const w of String(t).toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ")) {
+        if (w) out.add(w);
+      }
+    }
+  }
+  return out;
+}
+
+const zoneSet = (level) => ZONES.get(level) || null;
+const isZoneLevel = (level) => ZONES.has(level);
 
 /**
  * The unit a question asks for, or null for counties.
@@ -50,7 +131,7 @@ const COUNTY_ANSWER =
 function levelOf(query) {
   const q = String(query || "");
   if (COUNTY_ANSWER.test(q)) return null;
-  return unitNamed(q);
+  return zoneOf(q) || unitNamed(q);
 }
 
 /**
@@ -181,7 +262,7 @@ async function applyLevel(plan, query, resolved, levelsOf, alternatives = null) 
   if (notPorted.length) {
     errors.push(`The question asks for ${unit}s, and ${notPorted.join(", ")} ` +
                 `${notPorted.length > 1 ? "are" : "is"} not available by ${unit} yet. ` +
-                `Use only load, filters, rank, normalize, per_area, join, intersect, combine, nearest_distance, count_near and output.`);
+                `Use only load, filters, rank, normalize, per_area, join, intersect, combine, nearest_distance, count_near, count_features, summarize and output.`);
   }
   const lacking = [];
   for (const st of steps.filter(s => s.op === "load")) {
@@ -207,4 +288,7 @@ async function applyLevel(plan, query, resolved, levelsOf, alternatives = null) 
 /** The level a plan compiles at; "county" unless applyLevel set one. */
 const planLevel = (plan) => (LEVELS.has(plan?.level) ? plan.level : "county");
 
-module.exports = { levelOf, rollupOf, asksDistance, applyLevel, applyRollup, planLevel, LEVELS, LEVEL_LABEL, LEVEL_OPS };
+module.exports = {
+  levelOf, rollupOf, asksDistance, applyLevel, applyRollup, planLevel,
+  registerZoneSets, zoneSet, isZoneLevel, zoneWords, LEVELS, LEVEL_LABEL, LEVEL_OPS,
+};

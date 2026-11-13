@@ -1,0 +1,176 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "density_dev": {
+      "pass": 2,
+      "n": 4,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 2,
+    "CORRECT": 2
+  },
+  "latency_mean": 29.6,
+  "api_container_created": "2026-11-12T03:23:08.003811569Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "de-stl-nbhd-snap-km2",
+      "tier": "density_dev",
+      "query": "How many SNAP-authorized food retailers are there per square kilometer in each St. Louis neighborhood?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"each St. Louis neighborhood\""
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"each St. Louis neighborhood\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many SNAP-authorized food retailers are there per square kilometer in each St. Louis neighborhood?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"each St. Louis neighborhood\""
+      },
+      "seconds": 38.1
+    },
+    {
+      "id": "de-chi-ward-popdens-mi2",
+      "tier": "density_dev",
+      "query": "What is the population density, in people per square mile, of each Chicago ward?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"each Chicago ward\""
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"each Chicago ward\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What is the population density, in people per square mile, of each Chicago ward?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"each Chicago ward\""
+      },
+      "seconds": 17.0
+    },
+    {
+      "id": "de-stl-ward-transit-mi2",
+      "tier": "density_dev",
+      "query": "Which St. Louis wards have the highest density of transit stops per square mile?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 14,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 5,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "transit_stops"
+        }
+      },
+      "ops": "count_features->per_area->rank->output",
+      "intent": "Which St. Louis wards have the highest density of transit stops per square mile?",
+      "loaded": [
+        "transit_stops | Public Transit Stops (mapped locations) | Public Transit Stops"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which St. Louis wards have the highest density of transit stops per square mile?",
+            "uses": [],
+            "ops": "count_features->per_area->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 36.8
+    },
+    {
+      "id": "de-chi-ca-childcare-km2",
+      "tier": "density_dev",
+      "query": "Rank Chicago community areas by child care centers per square kilometer.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 77,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters"
+        }
+      },
+      "ops": "count_features->per_area->rank->output",
+      "intent": "Rank Chicago community areas by the number of child care centers per square kilometer",
+      "loaded": [
+        "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters | Child Care Centers (mapped locations) | Child Care Centers",
+        "? |  | ",
+        "? |  | ",
+        "? |  | "
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Rank Chicago community areas by child care centers per square kilometer.",
+            "uses": [],
+            "ops": "count_features->per_area->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 26.7
+    }
+  ]
+}

@@ -103,7 +103,8 @@ function buildPlanSchema(ops, ctx = {}) {
     // Field-level narrowing, from the registry's gates. A field the model
     // cannot use correctly is a field it should not be shown.
     if (!ops_.fieldOffered(name, ctx)) continue;
-    properties[name] = def;
+    // A gated variant (ops/index.js FIELD_VARIANTS) when one applies, else def.
+    properties[name] = ops_.fieldDef(name, ctx) || def;
   }
 
   return {

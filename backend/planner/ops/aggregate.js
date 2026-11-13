@@ -6,6 +6,9 @@ module.exports = {
   inputs: 1,
   needs: ["function"],
   produces: "series",
+  // Ungrouped, one row with no county: a scalar, which only an output or a
+  // combine can read (the validator's type rule, ops/index.js).
+  resultType: (step) => (step.group_by === "state" ? "series" : "scalar"),
   kind: "sql",
 
   enumComment: "mean | sum | count | min | max, optional group_by",

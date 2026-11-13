@@ -214,8 +214,15 @@ export function toGeoJson(
   }
 
   const series = deriveSeries(result, rows);
-  const byFips = new Map(rows.map(r => [String(r.fips).padStart(5, '0'), r]));
-  const features = counties.features
+  // Another unit (tract, ZIP area, a loaded zone set) carries its own shapes
+  // in the response; the shipped file holds counties only.
+  const isCounty = !result.level || result.level === 'county';
+  const shapes = !isCounty && result.geometry?.length
+    ? result.geometry.map(g => ({ type: 'Feature' as const, geometry: g.geometry,
+                                  properties: { GEOID: String(g.fips) } }))
+    : counties.features;
+  const byFips = new Map(rows.map(r => [isCounty ? String(r.fips).padStart(5, '0') : String(r.fips), r]));
+  const features = shapes
     .filter(f => byFips.has((f.properties as { GEOID?: string })?.GEOID ?? ''))
     .map(f => {
       const row = byFips.get((f.properties as { GEOID?: string }).GEOID as string)!;

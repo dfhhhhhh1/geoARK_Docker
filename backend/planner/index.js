@@ -25,9 +25,13 @@ const { derefDefinitions, checkThresholds, LAYER_PHRASES, GROUP_COMPARISON,
         COMPLEMENT_PHRASES } = require("./conditions");
 const { anchorYears, spans } = require("./vintages");
 const { applyLevel, applyRollup } = require("./levels");
+const { repairDistanceUnits, repairWithinDirection, widenReferenceLayer, applyAreaUnit, applyMeasures, applyRasterMeasures, fillRasterClasses, yearAsVintage } = require("./features");
+const { preferUserLayer } = require("../user_layers");
+const { applyCatchment } = require("./catchment");
+const { repairPrecision } = require("./uncertainty");
 const { seriesUnit } = require("./units");
 const { loadLabelInputs, splitOutputs, dropRateOverCount, earlierResultSecond,
-        bridgeInputsToIntersect, restrictToEarlier, uninvertChains } = require("./rewire");
+        areaAfterAccess, totalTheDenominator, bridgeFromLoadedLayer, bridgeInputsToIntersect, restrictToEarlier, uninvertChains, orderChangeByYear, addMissingOutput } = require("./rewire");
 const { compilePlan, CompileError } = require("./compile");
 const opsRegistry = require("./ops");
 
@@ -314,7 +318,12 @@ function buildSystemPrompt(ctx = {}) {
   const sections = [
     `${PLAN_PREAMBLE}\n${outputRule(ctx)}`,
     "Operations:\n" + opsRegistry.inPromptOrder(ops)
-      .map(n => opsRegistry.byName(n).promptLine).join("\n"),
+      .map(n => {
+        // A gated variant of an op's line (select_features, when the feature
+        // ops are on offer), else the line every other prompt has always had.
+        const mod = opsRegistry.byName(n);
+        return (mod.promptLineFor && mod.promptLineFor(ctx)) || mod.promptLine;
+      }).join("\n"),
     fieldRules(hasFeatureTables),
     opChoice(ops),
   ];
@@ -406,7 +415,12 @@ function buildRefs(results, limit = 25) {
       // single op here told the model the wrong thing whenever the question was
       // asking where things are rather than how many. The op-choice table
       // decides; this only says what KIND of dataset it is.
-      const kind = r.is_feature_table ? " (mapped locations)" : "";
+      const kind = r.is_feature_table ? " (mapped locations)"
+        : r.is_raster ? ` (raster${r.raster_kind === "categorical" ? " of land classes" : ""}` +
+          // Years only when there is a choice: "years 2026" on a one-vintage
+          // DEM read as a value to filter on, and the planner chained
+          // filter_attr(= 2026) without end (H4 dev, 2026-11-12).
+          `${r.years?.length > 1 ? `, years ${r.years.join(", ")}` : ""}; use zonal)` : "";
       sections.push(
         `${label}: ${(r.attr_desc || "").replace(/\s+/g, " ").slice(0, 120)}` +
         `${kind} [${r.entity_type || "?"}${r.start_date ? " " + r.start_date : ""}]`);
@@ -416,13 +430,16 @@ function buildRefs(results, limit = 25) {
       // only cite values a tool returned to it. Without the list it invents
       // spellings -- "Critical Access" for "CRITICAL ACCESS" -- and a filter
       // that misses returns zero rows while looking like a valid answer.
-      if (r.is_feature_table) {
+      if (r.is_feature_table || r.is_raster) {
         const cols = Object.entries(r.filter_values || {})
           .filter(([, values]) => values?.length);
         for (const [col, values] of cols) {
-          const shown = values.slice(0, 8).map(v => `"${v}"`).join(", ");
+          // A raster's whole legend (groups first, then classes): cut at 8,
+          // NLCD showed its groups and hid "Cultivated Crops".
+          const cap = r.is_raster ? 40 : 8;
+          const shown = values.slice(0, cap).map(v => `"${v}"`).join(", ");
           sections.push(
-            `    filter ${col}: ${shown}${values.length > 8 ? ", ..." : ""}`);
+            `    ${r.is_raster ? "classes" : "filter"} ${col}: ${shown}${values.length > cap ? ", ..." : ""}`);
         }
         // Say so explicitly when a layer has none. Left implicit, the model
         // generalised from the datasets that DO list filters and applied one to
@@ -458,12 +475,15 @@ function derefPlan(plan, refs) {
   // schema convention. Missing one here leaves its label untranslated and
   // grounding then rejects a perfectly valid "a1" as an unknown attribute --
   // which is exactly what happened when count_features was first added.
-  const LABEL_OPS = ["load", "count_features", "count_near", "nearest_distance",
-                     "select_features"];
+  //
+  // Which fields carry a label now comes from the registry (each op's
+  // `grounds`), not a list kept here: that list missed `access` the day it
+  // was added, and the 2SFCA question was refused three attempts running for
+  // citing "a8", a label that was on its list (2026-11-11).
   for (const st of plan.steps || []) {
-    if (!LABEL_OPS.includes(st.op)) continue;
     // count_near carries two labels: what to count, and what to be near.
-    const fields = st.op === "count_near" ? ["attr_id", "near_attr_id"] : ["attr_id"];
+    const fields = (opsRegistry.byName(st.op)?.grounds || []).map(g => g.field);
+    if (!fields.length) continue;
     for (const field of fields) {
       if (!st[field] || !String(st[field]).trim()) continue;
       const key = String(st[field]).trim();
@@ -735,6 +755,100 @@ async function dropUnsupportedFilters(plan, resolve) {
   return dropped.length ? dropped.join(", ") : null;
 }
 
+/**
+ * An attribute filter whose value is not a value of that layer but IS the
+ * name of another retrieved layer means that layer. "List the 10 nursing homes
+ * in Montana that are farthest from a hospital" planned the reference step as
+ * Nursing Homes filtered to type "HOSPITAL", and re-emitted it on all three
+ * repair attempts although the error listed the valid values and Hospitals was
+ * on the list (2026-11-11). The step is pointed at the named layer and the
+ * filter dropped; a value the layer does hold is never touched.
+ */
+async function filterValueAsLayer(plan, resolve, candidates) {
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z ]/g, " ").replace(/\s+/g, " ")
+    .trim().replace(/s$/, "");
+  const layers = new Map();
+  for (const c of candidates || []) {
+    if (!c.is_feature_table) continue;
+    const key = norm(c.dataset_clean || String(c.attr_desc || "").replace(/\s*\(mapped locations\)\s*$/i, ""));
+    if (key && !layers.has(key)) layers.set(key, c);
+  }
+  const steps = (plan.steps || []).filter(s => Array.isArray(s.attribute_filters) && s.attribute_filters.length && s.attr_id);
+  if (!steps.length || !layers.size) return null;
+  const resolved = await resolve(steps.map(s => s.attr_id));
+  const fixes = [];
+  for (const st of steps) {
+    const values = resolved.get(st.attr_id)?.filter_values || {};
+    for (const f of [...st.attribute_filters]) {
+      const held = (values[f.column] || []).some(v => String(v).toLowerCase() === String(f.value).toLowerCase());
+      const other = layers.get(norm(f.value));
+      if (held || !other) continue;
+      if (other.attr_id === st.attr_id) {
+        // The value is the step's OWN layer's name: it restates the layer,
+        // it does not narrow it. "SNAP-authorized food retailers per square
+        // kilometer" filtered SNAP Authorized Food Retailers to type "SNAP
+        // Authorized Food Retailers", 3 of 3 attempts (H2 r2, 2026-11-11).
+        fixes.push(`step ${st.id}: dropped ${f.column}="${f.value}", the layer's own name`);
+        st.attribute_filters = st.attribute_filters.filter(x => x !== f);
+        if (!st.attribute_filters.length) delete st.attribute_filters;
+        continue;
+      }
+      fixes.push(`step ${st.id} reads ${other.dataset_clean || other.attr_id}, which the filter ${f.column}="${f.value}" named`);
+      st.attr_id = other.attr_id;
+      st.attribute_filters = st.attribute_filters.filter(x => x !== f);
+      if (!st.attribute_filters.length) delete st.attribute_filters;
+      break;
+    }
+  }
+  return fixes.length ? fixes.join("; ") : null;
+}
+
+/**
+ * A filter_attr "= N" where the question never states N. "What is the average
+ * elevation of each St. Louis ward?" planned zonal -> filter_attr(= 1) ->
+ * output (H4 dev, 2026-11-12): valid, executable, and empty. An equality on a
+ * measured value nobody asked for can only delete the answer. The step is
+ * removed and its readers read its input. Inequalities are left alone: "big
+ * counties" legitimately becomes a threshold the question does not state.
+ */
+/** A copy of a plan schema whose op enum leaves out `ops`. */
+function withoutOps(schema, ops) {
+  const copy = JSON.parse(JSON.stringify(schema));
+  const op = copy?.properties?.steps?.items?.properties?.op;
+  if (op?.enum) op.enum = op.enum.filter(o => !ops.has(o));
+  return copy;
+}
+
+function dropUnaskedEquality(plan, query) {
+  const stated = new Set((String(query || "").match(/\d+(?:\.\d+)?/g) || []).map(Number));
+  const steps = plan.steps || [];
+  const fixes = [];
+  const byId = new Map(steps.map(s => [s.id, s]));
+  // Only on a raster-derived value (a zonal result), where the habit was seen.
+  // On counts it is a real question: "rural counties ... and no hospital"
+  // filters count_features "= 0", which the first version of this repair
+  // dropped, returning 363 counties for 93 (H4 guards, research.yaml).
+  const fromZonal = (id) => {
+    let cur = byId.get(id);
+    for (let i = 0; cur && i < steps.length; i++) {
+      if (cur.op === "zonal") return true;
+      if (!["filter_attr", "filter_area", "filter_place", "rank"].includes(cur.op)) return false;
+      cur = byId.get((cur.inputs || [])[0]);
+    }
+    return false;
+  };
+  for (const st of [...steps]) {
+    if (st.op !== "filter_attr" || st.operator !== "=" || st.value === undefined ||
+        st.definition || st.percentile !== undefined || stated.has(Number(st.value))) continue;
+    const src = (st.inputs || [])[0];
+    if (!src || !fromZonal(src)) continue;
+    for (const o of steps) o.inputs = (o.inputs || []).map(i => (i === st.id ? src : i));
+    plan.steps = plan.steps.filter(s => s !== st);
+    fixes.push(`step ${st.id} (value = ${st.value}, which the question does not state)`);
+  }
+  return fixes.length ? fixes.join("; ") : null;
+}
+
 function dropUnaskedFilters(plan, query) {
   const text = String(query || "").toLowerCase();
   const dropped = [];
@@ -746,8 +860,12 @@ function dropUnaskedFilters(plan, query) {
       if (text.includes(value)) return true;
       // Multi-word values may be phrased loosely ("critical-access"); require
       // every word to appear rather than the exact string.
-      const words = value.split(/\s+/).filter(w => w.length > 2);
-      if (words.length && words.every(w => text.includes(w))) return true;
+      // A word counts by its stem: "Cultivated Crops" for "cultivated
+      // cropland" (H4 dev: the class filter was dropped, and the zonal step
+      // averaged class CODES). Trailing s / es / ies only.
+      const stem = (w) => w.replace(/(?:ies|es|s)$/, "");
+      const words = value.split(/[\s,/]+/).filter(w => w.length > 2);
+      if (words.length && words.every(w => text.includes(w) || (stem(w).length > 3 && text.includes(stem(w))))) return true;
       dropped.push(`${f.column}=${f.value}`);
       return false;
     });
@@ -990,6 +1108,8 @@ async function generatePlan({
   // async (census_code) => Set of levels with values (planner/levels.js).
   // Null keeps every plan at the county, so scripted tests are unaffected.
   levelsOf = null,
+  // Layers uploaded this session (backend/user_layers.js), Map id -> source.
+  userLayers = null,
 }) {
   const attempts = [];
   let repairContext = "";
@@ -1023,11 +1143,20 @@ async function generatePlan({
   // Any dataset on offer that actually has values to filter on. Without this,
   // the field was shown for layers that have none and the model used it anyway.
   const hasFilterableValues = candidates.some(
-    c => c.is_feature_table &&
+    c => (c.is_feature_table || c.is_raster) &&
          Object.values(c.filter_values || {}).some(v => v?.length));
 
+  // Which geometry kinds are on offer: overlay needs an area layer to test
+  // against, an amount needs a line or area layer (planner/features.js). Not
+  // set at all when false, so every existing narrowing context is unchanged.
+  const reps = new Set(candidates.filter(c => c.is_feature_table)
+    .map(c => /POLYGON/i.test(c.spatial_rep || "") ? "polygon" : /LINE/i.test(c.spatial_rep || "") ? "line" : "point"));
   const narrowing = {
     hasFeatureTables, featureTableCount, mentionsArea, wantsLocations,
+    ...(reps.has("polygon") ? { hasPolygonLayer: true } : {}),
+    ...(reps.has("line") ? { hasLineLayer: true } : {}),
+    // A raster to summarise over units (H4, ops/zonal.js). Absent otherwise.
+    ...(candidates.some(c => c.is_raster) ? { hasRaster: true } : {}),
     hasFilterableValues, hasPlaceBoundaries, hasNeighbors,
     // A retrieved attribute carries a checked, published definition. Data,
     // not phrasing: the definition field exists only when one is on offer.
@@ -1040,6 +1169,7 @@ async function generatePlan({
     query,
   };
   const schema = planSchemaFor(narrowing);
+  const withheldOps = new Set();
   const systemPrompt = buildSystemPrompt(narrowing);
 
   // Which ops this query was actually offered. Logged because "the model did
@@ -1055,7 +1185,13 @@ async function generatePlan({
       repairContext;
 
     emit({ stage: "planning", attempt: attempt + 1, of: MAX_REPAIRS + 1 });
-    const raw = await callLLM(systemPrompt, userPrompt, 0.1, schema);
+    // After a runaway, the op it repeated is withheld from the NEXT attempt's
+    // decoding enum (never the first attempt's, so the snapshot is unchanged):
+    // at temperature 0.1 the same prompt decoded the same endless
+    // filter_attr(= 1) chain on all three attempts, whatever the repair text
+    // said (H4 dev, 2026-11-12). The model can then only plan without it.
+    const attemptSchema = withheldOps.size ? withoutOps(schema, withheldOps) : schema;
+    const raw = await callLLM(systemPrompt, userPrompt, 0.1, attemptSchema);
     if (!raw) {
       attempts.push({ attempt, errors: ["LLM returned nothing"] });
       continue;
@@ -1066,8 +1202,36 @@ async function generatePlan({
       plan = JSON.parse(raw);
     } catch (err) {
       // Should be impossible under constrained decoding; recorded rather than
-      // silently retried so it is visible if the assumption ever breaks.
+      // silently retried so it is visible if the assumption ever breaks. It
+      // does break when the output-token cap cuts a runaway (H4, 2026-11-12);
+      // the tail shows what was repeating.
+      log(`   Plan JSON unparseable (${String(raw).length} chars), tail: ${String(raw).slice(-300).replace(/\s+/g, " ")}`);
       attempts.push({ attempt, errors: [`unparseable despite schema: ${err.message}`] });
+      // Without this the next attempt saw the identical prompt and decoded
+      // the identical runaway: "developed land in each Chicago community
+      // area" chained filter_attr(= 1) to step s61, three times (H4 dev).
+      // The repeating text is NOT quoted back: with it in the prompt, attempts
+      // 2 and 3 reproduced the same runaway exactly (filter_attr "= 2021"
+      // to step s58, H4 dev). What repeated is described instead, and a
+      // repeated YEAR is named as one, because that was the habit: a year
+      // the question states, written as a filter instead of a step's year.
+      const ids = [...String(raw).matchAll(/"id"\s*:\s*"([^"]+)"/g)].length;
+      const ops = [...String(raw).matchAll(/"op"\s*:\s*"([a-z_]+)"/g)].map(m => m[1]);
+      const repeated = ops.length ? ops[ops.length - 1] : "a step";
+      // Withheld only if it is not the plan's terminal or source op.
+      if (ops.length > 8 && !["output", "load", "select_features", "zonal"].includes(repeated)) {
+        withheldOps.add(repeated);
+        log(`   Withholding "${repeated}" from the next attempt: it repeated without end`);
+      }
+      const yearRepeat = (String(raw).slice(-400).match(/"value"\s*:\s*((?:19|20)\d\d)\b/) || [])[1];
+      repairContext =
+        `\nYour previous plan was cut off: it repeated ${repeated} steps without end ` +
+        `(${ids} steps) and never finished. Write a COMPLETE plan with only the steps ` +
+        `the question needs, usually 2 to 6. Do not add a filter the question does not state.` +
+        (yearRepeat
+          ? ` ${yearRepeat} is a YEAR: put it in the "year" field of the step that reads ` +
+            `the data, never in a filter_attr.`
+          : "") + `\n`;
       continue;
     }
 
@@ -1078,6 +1242,12 @@ async function generatePlan({
       if (!fix) continue;
       log(`   Rewired plan: ${fix}`);
       emit({ stage: "plan_adjusted", detail: fix });
+    }
+    const equality = dropUnaskedEquality(plan, query);
+    if (equality) {
+      log(`   Dropped an equality filter the question did not ask for: ${equality}`);
+      emit({ stage: "plan_adjusted", detail: `dropped unasked filter ${equality}` });
+      adjustments.push(`Dropped a filter the question did not ask for: ${equality}.`);
     }
     const unasked = dropUnaskedFilters(plan, query);
     if (unasked) {
@@ -1110,6 +1280,30 @@ async function generatePlan({
       log(`   Resolved the time reference: ${yearsFix}`);
       emit({ stage: "plan_adjusted", detail: `Time reference: ${yearsFix}.` });
       adjustments.push(`Time reference resolved: ${yearsFix}.`);
+    }
+
+    // Distances the question gave in km / meters / feet, as the miles a plan
+    // carries (planner/features.js). Decided from the question, never asked
+    // of the model.
+    const unitsFix = repairDistanceUnits(plan, query);
+    if (unitsFix) {
+      log(`   Converted distance units: ${unitsFix}`);
+      emit({ stage: "plan_adjusted", detail: `Units: ${unitsFix}.` });
+      adjustments.push(`Distance: ${unitsFix}.`);
+    }
+    const areaFix = applyAreaUnit(plan, query);
+    if (areaFix) {
+      log(`   Area unit: ${areaFix}`);
+      emit({ stage: "plan_adjusted", detail: `Area: ${areaFix}.` });
+      adjustments.push(`Area: ${areaFix}.`);
+    }
+    // Which side of the distance, from the question's words; and a reference
+    // layer the model restricted to the same area as the features it serves.
+    for (const fix of [repairWithinDirection(plan, query), widenReferenceLayer(plan)]) {
+      if (!fix) continue;
+      log(`   Repaired proximity step: ${fix}`);
+      emit({ stage: "plan_adjusted", detail: fix });
+      adjustments.push(`Proximity: ${fix}.`);
     }
 
     const implied = applyImpliedState(plan, query);
@@ -1146,8 +1340,10 @@ async function generatePlan({
     // an input becomes an intersect, an ignored earlier result becomes a
     // restriction, and an earlier result is never intersect's value side.
     const earlierIds = candidates.filter(c => c.search_purpose === "earlier").map(c => c.attr_id);
-    for (const fix of [bridgeInputsToIntersect(plan), restrictToEarlier(plan, earlierIds),
-                       earlierResultSecond(plan)]) {
+    for (const fix of [bridgeFromLoadedLayer(plan, featureTables),
+                       bridgeInputsToIntersect(plan), restrictToEarlier(plan, earlierIds),
+                       earlierResultSecond(plan), totalTheDenominator(plan, opsRegistry.stepTypes),
+                       areaAfterAccess(plan), orderChangeByYear(plan), addMissingOutput(plan)]) {
       if (!fix) continue;
       log(`   Rewired plan: ${fix}`);
       emit({ stage: "plan_adjusted", detail: fix });
@@ -1160,11 +1356,57 @@ async function generatePlan({
     // After deref, attr_ids are real, so the dataset's own columns can be
     // consulted. Must run before validation, which would otherwise reject.
     if (!unknownRefs.length) {
+      // "Our clinics": the user's uploaded layer, not a catalog one
+      // (backend/user_layers.js). Inert without an upload.
+      const ours = preferUserLayer(plan, query, userLayers, candidates);
+      if (ours) {
+        log(`   Rewired plan: ${ours}`);
+        emit({ stage: "plan_adjusted", detail: ours });
+        adjustments.push(`Plan corrected: ${ours}.`);
+      }
+      const asLayer = await filterValueAsLayer(plan, resolve, candidates);
+      if (asLayer) {
+        log(`   Rewired plan: ${asLayer}`);
+        emit({ stage: "plan_adjusted", detail: asLayer });
+        adjustments.push(`Plan corrected: ${asLayer}.`);
+      }
+      // Count, length or area, and the unit, for summarize and overlay (H3):
+      // from the question and the layer's geometry, never the model's call.
+      const repOf = (id) => candidates.find(c => c.attr_id === id)?.spatial_rep || "";
+      const measures = applyMeasures(plan, query, repOf);
+      if (measures) {
+        log(`   Measures: ${measures}`);
+        emit({ stage: "plan_adjusted", detail: `Measures: ${measures}.` });
+        adjustments.push(`Measure: ${measures}.`);
+      }
       const unsupported = await dropUnsupportedFilters(plan, resolve);
       if (unsupported) {
         log(`   Dropped filter(s) this dataset cannot support: ${unsupported}`);
         emit({ stage: "plan_adjusted", detail: `dropped unsupported filter ${unsupported}` });
         adjustments.push(`Filter ${unsupported} was not applied: this dataset has no such attribute.`);
+      }
+      // After the drop: a filter removed here must not leave its stat behind.
+      // What a zonal step reports (share, area in a unit, mean), H4: code.
+      if ((plan.steps || []).some(s => s.op === "zonal")) {
+        const zr = await resolve((plan.steps || []).filter(s => s.op === "zonal").map(s => s.attr_id));
+        const yr = yearAsVintage(plan, (id) => zr.get(id));
+        if (yr) {
+          log(`   Rewired plan: ${yr}`);
+          emit({ stage: "plan_adjusted", detail: yr });
+          adjustments.push(`Plan corrected: ${yr}.`);
+        }
+        const cls = fillRasterClasses(plan, query, (id) => zr.get(id));
+        if (cls) {
+          log(`   Rewired plan: ${cls}`);
+          emit({ stage: "plan_adjusted", detail: cls });
+          adjustments.push(`Plan corrected: ${cls}.`);
+        }
+        const rm = applyRasterMeasures(plan, query, (id) => zr.get(id));
+        if (rm) {
+          log(`   Raster measure: ${rm}`);
+          emit({ stage: "plan_adjusted", detail: `Raster: ${rm}.` });
+          adjustments.push(`Raster: ${rm}.`);
+        }
       }
     }
     if (unknownRefs.length || defs.unknown.length) {
@@ -1195,6 +1437,17 @@ async function generatePlan({
         emit({ stage: "plan_adjusted", detail: fix });
         adjustments.push(`Plan corrected: ${fix}.`);
         check = await validatePlan(plan, resolve);
+      }
+    }
+
+    // A precision question: interval width is upper minus lower, and "least
+    // precise" is the widest (planner/uncertainty.js).
+    if (check.ok) {
+      const prec = repairPrecision(plan, query, check.resolved);
+      if (prec) {
+        log(`   Repaired precision step: ${prec}`);
+        emit({ stage: "plan_adjusted", detail: prec });
+        adjustments.push(`Precision: ${prec}.`);
       }
     }
 
@@ -1397,6 +1650,36 @@ async function generatePlan({
       }
     }
 
+    // Catchments (planner/catchment.js): people at a distance are counted by
+    // census tract, not by county centroid. On the accepted plan, like
+    // coverage, and for the same reason: the swap is between equivalent
+    // population counts, so the relevance verdicts still hold.
+    if (check.ok && levelsOf) {
+      try {
+        const before = JSON.stringify(plan.steps);
+        const c = await applyCatchment(plan, query, resolvedFinal, {
+          resolve, levelsOf, stepTypes: opsRegistry.stepTypes });
+        if (c.note) {
+          const recheck = await validatePlan(plan, resolve);
+          if (recheck.ok) {
+            resolvedFinal = recheck.resolved;
+            if (!candidates.some(x => x.attr_id === c.population.attr_id)) {
+              candidates.push({ attr_id: c.population.attr_id, attr_desc: c.population.description,
+                                dataset_id: c.population.dataset_id, search_purpose: "catchment" });
+            }
+            log(`   Catchment: ${c.note}`);
+            emit({ stage: "plan_adjusted", detail: `Catchment: ${c.note}.` });
+            adjustments.push(`Catchment: ${c.note}.`);
+          } else {
+            plan.steps = JSON.parse(before);
+            log(`   Catchment reverted, it did not validate: ${recheck.errors.join("; ")}`);
+          }
+        }
+      } catch (err) {
+        log(`   Catchment skipped: ${err.message}`);
+      }
+    }
+
     if (check.ok) {
       log(`   Plan valid on attempt ${attempt + 1} (${plan.steps.length} steps)`);
       emit({
@@ -1465,6 +1748,9 @@ function shapeLayer(out, res, ms) {
     return {
       id: out.id, step: out.step, mode: "features",
       sql: out.sql, params: out.params,
+      // What a feature's `value` property is, when an op put one there
+      // (within: miles to the nearest feature of the second layer).
+      valueLabel: out.valueLabel ?? null,
       row_count: res.rowCount,
       ms,
       rows: [],
@@ -1617,5 +1903,7 @@ module.exports = {
   // Exported for its tests: it is the repair that turns a relative period
   // ("since 2010", "the last decade") into concrete years on the load steps.
   resolveRelativeYears,
+  // Exported for planner/test_zones.js.
+  filterValueAsLayer, dropUnaskedEquality, dropUnaskedFilters, withoutOps,
   PLAN_SYSTEM_PROMPT, MAX_REPAIRS, CompileError,
 };

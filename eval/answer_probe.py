@@ -62,7 +62,9 @@ GEO_SLACK = 0.02          # share of result rows allowed outside the gold domain
 
 def psql(sql: str) -> list[list[str | None]]:
     """Run SQL in the db container; rows as lists of strings (None for NULL)."""
-    wrapped = "SET statement_timeout = '180s';\n" + sql.strip().rstrip(";") + ";\n"
+    # 300 s, not 180: brute-force overlay gold (gis_ops.yaml overlay family)
+    # intersects whole river polygons with no parts, ~240 s for MO roads x NWI.
+    wrapped = "SET statement_timeout = '300s';\n" + sql.strip().rstrip(";") + ";\n"
     p = subprocess.run(
         ["docker", "exec", "-i", DB_CONTAINER, "sh", "-c",
          'psql -U "${POSTGRES_USER:-postgres}" -d mygisdb -X -q -At '
@@ -106,6 +108,22 @@ def expand(sql: str, bind: dict[str, str], regions: dict[str, list[str]]) -> str
         return (f"(SELECT geoid AS fips, value FROM geo_values WHERE level = {lv} AND code = {c} "
                 f"AND year = (SELECT max(year) FROM geo_values WHERE level = {lv} AND code = {c}))")
 
+    def table(m):
+        # A feature layer's table, bound like any measure (its origin key).
+        t = code(m)
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,62}", t):
+            raise ValueError(f"not a table name: {t}")
+        return t
+
+    def fkey(m):
+        # A feature's identity: its first coordinate to 5 decimals, the same
+        # key normalise() takes from the answer's GeoJSON (feature_key).
+        g = m.group(1)
+        return (f"(round(ST_X(ST_GeometryN({g}, 1))::numeric, 5) || ',' || "
+                f"round(ST_Y(ST_GeometryN({g}, 1))::numeric, 5))")
+
+    sql = re.sub(r"\{table:(\w+)\}", table, sql)
+    sql = re.sub(r"\{fkey:([\w.]+)\}", fkey, sql)
     sql = re.sub(r"\{geo:(\w+):(\w+)\}", geo, sql)
     sql = re.sub(r"\{latest:(\w+)\}", latest, sql)
     sql = re.sub(r"\{year:(\w+):(\d{4})\}", year, sql)
@@ -192,11 +210,16 @@ def normalise(body: dict) -> dict:
         else:
             layers.append({r["fips"]: r.get("value") for r in rows})
 
+    feature_layers = []
     if body.get("layers"):
         for l in body["layers"]:
             if l.get("mode") == "features":
+                feature_layers.append({k: v for k, v in (feature_key(f) for f in l.get("features") or []) if k})
                 continue
             add(l.get("rows"))
+    elif body.get("output_mode") == "features" and body.get("features"):
+        # A single features output comes back flat, without `layers`.
+        feature_layers.append({k: v for k, v in (feature_key(f) for f in body["features"]) if k})
     elif body.get("rows"):
         add(body["rows"])
     scalar = None
@@ -215,9 +238,25 @@ def normalise(body: dict) -> dict:
         "mode": body.get("output_mode"),
         "row_count": body.get("row_count") or 0,
         "layers": [l for l in layers if l],
+        "feature_layers": [l for l in feature_layers if l],
         "scalar": scalar,
         "origins": origins,
     }
+
+
+def feature_key(f: dict) -> tuple[str | None, float | None]:
+    """(key, value) of one returned feature; the key matches gold's {fkey:...}."""
+    g = (f or {}).get("geometry") or {}
+    c = g.get("coordinates")
+    while isinstance(c, list) and c and isinstance(c[0], list):
+        c = c[0]
+    if not (isinstance(c, list) and len(c) >= 2):
+        return None, None
+    # within's distance comes back as `miles_to_nearest` (earlier builds: `value`).
+    props = f.get("properties") or {}
+    # overlay's amount inside the second layer comes back as `amount_inside` (H3).
+    v = props.get("miles_to_nearest", props.get("amount_inside", props.get("value")))
+    return f"{c[0]:.5f},{c[1]:.5f}", (1.0 if v is None else _num(v))
 
 
 # ------------------------------------------------------------------- comparison
@@ -242,6 +281,33 @@ def compare(cmp: dict, gold: list[dict], ans: dict) -> tuple[str, dict]:
         g = gold[0]["value"]
         return ("CORRECT" if _close(float(ans["scalar"]), g, cmp) else "WRONG_VALUE",
                 {"gold": round(g, 4), "got": round(float(ans["scalar"]), 4)})
+
+    if cmp.get("features"):
+        # The answer is the features themselves (GIS_OPS_PLAN.md H1), keyed
+        # by position. A per-county map is the wrong shape for "which ones".
+        if not ans.get("feature_layers"):
+            return "WRONG_SHAPE", {"why": "no features returned"}
+        layer = ans["feature_layers"][0]
+        want = {r["fips"]: r["value"] for r in gold if r["value"] is not None}
+        base = {"features": len(layer), "gold_features": len(want)}
+        if kind == "set":
+            got = set(layer)
+            j = len(got & set(want)) / len(got | set(want)) if got | set(want) else 1.0
+            base.update(jaccard=round(j, 3), extra=len(got - set(want)), missed=len(set(want) - got))
+            return ("CORRECT" if j >= cmp.get("min_jaccard", 0.95) else "WRONG_VALUE"), base
+        if kind == "top_k":
+            desc = cmp.get("direction", "desc") == "desc"
+            kk = min(cmp["k"], len(want))
+            if len(layer) < kk:
+                return "INCOMPLETE", {**base, "why": f"only {len(layer)} features"}
+            got = set(list(layer)[:kk]) if cmp.get("ordered_by_api") else                 {k for k, _ in sorted(layer.items(), key=lambda t: (t[1] is None, t[1]), reverse=desc)[:kk]}
+            ranked = sorted(want.items(), key=lambda t: t[1], reverse=desc)
+            cut = ranked[kk - 1][1]
+            top = {k for k, v in ranked if (v >= cut if desc else v <= cut)}
+            overlap = len(got & top) / kk
+            base.update(k=kk, overlap=round(overlap, 3))
+            return ("CORRECT" if overlap >= cmp.get("min_overlap", 0.8) else "WRONG_VALUE"), base
+        raise ValueError(f"compare kind {kind} does not take features")
 
     if not ans["layers"]:
         return "WRONG_SHAPE", {"why": "no per-county rows"}
@@ -340,16 +406,17 @@ def score(q: dict, suite: dict, ans: dict, gold_cache: dict) -> tuple[str, dict]
     cmp = q["compare"]
     if is_transport_error(ans["error"]):
         return "HARNESS_ERROR", {"error": str(ans["error"])[:160]}
-    answered = ans["planned"] and not ans["error"] and (ans["layers"] or ans["scalar"] is not None)
+    answered = ans["planned"] and not ans["error"] and (
+        ans["layers"] or ans.get("feature_layers") or ans["scalar"] is not None)
     if cmp["kind"] == "refuse":
         return ("FALSE_ANSWER" if answered else "CORRECT_REFUSAL"), {}
     if not ans["planned"] or ans["error"]:
         return "NO_ANSWER", {"error": (ans["error"] or "")[:160]}
     if ans["exec_error"]:
         return "EXEC_ERROR", {"error": ans["exec_error"][:160]}
-    if ans["mode"] == "features":
+    if ans["mode"] == "features" and not cmp.get("features"):
         return "WRONG_SHAPE", {"why": "features returned"}
-    if not ans["layers"] and ans["scalar"] is None:
+    if not ans["layers"] and ans["scalar"] is None and not ans.get("feature_layers"):
         return "EMPTY", {}
     bind, missing = bind_measures(q, suite["measures"], ans["origins"])
     if bind is None:
@@ -423,7 +490,11 @@ def self_test(suite: dict) -> int:
     rng = random.Random(7)
     regions = suite.get("regions", {})
 
-    def as_answer(rows, origins, groups=False):
+    def as_answer(rows, origins, groups=False, features=False):
+        if features:
+            return {"planned": True, "error": None, "exec_error": None, "mode": "features",
+                    "row_count": len(rows), "layers": [], "scalar": None, "origins": origins,
+                    "feature_layers": [{r["fips"]: r["value"] for r in rows}]}
         if rows and rows[0]["fips"] is None:
             return {"planned": True, "error": None, "exec_error": None, "mode": "values",
                     "row_count": 1, "layers": [], "scalar": rows[0]["value"], "origins": origins}
@@ -461,18 +532,22 @@ def self_test(suite: dict) -> int:
         origins = list(db.values())
         golds = q["gold"] if isinstance(q["gold"], list) else [q["gold"]]
         groups = q["compare"]["kind"] == "groups"
+        feats = q["compare"].get("features") is True
         # 1. Gold fed back is CORRECT, for each alternative.
         for i, g in enumerate(golds):
             rows = gold_rows(expand(g, bind, regions))
             check(f"{q['id']} / gold alt{i}",
-                  score(q, suite, as_answer(rows, origins, groups), cache)[0], "CORRECT")
+                  score(q, suite, as_answer(rows, origins, groups, feats), cache)[0], "CORRECT")
         # 2. Shuffled values on the right places are not CORRECT.
-        if q["compare"]["kind"] in ("values", "top_k"):
-            rows = gold_rows(expand(golds[0], bind, regions))
+        # One row (a single named county) cannot be shuffled into a different
+        # answer; its `wrong:` entries below are its check.
+        rows = gold_rows(expand(golds[0], bind, regions)) \
+            if q["compare"]["kind"] in ("values", "top_k") else []
+        if len({r["value"] for r in rows}) >= 2:
             vals = [r["value"] for r in rows]
             rng.shuffle(vals)
             shuf = [{**r, "value": v} for r, v in zip(rows, vals)]
-            got = score(q, suite, as_answer(shuf, origins), cache)[0]
+            got = score(q, suite, as_answer(shuf, origins, False, feats), cache)[0]
             check(f"{q['id']} / shuffled values", got if got != "CORRECT" else "CORRECT",
                   got if got != "CORRECT" else "not CORRECT")
         # 3. Each declared wrong answer gets its declared class.
@@ -483,7 +558,7 @@ def self_test(suite: dict) -> int:
                 for c in wb.values()]
             rows = gold_rows(expand(w["sql"], wb, regions))
             check(f"{q['id']} / wrong{j}",
-                  score(q, suite, as_answer(rows, worigins, groups), cache)[0], w["expect"])
+                  score(q, suite, as_answer(rows, worigins, groups, feats and rows and rows[0]["fips"] is not None), cache)[0], w["expect"])
         # 4. No answer at all.
         check(f"{q['id']} / no plan", score(q, suite, empty, cache)[0], "NO_ANSWER")
     print(f"\n  {n - fails}/{n} scorer checks passed")

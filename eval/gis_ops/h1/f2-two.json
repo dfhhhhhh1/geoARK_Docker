@@ -1,0 +1,102 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 2,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "phase_f": {
+      "pass": 0,
+      "n": 2,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 1,
+    "WRONG_VALUE": 1
+  },
+  "latency_mean": 29.5,
+  "api_container_created": "2026-11-12T01:32:51.12443633Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "f-tx-hospital-access-2sfca",
+      "tier": "phase_f",
+      "query": "Which Texas counties have the worst access to hospitals once you account for how many people each hospital has to serve, using a 30-mile catchment?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"30-mile catchment\""
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"30-mile catchment\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Texas counties have the worst access to hospitals once you account for how many people each hospital has to serve, using a 30-mile catchment?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"30-mile catchment\""
+      },
+      "seconds": 23.8
+    },
+    {
+      "id": "f-mo-poverty-precision",
+      "tier": "phase_f",
+      "query": "Which 10 Missouri counties have the least precise poverty rate estimates?",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 115,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 0.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CI90UBALLP",
+          "m2": "CI90LBALLP"
+        }
+      },
+      "ops": "load->load->combine->filter_area->rank->output",
+      "intent": "The ten Missouri counties with the least precise poverty rate estimates",
+      "loaded": [
+        "CI90UBALLP | Upper bound of the 90% confidence interval, margin of error for the percent of people of all ages in poverty | USDA ERS",
+        "CI90LBALLP | Lower bound of the 90% confidence interval, margin of error for the percent of people of all ages in poverty | USDA ERS"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 10 Missouri counties have the least precise poverty rate estimates?",
+            "uses": [],
+            "ops": "load->load->combine->filter_area->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 35.2
+    }
+  ]
+}

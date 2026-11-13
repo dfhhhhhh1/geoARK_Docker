@@ -433,6 +433,109 @@ Writes `deploy/dumps/exports/`. Cells are whole-pixel blocks kept by their
 centre; capped at 250,000 cells (California at 1 km is refused; at 4 km it is
 not).
 
+### Zone sets: `kind: zones` (wards, neighborhoods, planning areas)
+
+Polygons that are units to count BY, not features to count. Each set becomes a
+geo_unit level of its own (`z_<id>`), so "how many schools in each Chicago
+ward" or "food stores per km2 in each St. Louis neighborhood" plans like a
+tract question. `etl/load_zones.py`; template in `etl/templates/dataset.meta.yaml`.
+
+```yaml
+id: stl_wards
+name: St. Louis wards
+kind: zones                  # or  role: zones
+vintage: 2023
+zones:
+  unit: ward
+  plural: wards
+  place: [St. Louis, St. Louis city]
+  id_column: DISTRICT
+  name_column: NAME
+```
+
+`make ingest DIR=stl_wards`. The loader computes each zone's land area (tract
+land shares, because county_geom keeps rivers) and, when WorldPop is on disk,
+its population, with a conservation check against an exact pixel-overlap sum.
+No catalog row, nothing to tag. A question must name the unit AND a place from
+`places`; `/api/health` lists the sets as `zone_sets`. Replay restores them.
+
+Loaded so far (2026-11-11): St. Louis wards (14) and neighborhoods (88),
+Chicago wards (50) and community areas (77). Sources are in each sidecar.
+
+### Polygon layers for overlay (H3): class columns, repair, parts
+
+A polygon layer that an overlay tests against (wetlands, hazard zones,
+perimeters, districts) loads like any `kind: features` layer. Three things
+happen on load that matter for it (`etl/ingest.py finalize_table`):
+
+- **Class column as `type`.** `columns: WETLAND_TYPE: {as: type}` stores the
+  layer's own class column under the name the planner filters on (`type`,
+  `status`, `owner`; or `name`, `city`, ... to show). NFHL would be
+  `FLD_ZONE: {as: type}`. Recorded in the ledger as `renames`, so replay
+  repeats it.
+- **Invalid polygons are repaired** with `ST_MakeValid` (81 of 1,670 wildfire
+  perimeters were invalid). Curved geometries (file geodatabases: NWI's
+  MultiSurface) are densified on import.
+- **Parts.** Features over 1,024 vertices are split into `fp_<table>` by
+  `ST_Subdivide` and registered in `feature_parts`; overlays and area totals
+  read them. Missouri roads x NWI: 234 s as loaded, 4.8 s on parts. For a
+  layer loaded before this existed, `make parts` (or `make parts
+  TABLE=<table>`), then nothing else: it ends with `reload-corpus`.
+
+Loaded (2026-11-12): NWI wetlands, Missouri only (1,309,180 polygons, 5.2 GB
+with TOAST, parts 3.7 GB). Download per state from FWS; the zip is 1.4 GB,
+delete it after unpacking (the gdb is the ledgered file). NWI's `ACRES` is the
+area of the WHOLE published polygon, including parts outside the state:
+sum the geometry, never that column.
+
+Statewide per-county acreage of all 1.3M NWI polygons takes ~3 min (the
+geodesic area of 305M vertices), over the API's 30 s statement timeout. City,
+ward and county scopes take seconds.
+
+### Rasters read on demand (H4): `kind: raster`, `mode: native`
+
+A raster the planner summarises over any unit (`zonal`), kept in its own
+PROJECTED equal-area CRS (EPSG:5070), so every pixel has the same area and a
+class area is a pixel count. Not the WorldPop path above: no 4326 warp, no
+precomputed levels except a per-county class histogram for categorical
+rasters (`raster_unit_count`, same clip as the op). Sidecar:
+
+```yaml
+kind: raster
+mode: native
+code: NLCD_LANDCOVER        # shared by every vintage: one catalog row
+aggregate: class            # class (categorical) | mean | sum
+vintage: 2021
+classes:                    # the publisher's legend, with its own groups
+  82: {label: Cultivated Crops, group: Planted/Cultivated}
+```
+
+Loaded (2026-11-12):
+
+| code | source | extent | pixels |
+|---|---|---|---|
+| `NLCD_LANDCOVER` 2001, 2021 | MRLC WCS (`etl/fetch_nlcd.sh`, 100 km tiles; the annual series is on a requester-pays bucket) | Missouri + Illinois box | 587M each, 30 m |
+| `DEM_ELEVATION` | 3DEP 1/3" tiles n39w090/091, n42-43w088/089, warped to 5070 at 10 m | St. Louis + Chicago metro counties | 115M |
+| `TERRAIN_SLOPE` | `gdaldem slope -p` on that DEM | same | 115M |
+
+Raster files live in `deploy/incoming/nlcd2001`, `nlcd2021`, `dem3dep`,
+`slope3dep` (the 3DEP source tiles in `dem3dep/raw`, 2.2 GB). After reloading
+any of them, re-run the raster eval gold (computed from these files with GDAL):
+
+```bash
+docker compose --profile etl run --rm -v "$(cd ../eval && pwd -W):/app/eval:ro" --entrypoint python3 etl-geo /app/eval/gis_ops/raster_gold.py
+```
+
+### Uploaded map layers (per session, never stored)
+
+`POST /api/layers?name=<file>` with the file's bytes: GeoJSON, a zipped
+shapefile (with its .prj), a GeoPackage or KML, up to 25 MB and 20,000
+features. The API converts it with ogr2ogr (gdal-bin is in the API image),
+holds it in memory for 4 hours (`USER_LAYER_TTL_MIN`) and returns an id; the
+UI's upload panel does this and sends the id with each question
+(`user_layers` / `layers=`). A restart forgets every layer. "Our ..." in a
+question prefers the uploaded layer over a catalog one. `backend/user_layers.js`.
+
 ### Seeing it: the explore map
 
 `/explore` ("Explore map" in the header) draws any loaded measure at the finest

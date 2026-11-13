@@ -1,5 +1,6 @@
 const { CompileError } = require("./_sql");
 const { CHANGE_PHRASES, TIME_PHRASES } = require("../conditions");
+const { asksPrecision } = require("../uncertainty");
 
 /**
  * Arithmetic on two series.
@@ -44,6 +45,13 @@ module.exports = {
   inputs: 2,
   needs: ["operation"],
   produces: "series",
+  // A single number on either side (an ungrouped aggregate or summarize) is
+  // combined with every row of the other: "what share of the population" is
+  // one total over another, and a county's share of a national total is a
+  // series over a scalar. Two scalars make a scalar (GIS_OPS_PLAN.md H1).
+  accepts: [["series", "scalar"], ["series", "scalar"]],
+  resultType: (step, inTypes) =>
+    (inTypes[0] === "scalar" && inTypes[1] === "scalar" ? "scalar" : "series"),
   kind: "sql",
 
   enumComment: "ratio | sum | difference | percent_change of two steps",
@@ -61,7 +69,10 @@ module.exports = {
   offered: (ctx) => {
     const q = String(ctx.query || "");
     return /\b(difference|differ|minus|subtract|change\s+(from|in|between)|combined|sum\s+of|total\s+of|added|plus|versus\s+.*\bchange)\b/i.test(q)
-      || (CHANGE_PHRASES.test(q) && TIME_PHRASES.test(q));
+      || (CHANGE_PHRASES.test(q) && TIME_PHRASES.test(q))
+      // How precise an estimate is: the width of its confidence interval
+      // (planner/uncertainty.js).
+      || asksPrecision(q);
   },
 
   examples: [
@@ -92,6 +103,21 @@ PLAN: {"intent":"Poverty rate minus unemployment rate, by county",
           {"id":"s2","op":"load","attr_id":"a1","inputs":[]},
           {"id":"s3","op":"combine","attr_id":"","inputs":["s1","s2"],"operation":"difference"},
           {"id":"s4","op":"output","attr_id":"","inputs":["s3"]}]}` },
+
+    // Precision phrasing only (planner/uncertainty.js).
+    { when: (ctx) => asksPrecision(ctx.query), text:
+`QUESTION: how uncertain is the median household income estimate in each Ohio county
+  (a4 = upper bound of the 90% confidence interval for median household income,
+   a5 = lower bound of the 90% confidence interval for median household income)
+PLAN: {"intent":"Width of the 90% confidence interval of median household income, Ohio counties",
+ "output_type":"map","entity_type":"COUNTY",
+ "steps":[{"id":"s1","op":"load","attr_id":"a4","inputs":[]},
+          {"id":"s2","op":"load","attr_id":"a5","inputs":[]},
+          {"id":"s3","op":"combine","attr_id":"","inputs":["s1","s2"],"operation":"difference"},
+          {"id":"s4","op":"filter_area","attr_id":"","inputs":["s3"],"states":["Ohio"]},
+          {"id":"s5","op":"output","attr_id":"","inputs":["s4"]}]}
+  NOTE: how precise an estimate is, is the width of its interval: upper minus
+  lower. A wider interval is a LESS precise estimate.` },
   ],
 
   validate(step) {
@@ -114,6 +140,12 @@ PLAN: {"intent":"Poverty rate minus unemployment rate, by county",
     const expr = op.scaled
       ? op.expr("a", "b", ctx.bind(step.scale ?? 1))
       : op.expr("a", "b");
+    const [ta, tb] = ctx.inTypes || [];
+    if (ta === "scalar" || tb === "scalar") {
+      const fips = ta !== "scalar" ? "a.fips" : tb !== "scalar" ? "b.fips" : "NULL::char(5)";
+      return `${ctx.name} AS (SELECT ${fips} AS fips, ${expr} AS value ` +
+             `FROM ${ctx.ins[0]} a CROSS JOIN ${ctx.ins[1]} b)`;
+    }
     return `${ctx.name} AS (SELECT a.fips, ${expr} AS value ` +
            `FROM ${ctx.ins[0]} a JOIN ${ctx.ins[1]} b USING (fips))`;
   },

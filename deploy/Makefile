@@ -147,6 +147,10 @@ ingest:          ## Load a dataset end to end. DIR=<folder in incoming/> [ARGS=-
 # without a restart. If that is refused (ACCESS_CODE set), fall back to
 # restarting ONLY the api container: `restart` does not recreate, so it cannot
 # drop the GPU the way a plain `docker compose up` does (CLAUDE.md, traps).
+parts:           ## Subdivide large polygons of feature layers for overlay (TABLE=<one table>)
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo /app/etl/build_parts.py $(if $(TABLE),--table $(TABLE))
+	$(MAKE) reload-corpus
+
 reload-corpus:   ## Make the API pick up a re-embedded catalog (no recreate; keeps the GPU)
 	@$(COMPOSE) exec -T api node -e \
 	  "fetch('http://localhost:4000/api/reload-corpus',{method:'POST'}).then(async r=>{console.log('  reload-corpus', r.status, (await r.text()).slice(0,200));process.exit(r.ok?0:1)}).catch(e=>{console.error(e.message);process.exit(1)})" \

@@ -216,6 +216,15 @@ def build_attribute_source(conn, catalog_csv: Path, dry_run: bool,
         # code is not the same as having data for it.
         cur.execute("SELECT DISTINCT census_code FROM acs_county_values")
         known = {r[0] for r in cur.fetchall()}
+        # Rasters read on demand (GIS_OPS_PLAN.md H4, etl/load_raster.py
+        # mode: native): the catalog row's attr_label is the raster's code, and
+        # every vintage shares it. A relink used to TRUNCATE them away.
+        cur.execute("SELECT to_regclass('raster_layer') IS NOT NULL")
+        rasters = {}
+        if cur.fetchone()[0]:
+            cur.execute("SELECT DISTINCT ON (code) code, table_name FROM raster_layer "
+                        "WHERE kind IS NOT NULL AND kind <> 'zonal' ORDER BY code, year DESC")
+            rasters = dict(cur.fetchall())
     if not known and acs_csv:
         # Nothing loaded yet (a --dry-run before the first real load). Fall back
         # to the CSV header. Note this is the DECLARED set, so a dry run reports
@@ -236,6 +245,13 @@ def build_attribute_source(conn, catalog_csv: Path, dry_run: bool,
         # the human label in attr_orig. Matching attr_orig alone meant every
         # relink -- which `make ingest` runs -- silently unlinked those 229
         # measures: 3,526 resolvable acs_long attributes became 3,297.
+        if attr_id in rasters:
+            resolved.append((
+                attr_id, r.get("dataset_id", ""), r.get("attr_desc", ""),
+                "raster", rasters[attr_id], None, attr_id,
+                r.get("entity_type", ""), "fips", "county_geom",
+            ))
+            continue
         if code not in known and attr_id in known:
             code = attr_id
         if code and code in known:

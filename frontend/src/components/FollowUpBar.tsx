@@ -4,7 +4,7 @@ import {
   Search, Sigma, Sparkles, Upload, X, Loader2, FileSpreadsheet, Map as MapIcon,
   GitCompareArrows, Trash2, HelpCircle,
 } from 'lucide-react';
-import type { AnalysisResponse, FollowUpEdit, FollowUpMeasure, UserSeries } from '../types';
+import type { AnalysisResponse, FollowUpEdit, FollowUpMeasure, UserLayer, UserSeries } from '../types';
 import { searchMeasures, USER_PREFIX } from '../lib/followup';
 import { REGIONS, STATES } from '../lib/places';
 import FinerLevels from './FinerLevels';
@@ -30,6 +30,9 @@ interface Props {
   onPrefill: (text: string) => void;
   onUpload: () => void;
   onRemoveUpload: (id: string) => void;
+  /** Uploaded map layers: listed, removable. They are used by asking. */
+  layers?: UserLayer[];
+  onRemoveLayer?: (id: string) => void;
 }
 
 type Panel = null | 'area' | 'swap' | 'add' | 'map';
@@ -62,6 +65,7 @@ const Group: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
 
 const FollowUpBar: React.FC<Props> = ({
   result, uploads, disabled, onEdit, onPrefill, onUpload, onRemoveUpload,
+  layers = [], onRemoveLayer,
 }) => {
   const [panel, setPanel] = useState<Panel>(null);
   const f = result?.followups ?? null;
@@ -180,7 +184,7 @@ const FollowUpBar: React.FC<Props> = ({
 
       <Group label="Your data">
         <Chip disabled={disabled} onClick={onUpload}>
-          <Upload className="w-4 h-4" /> Upload a county CSV
+          <Upload className="w-4 h-4" /> Upload a CSV or map layer
         </Chip>
         {!can && (
           <Chip disabled={disabled} active={panel === 'map'} onClick={() => toggle('map')}>
@@ -188,6 +192,32 @@ const FollowUpBar: React.FC<Props> = ({
           </Chip>
         )}
       </Group>
+      {layers.length > 0 && (
+        <ul className="space-y-2 pl-0 sm:pl-[5.5rem]">
+          {layers.map(l => (
+            <li key={l.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-200
+                                      bg-sky-50/60 px-3 py-2">
+              <MapIcon className="w-4 h-4 text-sky-700 shrink-0" />
+              <span className="text-sm text-slate-800 font-medium min-w-0 truncate max-w-[16rem]" title={l.file}>
+                {l.name}
+              </span>
+              <span className="text-xs text-slate-500">
+                {l.features.toLocaleString()} {l.geometry}{l.features === 1 ? '' : 's'}
+              </span>
+              <MiniButton disabled={disabled}
+                          onClick={() => onPrefill(`How many of our ${l.name} are in each county?`)}>
+                Ask about it
+              </MiniButton>
+              {onRemoveLayer && (
+                <button type="button" onClick={() => onRemoveLayer(l.id)} aria-label={`Remove ${l.name}`}
+                        className="ml-auto p-1 text-slate-400 hover:text-red-700">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       {uploads.length > 0 && (
         <ul className="space-y-2 pl-0 sm:pl-[5.5rem]">
           {uploads.map(u => {

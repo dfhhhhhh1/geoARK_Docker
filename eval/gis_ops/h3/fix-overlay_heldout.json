@@ -1,0 +1,98 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "overlay_heldout": {
+      "pass": 1,
+      "n": 2,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 1,
+    "CORRECT": 1
+  },
+  "latency_mean": 63.4,
+  "api_container_created": "2026-11-12T17:24:25.787242117Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ov-or-transmission-fire-km",
+      "tier": "overlay_heldout",
+      "query": "How many kilometers of transmission line run through wildfire perimeters in Oregon?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many kilometers of transmission line run through wildfire perimeters in Oregon?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "seconds": 93.7
+    },
+    {
+      "id": "ov-mo-campus-no-wetland",
+      "tier": "overlay_heldout",
+      "query": "How many Missouri college campuses do not overlap any wetland?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 90.0,
+        "got": 90.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse",
+          "m2": "nwi_wetlands"
+        }
+      },
+      "ops": "select_features->select_features->overlay->summarize->output",
+      "intent": "Number of Missouri college campuses that do not overlap any wetland",
+      "loaded": [
+        "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse | College University Campuses (mapped locations) | College University Campuses",
+        "nwi_wetlands | National Wetlands Inventory wetlands (mapped locations) | National Wetlands Inventory wetlands"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many Missouri college campuses do not overlap any wetland?",
+            "uses": [],
+            "ops": "select_features->select_features->overlay->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 33.0
+    }
+  ]
+}

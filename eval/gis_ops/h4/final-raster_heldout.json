@@ -1,0 +1,101 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "raster_heldout": {
+      "pass": 1,
+      "n": 2,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "EMPTY": 1,
+    "CORRECT": 1
+  },
+  "latency_mean": 37.1,
+  "api_container_created": "2026-11-12T20:25:05.502400682Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ra-cook-forest-share-2001",
+      "tier": "raster_heldout",
+      "query": "What share of Cook County, Illinois was forest in 2001?",
+      "class": "EMPTY",
+      "pass": false,
+      "detail": {},
+      "ops": "zonal->filter_place->filter_area->output",
+      "intent": "Share of Cook County, Illinois that was forest in 2001",
+      "loaded": [
+        "NLCD_LANDCOVER | Land cover class of every 30 m pixel from the National Land Cover Database (USGS MRLC), for land area, share and change of cover types such as cropland, forest, developed land, wetlands, water and pasture. Classes: Barren, Developed, Forest, Herbaceous, Planted/Cultivated, Shrubland, Water, Wetlands. | NLCD land cover (National Land Cover Database)"
+      ],
+      "row_count": 0,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What share of Cook County, Illinois was forest in 2001?",
+            "uses": [],
+            "ops": "zonal->filter_place->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 45.4
+    },
+    {
+      "id": "ra-stl-ward-flat-share",
+      "tier": "raster_heldout",
+      "query": "What percentage of each St. Louis ward has a slope under 5 percent?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 14,
+        "gold_rows": 14,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "TERRAIN_SLOPE"
+        }
+      },
+      "ops": "zonal->filter_attr->normalize->output",
+      "intent": "Percentage of each St. Louis ward with a slope under 5 percent",
+      "loaded": [
+        "TERRAIN_SLOPE | Terrain slope or steepness of the ground in percent rise over run, derived from the USGS 3DEP 10 m digital elevation model, St. Louis and Chicago metro counties. | Terrain slope (percent, from the USGS 3DEP elevation model)"
+      ],
+      "row_count": 0,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What percentage of each St. Louis ward has a slope under 5 percent?",
+            "uses": [],
+            "ops": "zonal->filter_attr->normalize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 28.9
+    }
+  ]
+}

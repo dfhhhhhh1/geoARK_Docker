@@ -1,0 +1,110 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "proximity_heldout": {
+      "pass": 1,
+      "n": 2,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "WRONG_VALUE": 1,
+    "CORRECT": 1
+  },
+  "latency_mean": 35.2,
+  "api_container_created": "2026-11-12T20:25:05.502400682Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "p-co-fire-near-nursing-m",
+      "tier": "proximity_heldout",
+      "query": "Show the fire stations in Colorado located within 800 meters of a nursing home.",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "features": 138,
+        "gold_features": 137,
+        "jaccard": 0.884,
+        "extra": 9,
+        "missed": 8,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations",
+          "m2": "f2628a3f051b4e8aa02a6217207b8b86_nursinghomes"
+        }
+      },
+      "ops": "select_features->select_features->within->output",
+      "intent": "Fire stations in Colorado located within 800 meters of a nursing home",
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations",
+        "f2628a3f051b4e8aa02a6217207b8b86_nursinghomes | Nursing Homes (mapped locations) | Nursing Homes"
+      ],
+      "row_count": 138,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Show the fire stations in Colorado located within 800 meters of a nursing home.",
+            "uses": [],
+            "ops": "select_features->select_features->within->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 42.1
+    },
+    {
+      "id": "p-ks-hospitals-no-fire-3mi",
+      "tier": "proximity_heldout",
+      "query": "How many hospitals in Kansas are not within 3 miles of any fire station?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 2.0,
+        "got": 2.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "d968f276355a41d1bd1451be6ee4dbac_fire_stations"
+        }
+      },
+      "ops": "select_features->select_features->within->summarize->output",
+      "intent": "Number of hospitals in Kansas that are not within 3 miles of any fire station",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals",
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many hospitals in Kansas are not within 3 miles of any fire station?",
+            "uses": [],
+            "ops": "select_features->select_features->within->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 28.4
+    }
+  ]
+}

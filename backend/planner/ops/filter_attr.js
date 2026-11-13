@@ -21,6 +21,10 @@ module.exports = {
   inputs: 1,
   needs: [],
   produces: "series",
+  // Features too: keep the features whose value (a distance `within` put
+  // there) passes the comparison. Same type out as in.
+  accepts: [["series", "features"]],
+  resultType: (step, inTypes) => (inTypes[0] === "features" ? "features" : "series"),
   kind: "sql",
 
   enumComment: "keep rows matching a numeric comparison",
@@ -56,6 +60,7 @@ PLAN: {"intent":"Counties whose median household income is greater than 75000",
   compile(step, ctx) {
     const op = OPERATORS[step.operator];
     if (!op) throw new CompileError(`unsupported operator ${step.operator}`);
+    const cols = ctx.inTypes?.[0] === "features" ? "*" : "fips, value";
     if (step.percentile !== undefined && step.percentile !== null && !step.definition) {
       const p = Number(step.percentile);
       if (!Number.isInteger(p) || p < 1 || p > 99) {
@@ -63,11 +68,11 @@ PLAN: {"intent":"Counties whose median household income is greater than 75000",
       }
       // Over the input itself, so "high" means high among the counties this
       // plan is looking at: after an area filter, high within that area.
-      return `${ctx.name} AS (SELECT fips, value FROM ${ctx.ins[0]} ` +
+      return `${ctx.name} AS (SELECT ${cols} FROM ${ctx.ins[0]} ` +
              `WHERE value ${op} (SELECT percentile_cont(${ctx.bind(p / 100)}::float8) ` +
              `WITHIN GROUP (ORDER BY value) FROM ${ctx.ins[0]} WHERE value IS NOT NULL))`;
     }
-    return `${ctx.name} AS (SELECT fips, value FROM ${ctx.ins[0]} ` +
+    return `${ctx.name} AS (SELECT ${cols} FROM ${ctx.ins[0]} ` +
            `WHERE value ${op} ${ctx.bind(step.value)})`;
   },
 };

@@ -22,7 +22,24 @@ module.exports = {
 PLAN: {"intent":"Distance in miles from each county to its nearest hospital",
  "output_type":"map","entity_type":"COUNTY",
  "steps":[{"id":"s1","op":"nearest_distance","attr_id":"a4","inputs":[]},
-          {"id":"s2","op":"output","attr_id":"","inputs":["s1"]}]}` }],
+          {"id":"s2","op":"output","attr_id":"","inputs":["s1"]}]}` },
+    // People at a distance (planner/catchment.js), shown only for that
+    // phrasing: the population is kept where the distance passes, then summed.
+    // Code then counts it by census tract rather than by county centroid.
+    { when: (ctx) => require("../catchment").asksPeopleAtDistance(ctx.query), text:
+`QUESTION: how many people in Utah live within 10 miles of an airport
+  (a2 = total population, a5 = an airports dataset)
+PLAN: {"intent":"Number of people in Utah living within ten miles of an airport",
+ "output_type":"statistics","entity_type":"COUNTY",
+ "steps":[{"id":"s1","op":"load","attr_id":"a2","inputs":[]},
+          {"id":"s2","op":"filter_area","attr_id":"","inputs":["s1"],"states":["Utah"]},
+          {"id":"s3","op":"nearest_distance","attr_id":"a5","inputs":[]},
+          {"id":"s4","op":"filter_attr","attr_id":"","inputs":["s3"],"operator":"<=","value":10},
+          {"id":"s5","op":"intersect","attr_id":"","inputs":["s2","s4"]},
+          {"id":"s6","op":"aggregate","attr_id":"","inputs":["s5"],"function":"sum"},
+          {"id":"s7","op":"output","attr_id":"","inputs":["s6"]}]}
+  NOTE: people, not places. Keep the population where the distance passes,
+  then add it up. "More than N miles from" is ">" on the distance.` }],
 
   compile(step, ctx) {
     // Miles from each county's centroid to the nearest feature, exactly.

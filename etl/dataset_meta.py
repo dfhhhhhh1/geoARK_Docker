@@ -56,7 +56,7 @@ TABLE_EXT = {".csv", ".xlsx", ".xls", ".txt", ".tsv"}
 
 SHAPEFILE_PARTS = {".shp", ".shx", ".dbf", ".prj", ".cpg", ".sbn", ".sbx", ".qix", ".qpj"}
 
-KINDS = ("features", "table", "raster", "boundaries")
+KINDS = ("features", "table", "raster", "boundaries", "zones")
 LEVELS = ("state", "county", "tract", "bg", "block", "zcta", "place")
 
 # Every key the sidecar understands. Anything else is reported, because a typo
@@ -68,8 +68,15 @@ SIDECAR_KEYS = {
     "license", "originator", "columns", "include", "exclude", "probe",
     "aggregate", "grid_levels", "keywords", "missing", "code_rewrite",
     "zonal_levels", "measure", "measure_label",
+    # kind: zones (etl/load_zones.py). `role: zones` is accepted as a synonym,
+    # the spelling docs/GIS_OPS_PLAN.md uses.
+    "role", "zones",
+    # kind: raster, mode: native (H4, etl/load_raster.py load_native): a
+    # shared measure code across vintages, a categorical legend, units, and
+    # the searchable name of the one catalog row every vintage shares.
+    "mode", "code", "classes", "units", "catalog_name",
 }
-COLUMN_KEYS = {"desc", "units", "skip", "definitions"}
+COLUMN_KEYS = {"desc", "units", "skip", "definitions", "as"}
 
 YEAR_RE = re.compile(r"(?<!\d)(1[89]\d\d|20\d\d)(?!\d)")
 
@@ -451,8 +458,11 @@ def resolve(target: Path, cli_name: str | None = None) -> dict:
 
     for k in ("id", "kind", "layer", "level", "entity_type", "geo_column",
               "year_column", "include", "exclude", "probe", "aggregate", "grid_levels",
-              "missing", "code_rewrite", "zonal_levels", "measure", "measure_label"):
+              "missing", "code_rewrite", "zonal_levels", "measure", "measure_label",
+              "zones", "mode", "code", "classes", "units", "catalog_name"):
         merged[k] = side.get(k)
+    if str(side.get("role") or "").lower() == "zones" and not merged["kind"]:
+        merged["kind"] = "zones"
 
     merged.update({
         "folder": folder,

@@ -126,7 +126,7 @@ def load_features(c, entry: dict) -> int:
     ingest.load_to_postgis(data_path_of(entry), entry["layer"], entry["table"], ingest.pg_dsn())
     c.commit()   # the state queries left a transaction open; autocommit cannot change inside one
     c.autocommit = True
-    n = ingest.finalize_table(c, entry["table"])
+    n = ingest.finalize_table(c, entry["table"], entry.get("renames"))
     c.autocommit = False
     return n
 
@@ -158,6 +158,24 @@ def load_raster_data(c, entry: dict) -> int:
         print(f"    ! raster total {report['total']:,.3f} differs from the ledger's "
               f"{entry['total']:,.3f}")
     return report["valid_pixels"]
+
+
+def load_zone_set(c, entry: dict) -> int:
+    """A zone set's geo_unit level, and its WorldPop values, again."""
+    import ingest  # noqa: PLC0415
+    import load_zones  # noqa: PLC0415
+    from osgeo import ogr  # noqa: PLC0415
+    path = data_path_of(entry)
+    meta = dataset_meta.resolve(path.parent)
+    ds = ogr.Open(str(path))
+    lyr = ds.GetLayerByName(entry["layer"]) if entry.get("layer") else ds.GetLayer(0)
+    defn = lyr.GetLayerDefn()
+    fields = [defn.GetFieldDefn(i).GetName() for i in range(defn.GetFieldCount())]
+    layer = lyr.GetName()
+    ds = None
+    report = load_zones.load(c, ingest.pg_dsn(), path, layer,
+                             fields, meta, entry["dataset_id"], ingest.worldpop_file())
+    return report["units"]
 
 
 def record(c, entry: dict, rows: int, via: str) -> None:
@@ -216,6 +234,22 @@ def copy_specs(entry: dict) -> list[tuple]:
              "pixel_x, pixel_y, width, height, nodata, tile_size, tiles, valid_pixels, total",
              "id = %s", (rid,)),
         ]
+    if entry["kind"] == "zones":
+        # A zone set owns its level outright (etl/load_zones.py), including
+        # the WorldPop values summed into it.
+        lv = entry["level"]
+        return [
+            ("geo_unit", "geo_unit",
+             "level, geoid, name, state_fp, county_fips, aland, awater, pt, geom, "
+             "geom_z6, geom_z9, geom_z12, source", "level = %s", (lv,)),
+            ("geo_values", "geo_values", "level, geoid, code, year, value", "level = %s", (lv,)),
+            ("geo_measure", "geo_measure",
+             "code, level, dataset_id, label, description, units, min_year, max_year, n_units",
+             "level = %s", (lv,)),
+            ("zone_set", "zone_set",
+             "level, dataset_id, name, unit, plural, aliases, places, state_fp, n_units, "
+             "vintage, source", "level = %s", (lv,)),
+        ]
     return []
 
 
@@ -240,7 +274,7 @@ def dump(c, entry: dict) -> dict:
                        check=True)
         made.append(target)
     specs = copy_specs(entry)
-    if entry["kind"] not in ("features", "raster", "table"):
+    if entry["kind"] not in ("features", "raster", "table", "zones"):
         raise SystemExit(f"  {entry['id']}: no dump route for kind {entry['kind']!r}")
     for stem, table, cols, where, params in specs:
         path = out / f"{stem}.csv.gz"
@@ -268,6 +302,9 @@ def restore(c, entry: dict) -> int:
             cur.execute(f'SELECT count(*) FROM "{entry["table"]}"')
             n = cur.fetchone()[0]
     with c.cursor() as cur:
+        if entry["kind"] == "zones":
+            import load_zones  # noqa: PLC0415
+            load_zones.ensure_partitions(cur, entry["level"])
         for stem, table, cols, where, params in copy_specs(entry):
             cur.execute(f"DELETE FROM {table} WHERE {where}", params)
             with gzip.open(out / f"{stem}.csv.gz", "rt", encoding="utf-8") as fh:
@@ -365,6 +402,8 @@ def main() -> int:
             n = load_table_values(c, e)
         elif e["kind"] == "raster":
             n = load_raster_data(c, e)
+        elif e["kind"] == "zones":
+            n = load_zone_set(c, e)
         else:
             print(f"     ! no replay route for kind {e['kind']!r} yet")
             continue

@@ -169,6 +169,96 @@ const freshId = (ids, base) => {
  * Consumers keep the step's id, which now names the intersect.
  * @returns a description, or null
  */
+/**
+ * A bridge with no attr_id whose one input LOADS a feature layer: the model
+ * loaded the layer and fed it in, instead of naming it. "What share of
+ * Colorado's population lives within 5 miles of a hospital" planned
+ * load(Hospitals) -> nearest_distance(attr_id "") on every attempt, which
+ * bridgeInputsToIntersect then turned into an intersect with a bridge that
+ * cites nothing (2026-11-11). The layer moves onto the bridge, and the load is
+ * dropped if nothing else reads it. Runs before bridgeInputsToIntersect.
+ *
+ * @param featureIds  attr_ids (dereferenced) of the feature layers on offer
+ */
+function bridgeFromLoadedLayer(plan, featureIds) {
+  const steps = plan.steps || [];
+  const byId = new Map(steps.map(s => [s.id, s]));
+  const fixed = [];
+  for (const st of steps) {
+    if (!BRIDGES.has(st.op) || st.attr_id || (st.inputs || []).length !== 1) continue;
+    const src = byId.get(st.inputs[0]);
+    if (src?.op !== "load" || !featureIds.has(src.attr_id)) continue;
+    st.attr_id = src.attr_id;
+    st.inputs = [];
+    fixed.push(`${st.op} (${st.id})`);
+    if (!steps.some(o => (o.inputs || []).includes(src.id))) {
+      plan.steps = plan.steps.filter(o => o !== src);
+    }
+  }
+  return fixed.length ? `${fixed.join(", ")} reads the layer its input loaded` : null;
+}
+
+/**
+ * A total divided by a per-unit series: the denominator is meant as a total
+ * too. "What share of Colorado's population lives within 5 miles of a
+ * hospital" planned normalize(sum(near), population-by-county), one number
+ * over each county, which validates (a scalar against every row) and maps 64
+ * meaningless values (2026-11-11). The only consistent reading is the share
+ * of the area's total, so the denominator is aggregated with the numerator's
+ * own function. A series over a total (each county's share of the whole) is
+ * left alone.
+ *
+ * @param stepTypes  (steps) => Map id -> type (ops/index.js)
+ */
+function totalTheDenominator(plan, stepTypes) {
+  const steps = plan.steps || [];
+  const byId = new Map(steps.map(s => [s.id, s]));
+  const types = stepTypes(steps);
+  const ids = new Set(steps.map(s => s.id));
+  const fixed = [];
+  for (const st of [...steps]) {
+    const isRatio = st.op === "normalize" || (st.op === "combine" && st.operation === "ratio");
+    if (!isRatio || (st.inputs || []).length !== 2) continue;
+    const [num, den] = st.inputs;
+    const numStep = byId.get(num);
+    if (types.get(num) !== "scalar" || types.get(den) !== "series" || numStep?.op !== "aggregate") continue;
+    const id = freshId(ids, `${den}_total`);
+    steps.splice(steps.indexOf(st), 0,
+      { id, op: "aggregate", attr_id: "", inputs: [den], function: numStep.function });
+    st.inputs = [num, id];
+    fixed.push(`${st.op} (${st.id}) divides by the ${numStep.function} of ${den}`);
+  }
+  return fixed.length ? fixed.join("; ") : null;
+}
+
+/**
+ * An area restriction applied to access's demand BEFORE the op. Catchments
+ * cross state lines: a hospital in Texarkana serves Arkansas too, and
+ * restricting the population to Texas first undercounts that hospital's
+ * demand, so every Texas county near the border reads better access than it
+ * has. The restriction is about which counties to REPORT, so it moves to
+ * after the op. Only when nothing else reads the restricted series.
+ */
+function areaAfterAccess(plan) {
+  const steps = plan.steps || [];
+  const byId = new Map(steps.map(s => [s.id, s]));
+  const fixed = [];
+  for (const st of [...steps]) {
+    if (st.op !== "access") continue;
+    const fa = byId.get((st.inputs || [])[0]);
+    if (!fa || (fa.op !== "filter_area" && fa.op !== "filter_place")) continue;
+    if (steps.some(o => o !== st && (o.inputs || []).includes(fa.id))) continue;
+    st.inputs = [...(fa.inputs || [])];
+    const readers = steps.filter(o => (o.inputs || []).includes(st.id));
+    for (const r of readers) r.inputs = r.inputs.map(i => (i === st.id ? fa.id : i));
+    fa.inputs = [st.id];
+    plan.steps = steps.filter(o => o !== fa);
+    plan.steps.splice(plan.steps.indexOf(st) + 1, 0, fa);
+    fixed.push(`${fa.op} (${fa.id}) now restricts access's result, not the people it counts`);
+  }
+  return fixed.length ? fixed.join("; ") : null;
+}
+
 function bridgeInputsToIntersect(plan) {
   const steps = plan.steps || [];
   const ids = new Set(steps.map(s => s.id));
@@ -264,5 +354,59 @@ function uninvertChains(plan) {
   return `put ${fixed.join(", ")} after the data it filters (the plan had them the other way round)`;
 }
 
-module.exports = { loadLabelInputs, splitOutputs, dropRateOverCount, earlierResultSecond,
+/**
+ * A change over time reads LATER minus EARLIER. When a combine's two inputs
+ * trace back (through filters) to the same measure at two stated years, its
+ * inputs are ordered the way the operation reads: difference is input 1 -
+ * input 2 (later first), percent_change takes input 1 as the baseline
+ * (earlier first). "How many acres of cultivated cropland did each Missouri
+ * county gain or lose between 2001 and 2021?" planned zonal(2001) -
+ * zonal(2021): every county right in size, wrong in sign (H4 dev, 2026-11-12).
+ * repairPeriods in index.js does this for load steps it re-years itself; this
+ * covers any year-carrying source (load, zonal) the model dated.
+ */
+function orderChangeByYear(plan) {
+  const steps = plan.steps || [];
+  const byId = new Map(steps.map(s => [s.id, s]));
+  const PASS = new Set(["filter_area", "filter_place", "filter_attr", "aggregate_to"]);
+  const root = (id) => {
+    let st = byId.get(id);
+    for (let i = 0; st && PASS.has(st.op) && i < steps.length; i++) st = byId.get((st.inputs || [])[0]);
+    return st;
+  };
+  const fixes = [];
+  for (const st of steps) {
+    if (st.op !== "combine" || !["difference", "percent_change"].includes(st.operation)) continue;
+    const [a, b] = (st.inputs || []).map(root);
+    if (!a || !b || a.attr_id !== b.attr_id || a.year == null || b.year == null || a.year === b.year) continue;
+    const laterFirst = st.operation === "difference";
+    const wrong = laterFirst ? Number(a.year) < Number(b.year) : Number(a.year) > Number(b.year);
+    if (!wrong) continue;
+    st.inputs = [st.inputs[1], st.inputs[0]];
+    fixes.push(`step ${st.id} reads ${Math.max(a.year, b.year)} against ${Math.min(a.year, b.year)} (later minus earlier)`);
+  }
+  return fixes.length ? fixes.join("; ") : null;
+}
+
+/**
+ * A plan with steps and no output, whose steps end in exactly one step
+ * nothing reads: that step is the answer, and the output is added. "What is
+ * the average elevation of each St. Louis ward?" planned a lone zonal step,
+ * three attempts running, refused as "plan must end with an output step"
+ * (H4 dev, 2026-11-12). With two or more unread steps which one is the answer
+ * is not decidable, and nothing is added.
+ */
+function addMissingOutput(plan) {
+  const steps = plan.steps || [];
+  if (!steps.length || steps.some(s => s.op === "output")) return null;
+  const read = new Set(steps.flatMap(s => s.inputs || []));
+  const sinks = steps.filter(s => !read.has(s.id));
+  if (sinks.length !== 1) return null;
+  let id = "out";
+  while (steps.some(s => s.id === id)) id += "_";
+  steps.push({ id, op: "output", attr_id: "", inputs: [sinks[0].id] });
+  return `added the output of step ${sinks[0].id}, the plan's only result`;
+}
+
+module.exports = { addMissingOutput, orderChangeByYear, areaAfterAccess, totalTheDenominator, bridgeFromLoadedLayer, loadLabelInputs, splitOutputs, dropRateOverCount, earlierResultSecond,
                    bridgeInputsToIntersect, restrictToEarlier, uninvertChains };

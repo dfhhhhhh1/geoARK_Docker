@@ -32,8 +32,11 @@ module.exports = {
   // Also when earlier workflow results are on offer (backend/workflow.js):
   // "those counties" is a restriction to a set an earlier step produced, and
   // "the rest of the country" is its complement.
+  // And for people at a distance (planner/catchment.js): the population is
+  // kept where the distance passes, which is an intersect.
   offered: (ctx) => statesCondition(ctx) || ctx.hasEarlierResults === true ||
-    COMPLEMENT_PHRASES.test(String(ctx.query || "")),
+    COMPLEMENT_PHRASES.test(String(ctx.query || "")) ||
+    require("../catchment").asksPeopleAtDistance(ctx.query),
 
   examples: [
     { usesDefinitions: true, text:

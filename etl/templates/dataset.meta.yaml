@@ -20,6 +20,8 @@ id: svi2022
 
 # features   points / lines / polygons, one row per thing (hospitals, wells)
 # table      values per geographic unit, no geometry (CSV, XLSX, TSV, Census-API JSON)
+# zones      polygons that are UNITS to count by (wards, neighborhoods, planning
+#            areas), loaded as a geo_unit level of their own; see `zones:` below
 # raster     a single-band GeoTIFF in EPSG:4326
 # Default: inferred from the file.
 kind: features
@@ -53,6 +55,10 @@ columns:
   RPL_THEMES: {desc: Overall social vulnerability percentile, units: percentile}
   EP_POV150: Percent of persons below 150% of the poverty line
   FID: {skip: true}
+  # `as:` stores a column under a label name the planner can filter on
+  # (type, status, owner) or show (name, city, state, county, address, zip):
+  # a layer's own class column, e.g. NWI WETLAND_TYPE or NFHL FLD_ZONE.
+  # WETLAND_TYPE: {as: type, desc: Wetland type}
   # A PUBLISHED cut on this column, so "highly vulnerable counties" uses the
   # publisher's threshold instead of a guess. Only what the source documents
   # says; anything else is left to the percentile fallback, which is labelled.
@@ -92,3 +98,14 @@ probe: "which counties are most socially vulnerable"
 # zonal_levels: [county, tract, zcta]   # default: county
 # columns:
 #   pop: {units: persons}
+
+# ---- kind: zones ---- (etl/load_zones.py; `role: zones` means the same)
+# A question reaches the set by naming its unit AND one of its places:
+# "how many schools in each Chicago ward". No catalog row is written.
+# zones:
+#   unit: ward                 # one zone, as a question says it
+#   plural: wards              # default: unit + "s"
+#   aliases: [aldermanic ward]
+#   place: [St. Louis, St. Louis city]   # names that pick this set
+#   id_column: DISTRICT        # one value per zone; duplicates are unioned
+#   name_column: NAME          # optional; default "<Unit> <id>"

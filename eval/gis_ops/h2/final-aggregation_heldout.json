@@ -1,0 +1,100 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "aggregation_heldout": {
+      "pass": 1,
+      "n": 2,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "CORRECT": 1,
+    "NO_ANSWER": 1
+  },
+  "latency_mean": 20.5,
+  "api_container_created": "2026-11-12T06:48:09.477912655Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ag-chi-ca-private-top10",
+      "tier": "aggregation_heldout",
+      "query": "Which 10 Chicago community areas have the most private schools?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 77,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "private_schools_nces"
+        }
+      },
+      "ops": "count_features->rank->output",
+      "intent": "The ten Chicago community areas with the most private schools",
+      "loaded": [
+        "private_schools_nces | Private School Locations (mapped locations) | Private School Locations"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 10 Chicago community areas have the most private schools?",
+            "uses": [],
+            "ops": "count_features->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.6
+    },
+    {
+      "id": "ag-stl-nbhd-schools",
+      "tier": "aggregation_heldout",
+      "query": "For every neighborhood in St. Louis, how many public schools are located there?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "For every neighborhood in St. Louis, how many public schools are located there?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 16.3
+    }
+  ]
+}

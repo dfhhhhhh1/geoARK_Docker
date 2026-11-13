@@ -1,0 +1,98 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 2,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "phase_f": {
+      "pass": 0,
+      "n": 2,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 1,
+    "WRONG_MEASURE": 1
+  },
+  "latency_mean": 39.2,
+  "api_container_created": "2026-11-12T00:50:18.269127358Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "f-mo-pop-far-hospital",
+      "tier": "phase_f",
+      "query": "How many people in Missouri live more than 20 miles from the nearest hospital?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many people in Missouri live more than 20 miles from the nearest hospital?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "seconds": 45.7
+    },
+    {
+      "id": "f-co-share-within-5mi",
+      "tier": "phase_f",
+      "query": "What share of Colorado's population lives within 5 miles of a hospital?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "unit_population"
+        ],
+        "loaded": [
+          "CHR_V051_RAWVALUE | Population | County Health Rankings",
+          "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+        ]
+      },
+      "ops": "load->count_features->normalize->filter_area->aggregate->output",
+      "intent": "Share of Colorado's population that lives within five miles of a hospital",
+      "loaded": [
+        "CHR_V051_RAWVALUE | Population | County Health Rankings",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What share of Colorado's population lives within 5 miles of a hospital?",
+            "uses": [],
+            "ops": "load->count_features->normalize->filter_area->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 32.8
+    }
+  ]
+}

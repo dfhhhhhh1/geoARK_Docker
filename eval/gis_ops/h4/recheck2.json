@@ -1,0 +1,95 @@
+{
+  "suite": "research.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "now": {
+      "pass": 1,
+      "n": 1,
+      "rate": 1.0
+    },
+    "phase_c": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "CORRECT": 1,
+    "WRONG_GEOGRAPHY": 1
+  },
+  "latency_mean": 34.0,
+  "api_container_created": "2026-11-12T20:25:05.502400682Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "analyze",
+  "detail": [
+    {
+      "id": "r-hospital-distance-mo",
+      "tier": "now",
+      "query": "How far, in miles, is the center of each Missouri county from the nearest hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 115,
+        "gold_rows": 115,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "nearest_distance->filter_area->output",
+      "intent": "Distance in miles from the center of each Missouri county to the nearest hospital",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 115,
+      "error": null,
+      "exec_error": null,
+      "seconds": 24.0
+    },
+    {
+      "id": "r-rural-poor-no-hospital",
+      "tier": "phase_c",
+      "query": "Which rural counties have a poverty rate above 20% and no hospital?",
+      "class": "WRONG_GEOGRAPHY",
+      "pass": false,
+      "detail": {
+        "rows": 363,
+        "gold_rows": 93,
+        "outside": 270,
+        "outside_sample": [
+          "22035",
+          "46137",
+          "28011",
+          "21051",
+          "46102"
+        ],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PCTPOVALL"
+        }
+      },
+      "ops": "load->filter_attr->load->filter_attr->intersect->count_features->intersect->output",
+      "intent": "Rural counties with a poverty rate above 20% and no hospital",
+      "loaded": [
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS",
+        "RURAL_URBAN_CONTINUUM_CODE | Rural-Urban Continuum Code, 1-9 (1-3 metro counties by metro size, 4-9 nonmetro by urbanization and adjacency to a metro area) | USDA ERS",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 363,
+      "error": null,
+      "exec_error": null,
+      "seconds": 44.0
+    }
+  ]
+}

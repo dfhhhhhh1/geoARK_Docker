@@ -50,6 +50,11 @@
 
 const { AREA_NAMES } = require("../../states");
 const { RELATIVE_PHRASES, TIME_PHRASES, COMPLEMENT_PHRASES } = require("../conditions");
+const { asksNegation } = require("../features");
+
+// "outside", "not in any", "do not cross": overlay's exclude reading. Only
+// consulted when overlay is already on offer.
+const OUTSIDE = /\b(?:outside|not\s+(?:in|inside|within|on|cross|intersect|overlap|touch)|don'?t|doesn'?t|do\s+not|does\s+not|avoid|free\s+of|no\s+part)\b/i;
 
 const MODULES = [
   require("./load"),
@@ -57,6 +62,14 @@ const MODULES = [
   require("./count_near"),
   require("./nearest_distance"),
   require("./select_features"),
+  // The feature algebra (docs/GIS_OPS_PLAN.md H1): features in, features or a
+  // count out. Gated on phrasing that relates two layers by distance
+  // (planner/features.js), so no existing prompt sees them.
+  require("./within"),
+  // Overlay without a distance (H3): gated on overlay phrasing AND a polygon
+  // layer among the candidates (planner/features.js overlayAlgebra).
+  require("./overlay"),
+  require("./summarize"),
   require("./filter_attr"),
   require("./filter_area"),
   require("./filter_place"),
@@ -83,6 +96,14 @@ const MODULES = [
   // condition and compares no groups sees exactly the op set it saw before.
   require("./intersect"),
   require("./compare_groups"),
+  // Phase F spatial methods (docs/RESEARCH_PLAN.md): the spatial lag, a
+  // regression residual, and 2SFCA access. Each gated on its own phrasing.
+  require("./neighbors"),
+  require("./residual"),
+  require("./access"),
+  // Rasters over units (H4): offered only when a raster is among the
+  // candidates, so no existing prompt sees it.
+  require("./zonal"),
   require("./output"),
   // Internal: inserted by code (planner/levels.js), never offered, in no order.
   require("./aggregate_to"),
@@ -105,16 +126,16 @@ const BY_NAME = new Map(MODULES.map(m => [m.name, m]));
  */
 const SCHEMA_ORDER = [
   "load", "count_features", "count_near", "nearest_distance", "select_features",
-  "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
+  "within", "overlay", "summarize", "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
   "aggregate", "rank", "join", "combine", "hotspot", "outlier", "correlate", "explain",
-  "intersect", "compare_groups", "output",
+  "intersect", "compare_groups", "neighbors", "residual", "access", "zonal", "output",
 ];
 
 const PROMPT_ORDER = [
-  "load", "count_features", "nearest_distance", "select_features", "count_near",
-  "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
+  "load", "count_features", "nearest_distance", "select_features", "within", "overlay", "summarize",
+  "count_near", "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
   "aggregate", "rank", "join", "combine", "hotspot", "outlier", "correlate", "explain",
-  "intersect", "compare_groups", "output",
+  "intersect", "compare_groups", "neighbors", "residual", "access", "zonal", "output",
 ];
 
 // correlate sits BEFORE join here: "compare A and B" is join's phrasing, but a
@@ -122,6 +143,10 @@ const PROMPT_ORDER = [
 // model reads this table top to bottom.
 const CHOICE_ORDER = [
   "normalize", "rank", "explain", "correlate", "compare_groups", "intersect", "join", "combine", "hotspot", "outlier",
+  "neighbors", "residual", "access", "zonal",
+  // within before count_near: "WHICH X are within N miles of Y" is the more
+  // specific reading, and the table is read top to bottom.
+  "within", "overlay", "summarize",
   "count_features", "count_near", "nearest_distance", "select_features",
   "aggregate", "filter_attr", "filter_area", "filter_place", "per_area", "load",
 ];
@@ -135,8 +160,9 @@ const CHOICE_ORDER = [
  */
 const EXAMPLE_ORDER = [
   "normalize", "rank", "explain", "correlate", "compare_groups", "intersect", "join", "combine", "hotspot", "outlier",
+  "neighbors", "residual", "access", "zonal",
   "count_features", "aggregate", "filter_attr", "load", "filter_area",
-  "filter_place", "count_near", "select_features", "nearest_distance",
+  "filter_place", "count_near", "select_features", "within", "overlay", "summarize", "nearest_distance",
   "per_area",
 ];
 
@@ -290,7 +316,7 @@ const STEP_FIELDS = {
  */
 const FIELD_GATES = {
   attribute_filters: (ctx) => ctx.hasFilterableValues === true,
-  operation: (ctx) => offeredFor(ctx).includes("combine"),
+  operation: (ctx) => offeredFor(ctx).includes("combine") || offeredFor(ctx).includes("neighbors"),
   // Only when the question is actually about time. Most questions want the
   // current figure and should never see a year field to get wrong.
   year: (ctx) => TIME_PHRASES.test(String(ctx.query || "")),
@@ -298,9 +324,55 @@ const FIELD_GATES = {
   percentile: (ctx) => RELATIVE_PHRASES.test(String(ctx.query || "")),
   // Data-driven: only when a retrieved attribute carries a checked definition.
   definition: (ctx) => ctx.hasDefinitions === true,
-  exclude: (ctx) => offeredFor(ctx).includes("intersect") &&
-    (COMPLEMENT_PHRASES.test(String(ctx.query || "")) || ctx.hasEarlierResults === true),
+  exclude: (ctx) => offeredFor(ctx).includes("within") ||
+    (offeredFor(ctx).includes("overlay") && OUTSIDE.test(String(ctx.query || ""))) ||
+    (offeredFor(ctx).includes("intersect") &&
+    (COMPLEMENT_PHRASES.test(String(ctx.query || "")) || ctx.hasEarlierResults === true)),
 };
+
+/**
+ * Field VARIANTS: the same field with a different definition for some
+ * questions. A variant is returned only when its predicate holds, so every
+ * other question decodes against the field exactly as before.
+ *
+ *   exclude            gains the within reading when within is on offer
+ *   attribute_filters  gains `negate` on negation phrasing ("not critical
+ *                      access", "other than"), the NOT filter of H1
+ */
+const FIELD_VARIANTS = {
+  exclude: (ctx) => !(offeredFor(ctx).includes("within") || offeredFor(ctx).includes("overlay")) ? null : {
+    type: "boolean",
+    description: (offeredFor(ctx).includes("within")
+                   ? "For op=within: true keeps input 1's features FARTHER than miles " +
+                     "from every feature of input 2."
+                   : "For op=overlay: true keeps input 1's features that touch NO " +
+                     'feature of input 2, e.g. "outside", "not in any".') +
+                 (offeredFor(ctx).includes("intersect")
+                   ? " For op=intersect: true keeps input 1's counties that are NOT " +
+                     'in input 2, e.g. "the rest of the country", "all other counties".'
+                   : ""),
+  },
+  // Only where features are the answer: "not" is common in county questions
+  // ("counties that do not have a hospital"), which keep their schema.
+  attribute_filters: (ctx) => !(asksNegation(ctx.query) &&
+      (ctx.wantsLocations === true || offeredFor(ctx).includes("within"))) ? null : {
+    ...STEP_FIELDS.attribute_filters,
+    items: {
+      type: "object",
+      properties: {
+        column: { type: "string", enum: ["type", "status", "owner"] },
+        value: { type: "string" },
+        negate: { type: "boolean", description: "true keeps features whose column is NOT this value" },
+      },
+      required: ["column", "value"],
+      additionalProperties: false,
+    },
+  },
+};
+
+/** A field's definition for this query: its variant if one applies, else the default. */
+const fieldDef = (name, ctx = {}) =>
+  (FIELD_VARIANTS[name] && FIELD_VARIANTS[name](ctx)) || STEP_FIELDS[name];
 
 // TIME_PHRASES (the question has a time dimension) lives in conditions.js with
 // the other phrasing gates, so op modules (combine) can read it without a
@@ -353,6 +425,8 @@ function examplesFor(offered, ctx = {}) {
       // Same rule for the year field: an example that sets a field the decoding
       // schema has dropped teaches a plan the model cannot emit.
       if (ex.usesYear && !fieldOffered("year", ctx)) continue;
+      // An example for one phrasing only (nearest_distance's catchment).
+      if (typeof ex.when === "function" && !ex.when(ctx)) continue;
       // An op with a definition-using and a plain example shows exactly one.
       if (ex.usesDefinitions !== undefined &&
           ex.usesDefinitions !== fieldOffered("definition", ctx)) continue;
@@ -394,6 +468,44 @@ const filterOps = () => {
   return [...lead, ...all.filter(n => !lead.includes(n))];
 };
 
+/**
+ * THE TYPES (docs/GIS_OPS_PLAN.md H1). Every step yields one of
+ *
+ *   series     (fips, value), one row per unit
+ *   features   the features contract of _sql.js: geometry, value, labels
+ *   scalar     one row with no unit: an ungrouped aggregate or summarize
+ *   statistic  one summary row with named columns (correlate)
+ *   factors    a computed table (explain)
+ *
+ * An op declares what it accepts per input (`accepts`, default series) and
+ * what it yields (`resultType(step, inTypes)`, else `produces`). The validator
+ * checks every edge against that one rule, which replaced three special cases
+ * that each said a version of "this may only feed an output". output accepts
+ * everything.
+ */
+function typeOf(mod, step, inTypes = []) {
+  if (!mod) return null;
+  if (typeof mod.resultType === "function") return mod.resultType(step, inTypes);
+  if (mod.statColumns) return "statistic";
+  return mod.produces ?? null;
+}
+
+/** The types input `i` of this op accepts; null means any (output). */
+function acceptsOf(mod, i) {
+  if (!mod || mod.terminal) return null;
+  return (mod.accepts && mod.accepts[i]) || ["series"];
+}
+
+/** Map step id -> type, for steps already in execution order. */
+function stepTypes(steps) {
+  const out = new Map();
+  for (const st of steps || []) {
+    const mod = BY_NAME.get(st.op);
+    out.set(st.id, typeOf(mod, st, (st.inputs || []).map(i => out.get(i))));
+  }
+  return out;
+}
+
 /** Arity of the internal ops: validated like any other, never shown to the model. */
 function internalArity() {
   const out = {};
@@ -407,5 +519,6 @@ module.exports = {
   byName: (n) => BY_NAME.get(n),
   names, offeredFor, inPromptOrder, inChoiceOrder, examplesFor,
   arityTable, featureOps, filterOps,
-  fieldOffered, TIME_PHRASES,
+  fieldOffered, fieldDef, TIME_PHRASES,
+  typeOf, acceptsOf, stepTypes,
 };

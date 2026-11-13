@@ -1,4 +1,4 @@
-const { SAFE_DB_IDENT, CompileError, attributeFilterSql } = require("./_sql");
+const { CompileError, attributeFilterSql, featureFrom } = require("./_sql");
 
 /**
  * Facility datasets are point/polygon features with no fips key. This op is the
@@ -47,13 +47,8 @@ PLAN: {"intent":"Number of critical access hospitals in each county",
   compile(step, ctx) {
     const src = ctx.resolved.get(step.attr_id);
     if (!src) throw new CompileError(`unresolved attr_id ${step.attr_id}`);
-    if (src.source_kind !== "feature_table") {
-      throw new CompileError(`${step.attr_id} is not a feature table`);
-    }
-    if (!SAFE_DB_IDENT.test(src.table_name) || !SAFE_DB_IDENT.test(src.geom_column || "geom")) {
-      throw new CompileError(`unsafe identifier in attribute_source for ${step.attr_id}`);
-    }
-    const geom = src.geom_column || "geom";
+    // A catalog table, or a layer the user uploaded (backend/user_layers.js).
+    const { from, geom } = featureFrom(src, ctx.bind, step.attr_id);
     const srid = Number(src.srid) || 4326;
 
     // Never wrap the FACILITY geometry in ST_Transform. Doing so makes the
@@ -72,8 +67,18 @@ PLAN: {"intent":"Number of critical access hospitals in each county",
     // access hospitals per county" would silently drop every county that has
     // only general hospitals, rather than showing it as 0.
     const filters = attributeFilterSql(step, "f", ctx.bind);
+    if (ctx.level && ctx.level !== "county") {
+      // Another unit (planner/levels.js): a tract, a ZIP area, or a zone set a
+      // user loaded (H2: "schools in each Chicago community area"). The same
+      // LEFT JOIN and ON-clause filters, against the unit's own boundary.
+      return `${ctx.name} AS (SELECT c.geoid AS fips, COUNT(f.*)::double precision AS value ` +
+             `FROM geo_unit c LEFT JOIN ${from} f ` +
+             `ON c.geom && f.${geom} AND ST_Intersects(c.geom, f.${geom})` +
+             (filters.length ? ` AND ${filters.join(" AND ")}` : "") + ` ` +
+             `WHERE c.level = ${ctx.bind(ctx.level)} GROUP BY c.geoid)`;
+    }
     return `${ctx.name} AS (SELECT c.fips, COUNT(f.*)::double precision AS value ` +
-           `FROM county_geom c LEFT JOIN ${src.table_name} f ` +
+           `FROM county_geom c LEFT JOIN ${from} f ` +
            `ON ST_Intersects(${countyGeom}, f.${geom})` +
            (filters.length ? ` AND ${filters.join(" AND ")}` : "") + ` ` +
            `GROUP BY c.fips)`;

@@ -244,7 +244,13 @@ const ChoroplethMap: React.FC<Props> = ({
 
   const { byFips, breaks, binColours } = useMemo(() => {
     const map = new Map<string, AnalysisRow>();
-    for (const r of rows) if (r.fips) map.set(String(r.fips).padStart(5, '0'), r);
+    // County FIPS lose leading zeros in some paths, so they are padded. Any
+    // other unit (a tract, a ZIP area, a user's ward "1") is keyed as sent:
+    // padding ward 1 to "00001" matched no shape and the map never zoomed.
+    const isCounty = !result?.level || result.level === 'county';
+    for (const r of rows) {
+      if (r.fips) map.set(isCounty ? String(r.fips).padStart(5, '0') : String(r.fips), r);
+    }
     const values = rows
       .map(r => r[active.key])
       .filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));

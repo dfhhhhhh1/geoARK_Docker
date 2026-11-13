@@ -1,0 +1,69 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 1,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "phase_f": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "INCOMPLETE": 1
+  },
+  "latency_mean": 57.4,
+  "api_container_created": "2026-11-12T01:38:03.040939584Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "f-tx-hospital-access-2sfca",
+      "tier": "phase_f",
+      "query": "Which Texas counties have the worst access to hospitals once you account for how many people each hospital has to serve, using a 30-mile catchment?",
+      "class": "INCOMPLETE",
+      "pass": false,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 254,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 0.039,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "CHR_V051_RAWVALUE"
+        }
+      },
+      "ops": "load->access->filter_area->rank->output",
+      "intent": "Texas counties with the worst access to hospitals, accounting for how many people each hospital serves within a 30-mile catchment",
+      "loaded": [
+        "CHR_V051_RAWVALUE | Population | ",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Texas counties have the worst access to hospitals once you account for how many people each hospital has to serve, using a 30-mile catchment?",
+            "uses": [],
+            "ops": "load->access->filter_area->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 57.4
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "phase_f": {
+      "pass": 1,
+      "n": 2,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "CORRECT": 1,
+    "NO_ANSWER": 1
+  },
+  "latency_mean": 38.8,
+  "api_container_created": "2026-11-12T00:57:12.993408829Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "f-mo-pop-far-hospital",
+      "tier": "phase_f",
+      "query": "How many people in Missouri live more than 20 miles from the nearest hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 185976.0,
+        "got": 185976.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "SVI_E_TOTPOP"
+        }
+      },
+      "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->output",
+      "intent": "Number of people in Missouri living more than 20 miles from the nearest hospital",
+      "loaded": [
+        "SVI_E_TOTPOP | Total population estimate | ",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many people in Missouri live more than 20 miles from the nearest hospital?",
+            "uses": [],
+            "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 53.0
+    },
+    {
+      "id": "f-co-share-within-5mi",
+      "tier": "phase_f",
+      "query": "What share of Colorado's population lives within 5 miles of a hospital?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What share of Colorado's population lives within 5 miles of a hospital?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 24.5
+    }
+  ]
+}

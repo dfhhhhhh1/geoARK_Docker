@@ -1,0 +1,111 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "aggregation_heldout": {
+      "pass": 2,
+      "n": 2,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 2
+  },
+  "latency_mean": 21.1,
+  "api_container_created": "2026-11-12T20:25:05.502400682Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ag-chi-ca-private-top10",
+      "tier": "aggregation_heldout",
+      "query": "Which 10 Chicago community areas have the most private schools?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 77,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "private_schools_nces"
+        }
+      },
+      "ops": "count_features->rank->output",
+      "intent": "The ten Chicago community areas with the most private schools",
+      "loaded": [
+        "private_schools_nces | Private School Locations (mapped locations) | Private School Locations"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 10 Chicago community areas have the most private schools?",
+            "uses": [],
+            "ops": "count_features->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 20.5
+    },
+    {
+      "id": "ag-stl-nbhd-schools",
+      "tier": "aggregation_heldout",
+      "query": "For every neighborhood in St. Louis, how many public schools are located there?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 88,
+        "gold_rows": 88,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "public_schools_nces"
+        }
+      },
+      "ops": "count_features->filter_place->output",
+      "intent": "Number of public schools in each neighborhood of St. Louis",
+      "loaded": [
+        "public_schools_nces | Public School Locations (mapped locations) | Public School Locations"
+      ],
+      "row_count": 88,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "For every neighborhood in St. Louis, how many public schools are located there?",
+            "uses": [],
+            "ops": "count_features->filter_place->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 21.8
+    }
+  ]
+}

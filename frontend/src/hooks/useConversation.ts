@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type {
-  AnalysisFailure, AnalysisResponse, FollowUpEdit, UserSeries,
+  AnalysisFailure, AnalysisResponse, FollowUpEdit, UserLayer, UserSeries,
 } from '../types';
 import { useAnalyzeStream, type AnalyzeOutcome } from './useAnalyzeStream';
+import { rememberUnit } from '../lib/units';
 import {
   describeEdit, FollowUpRequestError, historyFrom, interpretFollowUp,
   isUserAttr, reviseAnalysis, USER_PREFIX,
@@ -52,6 +53,10 @@ export function useConversation() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [uploads, setUploads] = useState<UserSeries[]>([]);
+  const [layers, setLayers] = useState<UserLayer[]>([]);
+  const layersRef = useRef<UserLayer[]>([]);
+  layersRef.current = layers;
+  const layerIds = () => layersRef.current.map(l => l.id);
   // Read inside async flows, which would otherwise close over stale state.
   const turnsRef = useRef<Turn[]>([]);
   turnsRef.current = turns;
@@ -81,6 +86,7 @@ export function useConversation() {
     const turn = turnsRef.current.find(t => t.id === id);
     const elapsedMs = turn ? Date.now() - turn.startedAt : undefined;
     if (outcome.status === 'done') {
+      rememberUnit(outcome.result.level, outcome.result.level_unit);
       update(id, { status: 'done', result: outcome.result, elapsedMs });
       setActiveId(id);
     } else if (outcome.status === 'failed') {
@@ -127,7 +133,7 @@ export function useConversation() {
       // server's copy of the plans; any other edit revises the one plan.
       const result = workflowStep && base?.workflow
         ? await reviseWorkflow(base, workflowStep, edit)
-        : await reviseAnalysis(base, edit, uploadsRef.current);
+        : await reviseAnalysis(base, edit, uploadsRef.current, layerIds());
       finish(id, { status: 'done', result });
     } catch (err) {
       const e = err as FollowUpRequestError;
@@ -200,7 +206,7 @@ export function useConversation() {
       }
     }
     update(id, { status: 'running' });
-    finish(id, await stream.run(question));
+    finish(id, await stream.run(question, layerIds()));
   }, [busy, active, add, update, lineage, runEdit, finish, stream]);
 
   /** Re-run a failed or cancelled turn exactly as it was sent. */
@@ -215,7 +221,7 @@ export function useConversation() {
     }
     const id = add({ kind: 'question', userText: t.userText, interpreted: t.interpreted,
                      baseTurnId: t.baseTurnId, status: 'running' });
-    void stream.run(t.interpreted || t.userText).then(o => finish(id, o));
+    void stream.run(t.interpreted || t.userText, layerIds()).then(o => finish(id, o));
   }, [busy, add, runEdit, stream, finish]);
 
   const clear = useCallback(() => {
@@ -230,10 +236,16 @@ export function useConversation() {
   const removeUpload = useCallback((id: string) => {
     setUploads(us => us.filter(u => u.id !== id));
   }, []);
+  const addLayer = useCallback((layer: UserLayer) => {
+    setLayers(ls => [...ls.filter(l => l.id !== layer.id), layer]);
+  }, []);
+  const removeLayer = useCallback((id: string) => {
+    setLayers(ls => ls.filter(l => l.id !== id));
+  }, []);
 
   return {
-    turns, active, activeId, setActiveId, busy, uploads,
-    ask, edit, editStep, retry, clear, addUploads, removeUpload, labelFor,
+    turns, active, activeId, setActiveId, busy, uploads, layers,
+    ask, edit, editStep, retry, clear, addUploads, removeUpload, addLayer, removeLayer, labelFor,
     // Progress of the one question that can be running.
     stream: { stage: stream.stage, events: stream.events, elapsedMs: stream.elapsedMs, cancel: stream.cancel },
   };

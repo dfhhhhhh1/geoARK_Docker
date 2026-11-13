@@ -94,7 +94,7 @@ export function useAnalyzeStream() {
     setState(s => ({ ...s, isRunning: false, stage: 'idle' }));
   }, [close, settle]);
 
-  const run = useCallback((query: string): Promise<AnalyzeOutcome> => {
+  const run = useCallback((query: string, layers: string[] = []): Promise<AnalyzeOutcome> => {
     if (!query.trim()) return Promise.resolve({ status: 'cancelled' });
     close();
     settle({ status: 'cancelled' });
@@ -113,7 +113,9 @@ export function useAnalyzeStream() {
       error: null, failure: null, isRunning: true, elapsedMs: 0,
     }));
 
-    const url = `/api/analyze/stream?q=${encodeURIComponent(query)}`;
+    // Uploaded map layers ride along by id (backend/user_layers.js).
+    const url = `/api/analyze/stream?q=${encodeURIComponent(query)}` +
+      (layers.length ? `&layers=${encodeURIComponent(layers.join(','))}` : '');
     const es = new EventSource(url);
     sourceRef.current = es;
 

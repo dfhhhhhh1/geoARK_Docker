@@ -1,0 +1,614 @@
+# Analyst GIS operations, by family (docs/GIS_OPS_PLAN.md section 6).
+#
+# Scored by eval/answer_probe.py, the same scorer as research.yaml:
+#
+#   python eval/answer_probe.py --suite-file eval/gis_ops.yaml --check-gold
+#   python eval/answer_probe.py --suite-file eval/gis_ops.yaml --self-test
+#   python eval/answer_probe.py --suite-file eval/gis_ops.yaml --tier proximity_dev --endpoint research
+#
+# Written BEFORE the phase that builds the operations, as the plan requires,
+# and never edited to match a run. Each family has at least 6 questions that
+# vary layer, place, unit and phrasing, split 4 dev / 2 held out: tiers
+# `<family>_dev` and `<family>_heldout`. Only dev results may inform a change;
+# held-out is scored at phase boundaries.
+#
+# GOLD IS BRUTE FORCE. Distances are geodesic minima over the whole second
+# layer (no index, no box), so a gold cannot share a defect with the op it
+# scores. Feature answers are keyed by {fkey:...}, a feature's first
+# coordinate to 5 decimals, matched against the GeoJSON the API returns.
+# `compare.features: true` scores the returned features rather than rows.
+#
+# The second layer is NATIONAL in every gold: "within 2 miles of a fire
+# station" is any fire station, including one across a state line. A plan
+# that restricts the second layer to the state is a (small) error; where it
+# would change the answer, a second gold alternative is NOT given.
+
+measures:
+  hospitals: '_hospitals\b'
+  fire_stations: '_fire_stations\b'
+  nursing_homes: '_nursinghomes\b'
+  child_care: '_childcarecenters\b'
+  law_enforcement: '_local_law_enforcement\b'
+  # H2 (zones as data, national layers), added 2026-11-11 before the build.
+  snap_retailers: '\bsnap_retailers\b'
+  public_schools: '\bpublic_schools_nces\b'
+  private_schools: '\bprivate_schools_nces\b'
+  transit_stops: '\btransit_stops\b'
+  worldpop: '^WORLDPOP_POP\b'
+  # H3 (overlay), added 2026-11-12 before the op was run against them.
+  wetlands: '^nwi_wetlands\b'
+  fire_perimeters: '_public_nifs_perimeters\b'
+  transmission: '_transmission_lines\b'
+  primary_roads: '^tiger_primary_roads\b'
+  campuses: '_collegeuniversitycampuse\b'
+  # H4 (rasters), added 2026-11-12 before the zonal op was run against them.
+  nlcd: '^NLCD_LANDCOVER\b'
+  dem: '^DEM_ELEVATION\b'
+  slope: '^TERRAIN_SLOPE\b'
+
+queries:
+  # ============================================================ proximity_dev
+  - id: p-oh-hospitals-near-fire
+    tier: proximity_dev
+    query: "Which hospitals in Ohio are within 2 miles of a fire station?"
+    note: "the hospitals themselves (features), not a per-county count"
+    measures: {m1: hospitals, m2: fire_stations}
+    gold: |
+      SELECT {fkey:h.geom}, x.m / 1609.344 FROM {table:m1} h
+      CROSS JOIN LATERAL (SELECT min(ST_Distance(h.geom::geography, f.geom::geography)) AS m
+                          FROM {table:m2} f
+                          WHERE ST_DWithin(h.geom::geography, f.geom::geography, 3218.688)) x
+      WHERE x.m IS NOT NULL
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '39' AND ST_Intersects(c.geom, h.geom))
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # every Ohio hospital: the distance never applied
+        sql: |
+          SELECT {fkey:h.geom}, 1 FROM {table:m1} h
+          WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '39' AND ST_Intersects(c.geom, h.geom))
+      - expect: WRONG_VALUE          # 2 km read as 2 miles, the other way round
+        sql: |
+          SELECT {fkey:h.geom}, 1 FROM {table:m1} h
+          WHERE EXISTS (SELECT 1 FROM {table:m2} f WHERE ST_DWithin(h.geom::geography, f.geom::geography, 2000))
+            AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '39' AND ST_Intersects(c.geom, h.geom))
+
+  - id: p-az-childcare-far-hospital-km
+    tier: proximity_dev
+    query: "How many child care centers in Arizona are more than 5 kilometers from the nearest hospital?"
+    note: "a count of features; 5 km is 3.107 miles, not 5"
+    measures: {m1: child_care, m2: hospitals}
+    gold: |
+      SELECT NULL, count(*) FROM {table:m1} k
+      WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '04' AND ST_Intersects(c.geom, k.geom))
+        AND NOT EXISTS (SELECT 1 FROM {table:m2} h
+                        WHERE ST_DWithin(k.geom::geography, h.geom::geography, 5000))
+    compare: {kind: scalar, rel_tol: 0.01}
+    wrong:
+      - expect: WRONG_VALUE          # 5 miles instead of 5 km
+        sql: |
+          SELECT NULL, count(*) FROM {table:m1} k
+          WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '04' AND ST_Intersects(c.geom, k.geom))
+            AND NOT EXISTS (SELECT 1 FROM {table:m2} h
+                            WHERE ST_DWithin(k.geom::geography, h.geom::geography, 8046.72))
+
+  - id: p-mt-nursing-farthest-hospital
+    tier: proximity_dev
+    query: "List the 10 nursing homes in Montana that are farthest from a hospital."
+    note: "rank features by exact distance to the nearest hospital, any state"
+    measures: {m1: nursing_homes, m2: hospitals}
+    # alt1 added 2026-11-11 after the first dev runs, and recorded as such: the
+    # Nursing Homes layer also holds assisted living and continuing-care
+    # facilities, and restricting it to its own type "NURSING HOME" is a
+    # correct reading of "nursing homes" that the first gold did not accept.
+    # It was not written to pass a run: the run that used it overlapped alt0
+    # 0.4 and is scored against both.
+    gold:
+      - |
+        SELECT {fkey:n.geom}, (SELECT min(ST_Distance(n.geom::geography, h.geom::geography))
+                               FROM {table:m2} h) / 1609.344
+        FROM {table:m1} n
+        WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '30' AND ST_Intersects(c.geom, n.geom))
+      - |
+        SELECT {fkey:n.geom}, (SELECT min(ST_Distance(n.geom::geography, h.geom::geography))
+                               FROM {table:m2} h) / 1609.344
+        FROM {table:m1} n
+        WHERE n.type = 'NURSING HOME'
+          AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '30' AND ST_Intersects(c.geom, n.geom))
+    compare: {kind: top_k, features: true, k: 10, direction: desc, min_overlap: 0.8}
+
+  - id: p-ga-police-hospital-1mi
+    tier: proximity_dev
+    query: "How many law enforcement offices in Georgia have a hospital within 1 mile?"
+    note: "count of features with a feature of another layer inside a radius"
+    measures: {m1: law_enforcement, m2: hospitals}
+    gold: |
+      SELECT NULL, count(*) FROM {table:m1} p
+      WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '13' AND ST_Intersects(c.geom, p.geom))
+        AND EXISTS (SELECT 1 FROM {table:m2} h WHERE ST_DWithin(p.geom::geography, h.geom::geography, 1609.344))
+    compare: {kind: scalar, rel_tol: 0.01}
+    wrong:
+      - expect: WRONG_VALUE          # the reverse question: hospitals with an office nearby
+        sql: |
+          SELECT NULL, count(*) FROM {table:m2} h
+          WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '13' AND ST_Intersects(c.geom, h.geom))
+            AND EXISTS (SELECT 1 FROM {table:m1} p WHERE ST_DWithin(p.geom::geography, h.geom::geography, 1609.344))
+
+  # ======================================================== proximity_heldout
+  - id: p-co-fire-near-nursing-m
+    tier: proximity_heldout
+    query: "Show the fire stations in Colorado located within 800 meters of a nursing home."
+    measures: {m1: fire_stations, m2: nursing_homes}
+    gold: |
+      SELECT {fkey:f.geom}, x.m / 1609.344 FROM {table:m1} f
+      CROSS JOIN LATERAL (SELECT min(ST_Distance(f.geom::geography, n.geom::geography)) AS m
+                          FROM {table:m2} n
+                          WHERE ST_DWithin(f.geom::geography, n.geom::geography, 800)) x
+      WHERE x.m IS NOT NULL
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '08' AND ST_Intersects(c.geom, f.geom))
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+
+  - id: p-ks-hospitals-no-fire-3mi
+    tier: proximity_heldout
+    query: "How many hospitals in Kansas are not within 3 miles of any fire station?"
+    measures: {m1: hospitals, m2: fire_stations}
+    gold: |
+      SELECT NULL, count(*) FROM {table:m1} h
+      WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '20' AND ST_Intersects(c.geom, h.geom))
+        AND NOT EXISTS (SELECT 1 FROM {table:m2} f WHERE ST_DWithin(h.geom::geography, f.geom::geography, 4828.032))
+    compare: {kind: scalar, rel_tol: 0.01}
+
+  # ==================================================================== H2
+  # Zones as data (docs/GIS_OPS_PLAN.md H2). Written 2026-11-11, before the
+  # build. Two fixture cities, each with two zone sets ingested with
+  # `role: zones`: St. Louis wards (14, 2024 map) and neighborhoods (88, incl.
+  # parks), Chicago wards (50, 2023 map) and community areas (77). Zone
+  # geometry is read from geo_unit at the zone set's level, which is the
+  # source polygon reprojected; nothing else in gold uses the code under test.
+  #
+  # Counting is point-in-polygon. LAND AREA: the zone inside each tract,
+  # clipped to county_geom, at that tract's TIGER land share. CORRECTED before
+  # any API run (2026-11-11): the first gold clipped to county_geom alone,
+  # written on the belief that it is shoreline-clipped. It is at coasts and
+  # the Great Lakes, NOT at rivers (St. Louis city: 171.5 km2 of polygon,
+  # 159.9 km2 of land), so it counted the Mississippi as land. Population is
+  # WorldPop, the only population measure that can exist at arbitrary zones,
+  # apportioned by EXACT pixel-polygon overlap: a different method from the
+  # loader's 4x4 sub-pixel rule, so the two agree only if both are right
+  # (tolerance 10%).
+
+  # ======================================================== aggregation_dev
+  - id: ag-stl-ward-childcare
+    tier: aggregation_dev
+    query: "How many child care centers are there in each St. Louis ward?"
+    note: "one count per ward (14), zero included; not one number for the city"
+    measures: {m1: child_care}
+    gold: |
+      SELECT z.geoid, count(f.geom) FROM geo_unit z
+      LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+      WHERE z.level = 'z_stl_wards' GROUP BY z.geoid
+    compare: {kind: values, rel_tol: 0, abs_tol: 0.5, min_coverage: 1.0}
+    wrong:
+      - expect: WRONG_GEOGRAPHY      # the city as one county
+        sql: |
+          SELECT c.fips, count(f.geom) FROM county_geom c
+          LEFT JOIN {table:m1} f ON ST_Intersects(c.geom, f.geom)
+          WHERE c.fips = '29510' GROUP BY c.fips
+      - expect: WRONG_GEOGRAPHY      # neighborhoods instead of wards
+        sql: |
+          SELECT z.geoid || 'n', count(f.geom) FROM geo_unit z
+          LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+          WHERE z.level = 'z_stl_neighborhoods' GROUP BY z.geoid
+
+  - id: ag-chi-ca-schools
+    tier: aggregation_dev
+    query: "Count the public schools in each Chicago community area."
+    note: "77 community areas; NCES public school locations"
+    measures: {m1: public_schools}
+    gold: |
+      SELECT z.geoid, count(f.geom) FROM geo_unit z
+      LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+      WHERE z.level = 'z_chi_community_areas' GROUP BY z.geoid
+    compare: {kind: values, rel_tol: 0, abs_tol: 0.5}
+
+  - id: ag-stl-nbhd-snap-top5
+    tier: aggregation_dev
+    query: "Which five St. Louis neighborhoods have the most stores that accept SNAP?"
+    note: "rank neighborhoods by count of currently authorized SNAP retailers"
+    measures: {m1: snap_retailers}
+    gold: |
+      SELECT z.geoid, count(f.geom) FROM geo_unit z
+      LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+      WHERE z.level = 'z_stl_neighborhoods' GROUP BY z.geoid
+    compare: {kind: top_k, k: 5, direction: desc, min_overlap: 0.8}
+    wrong:
+      - expect: WRONG_VALUE          # the fewest, not the most
+        sql: |
+          SELECT z.geoid, -count(f.geom) FROM geo_unit z
+          LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+          WHERE z.level = 'z_stl_neighborhoods' GROUP BY z.geoid
+
+  - id: ag-chi-ward-transit
+    tier: aggregation_dev
+    query: "What is the number of transit stops in each Chicago ward?"
+    measures: {m1: transit_stops}
+    gold: |
+      SELECT z.geoid, count(f.geom) FROM geo_unit z
+      LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+      WHERE z.level = 'z_chi_wards' GROUP BY z.geoid
+    compare: {kind: values, rel_tol: 0, abs_tol: 0.5}
+
+  # ==================================================== aggregation_heldout
+  - id: ag-chi-ca-private-top10
+    tier: aggregation_heldout
+    query: "Which 10 Chicago community areas have the most private schools?"
+    measures: {m1: private_schools}
+    gold: |
+      SELECT z.geoid, count(f.geom) FROM geo_unit z
+      LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+      WHERE z.level = 'z_chi_community_areas' GROUP BY z.geoid
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.7}
+
+  - id: ag-stl-nbhd-schools
+    tier: aggregation_heldout
+    query: "For every neighborhood in St. Louis, how many public schools are located there?"
+    measures: {m1: public_schools}
+    gold: |
+      SELECT z.geoid, count(f.geom) FROM geo_unit z
+      LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+      WHERE z.level = 'z_stl_neighborhoods' GROUP BY z.geoid
+    compare: {kind: values, rel_tol: 0, abs_tol: 0.5}
+
+  # ============================================================ density_dev
+  - id: de-stl-nbhd-snap-km2
+    tier: density_dev
+    query: "How many SNAP-authorized food retailers are there per square kilometer in each St. Louis neighborhood?"
+    note: "per km2 of LAND, not per square mile (a factor of 2.59)"
+    measures: {m1: snap_retailers}
+    gold: |
+      SELECT z.geoid, count(f.geom) / NULLIF(min(a.km2), 0) FROM geo_unit z
+      CROSS JOIN LATERAL (SELECT sum(ST_Area(ST_Intersection(z.geom, tc.geom)::geography)
+                                     * LEAST(1, t.aland / NULLIF(ST_Area(tc.geom::geography), 0))) / 1e6 AS km2
+                          FROM geo_unit t CROSS JOIN LATERAL (SELECT ST_Intersection(t.geom, ST_Union(c.geom)) AS geom
+                            FROM county_geom c WHERE c.geom && t.geom) tc
+                          WHERE t.level = 'tract' AND t.geom && z.geom AND ST_Intersects(t.geom, z.geom)) a
+      LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+      WHERE z.level = 'z_stl_neighborhoods' GROUP BY z.geoid
+    compare: {kind: values, rel_tol: 0.03, abs_tol: 0.01}
+    wrong:
+      - expect: WRONG_VALUE          # per square mile
+        sql: |
+          SELECT z.geoid, count(f.geom) / NULLIF(min(a.km2), 0) * 2.589988 FROM geo_unit z
+          CROSS JOIN LATERAL (SELECT sum(ST_Area(ST_Intersection(z.geom, tc.geom)::geography)
+                                         * LEAST(1, t.aland / NULLIF(ST_Area(tc.geom::geography), 0))) / 1e6 AS km2
+                              FROM geo_unit t CROSS JOIN LATERAL (SELECT ST_Intersection(t.geom, ST_Union(c.geom)) AS geom
+                                FROM county_geom c WHERE c.geom && t.geom) tc
+                              WHERE t.level = 'tract' AND t.geom && z.geom AND ST_Intersects(t.geom, z.geom)) a
+          LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+          WHERE z.level = 'z_stl_neighborhoods' GROUP BY z.geoid
+      - expect: WRONG_VALUE          # the count, not a density
+        sql: |
+          SELECT z.geoid, count(f.geom) FROM geo_unit z
+          LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+          WHERE z.level = 'z_stl_neighborhoods' GROUP BY z.geoid
+
+  - id: de-chi-ward-popdens-mi2
+    tier: density_dev
+    query: "What is the population density, in people per square mile, of each Chicago ward?"
+    measures: {m1: worldpop}
+    gold: |
+      WITH z AS (SELECT geoid, geom FROM geo_unit WHERE level = 'z_chi_wards'),
+      px AS (SELECT p.geom, p.val FROM raster_worldpop r
+             CROSS JOIN LATERAL ST_PixelAsPolygons(r.rast) p
+             WHERE ST_Intersects(ST_ConvexHull(r.rast), (SELECT ST_Envelope(ST_Collect(geom)) FROM z))
+               AND p.val > 0),
+      pop AS (SELECT z.geoid, sum(px.val * ST_Area(ST_Intersection(px.geom, z.geom)) / ST_Area(px.geom)) AS pop
+              FROM z JOIN px ON px.geom && z.geom AND ST_Intersects(px.geom, z.geom) GROUP BY z.geoid)
+      SELECT z.geoid, pop.pop / NULLIF(a.mi2, 0) FROM z JOIN pop USING (geoid)
+      CROSS JOIN LATERAL (SELECT sum(ST_Area(ST_Intersection(z.geom, tc.geom)::geography)
+                                     * LEAST(1, t.aland / NULLIF(ST_Area(tc.geom::geography), 0))) / 2589988.110336 AS mi2
+                          FROM geo_unit t CROSS JOIN LATERAL (SELECT ST_Intersection(t.geom, ST_Union(c.geom)) AS geom
+                            FROM county_geom c WHERE c.geom && t.geom) tc
+                          WHERE t.level = 'tract' AND t.geom && z.geom AND ST_Intersects(t.geom, z.geom)) a
+    compare: {kind: values, rel_tol: 0.1}
+    wrong:
+      - expect: WRONG_VALUE          # people per km2
+        sql: |
+          WITH z AS (SELECT geoid, geom FROM geo_unit WHERE level = 'z_chi_wards'),
+          px AS (SELECT p.geom, p.val FROM raster_worldpop r
+                 CROSS JOIN LATERAL ST_PixelAsPolygons(r.rast) p
+                 WHERE ST_Intersects(ST_ConvexHull(r.rast), (SELECT ST_Envelope(ST_Collect(geom)) FROM z))
+                   AND p.val > 0),
+          pop AS (SELECT z.geoid, sum(px.val * ST_Area(ST_Intersection(px.geom, z.geom)) / ST_Area(px.geom)) AS pop
+                  FROM z JOIN px ON px.geom && z.geom AND ST_Intersects(px.geom, z.geom) GROUP BY z.geoid)
+          SELECT z.geoid, pop.pop / NULLIF(a.km2, 0) FROM z JOIN pop USING (geoid)
+          CROSS JOIN LATERAL (SELECT sum(ST_Area(ST_Intersection(z.geom, tc.geom)::geography)
+                                         * LEAST(1, t.aland / NULLIF(ST_Area(tc.geom::geography), 0))) / 1e6 AS km2
+                              FROM geo_unit t CROSS JOIN LATERAL (SELECT ST_Intersection(t.geom, ST_Union(c.geom)) AS geom
+                                FROM county_geom c WHERE c.geom && t.geom) tc
+                              WHERE t.level = 'tract' AND t.geom && z.geom AND ST_Intersects(t.geom, z.geom)) a
+
+  - id: de-stl-ward-transit-mi2
+    tier: density_dev
+    query: "Which St. Louis wards have the highest density of transit stops per square mile?"
+    measures: {m1: transit_stops}
+    gold: |
+      SELECT z.geoid, count(f.geom) / NULLIF(min(a.mi2), 0) FROM geo_unit z
+      CROSS JOIN LATERAL (SELECT sum(ST_Area(ST_Intersection(z.geom, tc.geom)::geography)
+                                     * LEAST(1, t.aland / NULLIF(ST_Area(tc.geom::geography), 0))) / 2589988.110336 AS mi2
+                          FROM geo_unit t CROSS JOIN LATERAL (SELECT ST_Intersection(t.geom, ST_Union(c.geom)) AS geom
+                            FROM county_geom c WHERE c.geom && t.geom) tc
+                          WHERE t.level = 'tract' AND t.geom && z.geom AND ST_Intersects(t.geom, z.geom)) a
+      LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+      WHERE z.level = 'z_stl_wards' GROUP BY z.geoid
+    compare: {kind: top_k, k: 5, direction: desc, min_overlap: 0.8}
+
+  - id: de-chi-ca-childcare-km2
+    tier: density_dev
+    query: "Rank Chicago community areas by child care centers per square kilometer."
+    measures: {m1: child_care}
+    gold: |
+      SELECT z.geoid, count(f.geom) / NULLIF(min(a.km2), 0) FROM geo_unit z
+      CROSS JOIN LATERAL (SELECT sum(ST_Area(ST_Intersection(z.geom, tc.geom)::geography)
+                                     * LEAST(1, t.aland / NULLIF(ST_Area(tc.geom::geography), 0))) / 1e6 AS km2
+                          FROM geo_unit t CROSS JOIN LATERAL (SELECT ST_Intersection(t.geom, ST_Union(c.geom)) AS geom
+                            FROM county_geom c WHERE c.geom && t.geom) tc
+                          WHERE t.level = 'tract' AND t.geom && z.geom AND ST_Intersects(t.geom, z.geom)) a
+      LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+      WHERE z.level = 'z_chi_community_areas' GROUP BY z.geoid
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.8}
+
+  # ======================================================== density_heldout
+  - id: de-stl-nbhd-popdens-km2
+    tier: density_heldout
+    query: "Population per square kilometer for each neighborhood in St. Louis"
+    measures: {m1: worldpop}
+    gold: |
+      WITH z AS (SELECT geoid, geom FROM geo_unit WHERE level = 'z_stl_neighborhoods'),
+      px AS (SELECT p.geom, p.val FROM raster_worldpop r
+             CROSS JOIN LATERAL ST_PixelAsPolygons(r.rast) p
+             WHERE ST_Intersects(ST_ConvexHull(r.rast), (SELECT ST_Envelope(ST_Collect(geom)) FROM z))
+               AND p.val > 0),
+      pop AS (SELECT z.geoid, sum(px.val * ST_Area(ST_Intersection(px.geom, z.geom)) / ST_Area(px.geom)) AS pop
+              FROM z JOIN px ON px.geom && z.geom AND ST_Intersects(px.geom, z.geom) GROUP BY z.geoid)
+      SELECT z.geoid, COALESCE(pop.pop, 0) / NULLIF(a.km2, 0) FROM z LEFT JOIN pop USING (geoid)
+      CROSS JOIN LATERAL (SELECT sum(ST_Area(ST_Intersection(z.geom, tc.geom)::geography)
+                                     * LEAST(1, t.aland / NULLIF(ST_Area(tc.geom::geography), 0))) / 1e6 AS km2
+                          FROM geo_unit t CROSS JOIN LATERAL (SELECT ST_Intersection(t.geom, ST_Union(c.geom)) AS geom
+                            FROM county_geom c WHERE c.geom && t.geom) tc
+                          WHERE t.level = 'tract' AND t.geom && z.geom AND ST_Intersects(t.geom, z.geom)) a
+    compare: {kind: values, rel_tol: 0.1, abs_tol: 50}
+
+  - id: de-chi-ward-schools-mi2
+    tier: density_heldout
+    query: "Public schools per square mile in every Chicago ward"
+    measures: {m1: public_schools}
+    gold: |
+      SELECT z.geoid, count(f.geom) / NULLIF(min(a.mi2), 0) FROM geo_unit z
+      CROSS JOIN LATERAL (SELECT sum(ST_Area(ST_Intersection(z.geom, tc.geom)::geography)
+                                     * LEAST(1, t.aland / NULLIF(ST_Area(tc.geom::geography), 0))) / 2589988.110336 AS mi2
+                          FROM geo_unit t CROSS JOIN LATERAL (SELECT ST_Intersection(t.geom, ST_Union(c.geom)) AS geom
+                            FROM county_geom c WHERE c.geom && t.geom) tc
+                          WHERE t.level = 'tract' AND t.geom && z.geom AND ST_Intersects(t.geom, z.geom)) a
+      LEFT JOIN {table:m1} f ON ST_Intersects(z.geom, f.geom)
+      WHERE z.level = 'z_chi_wards' GROUP BY z.geoid
+    compare: {kind: values, rel_tol: 0.03, abs_tol: 0.01}
+
+  # ============================================================ overlay_dev
+  # H3, written 2026-11-12 BEFORE the overlay op was run against them. Layers
+  # vary (NWI wetlands, wildfire perimeters x roads, transmission lines,
+  # points, campus polygons), as do places (MO, CA, OR, St. Louis wards),
+  # units (miles, acres, km) and phrasing (pass through, inside, overlap,
+  # run through, do not overlap). Nothing is flood-specific: a flood zone is
+  # one more polygon layer.
+  #
+  # GOLD IS EXACT GEOMETRY: the polygons as loaded (made valid once where they
+  # are not), never the subdivided parts the op reads, so a parts defect
+  # cannot pass. Overlapping polygons are unioned before a length or area is
+  # taken. NWI here is Missouri only (the 2026-11-12 download).
+  - id: ov-mo-roads-wetland-miles
+    tier: overlay_dev
+    query: "How many miles of primary roads in Missouri pass through wetlands?"
+    note: "length of road INSIDE wetlands (57 mi), not the length of roads that touch one"
+    measures: {m1: primary_roads, m2: wetlands}
+    gold: |
+      SELECT NULL, sum(ST_Length(ST_Intersection(r.geom, u.g)::geography)) / 1609.344
+      FROM {table:m1} r
+      CROSS JOIN LATERAL (SELECT ST_Union(n.geom) AS g FROM {table:m2} n
+                          WHERE n.geom && r.geom AND ST_Intersects(n.geom, r.geom)) u
+      WHERE u.g IS NOT NULL
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '29' AND ST_Intersects(c.geom, r.geom))
+    compare: {kind: scalar, rel_tol: 0.02}
+    wrong:
+      - expect: WRONG_VALUE          # whole length of every road that touches a wetland
+        sql: |
+          SELECT NULL, sum(ST_Length(r.geom::geography)) / 1609.344 FROM {table:m1} r
+          WHERE EXISTS (SELECT 1 FROM {table:m2} n WHERE n.geom && r.geom AND ST_Intersects(n.geom, r.geom))
+            AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '29' AND ST_Intersects(c.geom, r.geom))
+      - expect: WRONG_VALUE          # a count of road segments, not miles
+        sql: |
+          SELECT NULL, count(*) FROM {table:m1} r
+          WHERE EXISTS (SELECT 1 FROM {table:m2} n WHERE n.geom && r.geom AND ST_Intersects(n.geom, r.geom))
+            AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '29' AND ST_Intersects(c.geom, r.geom))
+
+  - id: ov-ca-fire-in-perimeter
+    tier: overlay_dev
+    query: "Which fire stations in California are inside a wildfire perimeter?"
+    note: "point in polygon, the stations themselves (22)"
+    measures: {m1: fire_stations, m2: fire_perimeters}
+    gold: |
+      WITH p AS MATERIALIZED (SELECT ST_MakeValid(geom) AS g FROM {table:m2})
+      SELECT {fkey:f.geom}, 1 FROM {table:m1} f
+      WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '06' AND ST_Intersects(c.geom, f.geom))
+        AND EXISTS (SELECT 1 FROM p WHERE p.g && f.geom AND ST_Intersects(p.g, f.geom))
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # every California station: the overlay never applied
+        sql: |
+          SELECT {fkey:f.geom}, 1 FROM {table:m1} f
+          WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '06' AND ST_Intersects(c.geom, f.geom))
+
+  - id: ov-stl-ward-wetland-acres
+    tier: overlay_dev
+    query: "How many acres of wetlands are in each St. Louis ward?"
+    note: "area of wetland inside each of the 14 wards, in acres; zero included"
+    measures: {m1: wetlands}
+    gold: |
+      SELECT z.geoid, COALESCE(sum(ST_Area(ST_Intersection(n.geom, z.geom)::geography)), 0) / 4046.8564224
+      FROM geo_unit z LEFT JOIN {table:m1} n ON n.geom && z.geom AND ST_Intersects(n.geom, z.geom)
+      WHERE z.level = 'z_stl_wards' GROUP BY z.geoid
+    compare: {kind: values, rel_tol: 0.02, abs_tol: 1, min_coverage: 1.0}
+    wrong:
+      - expect: WRONG_VALUE          # square miles instead of acres
+        sql: |
+          SELECT z.geoid, COALESCE(sum(ST_Area(ST_Intersection(n.geom, z.geom)::geography)), 0) / 2589988.110336
+          FROM geo_unit z LEFT JOIN {table:m1} n ON n.geom && z.geom AND ST_Intersects(n.geom, z.geom)
+          WHERE z.level = 'z_stl_wards' GROUP BY z.geoid
+      - expect: WRONG_VALUE          # a count of wetland polygons
+        sql: |
+          SELECT z.geoid, count(n.geom) FROM geo_unit z
+          LEFT JOIN {table:m1} n ON n.geom && z.geom AND ST_Intersects(n.geom, z.geom)
+          WHERE z.level = 'z_stl_wards' GROUP BY z.geoid
+
+  - id: ov-mo-campus-wetland
+    tier: overlay_dev
+    query: "How many college campuses in Missouri overlap a wetland?"
+    note: "polygon x polygon selection, counted (49 of 139)"
+    measures: {m1: campuses, m2: wetlands}
+    gold: |
+      SELECT NULL, count(*) FROM {table:m1} c
+      WHERE EXISTS (SELECT 1 FROM county_geom k WHERE k.state_fp = '29' AND ST_Intersects(k.geom, c.geom))
+        AND EXISTS (SELECT 1 FROM {table:m2} n WHERE n.geom && c.geom AND ST_Intersects(n.geom, c.geom))
+    compare: {kind: scalar, rel_tol: 0.01}
+    wrong:
+      - expect: WRONG_VALUE          # every Missouri campus
+        sql: |
+          SELECT NULL, count(*) FROM {table:m1} c
+          WHERE EXISTS (SELECT 1 FROM county_geom k WHERE k.state_fp = '29' AND ST_Intersects(k.geom, c.geom))
+
+  # ======================================================== overlay_heldout
+  - id: ov-or-transmission-fire-km
+    tier: overlay_heldout
+    query: "How many kilometers of transmission line run through wildfire perimeters in Oregon?"
+    measures: {m1: transmission, m2: fire_perimeters}
+    gold: |
+      WITH p AS MATERIALIZED (SELECT ST_MakeValid(geom) AS g FROM {table:m2})
+      SELECT NULL, sum(ST_Length(ST_Intersection(t.geom, u.g)::geography)) / 1000
+      FROM {table:m1} t
+      CROSS JOIN LATERAL (SELECT ST_Union(p.g) AS g FROM p WHERE p.g && t.geom AND ST_Intersects(p.g, t.geom)) u
+      WHERE u.g IS NOT NULL
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '41' AND ST_Intersects(c.geom, t.geom))
+    compare: {kind: scalar, rel_tol: 0.02}
+    wrong:
+      - expect: WRONG_VALUE          # miles instead of kilometers
+        sql: |
+          WITH p AS MATERIALIZED (SELECT ST_MakeValid(geom) AS g FROM {table:m2})
+          SELECT NULL, sum(ST_Length(ST_Intersection(t.geom, u.g)::geography)) / 1609.344
+          FROM {table:m1} t
+          CROSS JOIN LATERAL (SELECT ST_Union(p.g) AS g FROM p WHERE p.g && t.geom AND ST_Intersects(p.g, t.geom)) u
+          WHERE u.g IS NOT NULL
+            AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '41' AND ST_Intersects(c.geom, t.geom))
+
+  - id: ov-mo-campus-no-wetland
+    tier: overlay_heldout
+    query: "How many Missouri college campuses do not overlap any wetland?"
+    measures: {m1: campuses, m2: wetlands}
+    gold: |
+      SELECT NULL, count(*) FROM {table:m1} c
+      WHERE EXISTS (SELECT 1 FROM county_geom k WHERE k.state_fp = '29' AND ST_Intersects(k.geom, c.geom))
+        AND NOT EXISTS (SELECT 1 FROM {table:m2} n WHERE n.geom && c.geom AND ST_Intersects(n.geom, c.geom))
+    compare: {kind: scalar, rel_tol: 0.01}
+    wrong:
+      - expect: WRONG_VALUE          # the ones that DO overlap
+        sql: |
+          SELECT NULL, count(*) FROM {table:m1} c
+          WHERE EXISTS (SELECT 1 FROM county_geom k WHERE k.state_fp = '29' AND ST_Intersects(k.geom, c.geom))
+            AND EXISTS (SELECT 1 FROM {table:m2} n WHERE n.geom && c.geom AND ST_Intersects(n.geom, c.geom))
+
+  # ============================================================= raster_dev
+  # H4, written 2026-11-12 BEFORE the zonal op was run against them. Rasters
+  # vary (NLCD land cover categorical, two years; 3DEP elevation and derived
+  # slope, continuous), as do units (community areas, wards, neighborhoods,
+  # counties, one county), what is asked (share, mean, top 5, a change in
+  # acres, a threshold share) and selection (an NLCD level-I group, one class,
+  # a pixel threshold).
+  #
+  # GOLD IS COMPUTED FROM THE SOURCE GeoTIFFs WITH GDAL, not from PostGIS:
+  # eval/gis_ops/raster_gold.py rasterizes each unit polygon over the files
+  # ingest read (pixel-centre rule) and counts with numpy, then writes
+  # eval_raster_gold, which these golds read. Independent of the loader, of
+  # PostGIS raster and of ST_Clip; it agreed with ST_Clip to 3 decimals on
+  # the wards and community areas checked (2026-11-12). A first gold written
+  # with ST_PixelAsCentroids took over ten minutes per question.
+  # RE-RUN raster_gold.py after reloading any of these rasters.
+  # NLCD here covers the Missouri + Illinois extent; the DEM and slope cover
+  # the St. Louis and Chicago metro counties only.
+  - id: ra-chi-ca-developed-share-2021
+    tier: raster_dev
+    query: "What percentage of each Chicago community area was developed land in 2021?"
+    note: "NLCD level-I group Developed (classes 21-24), share of each area's pixels"
+    measures: {m1: nlcd}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'chi-dev-share-2021'"
+    compare: {kind: values, rel_tol: 0.005, abs_tol: 0.1, min_coverage: 1.0}
+    wrong:
+      - expect: WRONG_VALUE          # 2001 instead of 2021
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'chi-dev-share-2001'"
+      - expect: WRONG_VALUE          # high intensity only, not the whole group
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'chi-dev24-share-2021'"
+
+  - id: ra-stl-ward-elev-mean
+    tier: raster_dev
+    query: "What is the average elevation of each St. Louis ward?"
+    note: "mean of the 10 m DEM over each of the 14 wards, metres"
+    measures: {m1: dem}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'stl-ward-elev-mean'"
+    compare: {kind: values, rel_tol: 0.005, min_coverage: 1.0}
+    wrong:
+      - expect: WRONG_VALUE          # feet
+        sql: "SELECT geoid, value * 3.28084 FROM eval_raster_gold WHERE qid = 'stl-ward-elev-mean'"
+      - expect: WRONG_VALUE          # the slope raster instead of elevation
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'stl-ward-slope-mean'"
+
+  - id: ra-mo-county-crop-change-acres
+    tier: raster_dev
+    query: "How many acres of cultivated cropland did each Missouri county gain or lose between 2001 and 2021?"
+    note: "NLCD class 82, 2021 minus 2001, acres, all 115 counties"
+    measures: {m1: nlcd}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'mo-crop-change-acres'"
+    compare: {kind: values, rel_tol: 0.01, abs_tol: 5, min_coverage: 1.0}
+    wrong:
+      - expect: WRONG_VALUE          # percent change instead of acres
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'mo-crop-change-pct'"
+      - expect: WRONG_VALUE          # Planted/Cultivated (pasture too), not cultivated crops
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'mo-planted-change-acres'"
+
+  - id: ra-stl-nbhd-steepest5
+    tier: raster_dev
+    query: "Which five St. Louis neighborhoods have the steepest average slope?"
+    note: "mean percent slope over each of 88 neighborhoods, top 5"
+    measures: {m1: slope}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'stl-nbhd-slope-mean'"
+    compare: {kind: top_k, k: 5, direction: desc, min_overlap: 0.8}
+    wrong:
+      - expect: WRONG_VALUE          # highest elevation, not steepest
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'stl-nbhd-elev-mean'"
+
+  # ========================================================= raster_heldout
+  - id: ra-cook-forest-share-2001
+    tier: raster_heldout
+    query: "What share of Cook County, Illinois was forest in 2001?"
+    measures: {m1: nlcd}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'cook-forest-share-2001'"
+    compare: {kind: values, rel_tol: 0.005, abs_tol: 0.05, min_coverage: 1.0}
+    wrong:
+      - expect: WRONG_VALUE          # 2021
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'cook-forest-share-2021'"
+
+  - id: ra-stl-ward-flat-share
+    tier: raster_heldout
+    query: "What percentage of each St. Louis ward has a slope under 5 percent?"
+    measures: {m1: slope}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'stl-ward-flat-share'"
+    compare: {kind: values, rel_tol: 0.005, abs_tol: 0.1, min_coverage: 1.0}
+    wrong:
+      - expect: WRONG_VALUE          # the share STEEPER than 5 percent
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'stl-ward-steep-share'"

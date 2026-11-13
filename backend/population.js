@@ -68,4 +68,16 @@ const POPULATION_GRID = /^Estimated population from the WorldPop\b/i;
 const isPopulationCount = (desc) =>
   isTotalPopulation(desc) || POPULATION_GRID.test(String(desc || "").trim());
 
-module.exports = { NEEDS_POPULATION, needsPopulation, asksPopulationSize, isTotalPopulation, isPopulationCount };
+/**
+ * A question that COUNTS people: "how many people live more than 20 miles
+ * from a hospital", "what share of Colorado's population lives within 5
+ * miles". A population count is the subject, not a stand-in. The relevance
+ * check refused Total population for the first of those (2026-11-11), the
+ * same false "none" the density questions got: "people" is generic in
+ * sharedWords, so nothing overruled it.
+ */
+const COUNTS_PEOPLE =
+  /\b[Hh]ow\s+many\s+(?:people|persons|residents|inhabitants)\b|\b(?:share|percent(?:age)?|proportion|fraction)\s+of\s+(?:the\s+)?(?:[A-Z][\w.]*(?:'s)?\s+){0,3}population\b/;
+const countsPeople = (query) => COUNTS_PEOPLE.test(String(query || ""));
+
+module.exports = { NEEDS_POPULATION, needsPopulation, asksPopulationSize, countsPeople, isTotalPopulation, isPopulationCount };

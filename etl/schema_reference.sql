@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS attribute_source (
     -- feature_table  a PostGIS feature collection (points/polygons) with NO fips.
     --                Facility datasets are this: they only become a (fips, value)
     --                series through a spatial aggregation against county_geom.
-    source_kind  TEXT NOT NULL CHECK (source_kind IN ('acs_long', 'table_column', 'feature_table')),
+    source_kind  TEXT NOT NULL CHECK (source_kind IN ('acs_long', 'table_column', 'feature_table', 'raster')),
     table_name   TEXT NOT NULL,
     value_column TEXT,
     census_code  TEXT,
@@ -107,7 +107,7 @@ ALTER TABLE attribute_source ADD COLUMN IF NOT EXISTS srid INTEGER;
 -- so an existing database accepts facility rows.
 ALTER TABLE attribute_source DROP CONSTRAINT IF EXISTS attribute_source_source_kind_check;
 ALTER TABLE attribute_source ADD CONSTRAINT attribute_source_source_kind_check
-    CHECK (source_kind IN ('acs_long', 'table_column', 'feature_table'));
+    CHECK (source_kind IN ('acs_long', 'table_column', 'feature_table', 'raster'));
 
 -- Convenience view: everything the planner needs to emit SQL for one attribute.
 DROP VIEW IF EXISTS resolvable_attributes;

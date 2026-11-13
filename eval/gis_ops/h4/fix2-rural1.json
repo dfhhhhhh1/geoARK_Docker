@@ -1,0 +1,55 @@
+{
+  "suite": "research.yaml",
+  "queries": 1,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "phase_c": {
+      "pass": 1,
+      "n": 1,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 1
+  },
+  "latency_mean": 31.9,
+  "api_container_created": "2026-11-12T22:06:13.37976713Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "analyze",
+  "detail": [
+    {
+      "id": "r-rural-poor-no-hospital",
+      "tier": "phase_c",
+      "query": "Which rural counties have a poverty rate above 20% and no hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 93,
+        "gold_rows": 93,
+        "outside": 0,
+        "outside_sample": [],
+        "jaccard": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PCTPOVALL"
+        }
+      },
+      "ops": "load->filter_attr->load->filter_attr->intersect->count_features->filter_attr->intersect->output",
+      "intent": "Rural counties with a poverty rate above 20% and no hospital",
+      "loaded": [
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS",
+        "RURAL_URBAN_CONTINUUM_CODE | Rural-Urban Continuum Code, 1-9 (1-3 metro counties by metro size, 4-9 nonmetro by urbanization and adjacency to a metro area) | USDA ERS",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 93,
+      "error": null,
+      "exec_error": null,
+      "seconds": 31.9
+    }
+  ]
+}

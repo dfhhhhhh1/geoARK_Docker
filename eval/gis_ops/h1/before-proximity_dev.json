@@ -1,0 +1,150 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "proximity_dev": {
+      "pass": 0,
+      "n": 4,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 4
+  },
+  "latency_mean": 24.9,
+  "api_container_created": "2026-11-11T20:27:23.134875455Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "p-oh-hospitals-near-fire",
+      "tier": "proximity_dev",
+      "query": "Which hospitals in Ohio are within 2 miles of a fire station?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which hospitals in Ohio are within 2 miles of a fire station?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 23.4
+    },
+    {
+      "id": "p-az-childcare-far-hospital-km",
+      "tier": "proximity_dev",
+      "query": "How many child care centers in Arizona are more than 5 kilometers from the nearest hospital?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many child care centers in Arizona are more than 5 kilometers from the nearest hospital?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 22.4
+    },
+    {
+      "id": "p-mt-nursing-farthest-hospital",
+      "tier": "proximity_dev",
+      "query": "List the 10 nursing homes in Montana that are farthest from a hospital.",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"hospital\""
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"hospital\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "List the 10 nursing homes in Montana that are farthest from a hospital.",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"hospital\""
+      },
+      "seconds": 34.1
+    },
+    {
+      "id": "p-ga-police-hospital-1mi",
+      "tier": "proximity_dev",
+      "query": "How many law enforcement offices in Georgia have a hospital within 1 mile?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many law enforcement offices in Georgia have a hospital within 1 mile?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 19.6
+    }
+  ]
+}

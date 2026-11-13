@@ -62,14 +62,76 @@ function attributeFilterSql(step, alias, bind) {
     if (!FILTERABLE_COLUMNS.includes(f.column)) {
       throw new CompileError(`unsupported filter column ${f.column}`);
     }
-    out.push(`${alias}.${f.column} = ${bind(f.value)}`);
+    // `negate` ("hospitals that are not critical access"): IS DISTINCT FROM,
+    // so a feature with no value in that column is kept -- it is not known to
+    // be the excluded kind. Offered only on negation phrasing (ops/index.js).
+    out.push(f.negate === true
+      ? `${alias}.${f.column} IS DISTINCT FROM ${bind(f.value)}`
+      : `${alias}.${f.column} = ${bind(f.value)}`);
   }
   return out;
 }
 
+/**
+ * The FEATURES contract (GIS_OPS_PLAN.md H1), the counterpart of (fips, value).
+ *
+ * A features step that something other than an output reads is a CTE with
+ * exactly these columns, in this order, whatever layer it came from: `geom`,
+ * a `value` (NULL until an op such as `within` puts a distance in it), and the
+ * label columns, NULL where the layer has none. One fixed shape is what lets
+ * within, rank and filter_attr read any features step without knowing which
+ * layer, or which op, produced it.
+ */
+const FEATURE_LABELS = ["name", "city", "state", "county", "address", "type", "status"];
+const FEATURE_COLUMNS = ["geom", "value", ...FEATURE_LABELS];
+
+/** `alias.col` for every feature column, for a SELECT that passes them through. */
+const featureColumns = (alias) => FEATURE_COLUMNS.map(c => `${alias}.${c}`).join(", ");
+
+/**
+ * Degree box around `g` holding every point within `meters` of it. Per axis,
+ * as count_near learned the hard way: a degree of longitude is ~111.32 km *
+ * cos(lat), so dx widens with the box's poleward edge. `meters` is SQL (a bound
+ * parameter or an expression).
+ */
+function expandBox(g, meters) {
+  const dy = `(${meters}) / 110574.0`;
+  const poleward = `least(greatest(abs(ST_YMin(${g})), abs(ST_YMax(${g}))) + ${dy}, 89.9)`;
+  return `ST_Expand(${g}, ${dy} / cos(radians(${poleward})), ${dy})`;
+}
+
+/**
+ * What a feature step reads FROM, and its geometry column: a catalog table
+ * (identifiers from attribute_source, which only the ETL writes, checked
+ * anyway) or, for a layer the user uploaded this session (backend/
+ * user_layers.js), a table expression over bound arrays. Every op that reads
+ * a feature layer goes through this, so an uploaded layer is never special-
+ * cased op by op.
+ */
+function featureFrom(src, bind, label = "attribute") {
+  if (!src) throw new CompileError(`unresolved ${label}`);
+  if (src.source_kind !== "feature_table") throw new CompileError(`${label} is not a feature table`);
+  const geom = src.geom_column || "geom";
+  if (!SAFE_DB_IDENT.test(geom)) throw new CompileError(`unsafe identifier in attribute_source for ${label}`);
+  if (src.user_layer) {
+    if (!Array.isArray(src.geoms) || !Array.isArray(src.props)) {
+      throw new CompileError(`uploaded layer ${label} carries no features`);
+    }
+    // Asked only for its columns (select_features labelsOf): nothing to bind.
+    if (typeof bind !== "function") return { from: null, geom: "geom", userLayer: true };
+    return { from: require("../../user_layers").fromSql(src, bind), geom: "geom", userLayer: true };
+  }
+  if (!SAFE_DB_IDENT.test(src.table_name || "")) {
+    throw new CompileError(`unsafe identifier in attribute_source for ${label}`);
+  }
+  return { from: src.table_name, geom, userLayer: false };
+}
+
 module.exports = {
+  featureFrom,
   CompileError, SAFE_ID, SAFE_DB_IDENT,
   OPERATORS, AGGREGATES, FILTERABLE_COLUMNS, PLACE_KINDS,
   PLACE_OVERLAP_MIN, MAX_FEATURES, MAX_RESULT_ROWS,
-  cte, attributeFilterSql,
+  FEATURE_LABELS, FEATURE_COLUMNS,
+  cte, attributeFilterSql, featureColumns, expandBox,
 };
