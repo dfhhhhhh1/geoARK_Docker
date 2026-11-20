@@ -1,0 +1,3740 @@
+{
+ "split": "dev",
+ "arms": "off,lit,both,web",
+ "runs": [
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "chd",
+   "seconds": 8.8,
+   "shelf": 3,
+   "selection": "curator",
+   "curator_ms": 6302,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_CHD_CrdPrv": "direct",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_CHD_CrdPrv"
+    ],
+    "top8": [
+     "PLACES_CHD_CrdPrv",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "PLACES_CHD_CrdPrv"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 3,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "asthma",
+   "seconds": 10.1,
+   "shelf": 3,
+   "selection": "curator",
+   "curator_ms": 7853,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_CASTHMA_CrdPrv": "Current asthma among adults (crude prevalence)",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_CASTHMA_CrdPrv": "direct",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_CASTHMA_CrdPrv"
+    ],
+    "top8": [
+     "PLACES_CASTHMA_CrdPrv",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "PLACES_CASTHMA_CrdPrv"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 3,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "copd",
+   "seconds": 10.5,
+   "shelf": 4,
+   "selection": "curator",
+   "curator_ms": 8037,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_COPD_CrdPrv": "direct",
+    "CHR_V060_RAWVALUE": "none",
+    "bfd307c1_01_01_12": "denominator",
+    "443ff20b_01_01_12": "denominator"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V060_RAWVALUE"
+    ],
+    "top8": [
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12",
+     "CHR_V060_RAWVALUE",
+     "PLACES_COPD_CrdPrv"
+    ],
+    "curator": [
+     "PLACES_COPD_CrdPrv"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 0.0,
+     "junk": 1,
+     "subject": false,
+     "related": false,
+     "coverage": 3133.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 4,
+     "precision": 0.75,
+     "junk": 1,
+     "subject": true,
+     "related": false,
+     "coverage": 3039.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "diabetes",
+   "seconds": 15.9,
+   "shelf": 4,
+   "selection": "curator",
+   "curator_ms": 13278,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "CHR_V060_RAWVALUE": "direct",
+    "PLACES_DIABETES_CrdPrv": "direct",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V060_RAWVALUE"
+    ],
+    "top8": [
+     "CHR_V060_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "CHR_V060_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 3133.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 4,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 3039.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 2,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 3039.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "stroke",
+   "seconds": 18.2,
+   "shelf": 3,
+   "selection": "curator",
+   "curator_ms": 15949,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_STROKE_CrdPrv": "Stroke among adults (crude prevalence)",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_STROKE_CrdPrv": "direct",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_STROKE_CrdPrv"
+    ],
+    "top8": [
+     "PLACES_STROKE_CrdPrv",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "PLACES_STROKE_CrdPrv"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 3,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "obesity",
+   "seconds": 17.8,
+   "shelf": 5,
+   "selection": "curator",
+   "curator_ms": 15573,
+   "curator_fallback": null,
+   "labels": {
+    "a14046c9_01_01_21": "American Red Cross Chp Facs",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "CHR_V002_RAWVALUE": "Poor or fair health",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "a14046c9_01_01_21": "related",
+    "PLACES_COPD_CrdPrv": "related",
+    "CHR_V002_RAWVALUE": "related",
+    "bfd307c1_01_01_12": "denominator",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "a14046c9_01_01_21"
+    ],
+    "top8": [
+     "a14046c9_01_01_21",
+     "PLACES_COPD_CrdPrv",
+     "CHR_V002_RAWVALUE",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": []
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 0.0,
+     "junk": 1,
+     "subject": false,
+     "related": false,
+     "coverage": null,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 5,
+     "precision": 0.4,
+     "junk": 3,
+     "subject": false,
+     "related": false,
+     "coverage": 3039.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 0,
+     "precision": 0.0,
+     "junk": 0,
+     "subject": false,
+     "related": false,
+     "coverage": null,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "lung-cancer",
+   "seconds": 15.6,
+   "shelf": 3,
+   "selection": "curator",
+   "curator_ms": 12762,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V128_RAWVALUE": "Child mortality",
+    "PLACES_CANCER_CrdPrv": "Cancer (non-skin) or melanoma among adults (crude prevalence)",
+    "CHR_V051_RAWVALUE": "Population"
+   },
+   "verdicts": {
+    "CHR_V128_RAWVALUE": "none",
+    "PLACES_CANCER_CrdPrv": "related",
+    "CHR_V051_RAWVALUE": "denominator"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V128_RAWVALUE",
+     "CHR_V051_RAWVALUE"
+    ],
+    "top8": [
+     "CHR_V051_RAWVALUE",
+     "CHR_V128_RAWVALUE",
+     "PLACES_CANCER_CrdPrv"
+    ],
+    "curator": []
+   },
+   "scores": {
+    "rules": {
+     "size": 2,
+     "precision": 0.5,
+     "junk": 1,
+     "subject": false,
+     "related": false,
+     "coverage": 2591.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 3,
+     "precision": 0.6666666666666666,
+     "junk": 1,
+     "subject": true,
+     "related": false,
+     "coverage": 2709.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 0,
+     "precision": 0.0,
+     "junk": 0,
+     "subject": false,
+     "related": false,
+     "coverage": null,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "hypertension",
+   "seconds": 16.9,
+   "shelf": 6,
+   "selection": "curator",
+   "curator_ms": 14630,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_BPHIGH_CrdPrv": "High blood pressure among adults (crude prevalence)",
+    "PLACES_BPMED_CrdPrv": "Taking medicine to control high blood pressure among adults with high blood pressure (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "CHR_V002_RAWVALUE": "Poor or fair health",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_BPHIGH_CrdPrv": "direct",
+    "PLACES_BPMED_CrdPrv": "related",
+    "CHR_V060_RAWVALUE": "related",
+    "CHR_V002_RAWVALUE": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_BPHIGH_CrdPrv"
+    ],
+    "top8": [
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_BPMED_CrdPrv",
+     "CHR_V002_RAWVALUE",
+     "bfd307c1_01_01_12",
+     "CHR_V060_RAWVALUE",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_BPMED_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "CHR_V002_RAWVALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 6,
+     "precision": 0.8333333333333334,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3039.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 4,
+     "precision": 0.75,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3039.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "nf-depression",
+   "seconds": 30.7,
+   "shelf": 5,
+   "selection": "curator",
+   "curator_ms": 26464,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V023_RAWVALUE": "Unemployment",
+    "SVI_EP_UNEMP": "Unemployment rate (percent)",
+    "04d18a18_08_01_268": "Population 16 years and over \u203a In labor force",
+    "ECONOMIC_TYPOLOGY": "Economic_typology",
+    "CHR_V051_RAWVALUE": "Population"
+   },
+   "verdicts": {
+    "CHR_V023_RAWVALUE": "direct",
+    "SVI_EP_UNEMP": "direct",
+    "04d18a18_08_01_268": "related",
+    "ECONOMIC_TYPOLOGY": "related",
+    "CHR_V051_RAWVALUE": "denominator"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V023_RAWVALUE",
+     "CHR_V051_RAWVALUE"
+    ],
+    "top8": [
+     "CHR_V023_RAWVALUE",
+     "SVI_EP_UNEMP",
+     "ECONOMIC_TYPOLOGY",
+     "CHR_V051_RAWVALUE",
+     "04d18a18_08_01_268"
+    ],
+    "curator": [
+     "CHR_V023_RAWVALUE",
+     "SVI_EP_UNEMP",
+     "04d18a18_08_01_268",
+     "ECONOMIC_TYPOLOGY"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 2,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": null,
+     "coverage": 3136.5,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 5,
+     "precision": 0.8,
+     "junk": 1,
+     "subject": true,
+     "related": null,
+     "coverage": 2814.2,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 4,
+     "precision": 0.75,
+     "junk": 1,
+     "subject": true,
+     "related": null,
+     "coverage": 2734.5,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "nf-heat",
+   "seconds": 24.5,
+   "shelf": 6,
+   "selection": "curator",
+   "curator_ms": 20856,
+   "curator_fallback": null,
+   "labels": {
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "Heat Wave - Hazard Type Risk Index Score",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "Heat Wave - Expected Annual Loss - Total",
+    "CHR_V182_RAWVALUE": "Adverse Climate Events",
+    "NOAA_CLIMDIV_TEMP_MAX_AVG_F": "Average annual daily maximum temperature (degrees Fahrenheit)",
+    "NOAA_CLIMDIV_HEATING_DEGREE_DAYS": "Annual heating degree days (a measure of how cold the year was; higher means more heating needed)",
+    "NOAA_CLIMDIV_COOLING_DEGREE_DAYS": "Annual cooling degree days (a measure of how hot the year was; higher means more cooling needed)"
+   },
+   "verdicts": {
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "direct",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "related",
+    "CHR_V182_RAWVALUE": "related",
+    "NOAA_CLIMDIV_TEMP_MAX_AVG_F": "related",
+    "NOAA_CLIMDIV_HEATING_DEGREE_DAYS": "none",
+    "NOAA_CLIMDIV_COOLING_DEGREE_DAYS": "related"
+   },
+   "carts": {
+    "rules": [
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE"
+    ],
+    "top8": [
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "CHR_V182_RAWVALUE",
+     "NOAA_CLIMDIV_HEATING_DEGREE_DAYS",
+     "NOAA_CLIMDIV_COOLING_DEGREE_DAYS",
+     "NOAA_CLIMDIV_TEMP_MAX_AVG_F"
+    ],
+    "curator": [
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE",
+     "NOAA_CLIMDIV_COOLING_DEGREE_DAYS",
+     "NOAA_CLIMDIV_TEMP_MAX_AVG_F",
+     "CHR_V182_RAWVALUE",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": null,
+     "coverage": 3105.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 6,
+     "precision": 0.6666666666666666,
+     "junk": 2,
+     "subject": true,
+     "related": null,
+     "coverage": 3131.5,
+     "duplicates": 2
+    },
+    "curator": {
+     "size": 5,
+     "precision": 0.6,
+     "junk": 2,
+     "subject": true,
+     "related": null,
+     "coverage": 3136.6,
+     "duplicates": 1
+    }
+   }
+  },
+  {
+   "arm": "off",
+   "rep": 0,
+   "id": "rainfall",
+   "seconds": 19.1,
+   "shelf": 2,
+   "selection": "curator",
+   "curator_ms": 16315,
+   "curator_fallback": null,
+   "labels": {
+    "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020": "Average annual precipitation, 1991-2020 (rainfall normal): all rain plus the water in melted snow. Not a measure of snowfall depth (inches)",
+    "NOAA_CLIMDIV_PRECIP_ANNUAL_IN": "Total annual precipitation: all rain plus the water in melted snow, in inches of water. It is not a measure of snowfall depth or of snow days"
+   },
+   "verdicts": {
+    "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020": "direct",
+    "NOAA_CLIMDIV_PRECIP_ANNUAL_IN": "none"
+   },
+   "carts": {
+    "rules": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020"
+    ],
+    "top8": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020",
+     "NOAA_CLIMDIV_PRECIP_ANNUAL_IN"
+    ],
+    "curator": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 0.0,
+     "junk": 1,
+     "subject": null,
+     "related": null,
+     "coverage": 3139.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 2,
+     "precision": 0.0,
+     "junk": 2,
+     "subject": null,
+     "related": null,
+     "coverage": 3139.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 1,
+     "precision": 0.0,
+     "junk": 1,
+     "subject": null,
+     "related": null,
+     "coverage": 3139.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "chd",
+   "seconds": 40.0,
+   "shelf": 8,
+   "selection": "curator",
+   "curator_ms": 37523,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_CHD_CrdPrv": "direct",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "CHR_V060_RAWVALUE": "related",
+    "PLACES_DIABETES_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_CHD_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC"
+    ],
+    "top8": [
+     "PLACES_CHD_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "PLACES_OBESITY_CrdPrv",
+     "PLACES_DIABETES_CrdPrv",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "PLACES_CHD_CrdPrv",
+     "PLACES_OBESITY_CrdPrv",
+     "PLACES_DIABETES_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 4,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 3108.5,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 3054.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 6,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 3054.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "asthma",
+   "seconds": 40.2,
+   "shelf": 9,
+   "selection": "curator",
+   "curator_ms": 37463,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_CASTHMA_CrdPrv": "Current asthma among adults (crude prevalence)",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "a14046c9_01_01_21": "American Red Cross Chp Facs",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_CASTHMA_CrdPrv": "direct",
+    "PLACES_COPD_CrdPrv": "related",
+    "a14046c9_01_01_21": "none",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "CHR_V125_RAWVALUE": "related",
+    "e3304b35_01_01_58": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "CHR_V125_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_COPD_CrdPrv",
+     "a14046c9_01_01_21",
+     "PLACES_OBESITY_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "PLACES_CASTHMA_CrdPrv",
+     "PLACES_OBESITY_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "e3304b35_01_01_58"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 3,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 3047.3333333333335,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 3006.4,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 4,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 2984.6666666666665,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "copd",
+   "seconds": 38.4,
+   "shelf": 9,
+   "selection": "curator",
+   "curator_ms": 35586,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "PLACES_CASTHMA_CrdPrv": "Current asthma among adults (crude prevalence)",
+    "CHR_V009_RAWVALUE": "Adult smoking",
+    "PLACES_CSMOKING_CrdPrv": "Current cigarette smoking among adults (crude prevalence)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "CHR_V060_RAWVALUE": "none",
+    "PLACES_COPD_CrdPrv": "direct",
+    "PLACES_CASTHMA_CrdPrv": "related",
+    "CHR_V009_RAWVALUE": "related",
+    "PLACES_CSMOKING_CrdPrv": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "none",
+    "bfd307c1_01_01_12": "denominator",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V060_RAWVALUE",
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CHD_CrdPrv"
+    ],
+    "top8": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12",
+     "CHR_V060_RAWVALUE",
+     "PLACES_COPD_CrdPrv"
+    ],
+    "curator": [
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CSMOKING_CrdPrv",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CASTHMA_CrdPrv",
+     "PLACES_CHD_CrdPrv"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 4,
+     "precision": 0.25,
+     "junk": 3,
+     "subject": false,
+     "related": true,
+     "coverage": 3039.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.625,
+     "junk": 3,
+     "subject": true,
+     "related": true,
+     "coverage": 3054.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 5,
+     "precision": 0.6,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 2982.6,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "diabetes",
+   "seconds": 40.0,
+   "shelf": 8,
+   "selection": "curator",
+   "curator_ms": 37416,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "CHR_V060_RAWVALUE": "direct",
+    "PLACES_DIABETES_CrdPrv": "direct",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "bfd307c1_01_01_12": "denominator",
+    "443ff20b_01_01_12": "denominator"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V060_RAWVALUE",
+     "CHR_V011_RAWVALUE",
+     "PLACES_CHD_CrdPrv"
+    ],
+    "top8": [
+     "CHR_V060_RAWVALUE",
+     "CHR_V011_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "PLACES_DIABETES_CrdPrv",
+     "PLACES_OBESITY_CrdPrv",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "CHR_V060_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_OBESITY_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 3,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 3070.3333333333335,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 3054.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 6,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 3054.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "stroke",
+   "seconds": 29.7,
+   "shelf": 7,
+   "selection": "curator",
+   "curator_ms": 27291,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_STROKE_CrdPrv": "Stroke among adults (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_STROKE_CrdPrv": "direct",
+    "CHR_V060_RAWVALUE": "related",
+    "PLACES_DIABETES_CrdPrv": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_STROKE_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "PLACES_CHD_CrdPrv"
+    ],
+    "top8": [
+     "CHR_V060_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "PLACES_STROKE_CrdPrv",
+     "PLACES_DIABETES_CrdPrv",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "PLACES_STROKE_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 3,
+     "precision": 0.6666666666666666,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3007.6666666666665,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 7,
+     "precision": 0.8571428571428571,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3038.2,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 5,
+     "precision": 0.8,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3038.2,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "obesity",
+   "seconds": 9.3,
+   "shelf": 8,
+   "selection": "curator",
+   "curator_ms": 6653,
+   "curator_fallback": null,
+   "labels": {
+    "a14046c9_01_01_21": "American Red Cross Chp Facs",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "CHR_V002_RAWVALUE": "Poor or fair health",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "PLACES_CASTHMA_CrdPrv": "Current asthma among adults (crude prevalence)",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "a14046c9_01_01_21": "none",
+    "PLACES_COPD_CrdPrv": "none",
+    "CHR_V002_RAWVALUE": "none",
+    "PLACES_CHD_CrdPrv": "none",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "none",
+    "PLACES_CASTHMA_CrdPrv": "none",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "a14046c9_01_01_21",
+     "PLACES_CHD_CrdPrv",
+     "PLACES_CASTHMA_CrdPrv"
+    ],
+    "top8": [
+     "PLACES_CASTHMA_CrdPrv",
+     "a14046c9_01_01_21",
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "CHR_V002_RAWVALUE",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": []
+   },
+   "scores": {
+    "rules": {
+     "size": 3,
+     "precision": 0.0,
+     "junk": 3,
+     "subject": false,
+     "related": false,
+     "coverage": 2945.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.375,
+     "junk": 5,
+     "subject": false,
+     "related": false,
+     "coverage": 3038.2,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 0,
+     "precision": 0.0,
+     "junk": 0,
+     "subject": false,
+     "related": false,
+     "coverage": null,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "lung-cancer",
+   "seconds": 24.4,
+   "shelf": 6,
+   "selection": "curator",
+   "curator_ms": 21189,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V128_RAWVALUE": "Child mortality",
+    "PLACES_CANCER_AgeAdjPrv": "Cancer (non-skin) or melanoma among adults (age-adjusted prevalence)",
+    "CHR_V009_RAWVALUE": "Adult smoking",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "PLACES_CSMOKING_CrdPrv": "Current cigarette smoking among adults (crude prevalence)",
+    "CHR_V051_RAWVALUE": "Population"
+   },
+   "verdicts": {
+    "CHR_V128_RAWVALUE": "none",
+    "PLACES_CANCER_AgeAdjPrv": "related",
+    "CHR_V009_RAWVALUE": "related",
+    "PLACES_COPD_CrdPrv": "related",
+    "PLACES_CSMOKING_CrdPrv": "related",
+    "CHR_V051_RAWVALUE": "denominator"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V128_RAWVALUE",
+     "CHR_V009_RAWVALUE",
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CSMOKING_CrdPrv",
+     "CHR_V051_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CSMOKING_CrdPrv",
+     "CHR_V051_RAWVALUE",
+     "CHR_V128_RAWVALUE",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CANCER_AgeAdjPrv"
+    ],
+    "curator": []
+   },
+   "scores": {
+    "rules": {
+     "size": 5,
+     "precision": 0.6,
+     "junk": 2,
+     "subject": false,
+     "related": true,
+     "coverage": 2841.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 6,
+     "precision": 0.6666666666666666,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 2858.3333333333335,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 0,
+     "precision": 0.0,
+     "junk": 0,
+     "subject": false,
+     "related": false,
+     "coverage": null,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "hypertension",
+   "seconds": 41.4,
+   "shelf": 11,
+   "selection": "curator",
+   "curator_ms": 38877,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_BPHIGH_CrdPrv": "High blood pressure among adults (crude prevalence)",
+    "PLACES_BPMED_CrdPrv": "Taking medicine to control high blood pressure among adults with high blood pressure (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "CHR_V002_RAWVALUE": "Poor or fair health",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_BPHIGH_CrdPrv": "direct",
+    "PLACES_BPMED_CrdPrv": "related",
+    "CHR_V060_RAWVALUE": "related",
+    "CHR_V002_RAWVALUE": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "PLACES_DIABETES_CrdPrv": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv"
+    ],
+    "top8": [
+     "CHR_V011_RAWVALUE",
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_BPMED_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "PLACES_OBESITY_CrdPrv",
+     "CHR_V002_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv"
+    ],
+    "curator": [
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_BPMED_CrdPrv",
+     "PLACES_OBESITY_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V002_RAWVALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 4,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 2992.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.875,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3026.75,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 8,
+     "precision": 0.875,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3050.25,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "nf-depression",
+   "seconds": 32.4,
+   "shelf": 9,
+   "selection": "curator",
+   "curator_ms": 28849,
+   "curator_fallback": null,
+   "labels": {
+    "SVI_EP_UNEMP": "Unemployment rate (percent)",
+    "04d18a18_08_01_268": "Population 16 years and over \u203a In labor force",
+    "ECONOMIC_TYPOLOGY": "Economic_typology",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "CHR_V145_RAWVALUE": "Frequent mental distress",
+    "CHR_V023_RAWVALUE": "Unemployment"
+   },
+   "verdicts": {
+    "SVI_EP_UNEMP": "direct",
+    "04d18a18_08_01_268": "related",
+    "ECONOMIC_TYPOLOGY": "related",
+    "CHR_V023_RAWVALUE": "related",
+    "CHR_V011_RAWVALUE": "none",
+    "PLACES_OBESITY_CrdPrv": "none",
+    "CHR_V060_RAWVALUE": "none",
+    "PLACES_DIABETES_CrdPrv": "none",
+    "CHR_V145_RAWVALUE": "none"
+   },
+   "carts": {
+    "rules": [
+     "SVI_EP_UNEMP",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "CHR_V145_RAWVALUE",
+     "CHR_V023_RAWVALUE"
+    ],
+    "top8": [
+     "SVI_EP_UNEMP",
+     "ECONOMIC_TYPOLOGY",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "CHR_V145_RAWVALUE",
+     "CHR_V023_RAWVALUE",
+     "PLACES_OBESITY_CrdPrv",
+     "PLACES_DIABETES_CrdPrv"
+    ],
+    "curator": [
+     "SVI_EP_UNEMP",
+     "04d18a18_08_01_268",
+     "ECONOMIC_TYPOLOGY",
+     "CHR_V023_RAWVALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 5,
+     "precision": 0.4,
+     "junk": 3,
+     "subject": true,
+     "related": null,
+     "coverage": 3134.4,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.25,
+     "junk": 6,
+     "subject": true,
+     "related": null,
+     "coverage": 3087.875,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 4,
+     "precision": 0.75,
+     "junk": 1,
+     "subject": true,
+     "related": null,
+     "coverage": 2734.5,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "nf-heat",
+   "seconds": 31.9,
+   "shelf": 7,
+   "selection": "curator",
+   "curator_ms": 29166,
+   "curator_fallback": null,
+   "labels": {
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "Heat Wave - Hazard Type Risk Index Score",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "Heat Wave - Expected Annual Loss - Total",
+    "NOAA_CLIMDIV_HEATING_DEGREE_DAYS": "Annual heating degree days (a measure of how cold the year was; higher means more heating needed)",
+    "NOAA_CLIMDIV_HDD_NORMAL_1991_2020": "Average annual heating degree days, 1991-2020",
+    "CHR_V182_RAWVALUE": "Adverse Climate Events",
+    "NOAA_CLIMDIV_TEMP_MAX_AVG_F": "Average annual daily maximum temperature (degrees Fahrenheit)",
+    "d6d9af88_01_01_10": "Historical Tropical Storm Tracks"
+   },
+   "verdicts": {
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "direct",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "related",
+    "NOAA_CLIMDIV_HEATING_DEGREE_DAYS": "none",
+    "NOAA_CLIMDIV_HDD_NORMAL_1991_2020": "none",
+    "CHR_V182_RAWVALUE": "related",
+    "NOAA_CLIMDIV_TEMP_MAX_AVG_F": "related",
+    "d6d9af88_01_01_10": "none"
+   },
+   "carts": {
+    "rules": [
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE"
+    ],
+    "top8": [
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "CHR_V182_RAWVALUE",
+     "NOAA_CLIMDIV_HEATING_DEGREE_DAYS",
+     "NOAA_CLIMDIV_TEMP_MAX_AVG_F",
+     "NOAA_CLIMDIV_HDD_NORMAL_1991_2020",
+     "d6d9af88_01_01_10"
+    ],
+    "curator": [
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE",
+     "NOAA_CLIMDIV_TEMP_MAX_AVG_F",
+     "CHR_V182_RAWVALUE",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": null,
+     "coverage": 3105.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 7,
+     "precision": 0.7142857142857143,
+     "junk": 2,
+     "subject": true,
+     "related": null,
+     "coverage": 3131.5,
+     "duplicates": 3
+    },
+    "curator": {
+     "size": 4,
+     "precision": 0.75,
+     "junk": 1,
+     "subject": true,
+     "related": null,
+     "coverage": 3144.25,
+     "duplicates": 1
+    }
+   }
+  },
+  {
+   "arm": "lit",
+   "rep": 0,
+   "id": "rainfall",
+   "seconds": 22.9,
+   "shelf": 2,
+   "selection": "curator",
+   "curator_ms": 20160,
+   "curator_fallback": null,
+   "labels": {
+    "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020": "Average annual precipitation, 1991-2020 (rainfall normal): all rain plus the water in melted snow. Not a measure of snowfall depth (inches)",
+    "NOAA_CLIMDIV_PRECIP_ANNUAL_IN": "Total annual precipitation: all rain plus the water in melted snow, in inches of water. It is not a measure of snowfall depth or of snow days"
+   },
+   "verdicts": {
+    "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020": "direct",
+    "NOAA_CLIMDIV_PRECIP_ANNUAL_IN": "direct"
+   },
+   "carts": {
+    "rules": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020"
+    ],
+    "top8": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020",
+     "NOAA_CLIMDIV_PRECIP_ANNUAL_IN"
+    ],
+    "curator": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020",
+     "NOAA_CLIMDIV_PRECIP_ANNUAL_IN"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 0.0,
+     "junk": 1,
+     "subject": null,
+     "related": null,
+     "coverage": 3139.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 2,
+     "precision": 0.0,
+     "junk": 2,
+     "subject": null,
+     "related": null,
+     "coverage": 3139.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 2,
+     "precision": 0.0,
+     "junk": 2,
+     "subject": null,
+     "related": null,
+     "coverage": 3139.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "chd",
+   "seconds": 43.9,
+   "shelf": 14,
+   "selection": "curator",
+   "curator_ms": 32170,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG": "Annual average fine particulate matter (PM2.5) concentration (micrograms per cubic meter)",
+    "CHR_V128_RAWVALUE": "Child mortality",
+    "CHR_V127_RAWVALUE": "Premature age-adjusted mortality",
+    "NRI_COMMUNITY_RISK_FACTOR_VALUE": "Community Risk Factor - Value",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_CHD_CrdPrv": "direct",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "CHR_V060_RAWVALUE": "related",
+    "PLACES_DIABETES_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "CHR_V125_RAWVALUE": "related",
+    "e3304b35_01_01_58": "none",
+    "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG": "related",
+    "CHR_V128_RAWVALUE": "none",
+    "CHR_V127_RAWVALUE": "none",
+    "NRI_COMMUNITY_RISK_FACTOR_VALUE": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_CHD_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "CHR_V125_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG",
+     "CHR_V128_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_CHD_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "CHR_V125_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "CHR_V128_RAWVALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC"
+    ],
+    "curator": [
+     "PLACES_CHD_CrdPrv",
+     "PLACES_OBESITY_CrdPrv",
+     "PLACES_DIABETES_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 7,
+     "precision": 0.8571428571428571,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 2944.4285714285716,
+     "duplicates": 1
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 2968.0,
+     "duplicates": 1
+    },
+    "curator": {
+     "size": 7,
+     "precision": 0.8571428571428571,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3045.5714285714284,
+     "duplicates": 1
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "asthma",
+   "seconds": 38.3,
+   "shelf": 10,
+   "selection": "curator",
+   "curator_ms": 27804,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_CASTHMA_CrdPrv": "Current asthma among adults (crude prevalence)",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "CHR_V058_RAWVALUE": "% Rural",
+    "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG": "Annual average fine particulate matter (PM2.5) concentration (micrograms per cubic meter)",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_CASTHMA_CrdPrv": "direct",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "PLACES_COPD_CrdPrv": "related",
+    "CHR_V125_RAWVALUE": "related",
+    "e3304b35_01_01_58": "related",
+    "CHR_V058_RAWVALUE": "related",
+    "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_COPD_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "CHR_V058_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG"
+    ],
+    "top8": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_COPD_CrdPrv",
+     "CHR_V058_RAWVALUE",
+     "PLACES_OBESITY_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG",
+     "bfd307c1_01_01_12"
+    ],
+    "curator": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG",
+     "CHR_V011_RAWVALUE",
+     "PLACES_COPD_CrdPrv",
+     "CHR_V058_RAWVALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 6,
+     "precision": 0.8333333333333334,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3047.3333333333335,
+     "duplicates": 1
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.875,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3032.714285714286,
+     "duplicates": 1
+    },
+    "curator": {
+     "size": 6,
+     "precision": 0.8333333333333334,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3047.3333333333335,
+     "duplicates": 1
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "copd",
+   "seconds": 45.7,
+   "shelf": 11,
+   "selection": "curator",
+   "curator_ms": 34243,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "PLACES_CASTHMA_CrdPrv": "Current asthma among adults (crude prevalence)",
+    "CHR_V009_RAWVALUE": "Adult smoking",
+    "PLACES_CSMOKING_CrdPrv": "Current cigarette smoking among adults (crude prevalence)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_COPD_CrdPrv": "direct",
+    "PLACES_CSMOKING_CrdPrv": "related",
+    "CHR_V125_RAWVALUE": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "CHR_V009_RAWVALUE": "related",
+    "PLACES_CASTHMA_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "none",
+    "CHR_V060_RAWVALUE": "none",
+    "e3304b35_01_01_58": "none",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V060_RAWVALUE",
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V125_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "e3304b35_01_01_58",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CSMOKING_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CASTHMA_CrdPrv"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 5,
+     "precision": 0.4,
+     "junk": 3,
+     "subject": false,
+     "related": true,
+     "coverage": 3044.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": false,
+     "related": true,
+     "coverage": 3062.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 6,
+     "precision": 0.6666666666666666,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 2996.1666666666665,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "diabetes",
+   "seconds": 50.1,
+   "shelf": 12,
+   "selection": "curator",
+   "curator_ms": 39744,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "CHR_V002_RAWVALUE": "Poor or fair health",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "NRI_COMMUNITY_RISK_FACTOR_VALUE": "Community Risk Factor - Value",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "CHR_V060_RAWVALUE": "direct",
+    "PLACES_DIABETES_CrdPrv": "direct",
+    "CHR_V002_RAWVALUE": "related",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "NRI_COMMUNITY_RISK_FACTOR_VALUE": "related"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V060_RAWVALUE",
+     "CHR_V011_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "CHR_V125_RAWVALUE"
+    ],
+    "top8": [
+     "CHR_V060_RAWVALUE",
+     "CHR_V011_RAWVALUE",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "CHR_V125_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "PLACES_DIABETES_CrdPrv",
+     "PLACES_OBESITY_CrdPrv"
+    ],
+    "curator": [
+     "CHR_V060_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_OBESITY_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V002_RAWVALUE",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 5,
+     "precision": 0.8,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3081.6,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.875,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3065.125,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 3073.75,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "stroke",
+   "seconds": 39.3,
+   "shelf": 11,
+   "selection": "curator",
+   "curator_ms": 29968,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_STROKE_CrdPrv": "Stroke among adults (crude prevalence)",
+    "ing_cmsdialysisf_01_16": "CMS dialysis facilities",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "PLACES_BPMED_CrdPrv": "Taking medicine to control high blood pressure among adults with high blood pressure (crude prevalence)",
+    "NRI_COMMUNITY_RISK_FACTOR_VALUE": "Community Risk Factor - Value",
+    "PLACES_VISION_CrdPrv": "Vision disability among adults (crude prevalence)",
+    "PLACES_COGNITION_CrdPrv": "Cognitive disability among adults (crude prevalence)",
+    "CHR_V051_RAWVALUE": "Population"
+   },
+   "verdicts": {
+    "PLACES_STROKE_CrdPrv": "direct",
+    "ing_cmsdialysisf_01_16": "none",
+    "CHR_V060_RAWVALUE": "related",
+    "PLACES_DIABETES_CrdPrv": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "PLACES_BPMED_CrdPrv": "related",
+    "NRI_COMMUNITY_RISK_FACTOR_VALUE": "none",
+    "PLACES_VISION_CrdPrv": "none",
+    "PLACES_COGNITION_CrdPrv": "none",
+    "CHR_V051_RAWVALUE": "denominator"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_STROKE_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "PLACES_BPMED_CrdPrv",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "PLACES_VISION_CrdPrv",
+     "PLACES_COGNITION_CrdPrv",
+     "CHR_V051_RAWVALUE"
+    ],
+    "top8": [
+     "CHR_V060_RAWVALUE",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "PLACES_COGNITION_CrdPrv",
+     "CHR_V051_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "ing_cmsdialysisf_01_16",
+     "PLACES_STROKE_CrdPrv"
+    ],
+    "curator": [
+     "PLACES_STROKE_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "PLACES_BPMED_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "CHR_V051_RAWVALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 8,
+     "precision": 0.5,
+     "junk": 4,
+     "subject": true,
+     "related": true,
+     "coverage": 3015.5,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.5,
+     "junk": 4,
+     "subject": true,
+     "related": true,
+     "coverage": 3065.285714285714,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 7,
+     "precision": 0.8571428571428571,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3038.4285714285716,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "obesity",
+   "seconds": 27.6,
+   "shelf": 10,
+   "selection": "curator",
+   "curator_ms": 15650,
+   "curator_fallback": null,
+   "labels": {
+    "a14046c9_01_01_21": "American Red Cross Chp Facs",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "CHR_V002_RAWVALUE": "Poor or fair health",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "PLACES_CASTHMA_CrdPrv": "Current asthma among adults (crude prevalence)",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "a14046c9_01_01_21": "none",
+    "PLACES_COPD_CrdPrv": "related",
+    "CHR_V002_RAWVALUE": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "PLACES_CASTHMA_CrdPrv": "related",
+    "CHR_V125_RAWVALUE": "related",
+    "e3304b35_01_01_58": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "a14046c9_01_01_21",
+     "PLACES_CHD_CrdPrv",
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V125_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "a14046c9_01_01_21",
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "e3304b35_01_01_58",
+     "CHR_V002_RAWVALUE"
+    ],
+    "curator": [
+     "CHR_V002_RAWVALUE",
+     "CHR_V125_RAWVALUE",
+     "e3304b35_01_01_58",
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "PLACES_CASTHMA_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 4,
+     "precision": 0.25,
+     "junk": 3,
+     "subject": false,
+     "related": false,
+     "coverage": 2984.6666666666665,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.375,
+     "junk": 5,
+     "subject": false,
+     "related": false,
+     "coverage": 3042.5,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 7,
+     "precision": 0.42857142857142855,
+     "junk": 4,
+     "subject": false,
+     "related": false,
+     "coverage": 3042.5,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "lung-cancer",
+   "seconds": 42.3,
+   "shelf": 9,
+   "selection": "curator",
+   "curator_ms": 33702,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V128_RAWVALUE": "Child mortality",
+    "PLACES_CANCER_CrdPrv": "Cancer (non-skin) or melanoma among adults (crude prevalence)",
+    "CHR_V009_RAWVALUE": "Adult smoking",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "PLACES_CSMOKING_CrdPrv": "Current cigarette smoking among adults (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "b15f4c3c_01_01_02": "Wildfire Perimeters Archive",
+    "CHR_V051_RAWVALUE": "Population"
+   },
+   "verdicts": {
+    "CHR_V128_RAWVALUE": "related",
+    "PLACES_CANCER_CrdPrv": "related",
+    "CHR_V009_RAWVALUE": "related",
+    "PLACES_COPD_CrdPrv": "related",
+    "PLACES_CSMOKING_CrdPrv": "related",
+    "CHR_V060_RAWVALUE": "none",
+    "PLACES_DIABETES_CrdPrv": "none",
+    "b15f4c3c_01_01_02": "none",
+    "CHR_V051_RAWVALUE": "denominator"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V128_RAWVALUE",
+     "CHR_V009_RAWVALUE",
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CSMOKING_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "b15f4c3c_01_01_02",
+     "CHR_V051_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CSMOKING_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "CHR_V051_RAWVALUE",
+     "CHR_V128_RAWVALUE",
+     "CHR_V009_RAWVALUE",
+     "b15f4c3c_01_01_02",
+     "PLACES_CANCER_CrdPrv"
+    ],
+    "curator": [
+     "CHR_V051_RAWVALUE",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CSMOKING_CrdPrv",
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CANCER_CrdPrv",
+     "CHR_V128_RAWVALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 7,
+     "precision": 0.42857142857142855,
+     "junk": 4,
+     "subject": false,
+     "related": true,
+     "coverage": 2889.6666666666665,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.5,
+     "junk": 4,
+     "subject": true,
+     "related": true,
+     "coverage": 2897.5714285714284,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 6,
+     "precision": 0.6666666666666666,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 2858.3333333333335,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "hypertension",
+   "seconds": 55.9,
+   "shelf": 15,
+   "selection": "curator",
+   "curator_ms": 46051,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_BPHIGH_CrdPrv": "High blood pressure among adults (crude prevalence)",
+    "PLACES_BPMED_CrdPrv": "Taking medicine to control high blood pressure among adults with high blood pressure (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "CHR_V002_RAWVALUE": "Poor or fair health",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "Heat Wave - Expected Annual Loss - Total",
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "Heat Wave - Hazard Type Risk Index Score",
+    "CHR_V128_RAWVALUE": "Child mortality",
+    "CHR_V127_RAWVALUE": "Premature age-adjusted mortality",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_BPHIGH_CrdPrv": "direct",
+    "PLACES_BPMED_CrdPrv": "related",
+    "CHR_V060_RAWVALUE": "related",
+    "CHR_V002_RAWVALUE": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "PLACES_DIABETES_CrdPrv": "related",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "none",
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "none",
+    "CHR_V128_RAWVALUE": "none",
+    "CHR_V127_RAWVALUE": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "CHR_V128_RAWVALUE"
+    ],
+    "top8": [
+     "CHR_V011_RAWVALUE",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_BPMED_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE",
+     "PLACES_OBESITY_CrdPrv"
+    ],
+    "curator": [
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_BPMED_CrdPrv",
+     "PLACES_OBESITY_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 6,
+     "precision": 0.6666666666666666,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 2868.3333333333335,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 3054.25,
+     "duplicates": 1
+    },
+    "curator": {
+     "size": 8,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 3026.75,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "nf-depression",
+   "seconds": 50.7,
+   "shelf": 11,
+   "selection": "curator",
+   "curator_ms": 38278,
+   "curator_fallback": null,
+   "labels": {
+    "SVI_EP_UNEMP": "Unemployment rate (percent)",
+    "04d18a18_08_01_268": "Population 16 years and over \u203a In labor force",
+    "ECONOMIC_TYPOLOGY": "Economic_typology",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "CHR_V145_RAWVALUE": "Frequent mental distress",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "CHR_V023_RAWVALUE": "Unemployment"
+   },
+   "verdicts": {
+    "SVI_EP_UNEMP": "related",
+    "04d18a18_08_01_268": "related",
+    "ECONOMIC_TYPOLOGY": "related",
+    "CHR_V011_RAWVALUE": "none",
+    "PLACES_OBESITY_CrdPrv": "none",
+    "CHR_V060_RAWVALUE": "none",
+    "PLACES_DIABETES_CrdPrv": "none",
+    "CHR_V145_RAWVALUE": "none",
+    "CHR_V125_RAWVALUE": "none",
+    "e3304b35_01_01_58": "none",
+    "CHR_V023_RAWVALUE": "direct"
+   },
+   "carts": {
+    "rules": [
+     "SVI_EP_UNEMP",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "CHR_V145_RAWVALUE",
+     "CHR_V125_RAWVALUE",
+     "CHR_V023_RAWVALUE"
+    ],
+    "top8": [
+     "SVI_EP_UNEMP",
+     "ECONOMIC_TYPOLOGY",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "CHR_V145_RAWVALUE",
+     "CHR_V125_RAWVALUE",
+     "CHR_V023_RAWVALUE",
+     "PLACES_OBESITY_CrdPrv"
+    ],
+    "curator": [
+     "CHR_V023_RAWVALUE",
+     "SVI_EP_UNEMP",
+     "04d18a18_08_01_268",
+     "ECONOMIC_TYPOLOGY"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 6,
+     "precision": 0.3333333333333333,
+     "junk": 4,
+     "subject": true,
+     "related": null,
+     "coverage": 3122.6666666666665,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.25,
+     "junk": 6,
+     "subject": true,
+     "related": null,
+     "coverage": 3102.75,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 4,
+     "precision": 0.75,
+     "junk": 1,
+     "subject": true,
+     "related": null,
+     "coverage": 2734.5,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "nf-heat",
+   "seconds": 26.0,
+   "shelf": 5,
+   "selection": "curator",
+   "curator_ms": 14573,
+   "curator_fallback": null,
+   "labels": {
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "Heat Wave - Hazard Type Risk Index Score",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "Heat Wave - Expected Annual Loss - Total",
+    "CHR_V182_RAWVALUE": "Adverse Climate Events",
+    "NOAA_CLIMDIV_TEMP_MAX_AVG_F": "Average annual daily maximum temperature (degrees Fahrenheit)",
+    "d6d9af88_01_01_10": "Historical Tropical Storm Tracks"
+   },
+   "verdicts": {
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "related",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "related",
+    "CHR_V182_RAWVALUE": "related",
+    "NOAA_CLIMDIV_TEMP_MAX_AVG_F": "related",
+    "d6d9af88_01_01_10": "none"
+   },
+   "carts": {
+    "rules": [
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE"
+    ],
+    "top8": [
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "CHR_V182_RAWVALUE",
+     "NOAA_CLIMDIV_TEMP_MAX_AVG_F",
+     "d6d9af88_01_01_10"
+    ],
+    "curator": []
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": null,
+     "coverage": 3105.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 5,
+     "precision": 0.6,
+     "junk": 2,
+     "subject": true,
+     "related": null,
+     "coverage": 3144.25,
+     "duplicates": 1
+    },
+    "curator": {
+     "size": 0,
+     "precision": 0.0,
+     "junk": 0,
+     "subject": false,
+     "related": null,
+     "coverage": null,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "both",
+   "rep": 0,
+   "id": "rainfall",
+   "seconds": 20.0,
+   "shelf": 2,
+   "selection": "curator",
+   "curator_ms": 17351,
+   "curator_fallback": null,
+   "labels": {
+    "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020": "Average annual precipitation, 1991-2020 (rainfall normal): all rain plus the water in melted snow. Not a measure of snowfall depth (inches)",
+    "NOAA_CLIMDIV_PRECIP_ANNUAL_IN": "Total annual precipitation: all rain plus the water in melted snow, in inches of water. It is not a measure of snowfall depth or of snow days"
+   },
+   "verdicts": {
+    "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020": "direct",
+    "NOAA_CLIMDIV_PRECIP_ANNUAL_IN": "none"
+   },
+   "carts": {
+    "rules": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020"
+    ],
+    "top8": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020",
+     "NOAA_CLIMDIV_PRECIP_ANNUAL_IN"
+    ],
+    "curator": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 1,
+     "precision": 0.0,
+     "junk": 1,
+     "subject": null,
+     "related": null,
+     "coverage": 3139.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 2,
+     "precision": 0.0,
+     "junk": 2,
+     "subject": null,
+     "related": null,
+     "coverage": 3139.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 1,
+     "precision": 0.0,
+     "junk": 1,
+     "subject": null,
+     "related": null,
+     "coverage": 3139.0,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "chd",
+   "seconds": 58.8,
+   "shelf": 16,
+   "selection": "curator",
+   "curator_ms": 17349,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG": "Annual average fine particulate matter (PM2.5) concentration (micrograms per cubic meter)",
+    "CHR_V128_RAWVALUE": "Child mortality",
+    "CHR_V127_RAWVALUE": "Premature age-adjusted mortality",
+    "NRI_COMMUNITY_RISK_FACTOR_VALUE": "Community Risk Factor - Value",
+    "04d18a18_05_01_29": "One race \u203a Black or African American",
+    "04d18a18_07_01_54": "RACE AND HISPANIC OR LATINO ORIGIN OF HOUSEHOLDER \u203a Black or African American alone",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_CHD_CrdPrv": "direct",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "CHR_V060_RAWVALUE": "related",
+    "PLACES_DIABETES_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "CHR_V125_RAWVALUE": "related",
+    "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG": "related"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_CHD_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "CHR_V125_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG",
+     "CHR_V128_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_CHD_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "CHR_V125_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "CHR_V128_RAWVALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC"
+    ],
+    "curator": [
+     "PLACES_CHD_CrdPrv",
+     "PLACES_OBESITY_CrdPrv",
+     "PLACES_DIABETES_CrdPrv",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG",
+     "CHR_V125_RAWVALUE",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 7,
+     "precision": 0.8571428571428571,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 2944.4285714285716,
+     "duplicates": 1
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 2968.0,
+     "duplicates": 1
+    },
+    "curator": {
+     "size": 8,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 3056.5,
+     "duplicates": 1
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "asthma",
+   "seconds": 61.8,
+   "shelf": 11,
+   "selection": "curator",
+   "curator_ms": 36840,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_CASTHMA_CrdPrv": "Current asthma among adults (crude prevalence)",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "CHR_V058_RAWVALUE": "% Rural",
+    "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG": "Annual average fine particulate matter (PM2.5) concentration (micrograms per cubic meter)",
+    "CHR_V156_RAWVALUE": "Traffic volume",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_CASTHMA_CrdPrv": "direct",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "PLACES_COPD_CrdPrv": "related",
+    "CHR_V125_RAWVALUE": "related",
+    "e3304b35_01_01_58": "none",
+    "CHR_V058_RAWVALUE": "related",
+    "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG": "related",
+    "CHR_V156_RAWVALUE": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_COPD_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "CHR_V058_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG",
+     "CHR_V156_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_COPD_CrdPrv",
+     "CHR_V058_RAWVALUE",
+     "CHR_V156_RAWVALUE",
+     "PLACES_OBESITY_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG"
+    ],
+    "curator": [
+     "PLACES_CASTHMA_CrdPrv",
+     "PLACES_OBESITY_CrdPrv",
+     "PLACES_COPD_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "AHRF_POPULATION_HEAL_ANNUL_PARTCLT_MATTR_2_5_AVG",
+     "CHR_V058_RAWVALUE",
+     "CHR_V156_RAWVALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 7,
+     "precision": 0.7142857142857143,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 3056.285714285714,
+     "duplicates": 1
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 3042.375,
+     "duplicates": 1
+    },
+    "curator": {
+     "size": 7,
+     "precision": 0.7142857142857143,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 3029.4285714285716,
+     "duplicates": 1
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "copd",
+   "seconds": 49.9,
+   "shelf": 11,
+   "selection": "curator",
+   "curator_ms": 34219,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "PLACES_CASTHMA_CrdPrv": "Current asthma among adults (crude prevalence)",
+    "CHR_V009_RAWVALUE": "Adult smoking",
+    "PLACES_CSMOKING_CrdPrv": "Current cigarette smoking among adults (crude prevalence)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_COPD_CrdPrv": "direct",
+    "PLACES_CSMOKING_CrdPrv": "related",
+    "CHR_V125_RAWVALUE": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "CHR_V009_RAWVALUE": "related",
+    "PLACES_CASTHMA_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "none",
+    "CHR_V060_RAWVALUE": "none",
+    "e3304b35_01_01_58": "none",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V060_RAWVALUE",
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V125_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "e3304b35_01_01_58",
+     "bfd307c1_01_01_12",
+     "443ff20b_01_01_12"
+    ],
+    "curator": [
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CSMOKING_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V009_RAWVALUE",
+     "PLACES_CASTHMA_CrdPrv"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 5,
+     "precision": 0.4,
+     "junk": 3,
+     "subject": false,
+     "related": true,
+     "coverage": 3044.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": false,
+     "related": true,
+     "coverage": 3062.0,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 6,
+     "precision": 0.6666666666666666,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 2996.1666666666665,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "diabetes",
+   "seconds": 76.2,
+   "shelf": 17,
+   "selection": "curator",
+   "curator_ms": 41391,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "NRI_COMMUNITY_RISK_FACTOR_VALUE": "Community Risk Factor - Value",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "CHR_V139_RAWVALUE": "Food insecurity",
+    "PLACES_FOODINSECU_CrdPrv": "Food insecurity in the past 12 months among adults (crude prevalence)",
+    "PLACES_LPA_CrdPrv": "No leisure-time physical activity among adults (crude prevalence)",
+    "CHR_V070_RAWVALUE": "Physical inactivity",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "a14046c9_01_01_21": "American Red Cross Chp Facs",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "CHR_V060_RAWVALUE": "direct",
+    "PLACES_DIABETES_CrdPrv": "direct",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "CHR_V125_RAWVALUE": "related",
+    "CHR_V139_RAWVALUE": "related",
+    "PLACES_LPA_CrdPrv": "related",
+    "CHR_V070_RAWVALUE": "related"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V060_RAWVALUE",
+     "CHR_V011_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "CHR_V125_RAWVALUE",
+     "CHR_V139_RAWVALUE",
+     "PLACES_LPA_CrdPrv"
+    ],
+    "top8": [
+     "CHR_V060_RAWVALUE",
+     "CHR_V011_RAWVALUE",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "CHR_V125_RAWVALUE",
+     "CHR_V139_RAWVALUE",
+     "PLACES_LPA_CrdPrv",
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CHD_CrdPrv"
+    ],
+    "curator": [
+     "CHR_V060_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_OBESITY_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "CHR_V139_RAWVALUE",
+     "PLACES_LPA_CrdPrv",
+     "CHR_V070_RAWVALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 7,
+     "precision": 0.5714285714285714,
+     "junk": 3,
+     "subject": true,
+     "related": true,
+     "coverage": 3069.4285714285716,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.5,
+     "junk": 4,
+     "subject": true,
+     "related": true,
+     "coverage": 3053.875,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 3053.875,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "stroke",
+   "seconds": 64.5,
+   "shelf": 14,
+   "selection": "curator",
+   "curator_ms": 34449,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_STROKE_CrdPrv": "Stroke among adults (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "NRI_COMMUNITY_RISK_FACTOR_VALUE": "Community Risk Factor - Value",
+    "PLACES_BPMED_CrdPrv": "Taking medicine to control high blood pressure among adults with high blood pressure (crude prevalence)",
+    "CHR_V128_RAWVALUE": "Child mortality",
+    "CHR_V127_RAWVALUE": "Premature age-adjusted mortality",
+    "04d18a18_05_01_29": "One race \u203a Black or African American",
+    "BACHELOR_S_DEGREE_OR_HIGHER": "Number of adults age 25 and older with a bachelor's degree or higher (count)",
+    "SOME_COLLEGE_OR_ASSOCIATE_DEGREE": "Number of adults age 25 and older with some college or an associate degree (count)",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_STROKE_CrdPrv": "direct",
+    "CHR_V060_RAWVALUE": "related",
+    "PLACES_DIABETES_CrdPrv": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "related",
+    "PLACES_BPMED_CrdPrv": "related",
+    "NRI_COMMUNITY_RISK_FACTOR_VALUE": "related",
+    "04d18a18_05_01_29": "related"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_STROKE_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "PLACES_BPMED_CrdPrv",
+     "CHR_V128_RAWVALUE",
+     "04d18a18_05_01_29"
+    ],
+    "top8": [
+     "CHR_V060_RAWVALUE",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "BACHELOR_S_DEGREE_OR_HIGHER",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "SOME_COLLEGE_OR_ASSOCIATE_DEGREE",
+     "PLACES_STROKE_CrdPrv",
+     "PLACES_DIABETES_CrdPrv"
+    ],
+    "curator": [
+     "PLACES_STROKE_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "PLACES_BPMED_CrdPrv",
+     "NRI_COMMUNITY_RISK_FACTOR_VALUE",
+     "04d18a18_05_01_29"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 7,
+     "precision": 0.5714285714285714,
+     "junk": 3,
+     "subject": true,
+     "related": true,
+     "coverage": 2910.1428571428573,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 3093.25,
+     "duplicates": 1
+    },
+    "curator": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 3061.25,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "obesity",
+   "seconds": 37.1,
+   "shelf": 13,
+   "selection": "curator",
+   "curator_ms": 20766,
+   "curator_fallback": null,
+   "labels": {
+    "a14046c9_01_01_21": "American Red Cross Chp Facs",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "PLACES_CASTHMA_CrdPrv": "Current asthma among adults (crude prevalence)",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "PLACES_LPA_CrdPrv": "No leisure-time physical activity among adults (crude prevalence)",
+    "CHR_V070_RAWVALUE": "Physical inactivity",
+    "CHR_V133_RAWVALUE": "Food environment index",
+    "CHR_V083_RAWVALUE": "Limited access to healthy foods",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "a14046c9_01_01_21": "none",
+    "PLACES_COPD_CrdPrv": "none",
+    "PLACES_CHD_CrdPrv": "none",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "none",
+    "PLACES_CASTHMA_CrdPrv": "none",
+    "CHR_V125_RAWVALUE": "related",
+    "e3304b35_01_01_58": "related",
+    "PLACES_LPA_CrdPrv": "related",
+    "CHR_V070_RAWVALUE": "related",
+    "CHR_V133_RAWVALUE": "related",
+    "CHR_V083_RAWVALUE": "related",
+    "bfd307c1_01_01_12": "none",
+    "443ff20b_01_01_12": "none"
+   },
+   "carts": {
+    "rules": [
+     "a14046c9_01_01_21",
+     "PLACES_CHD_CrdPrv",
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "PLACES_LPA_CrdPrv",
+     "CHR_V133_RAWVALUE",
+     "CHR_V083_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_CASTHMA_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "PLACES_LPA_CrdPrv",
+     "CHR_V133_RAWVALUE",
+     "CHR_V083_RAWVALUE",
+     "a14046c9_01_01_21",
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CHD_CrdPrv"
+    ],
+    "curator": []
+   },
+   "scores": {
+    "rules": {
+     "size": 7,
+     "precision": 0.14285714285714285,
+     "junk": 6,
+     "subject": false,
+     "related": false,
+     "coverage": 3017.8333333333335,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.125,
+     "junk": 7,
+     "subject": false,
+     "related": false,
+     "coverage": 3007.4285714285716,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 0,
+     "precision": 0.0,
+     "junk": 0,
+     "subject": false,
+     "related": false,
+     "coverage": null,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "lung-cancer",
+   "seconds": 42.4,
+   "shelf": 11,
+   "selection": "curator",
+   "curator_ms": 29614,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V128_RAWVALUE": "Child mortality",
+    "PLACES_CANCER_CrdPrv": "Cancer (non-skin) or melanoma among adults (crude prevalence)",
+    "CHR_V009_RAWVALUE": "Adult smoking",
+    "PLACES_COPD_CrdPrv": "Chronic obstructive pulmonary disease among adults (crude prevalence)",
+    "PLACES_CSMOKING_CrdPrv": "Current cigarette smoking among adults (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "b15f4c3c_01_01_02": "Wildfire Perimeters Archive",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "CHR_V051_RAWVALUE": "Population"
+   },
+   "verdicts": {
+    "CHR_V128_RAWVALUE": "none",
+    "PLACES_CANCER_CrdPrv": "direct",
+    "CHR_V009_RAWVALUE": "related",
+    "PLACES_COPD_CrdPrv": "related",
+    "PLACES_CSMOKING_CrdPrv": "related",
+    "CHR_V060_RAWVALUE": "none",
+    "PLACES_DIABETES_CrdPrv": "none",
+    "b15f4c3c_01_01_02": "none",
+    "CHR_V125_RAWVALUE": "related",
+    "e3304b35_01_01_58": "related",
+    "CHR_V051_RAWVALUE": "denominator"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V128_RAWVALUE",
+     "CHR_V009_RAWVALUE",
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CSMOKING_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "b15f4c3c_01_01_02",
+     "CHR_V125_RAWVALUE",
+     "CHR_V051_RAWVALUE"
+    ],
+    "top8": [
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CSMOKING_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "CHR_V125_RAWVALUE",
+     "CHR_V051_RAWVALUE",
+     "CHR_V128_RAWVALUE",
+     "CHR_V009_RAWVALUE",
+     "b15f4c3c_01_01_02"
+    ],
+    "curator": [
+     "PLACES_CANCER_CrdPrv",
+     "CHR_V009_RAWVALUE",
+     "PLACES_COPD_CrdPrv",
+     "PLACES_CSMOKING_CrdPrv",
+     "CHR_V125_RAWVALUE",
+     "e3304b35_01_01_58",
+     "CHR_V051_RAWVALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 8,
+     "precision": 0.5,
+     "junk": 4,
+     "subject": false,
+     "related": true,
+     "coverage": 2914.5714285714284,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.5,
+     "junk": 4,
+     "subject": false,
+     "related": true,
+     "coverage": 2914.5714285714284,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 7,
+     "precision": 0.8571428571428571,
+     "junk": 1,
+     "subject": true,
+     "related": true,
+     "coverage": 3027.5,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "hypertension",
+   "seconds": 61.0,
+   "shelf": 16,
+   "selection": "curator",
+   "curator_ms": 24075,
+   "curator_fallback": null,
+   "labels": {
+    "PLACES_BPHIGH_CrdPrv": "High blood pressure among adults (crude prevalence)",
+    "PLACES_BPMED_CrdPrv": "Taking medicine to control high blood pressure among adults with high blood pressure (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "CHR_V002_RAWVALUE": "Poor or fair health",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "Heat Wave - Expected Annual Loss - Total",
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "Heat Wave - Hazard Type Risk Index Score",
+    "CHR_V128_RAWVALUE": "Child mortality",
+    "CHR_V127_RAWVALUE": "Premature age-adjusted mortality",
+    "92fd4de4_01_01_08": "Ce82B6Ef-De1B-493E-85Cf-Fd3Ddbd776282020330-1-Hghk00.Liqsh",
+    "bfd307c1_01_01_12": "Child Care Centers",
+    "443ff20b_01_01_12": "Hospitals"
+   },
+   "verdicts": {
+    "PLACES_BPHIGH_CrdPrv": "direct",
+    "PLACES_BPMED_CrdPrv": "related",
+    "CHR_V060_RAWVALUE": "related",
+    "PLACES_CHD_CrdPrv": "related",
+    "CHR_V011_RAWVALUE": "related",
+    "PLACES_OBESITY_CrdPrv": "related",
+    "PLACES_DIABETES_CrdPrv": "related"
+   },
+   "carts": {
+    "rules": [
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_DIABETES_CrdPrv",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "CHR_V128_RAWVALUE",
+     "92fd4de4_01_01_08"
+    ],
+    "top8": [
+     "CHR_V011_RAWVALUE",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_BPMED_CrdPrv",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE",
+     "PLACES_OBESITY_CrdPrv"
+    ],
+    "curator": [
+     "PLACES_BPHIGH_CrdPrv",
+     "PLACES_BPMED_CrdPrv",
+     "CHR_V060_RAWVALUE",
+     "PLACES_CHD_CrdPrv",
+     "CHR_V011_RAWVALUE",
+     "PLACES_OBESITY_CrdPrv",
+     "PLACES_DIABETES_CrdPrv"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 7,
+     "precision": 0.5714285714285714,
+     "junk": 3,
+     "subject": true,
+     "related": true,
+     "coverage": 2868.3333333333335,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.75,
+     "junk": 2,
+     "subject": true,
+     "related": true,
+     "coverage": 3054.25,
+     "duplicates": 1
+    },
+    "curator": {
+     "size": 7,
+     "precision": 1.0,
+     "junk": 0,
+     "subject": true,
+     "related": true,
+     "coverage": 2998.714285714286,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "nf-depression",
+   "seconds": 41.3,
+   "shelf": 16,
+   "selection": "curator",
+   "curator_ms": 22759,
+   "curator_fallback": null,
+   "labels": {
+    "CHR_V023_RAWVALUE": "Unemployment",
+    "SVI_EP_UNEMP": "Unemployment rate (percent)",
+    "04d18a18_08_01_268": "Population 16 years and over \u203a In labor force",
+    "ECONOMIC_TYPOLOGY": "Economic_typology",
+    "CHR_V011_RAWVALUE": "Adult obesity",
+    "PLACES_OBESITY_CrdPrv": "Obesity among adults (crude prevalence)",
+    "CHR_V060_RAWVALUE": "Diabetes prevalence",
+    "PLACES_DIABETES_CrdPrv": "Diagnosed diabetes among adults (crude prevalence)",
+    "CHR_V145_RAWVALUE": "Frequent mental distress",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "NRI_DROUGHT_EXPECTED_ANNUAL_LOSS_TOTAL": "Drought - Expected Annual Loss - Total",
+    "NRI_DROUGHT_HAZARD_TYPE_RISK_INDEX_SCORE": "Drought - Hazard Type Risk Index Score",
+    "53feabf9_01_01_13": "Oil Ng Fields",
+    "CHR_V058_RAWVALUE": "% Rural",
+    "CHR_V051_RAWVALUE": "Population"
+   },
+   "verdicts": {
+    "CHR_V023_RAWVALUE": "direct",
+    "SVI_EP_UNEMP": "direct",
+    "04d18a18_08_01_268": "related",
+    "ECONOMIC_TYPOLOGY": "related",
+    "CHR_V058_RAWVALUE": "related",
+    "CHR_V051_RAWVALUE": "denominator",
+    "CHR_V011_RAWVALUE": "none",
+    "PLACES_OBESITY_CrdPrv": "none",
+    "CHR_V060_RAWVALUE": "none",
+    "PLACES_DIABETES_CrdPrv": "none",
+    "CHR_V145_RAWVALUE": "none",
+    "CHR_V125_RAWVALUE": "none",
+    "e3304b35_01_01_58": "none",
+    "NRI_DROUGHT_EXPECTED_ANNUAL_LOSS_TOTAL": "none",
+    "NRI_DROUGHT_HAZARD_TYPE_RISK_INDEX_SCORE": "none",
+    "53feabf9_01_01_13": "none"
+   },
+   "carts": {
+    "rules": [
+     "CHR_V023_RAWVALUE",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "CHR_V145_RAWVALUE",
+     "CHR_V125_RAWVALUE",
+     "NRI_DROUGHT_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "53feabf9_01_01_13",
+     "CHR_V051_RAWVALUE"
+    ],
+    "top8": [
+     "SVI_EP_UNEMP",
+     "ECONOMIC_TYPOLOGY",
+     "CHR_V011_RAWVALUE",
+     "CHR_V060_RAWVALUE",
+     "CHR_V145_RAWVALUE",
+     "CHR_V125_RAWVALUE",
+     "NRI_DROUGHT_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "CHR_V058_RAWVALUE"
+    ],
+    "curator": [
+     "CHR_V023_RAWVALUE",
+     "SVI_EP_UNEMP",
+     "04d18a18_08_01_268",
+     "ECONOMIC_TYPOLOGY",
+     "CHR_V058_RAWVALUE",
+     "CHR_V051_RAWVALUE"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 8,
+     "precision": 0.25,
+     "junk": 6,
+     "subject": true,
+     "related": null,
+     "coverage": 3135.714285714286,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.25,
+     "junk": 6,
+     "subject": true,
+     "related": null,
+     "coverage": 3135.5,
+     "duplicates": 0
+    },
+    "curator": {
+     "size": 6,
+     "precision": 0.8333333333333334,
+     "junk": 1,
+     "subject": true,
+     "related": null,
+     "coverage": 2867.3333333333335,
+     "duplicates": 0
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "nf-heat",
+   "seconds": 38.6,
+   "shelf": 13,
+   "selection": "curator",
+   "curator_ms": 21658,
+   "curator_fallback": null,
+   "labels": {
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "Heat Wave - Hazard Type Risk Index Score",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "Heat Wave - Expected Annual Loss - Total",
+    "CHR_V182_RAWVALUE": "Adverse Climate Events",
+    "NOAA_CLIMDIV_TEMP_MAX_AVG_F": "Average annual daily maximum temperature (degrees Fahrenheit)",
+    "NOAA_CLIMDIV_TEMP_AVG_F": "Average annual temperature (degrees Fahrenheit)",
+    "NOAA_CLIMDIV_TEMP_NORMAL_1991_2020": "Average annual temperature, 1991-2020 (temperature normal) (degrees Fahrenheit)",
+    "PLACES_CHD_CrdPrv": "Coronary heart disease among adults (crude prevalence)",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "M.D. physicians in cardiovascular disease (cardiology) providing patient care, non-federal",
+    "443ff20b_01_01_23": "Hospitals",
+    "CHR_V125_RAWVALUE": "Air pollution - particulate matter",
+    "e3304b35_01_01_58": "Environmental Protection Agency (Epa) Facility Registry Service (Frs) Power Plants",
+    "NOAA_CLIMDIV_HEATING_DEGREE_DAYS": "Annual heating degree days (a measure of how cold the year was; higher means more heating needed)",
+    "NOAA_CLIMDIV_TEMP_MIN_AVG_F": "Average annual daily minimum temperature (degrees Fahrenheit)"
+   },
+   "verdicts": {
+    "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE": "direct",
+    "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL": "direct",
+    "CHR_V182_RAWVALUE": "related",
+    "NOAA_CLIMDIV_TEMP_MAX_AVG_F": "related",
+    "NOAA_CLIMDIV_TEMP_AVG_F": "none",
+    "NOAA_CLIMDIV_TEMP_NORMAL_1991_2020": "none",
+    "PLACES_CHD_CrdPrv": "none",
+    "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC": "none",
+    "443ff20b_01_01_23": "none",
+    "CHR_V125_RAWVALUE": "none",
+    "e3304b35_01_01_58": "none",
+    "NOAA_CLIMDIV_HEATING_DEGREE_DAYS": "none",
+    "NOAA_CLIMDIV_TEMP_MIN_AVG_F": "none"
+   },
+   "carts": {
+    "rules": [
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE",
+     "NOAA_CLIMDIV_TEMP_AVG_F",
+     "PLACES_CHD_CrdPrv",
+     "443ff20b_01_01_23",
+     "CHR_V125_RAWVALUE",
+     "NOAA_CLIMDIV_HEATING_DEGREE_DAYS"
+    ],
+    "top8": [
+     "443ff20b_01_01_23",
+     "CHR_V125_RAWVALUE",
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE",
+     "PLACES_CHD_CrdPrv",
+     "AHRF_WORKFORCE_MD_NF_CARD_DIS_ALL_PC",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "e3304b35_01_01_58",
+     "NOAA_CLIMDIV_TEMP_AVG_F"
+    ],
+    "curator": [
+     "NRI_HEAT_WAVE_HAZARD_TYPE_RISK_INDEX_SCORE",
+     "NRI_HEAT_WAVE_EXPECTED_ANNUAL_LOSS_TOTAL",
+     "CHR_V182_RAWVALUE",
+     "NOAA_CLIMDIV_TEMP_MAX_AVG_F"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 6,
+     "precision": 0.5,
+     "junk": 3,
+     "subject": true,
+     "related": null,
+     "coverage": 3071.2,
+     "duplicates": 1
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.5,
+     "junk": 4,
+     "subject": true,
+     "related": null,
+     "coverage": 3111.0,
+     "duplicates": 1
+    },
+    "curator": {
+     "size": 4,
+     "precision": 0.75,
+     "junk": 1,
+     "subject": true,
+     "related": null,
+     "coverage": 3144.25,
+     "duplicates": 1
+    }
+   }
+  },
+  {
+   "arm": "web",
+   "rep": 0,
+   "id": "rainfall",
+   "seconds": 35.5,
+   "shelf": 8,
+   "selection": "curator",
+   "curator_ms": 25042,
+   "curator_fallback": null,
+   "labels": {
+    "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020": "Average annual precipitation, 1991-2020 (rainfall normal): all rain plus the water in melted snow. Not a measure of snowfall depth (inches)",
+    "NOAA_CLIMDIV_PRECIP_ANNUAL_IN": "Total annual precipitation: all rain plus the water in melted snow, in inches of water. It is not a measure of snowfall depth or of snow days",
+    "NOAA_CLIMDIV_TEMP_AVG_F": "Average annual temperature (degrees Fahrenheit)",
+    "NOAA_CLIMDIV_TEMP_NORMAL_1991_2020": "Average annual temperature, 1991-2020 (temperature normal) (degrees Fahrenheit)",
+    "NOAA_CLIMDIV_CDD_NORMAL_1991_2020": "Average annual cooling degree days, 1991-2020",
+    "NOAA_CLIMDIV_HDD_NORMAL_1991_2020": "Average annual heating degree days, 1991-2020",
+    "3bfee43a_01_01_06": "Hist Tornado Tracks",
+    "b15f4c3c_01_01_05": "Wildfire Perimeters Archive"
+   },
+   "verdicts": {
+    "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020": "direct",
+    "NOAA_CLIMDIV_PRECIP_ANNUAL_IN": "none",
+    "NOAA_CLIMDIV_TEMP_AVG_F": "none",
+    "NOAA_CLIMDIV_TEMP_NORMAL_1991_2020": "none",
+    "NOAA_CLIMDIV_CDD_NORMAL_1991_2020": "none",
+    "NOAA_CLIMDIV_HDD_NORMAL_1991_2020": "none",
+    "3bfee43a_01_01_06": "none",
+    "b15f4c3c_01_01_05": "none"
+   },
+   "carts": {
+    "rules": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020",
+     "NOAA_CLIMDIV_TEMP_AVG_F",
+     "NOAA_CLIMDIV_CDD_NORMAL_1991_2020",
+     "3bfee43a_01_01_06",
+     "b15f4c3c_01_01_05"
+    ],
+    "top8": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020",
+     "NOAA_CLIMDIV_PRECIP_ANNUAL_IN",
+     "NOAA_CLIMDIV_TEMP_AVG_F",
+     "NOAA_CLIMDIV_CDD_NORMAL_1991_2020",
+     "NOAA_CLIMDIV_HDD_NORMAL_1991_2020",
+     "NOAA_CLIMDIV_TEMP_NORMAL_1991_2020",
+     "3bfee43a_01_01_06",
+     "b15f4c3c_01_01_05"
+    ],
+    "curator": [
+     "NOAA_CLIMDIV_PRECIP_NORMAL_1991_2020"
+    ]
+   },
+   "scores": {
+    "rules": {
+     "size": 5,
+     "precision": 0.0,
+     "junk": 5,
+     "subject": null,
+     "related": null,
+     "coverage": 3127.0,
+     "duplicates": 0
+    },
+    "top8": {
+     "size": 8,
+     "precision": 0.0,
+     "junk": 8,
+     "subject": null,
+     "related": null,
+     "coverage": 3126.0,
+     "duplicates": 2
+    },
+    "curator": {
+     "size": 1,
+     "precision": 0.0,
+     "junk": 1,
+     "subject": null,
+     "related": null,
+     "coverage": 3139.0,
+     "duplicates": 0
+    }
+   }
+  }
+ ],
+ "summary": {
+  "off/rules": {
+   "precision": 0.6818181818181818,
+   "junk": 0.36363636363636365,
+   "size": 1.1818181818181819,
+   "subject": 0.7,
+   "related": 0.0,
+   "duplicates": 0.0,
+   "coverage": 3001.75
+  },
+  "off/top8": {
+   "precision": 0.7378787878787879,
+   "junk": 1.0,
+   "size": 4.0,
+   "subject": 0.9,
+   "related": 0.125,
+   "duplicates": 0.18181818181818182,
+   "coverage": 2980.4272727272723
+  },
+  "off/curator": {
+   "precision": 0.6454545454545454,
+   "junk": 0.45454545454545453,
+   "size": 1.8181818181818181,
+   "subject": 0.8,
+   "related": 0.125,
+   "duplicates": 0.09090909090909091,
+   "coverage": 2985.3444444444444
+  },
+  "lit/rules": {
+   "precision": 0.6287878787878788,
+   "junk": 1.1818181818181819,
+   "size": 3.272727272727273,
+   "subject": 0.7,
+   "related": 0.875,
+   "duplicates": 0.0,
+   "coverage": 3039.0212121212126
+  },
+  "lit/top8": {
+   "precision": 0.6466450216450217,
+   "junk": 2.1818181818181817,
+   "size": 7.090909090909091,
+   "subject": 0.9,
+   "related": 0.875,
+   "duplicates": 0.2727272727272727,
+   "coverage": 3044.387121212121
+  },
+  "lit/curator": {
+   "precision": 0.615909090909091,
+   "junk": 0.7272727272727273,
+   "size": 4.0,
+   "subject": 0.8,
+   "related": 0.75,
+   "duplicates": 0.09090909090909091,
+   "coverage": 3020.162962962963
+  },
+  "both/rules": {
+   "precision": 0.5517316017316017,
+   "junk": 2.1818181818181817,
+   "size": 5.090909090909091,
+   "subject": 0.7,
+   "related": 0.875,
+   "duplicates": 0.18181818181818182,
+   "coverage": 3022.0177489177486
+  },
+  "both/top8": {
+   "precision": 0.5659090909090909,
+   "junk": 2.8181818181818183,
+   "size": 7.181818181818182,
+   "subject": 0.8,
+   "related": 0.875,
+   "duplicates": 0.36363636363636365,
+   "coverage": 3052.1314935064934
+  },
+  "both/curator": {
+   "precision": 0.6190476190476191,
+   "junk": 1.3636363636363635,
+   "size": 5.454545454545454,
+   "subject": 0.8,
+   "related": 0.875,
+   "duplicates": 0.18181818181818182,
+   "coverage": 3000.233333333333
+  },
+  "web/rules": {
+   "precision": 0.46168831168831165,
+   "junk": 3.5454545454545454,
+   "size": 6.7272727272727275,
+   "subject": 0.7,
+   "related": 0.875,
+   "duplicates": 0.2727272727272727,
+   "coverage": 3014.4489177489177
+  },
+  "web/top8": {
+   "precision": 0.5113636363636364,
+   "junk": 3.909090909090909,
+   "size": 8.0,
+   "subject": 0.7,
+   "related": 0.875,
+   "duplicates": 0.6363636363636364,
+   "coverage": 3051.659090909091
+  },
+  "web/curator": {
+   "precision": 0.6655844155844156,
+   "junk": 1.0909090909090908,
+   "size": 5.636363636363637,
+   "subject": 0.9,
+   "related": 0.875,
+   "duplicates": 0.2727272727272727,
+   "coverage": 3037.401785714286
+  }
+ }
+}

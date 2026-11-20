@@ -72,6 +72,10 @@ const DataCartPage: React.FC = () => {
   const [searching, setSearching] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // The LLM curator (backend/curator.js). Opt-in until eval/cart_probe.py
+  // says it beats the rule-based pick; when the server default turns it on,
+  // leaving this unticked still asks the server's default.
+  const [curate, setCurate] = useState(false);
 
   const [cart, setCart] = useState<CartItem[]>(() => loadCart());
   useEffect(() => saveCart(cart), [cart]);
@@ -99,7 +103,7 @@ const DataCartPage: React.FC = () => {
     setQuery(text);
     setSearching(true); setError(null); setElapsed(0);
     try {
-      const res = await suggest(text, expanded);
+      const res = await suggest(text, expanded, curate || undefined);
       setShelf(res);
       setAsked(text);
       // An empty cart takes the suggestion; a cart in progress is never
@@ -175,7 +179,15 @@ const DataCartPage: React.FC = () => {
           </button>
         </div>
         <div className="pt-2 px-1">
-          <ExpandedSearchControl value={expanded} onChange={setExpanded} disabled={searching} />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <ExpandedSearchControl value={expanded} onChange={setExpanded} disabled={searching} />
+            <label className="inline-flex items-center gap-1.5 text-xs text-slate-600"
+                   title="A local model judges every item and picks the cart. Adds about 10-35 s. Being measured against the rule-based pick.">
+              <input type="checkbox" checked={curate} disabled={searching}
+                     onChange={e => setCurate(e.target.checked)} className="accent-brand-700" />
+              Let the model pick the cart (trial)
+            </label>
+          </div>
         </div>
       </form>
 
@@ -195,7 +207,7 @@ const DataCartPage: React.FC = () => {
         <p className="mt-4 text-sm text-slate-600 flex items-center gap-2">
           <Loader2 className="w-4 h-4 animate-spin" />
           Searching{expanded.on ? ' with expanded search' : ''}… {(elapsed / 1000).toFixed(0)}s
-          {expanded.on && expanded.pubmed && <span className="text-slate-500">(reading PubMed takes 10-20 s)</span>}
+          {expanded.on && (expanded.pubmed || expanded.web) && <span className="text-slate-500">(reading PubMed or the web takes 10-20 s)</span>}
         </p>
       )}
       {error && (
@@ -217,6 +229,13 @@ const DataCartPage: React.FC = () => {
                 <span>PubMed keywords: {shelf.research.keywords.join(', ')}</span>
               )}
               <span>{(shelf.ms / 1000).toFixed(1)} s</span>
+              {shelf.curated && (
+                <span title={shelf.curated.notes.join('; ') || undefined}>
+                  {shelf.curated.fallback
+                    ? `model pick failed (${shelf.curated.fallback}); rule-based set shown`
+                    : `cart picked by the model in ${(shelf.curated.ms / 1000).toFixed(0)} s`}
+                </span>
+              )}
             </div>
           )}
           {shelf && !shelf.items.length && (
@@ -230,7 +249,8 @@ const DataCartPage: React.FC = () => {
               {ROLE_TITLE[role].hint && <p className="text-xs text-slate-500 mb-2">{ROLE_TITLE[role].hint}</p>}
               <ul className="space-y-2">
                 {items.map(it => (
-                  <ShelfRow key={it.id} item={it} inCart={inCart} onAdd={add} />
+                  <ShelfRow key={it.id} item={it} inCart={inCart} onAdd={add}
+                            verdict={shelf?.curated?.verdicts[it.id]} />
                 ))}
               </ul>
             </div>
@@ -260,7 +280,8 @@ const DataCartPage: React.FC = () => {
             <button type="button" onClick={useSuggested}
                     className="w-full text-xs flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg
                                border border-brand-300 text-brand-700 hover:bg-brand-50">
-              <Wand2 className="w-3.5 h-3.5" /> Use the suggested set ({shelf.default_cart.length})
+              <Wand2 className="w-3.5 h-3.5" />
+              Use the {shelf.selection === 'curator' ? "model's" : 'suggested'} set ({shelf.default_cart.length})
             </button>
           )}
 
@@ -323,11 +344,19 @@ const DataCartPage: React.FC = () => {
   );
 };
 
+const VERDICT: Record<string, { text: string; cls: string }> = {
+  direct: { text: 'model: what you asked about', cls: 'bg-green-50 text-green-800 border-green-200' },
+  related: { text: 'model: related', cls: 'bg-brand-50 text-brand-700 border-brand-200' },
+  denominator: { text: 'model: denominator', cls: 'bg-slate-50 text-slate-700 border-slate-200' },
+  none: { text: 'model: not useful here', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
+};
+
 const ShelfRow: React.FC<{
   item: ShelfItem;
   inCart: Set<string>;
   onAdd: (it: ShelfItem | Omit<ShelfItem, 'variants'>) => void;
-}> = ({ item, inCart, onAdd }) => {
+  verdict?: string;
+}> = ({ item, inCart, onAdd, verdict }) => {
   const [open, setOpen] = useState(false);
   const added = inCart.has(item.id);
   return (
@@ -337,6 +366,11 @@ const ShelfRow: React.FC<{
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-medium text-ink text-sm leading-snug">{item.label}</span>
             <KindBadge kind={item.kind} />
+            {verdict && VERDICT[verdict] && (
+              <span className={`text-[11px] px-1.5 py-0.5 rounded border ${VERDICT[verdict].cls}`}>
+                {VERDICT[verdict].text}
+              </span>
+            )}
           </div>
           <div className="text-xs text-slate-500 mt-0.5">
             {item.dataset ?? 'catalog'}

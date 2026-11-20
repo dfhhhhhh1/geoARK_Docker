@@ -47,8 +47,16 @@ const TERMINAL: AnalysisStage[] = ['done', 'failed'];
  *   pubmed      keywords read from PubMed abstracts (backend/research.js);
  *               the condition's name is sent to NCBI
  */
-export interface ExpandedSearch { on: boolean; literature: boolean; pubmed: boolean }
-export const EXPANDED_OFF: ExpandedSearch = { on: false, literature: true, pubmed: true };
+export interface ExpandedSearch { on: boolean; literature: boolean; pubmed: boolean; web: boolean }
+// Web is off even when the switch is on: measured to fire on 21 of 24
+// non-health questions with mostly method-word keywords (docs/EXPANSION.md).
+export const EXPANDED_OFF: ExpandedSearch = { on: false, literature: true, pubmed: true, web: false };
+
+/** The `research` value: "pubmed", "web", "pubmed,web" or "" (none). */
+export function researchSources(s: ExpandedSearch): string {
+  if (!s.on) return '';
+  return [s.pubmed && 'pubmed', s.web && 'web'].filter(Boolean).join(',');
+}
 
 /**
  * Always explicit. The server's own default has literature expansion ON, so
@@ -56,8 +64,7 @@ export const EXPANDED_OFF: ExpandedSearch = { on: false, literature: true, pubme
  */
 export function expandedParams(s: ExpandedSearch): string {
   const lit = s.on && s.literature;
-  const pub = s.on && s.pubmed;
-  return `&expand=${lit}&research=${pub ? 'pubmed' : ''}`;
+  return `&expand=${lit}&research=${encodeURIComponent(researchSources(s))}`;
 }
 
 /**

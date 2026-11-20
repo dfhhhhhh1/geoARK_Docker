@@ -1,0 +1,79 @@
+# Data cart selection suite (docs/DATA_CART_PLAN.md Phase 2).
+#
+# One question -> one shelf -> three carts from that SAME shelf (paired):
+#   rules    cart.defaultCart, today's default
+#   top8     top 8 shelf rows by retrieval score
+#   curator  backend/curator.js (one LLM call + code rules)
+# Run with eval/cart_probe.py. The curator becomes the default only if it beats
+# the rules on precision AND loses no subject recall, on `dev`. `heldout` is
+# scored once, after that decision, and never informs a change.
+#
+# Gold is regexes over an item's label + description (+ dataset for layers):
+#   must    the subject: the thing the question asks about
+#   should  linked measures the literature ties to it; taken verbatim from
+#           eval/expansion.yaml / expansion_heldout.yaml, NOT rewritten here
+#   ok      COMMON_OK below: standard covariates an analyst would keep
+#           (income, poverty, insurance, age, rurality, care supply,
+#           population). Neither rewarded as related nor counted as junk.
+#           For health questions it also takes air pollution, a widely
+#           established cardio-respiratory risk factor. CAVEAT: written after
+#           seeing ONE run (the CHD cart); applied identically to every arm.
+# precision = share of cart items matching must | should | ok.
+# A question with no `must` and no `should` is correctly answered by an EMPTY
+# cart; every item in it is junk. (None is left: rainfall turned out answerable.)
+
+common_ok: "income|povert|uninsur|insurance|\\b(aged?|65)\\b|older adult|rural|physician|primary care|population|educat|unemploy"
+health_ok: "particulate|PM ?2|pollut|ozone"
+
+dev:
+  - {id: chd, health: true, query: "coronary heart disease in each county",
+     must: "heart disease|coronary", should: "obes|smok|cigarette|physical(ly)? inactiv|blood pressure|hypertens|diabet"}
+  - {id: asthma, health: true, query: "asthma rates by county",
+     must: "asthma", should: "obes|smok|cigarette|PM2|particulate|pollut|ozone"}
+  - {id: copd, health: true, query: "where is COPD most common",
+     must: "pulmonary|COPD", should: "smok|cigarette|tobacco|PM2|particulate|pollut"}
+  - {id: diabetes, health: true, query: "diabetes prevalence across the South",
+     must: "diabet", should: "obes|physical(ly)? inactiv|blood pressure|hypertens|heart disease"}
+  - {id: stroke, health: true, query: "stroke hospitalization by county",
+     must: "stroke", should: "blood pressure|hypertens|smok|cigarette|diabet|obes"}
+  - {id: obesity, health: true, query: "obesity rates in Texas counties",
+     must: "obes", should: "diabet|physical(ly)? inactiv|food desert|fast food|blood pressure|hypertens"}
+  - {id: lung-cancer, health: true, query: "counties with high lung cancer",
+     must: "cancer", should: "smok|cigarette|tobacco|PM2|particulate|pollut"}
+  - {id: hypertension, health: true, query: "high blood pressure by county",
+     must: "blood pressure|hypertens", should: "obes|diabet|stroke|heart disease|smok|drinking|alcohol"}
+  - {id: nf-depression, health: false, query: "counties hit hardest by the economic depression in unemployment",
+     must: "unemploy"}
+  - {id: nf-heat, health: false, query: "extreme heat days by county", must: "heat|temperature"}
+  # Was written as unanswerable (answerability.yaml refuses it). It is not:
+  # "Average annual precipitation, 1991-2020" is loaded (found in dev-r1).
+  - {id: rainfall, health: false, query: "What is the average rainfall by county?", must: "precipitation|rain"}
+
+heldout:
+  - {id: ho-heart-attack, health: true, query: "where do the most heart attacks happen",
+     must: "heart|coronary", should: "obes|smok|cigarette|blood pressure|hypertens|diabet|cholesterol|physical(ly)? inactiv"}
+  - {id: ho-depression, health: true, query: "depression rates across counties",
+     must: "depress|mental", should: "drink|alcohol|smok|sleep|obes|physical(ly)? inactiv|poor physical health"}
+  - {id: ho-cancer, health: true, query: "cancer prevalence in Appalachia",
+     must: "cancer", should: "smok|cigarette|tobacco|obes|drink|alcohol"}
+  - {id: ho-arthritis, health: true, query: "arthritis by county",
+     must: "arthritis", should: "obes|physical(ly)? inactiv|disabil|mobility"}
+  - {id: ho-binge, health: true, query: "binge drinking in the Midwest",
+     must: "binge|drink", should: "smok|cigarette|depress|mental|injur|overdose"}
+  - {id: ho-overdose, health: true, query: "drug overdose deaths by county",
+     must: "overdose|drug", should: "depress|mental|drink|alcohol|smok|suicide"}
+  - {id: ho-sugar, health: true, query: "counties where lots of people have sugar diabetes",
+     must: "diabet", should: "obes|physical(ly)? inactiv|blood pressure|hypertens|kidney"}
+  - {id: ho-cholesterol, health: true, query: "high cholesterol rates in Ohio",
+     must: "cholesterol", should: "obes|diabet|heart|coronary|stroke|blood pressure|hypertens"}
+  - {id: ho-smoking, health: true, query: "smoking rates by county",
+     must: "smok|cigarette|tobacco", should: "COPD|pulmonary|lung|cancer|heart|coronary|stroke|asthma"}
+  - {id: ho-teeth, health: true, query: "tooth loss among older adults by county",
+     must: "teeth|tooth", should: "smok|cigarette|diabet"}
+  - {id: ho-ckd, health: true, query: "chronic kidney disease by county",
+     should: "diabet|blood pressure|hypertens|obes"}
+  - {id: nf-cold, health: false, query: "counties with cold winters and high heating costs", must: "heat|cold|winter|temperature"}
+  - {id: nf-pressure, health: false, query: "housing cost pressure on renters", must: "rent|housing cost|cost burden"}
+  # Precipitation is loaded but no snowfall measure is known to be; gold written
+  # BEFORE running heldout. An item is right only if it names snow.
+  - {id: snowfall, health: false, query: "Which counties get the most snow each year?", must: "snow"}

@@ -7,7 +7,11 @@ import type { ExpandedSearch } from '../hooks/useAnalyzeStream';
  * both sources are on and either can be unticked.
  *   Literature  SemMedDB relations, looked up on this machine
  *   PubMed      keywords read from PubMed abstracts; the condition's NAME is
- *               sent to NCBI, the one call that leaves the machine
+ *               sent to NCBI
+ *   Web         keywords read from web pages found through SearXNG; the
+ *               QUESTION leaves the machine. Off by default: noisier
+ *               (docs/EXPANSION.md), and the data cart's curator is what
+ *               is meant to filter it
  */
 const ExpandedSearchControl: React.FC<{
   value: ExpandedSearch;
@@ -34,7 +38,12 @@ const ExpandedSearchControl: React.FC<{
                     onClick={() => onChange({ ...value, pubmed: !value.pubmed })}>
           PubMed
         </SourceChip>
-        {!value.literature && !value.pubmed && (
+        <SourceChip on={value.web} disabled={disabled}
+                    title="Keywords read from web pages (SearXNG). Your question is sent to web search engines. Noisier than PubMed: it often adds unrelated terms."
+                    onClick={() => onChange({ ...value, web: !value.web })}>
+          Web
+        </SourceChip>
+        {!value.literature && !value.pubmed && !value.web && (
           <span className="text-xs text-amber-700">no source selected: runs as a normal search</span>
         )}
       </>

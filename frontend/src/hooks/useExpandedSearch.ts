@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { EXPANDED_OFF, type ExpandedSearch } from './useAnalyzeStream';
+import { EXPANDED_OFF, researchSources, type ExpandedSearch } from './useAnalyzeStream';
 
 const KEY = 'geoark.expanded';
 
@@ -13,7 +13,8 @@ export function useExpandedSearch(): [ExpandedSearch, (e: ExpandedSearch) => voi
     try {
       const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
       if (raw && typeof raw === 'object') {
-        return { on: !!raw.on, literature: raw.literature !== false, pubmed: raw.pubmed !== false };
+        return { on: !!raw.on, literature: raw.literature !== false, pubmed: raw.pubmed !== false,
+                 web: raw.web === true };
       }
     } catch { /* fall through to the default */ }
     return EXPANDED_OFF;
@@ -27,5 +28,5 @@ export function useExpandedSearch(): [ExpandedSearch, (e: ExpandedSearch) => voi
 
 /** The request fields for a JSON POST (the stream sends query params instead). */
 export function expandedBody(s: ExpandedSearch): { expand: boolean; research: string } {
-  return { expand: s.on && s.literature, research: s.on && s.pubmed ? 'pubmed' : '' };
+  return { expand: s.on && s.literature, research: researchSources(s) };
 }

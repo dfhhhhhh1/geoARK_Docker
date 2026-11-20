@@ -38,6 +38,15 @@ export interface SuggestResponse {
   dropped: Record<string, number>;
   expansion: { concepts: string[] } | null;
   research: { sources: string[]; keywords: string[] } | null;
+  /** Who picked default_cart: the code rules, or the LLM curator (Phase 2). */
+  selection: 'rules' | 'curator' | 'rules (curator failed)';
+  curated: {
+    cart: string[];
+    verdicts: Record<string, 'direct' | 'related' | 'denominator' | 'none'>;
+    notes: string[];
+    ms: number;
+    fallback?: string;
+  } | null;
   ms: number;
 }
 
@@ -86,8 +95,10 @@ async function post<T>(url: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-export const suggest = (q: string, expanded: ExpandedSearch) =>
-  post<SuggestResponse>('/api/cart/suggest', { q, ...expandedBody(expanded) });
+export const suggest = (q: string, expanded: ExpandedSearch, curate?: boolean) =>
+  post<SuggestResponse>('/api/cart/suggest', {
+    q, ...expandedBody(expanded), ...(curate !== undefined ? { curate } : {}),
+  });
 
 export const checkout = (items: string[], states: string[] | null) =>
   post<CartTable>('/api/cart/table', { items, ...(states?.length ? { states } : {}) });

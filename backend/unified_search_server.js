@@ -37,6 +37,7 @@ const LOCATION_COLUMN = new RegExp("^(?:" + [
 const { levelOf, rollupOf, asksDistance, registerZoneSets, isZoneLevel, zoneSet } = require("./planner/levels");
 const { referencePhrase } = require("./planner/features");
 const cart = require("./cart");
+const curator = require("./curator");
 const { boundsQueries } = require("./planner/uncertainty");
 const { asksAccess } = require("./planner/ops/access");
 const planOps = require("./planner/ops");
@@ -3977,10 +3978,31 @@ app.post("/api/cart/suggest", auth.requireAuth, limitSearch, async (req, res) =>
       label: (r) => followup.measureLabel(r.attr_desc) || r.attr_orig || r.attr_id,
       isLocationColumn: (s) => LOCATION_COLUMN.test(s),
     });
+    // Selection. The rule-based cart and top-8 by score are always computed
+    // (cheap) so a probe compares all three on ONE shelf. The curator runs
+    // when asked, or when CART_CURATOR=1; it is off until eval/cart_probe.py
+    // shows it beats the rules (docs/DATA_CART_PLAN.md Phase 2).
+    const rules = cart.defaultCart(items);
+    const curateOn = typeof req.body?.curate === "boolean" ? req.body.curate
+      : /^(1|true|on)$/i.test(process.env.CART_CURATOR ?? "");
+    let curated = null;
+    if (curateOn) {
+      const think = req.body?.plan_think ?? CONFIG.llm.planThink;
+      curated = await curator.curate({
+        query: q, shelf: items, fallbackCart: rules, log: console.log,
+        // The planner model, with the relevance check's reasoning setting: a
+        // judging call, so it gets the budget measured for judging calls.
+        callLLM: (sys, usr, temp, schema) => callLLM(sys, usr, temp, schema, CONFIG.llm.planModel,
+          { ...planThinkExtra(think, "relevance"), role: "relevance" }),
+      });
+    }
     return res.json({
       query: q,
       items,
-      default_cart: cart.defaultCart(items),
+      default_cart: curated && !curated.fallback ? curated.cart : rules,
+      selection: curated ? (curated.fallback ? "rules (curator failed)" : "curator") : "rules",
+      curated,
+      baselines: { rules, top8: curator.topByScore(items) },
       dropped,
       expansion: search.expansion
         ? { concepts: (search.expansion.concepts || []).filter(c => c.kept).map(c => c.name) } : null,
