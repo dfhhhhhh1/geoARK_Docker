@@ -143,7 +143,7 @@ const AnalysisPage: React.FC = () => {
       });
     }
     for (const t of [...convo.turns].reverse()) {
-      if (t.id === activeId || t.status !== 'done' || !t.result) continue;
+      if (t.id === activeId || t.status !== 'done' || !t.result?.plan) continue;
       const ls = layersOf(t.result, `turn:${t.id}`, 'Earlier answer', true);
       if (!ls.length) continue;
       out.push({ key: `turn:${t.id}`, kind: 'answer', title: t.result.plan.intent,
@@ -549,7 +549,7 @@ const TurnView: React.FC<{
                 className="w-full text-left group flex items-center gap-3 rounded-xl border border-slate-200
                            bg-white px-4 py-3 hover:border-brand-400 transition-colors">
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium text-slate-800 truncate">{r.plan.intent}</span>
+            <span className="block text-sm font-medium text-slate-800 truncate">{r.plan?.intent ?? t.userText}</span>
             <span className="block text-xs text-slate-500">
               {summarize(r)}{t.elapsedMs ? ` · ${(t.elapsedMs / 1000).toFixed(1)}s` : ''}
             </span>

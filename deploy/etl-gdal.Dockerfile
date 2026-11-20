@@ -13,13 +13,19 @@ WORKDIR /app
 # 16): pg_dump refuses to dump a NEWER server than itself, so a mismatched
 # client would make `make dump-dataset` fail only when it is needed.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3-pip postgresql-client-16 \
+ && apt-get install -y --no-install-recommends python3-pip postgresql-client-16 osmium-tool \
  && rm -rf /var/lib/apt/lists/*
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --break-system-packages \
         "psycopg2-binary==2.9.10" "pandas==2.2.3" "SQLAlchemy==2.0.36" "GeoAlchemy2==0.15.2" \
         "PyYAML==6.0.2" "openpyxl==3.1.5"
+
+# H5 road network: osmium-tool cuts a region out of a national .osm.pbf;
+# pyosmium reads it (etl/load_osm_network.py); scipy runs the eval gold's own
+# Dijkstra (eval/gis_ops/network_gold.py), independent of pgRouting.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --break-system-packages "osmium==4.0.2" "scipy==1.14.1"
 
 COPY . /app/etl
 CMD ["python3", "/app/etl/geospatial_etl.py"]

@@ -1,0 +1,73 @@
+# GeoARK 1-Line DSL GBNF Grammar
+# Enforces strict 1-line syntax across the 28 operators and REFUSE(...)
+# Prevents conversational preambles, explanations, markdown fences, and multi-line output.
+
+root ::= ws (refusal | plan) ws "\n"?
+
+refusal ::= "REFUSE(" ws (refuse-arg (ws "," ws refuse-arg)*)? ws ")"
+refuse-arg ::= (refuse-key ws ("=" | ":") ws)? value
+refuse-key ::= "missing" | "reason" | [a-zA-Z_][a-zA-Z0-9_]*
+
+plan ::= (intent ws "|" ws)? step (ws "|" ws step)*
+
+intent ::= "INTENT(" ws string-val ws ")"
+
+step ::= (step-id ws ":" ws)? (op-call | bare-op)
+
+step-id ::= [a-zA-Z] [a-zA-Z0-9_]*
+
+bare-op ::= "output"
+          | "per_area"
+          | "hotspot"
+          | "outlier"
+          | "explain"
+          | "summarize"
+          | "neighbors"
+
+op-call ::= op-name "(" ws arg-list? ws ")"
+
+op-name ::= "load"
+          | "count_features"
+          | "count_near"
+          | "nearest_distance"
+          | "select_features"
+          | "within"
+          | "overlay"
+          | "summarize"
+          | "filter_attr"
+          | "filter_area"
+          | "filter_place"
+          | "per_area"
+          | "normalize"
+          | "aggregate"
+          | "rank"
+          | "join"
+          | "combine"
+          | "hotspot"
+          | "outlier"
+          | "correlate"
+          | "explain"
+          | "intersect"
+          | "compare_groups"
+          | "neighbors"
+          | "residual"
+          | "access"
+          | "zonal"
+          | "output"
+
+arg-list ::= arg (ws "," ws arg)*
+arg ::= (arg-key ws ("=" | ":") ws)? value
+arg-key ::= [a-zA-Z_] [a-zA-Z0-9_]*
+
+value ::= string-val | number | boolean | op-symbol | array | identifier
+
+string-val ::= ("\"" ([^"\\] | "\\" ["\\/bfnrt])* "\"") | ("'" ([^'\\] | "\\" ['\\/bfnrt])* "'")
+identifier ::= [a-zA-Z_] [a-zA-Z0-9_]*
+boolean ::= "true" | "false" | "True" | "False"
+number ::= "-"? [0-9]+ ("." [0-9]+)?
+op-symbol ::= ">=" | "<=" | "!=" | ">" | "<" | "="
+
+array ::= "[" ws (array-item (ws "," ws array-item)*)? ws "]"
+array-item ::= string-val | number | identifier | boolean
+
+ws ::= [ \t]*

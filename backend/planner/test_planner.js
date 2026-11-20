@@ -507,13 +507,19 @@ const plan = (...steps) => ({ intent: "t", output_type: "map", entity_type: "COU
     assert.ok(params.includes("Springfield"));
   });
 
-  await test("select_features refuses a city filter on a layer with no city column", async () => {
+  // Changed 2026-11-19 (H5): a city is its place BOUNDARY when one exists, so
+  // a layer with no city column can be restricted too. With no boundary and
+  // no column the database raises (geoark_no_city), never an empty layer.
+  await test("select_features restricts a column-less layer by the city's boundary", async () => {
     const p = plan(
       { id: "s1", op: "select_features", attr_id: "REFINERY", inputs: [], city: "Houston" },
       { id: "s2", op: "output", attr_id: "", inputs: ["s1"] },
     );
     const v = await validatePlan(p, resolve);
-    assert.throws(() => compilePlan(p, v.resolved), /no city column/);
+    const { sql } = compilePlan(p, v.resolved);
+    assert.match(sql, /FROM place_geom p/);
+    assert.match(sql, /geoark_no_city\(/);
+    assert.doesNotMatch(sql, /f\.city ILIKE/);
   });
 
   await test("select_features may not be chained with per-county ops", async () => {

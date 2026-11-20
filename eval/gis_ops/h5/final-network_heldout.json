@@ -1,0 +1,112 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "network_heldout": {
+      "pass": 2,
+      "n": 2,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 2
+  },
+  "latency_mean": 25.5,
+  "api_container_created": "2026-11-20T04:03:09.565418649Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "n-chi-police-hospital-drive-km",
+      "tier": "network_heldout",
+      "query": "How many law enforcement offices in Chicago are within 3 kilometers driving distance of a hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 31.0,
+        "got": 31.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "e936ab9aa9724c2f82cc0d78991aed55_local_law_enforcement",
+          "m2": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "select_features->select_features->within->summarize->output",
+      "intent": "Number of law enforcement offices in Chicago within 3 kilometers driving distance of a hospital",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals",
+        "e936ab9aa9724c2f82cc0d78991aed55_local_law_enforcement | Local Law Enforcement (mapped locations) | Local Law Enforcement"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many law enforcement offices in Chicago are within 3 kilometers driving distance of a hospital?",
+            "uses": [],
+            "ops": "select_features->select_features->within->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 25.9
+    },
+    {
+      "id": "n-stl-ward-pop-hospital-drive5",
+      "tier": "network_heldout",
+      "query": "What share of each St. Louis ward's population lives within a 5-minute drive of a hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 14,
+        "gold_rows": 14,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "WORLDPOP_POP"
+        }
+      },
+      "ops": "select_features->network_population->output",
+      "intent": "Share of each St. Louis ward's population that lives within a 5-minute drive of a hospital",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals",
+        "WORLDPOP_POP | Estimated population from the WorldPop 1 km gridded estimate | WorldPop population grid"
+      ],
+      "row_count": 14,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What share of each St. Louis ward's population lives within a 5-minute drive of a hospital?",
+            "uses": [],
+            "ops": "select_features->network_population->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 25.2
+    }
+  ]
+}

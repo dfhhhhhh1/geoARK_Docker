@@ -431,3 +431,12 @@ CREATE TABLE IF NOT EXISTS raster_unit_count (
     pixels    BIGINT NOT NULL,
     PRIMARY KEY (raster_id, level, geoid, value)
 );
+
+-- A city restriction on a layer with no `city` column, for a name no place
+-- boundary has (planner/ops/_sql.js cityPredicate). Raises rather than
+-- returning an empty layer that looks like an answer.
+CREATE OR REPLACE FUNCTION geoark_no_city(name text) RETURNS boolean
+LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  RAISE EXCEPTION 'no place named "%" has a boundary, and this dataset has no city column; restrict by state instead', name;
+END $$;

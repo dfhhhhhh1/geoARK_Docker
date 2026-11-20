@@ -71,3 +71,6 @@ deploy/dumps/
 # failure log (backend/failure_log.js): queries only, but they are users' questions
 logs/*
 !logs/.gitkeep
+
+# Report drafts, figures and notebook (local only)
+paper/

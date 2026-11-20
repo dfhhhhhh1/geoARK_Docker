@@ -54,7 +54,11 @@ const STATED_DISTANCE =
 function featureAlgebra(ctx = {}) {
   const q = String(ctx.query || "");
   if (!q || !ctx.hasFeatureTables || !(ctx.featureTableCount >= 2)) return false;
-  if (!(asksDistance(q) || STATED_DISTANCE.test(q)) || PER_UNIT.test(q) || ABOUT_PEOPLE.test(q)) return false;
+  // H5: "more than a 10-minute walk from" states a network cost, not a distance
+  // in miles; network.js reads it. Reaches only network phrasing (8 of 203
+  // eval questions, all network ones, 2026-11-19).
+  const distance = asksDistance(q) || STATED_DISTANCE.test(q) || require("./network").asksNetwork(q);
+  if (!distance || PER_UNIT.test(q) || ABOUT_PEOPLE.test(q)) return false;
   if (!ABOUT_FEATURES.test(q) || ABOUT_UNITS.test(q)) return false;
   return true;
 }
@@ -235,7 +239,7 @@ function referencePhrase(query, { featureTables = true } = {}) {
   const acc = require("./ops/access").asksAccess(q) ? q.match(ACCESS_TO) : null;
   if (acc && !NOT_A_LAYER.test(acc[1])) return acc[1].trim().toLowerCase();
   const relevant = featureAlgebra({ query: q, hasFeatureTables: featureTables, featureTableCount: 2 }) ||
-    (ABOUT_PEOPLE.test(q) && (asksDistance(q) || STATED_DISTANCE.test(q)));
+    (ABOUT_PEOPLE.test(q) && (asksDistance(q) || STATED_DISTANCE.test(q) || require("./network").asksNetwork(q)));
   if (!relevant) return null;
   for (const re of REFERENCE) {
     const hits = [...q.matchAll(re)].map(m => m[1].trim()).filter(p => !NOT_A_LAYER.test(p));

@@ -331,6 +331,142 @@ Rules:
 - Return ONLY the JSON object, nothing else`;
 
 /**
+ * Candidate decomposition prompts (2026-11-19), selectable per request as
+ * `decomp: { prompt: "v2" }` or by DECOMP_PROMPT, so the A/B needs no recreate.
+ * v1 is the prompt above, unchanged. Only `search_queries` (and, in
+ * uncertainty.js, `primary_concepts`) are read downstream, so every variant
+ * keeps DECOMPOSITION_SCHEMA as is.
+ *
+ *   v1  the original
+ *   v3  v1 with two changes only: the example no longer shows exactly two
+ *       queries, and it may add catalog synonyms as `related`
+ *   v2  rewritten for what the catalog and the planner now hold (layers,
+ *       rasters, distances, periods), with varied-length worked examples
+ */
+const DECOMPOSITION_PROMPT_V3 = `Extract search terms from this query about geographic/demographic data.
+
+Query: {QUERY}
+
+Return JSON with these fields:
+- "primary_concepts": the main data variables the user wants
+- "normalization_concepts": denominators for ratios, like population
+- "filter_concepts": qualifiers like rural, urban, high, low
+- "geographic_level": the unit of analysis
+- "search_queries": one object {"query": ..., "purpose": ...} per search term,
+  purpose one of primary, normalization, filter, related. Use as many as the
+  query needs: one for a simple query, five or more for a compound one.
+
+Rules:
+- Split compound queries into separate search terms
+- If user wants "per capita" or "rate", add population to normalization
+- Add 1-3 "related" search terms for data that is relevant even though the
+  query does not name it: the wording a data catalog would use for the same
+  thing (e.g. "uninsured" -> "health insurance coverage"), or a closely
+  related measure
+- Keep search terms short (1-3 words each)`;
+
+const DECOMPOSITION_PROMPT_V2 = `You turn a question about US geographic data into search terms for a data catalog.
+
+Query: {QUERY}
+
+THE CATALOG holds:
+- measures with one value per county, tract or ZIP code: census (ACS) demographics,
+  income, poverty, housing, education, health (CDC PLACES), employment, agriculture,
+  social vulnerability, environmental indicators
+- mapped layers of individual locations or areas: hospitals, schools, fire stations,
+  power plants, Superfund sites, flood zones, wetlands, roads, transmission lines
+- rasters: land cover, elevation, gridded population
+
+Each search term is matched against short catalog descriptions, so a good term is
+2-4 words naming ONE kind of data, in the words a catalog would use.
+
+PURPOSES
+- primary: each distinct thing the question asks to measure, count, map or relate.
+  A layer the question measures distance to, or counts near something, is primary.
+- normalization: a denominator the answer needs. "per capita", "per person", "rate
+  per 1,000" -> "total population"; "density", "per square mile" -> "total population"
+  (land area is built in); "share of households" -> "total households".
+- filter: a data condition, e.g. "rural" -> "rural population percent", "high
+  poverty" -> "poverty rate". Not a place.
+- related: 1-3 terms for data the question did not name but that would help answer
+  it: the catalog's own wording for the same thing ("uninsured" -> "health
+  insurance coverage", "seniors" -> "population 65 and over"), or the measure an
+  analyst would check alongside it.
+
+DO NOT make search terms for places (states, cities, regions, ZIP codes), units of
+analysis (county, tract, grid cell), distances, years or statistical methods
+("hot spots", "correlation", "trend"). Those are handled elsewhere.
+
+Use as many search queries as the question needs: usually 1-2 primary, plus any
+normalization, filter and related terms. Do not pad.
+
+EXAMPLES
+"median household income in Missouri" ->
+  primary "median household income"; related "per capita income"
+"how many hospitals are within 10 miles of each Superfund site" ->
+  primary "hospitals"; primary "Superfund sites"
+"obesity rate per county compared with physical inactivity and food access" ->
+  primary "obesity prevalence"; primary "physical inactivity"; primary "food access";
+  related "diabetes prevalence"
+"population density of census tracts in Colorado" ->
+  primary "total population"; normalization "total population"
+"where are the uninsured hot spots in rural counties" ->
+  primary "uninsured rate"; filter "rural population percent";
+  related "health insurance coverage"
+
+Fill primary_concepts, normalization_concepts and filter_concepts with the same
+concepts as the matching search queries, and geographic_level with the unit asked
+for (UNKNOWN when not stated).`;
+
+const DECOMP_PROMPTS = { v1: DECOMPOSITION_PROMPT, v2: DECOMPOSITION_PROMPT_V2, v3: DECOMPOSITION_PROMPT_V3 };
+const DECOMP_DEFAULTS = {
+  prompt: process.env.DECOMP_PROMPT || "v1",
+  // Empty = LLM_MODEL. One model for everything: DECOMP_MODEL=qwen3:14b (or
+  // LLM_MODEL=qwen3:14b), which also keeps Ollama from swapping per request.
+  model: process.env.DECOMP_MODEL || "",
+  // Reasoning for the decomposition call when its model reasons (qwen3).
+  think: process.env.DECOMP_THINK || "off",
+};
+
+/**
+ * A request's `decomp` block, validated. Untrusted: the model must be one
+ * already allowed (LLM_MODEL or a planner model), and the prompt a known key.
+ */
+function decompOptions(raw) {
+  const o = { ...DECOMP_DEFAULTS };
+  if (raw && typeof raw === "object") {
+    if (typeof raw.prompt === "string" && DECOMP_PROMPTS[raw.prompt]) o.prompt = raw.prompt;
+    if (typeof raw.model === "string" && (raw.model === CONFIG.llm.model || PLANNER_MODELS.has(raw.model))) o.model = raw.model;
+    if (["on", "off"].includes(raw.think)) o.think = raw.think;
+  }
+  return o;
+}
+
+/**
+ * The candidate list the planner is shown (runAnalysisInner). Defaults are the
+ * measured values; `candidates: {...}` per request for the A/B.
+ */
+const CANDIDATE_DEFAULTS = {
+  feature_cap: Number(process.env.MAX_FEATURE_CANDIDATES ?? 6),
+  primary: Number(process.env.QUOTA_PRIMARY ?? 10),
+  normalization: Number(process.env.QUOTA_NORMALIZATION ?? 6),
+  filter: Number(process.env.QUOTA_FILTER ?? 2),
+  related: Number(process.env.QUOTA_RELATED ?? 2),
+  retrieval_budget: Number(process.env.ANALYZE_RETRIEVAL_BUDGET ?? 60),
+};
+function candidateOptions(raw) {
+  const o = { ...CANDIDATE_DEFAULTS };
+  if (raw && typeof raw === "object") {
+    for (const k of Object.keys(o)) {
+      const n = Number(raw[k]);
+      if (raw[k] !== undefined && Number.isFinite(n) && n >= 0 && n <= 200) o[k] = Math.floor(n);
+    }
+    o.only = raw.only === true;
+  }
+  return o;
+}
+
+/**
  * Call the local LLM for query decomposition
  */
 /**
@@ -353,8 +489,13 @@ function requestedPlanModel(value) {
 
 /** The planner model gets the large window; everything else the small one. */
 function numCtxFor(model) {
-  return PLANNER_MODELS.has(model) && model !== CONFIG.llm.model
-    ? CONFIG.llm.numCtx : CONFIG.llm.smallNumCtx;
+  // A planner model always gets the planner's window, including when it is
+  // ALSO LLM_MODEL (one model for everything). This used to exclude
+  // LLM_MODEL, which in a single-model deployment gave the planner 4,096
+  // tokens: the ~3,600-token prompt plus any output overflows that, and
+  // Ollama silently drops the system prompt (CLAUDE.md, traps). A model still
+  // always gets the same num_ctx, so no call forces a reload.
+  return PLANNER_MODELS.has(model) ? CONFIG.llm.numCtx : CONFIG.llm.smallNumCtx;
 }
 
 /** The deadline for one call: planner calls get PLAN_TIMEOUT_MS. */
@@ -430,6 +571,9 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
       // options.temperature 0 logged "temp = 0.000".
       options: {
         temperature, num_ctx: numCtxFor(model),
+        ...(process.env.GEOARK_USE_DSL === "1" || extra.options?.num_keep !== undefined
+            ? { num_keep: Number(extra.options?.num_keep ?? process.env.LLM_NUM_KEEP ?? 3500) }
+            : {}),
         // A schema-constrained answer with reasoning off is a few hundred
         // tokens; the largest plan the validator allows (24 steps) is well
         // under this. Without a cap, one H4 dev question decoded 9,400
@@ -454,7 +598,16 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
       }
     }
     if (extra.thinkBudget > 0) return await budgetedChat(body, extra.thinkBudget);
-    const response = await llmFetch(body);
+    let response = await llmFetch(body);
+    
+    // Fallback: If format was a string (e.g. raw GBNF) and Ollama returned an error (400),
+    // retry without format or with array schema so older Ollama versions still succeed.
+    if (!response.ok && typeof body.format === "string") {
+      console.log(`   LLM rejected raw format string (${response.status}); retrying without format...`);
+      delete body.format;
+      delete body.grammar;
+      response = await llmFetch(body);
+    }
     
     if (!response.ok) {
       throw new Error(`LLM returned ${response.status}: ${response.statusText}`);
@@ -463,7 +616,10 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
     const data = await response.json();
     const content = data.message?.content || data.response || "";
     
-    console.log(`   LLM response: ${content.length} chars`);
+    // Token counts, so a context-window question is answered from the log:
+    // prompt + output must stay under num_ctx or the prompt start is dropped.
+    console.log(`   LLM response: ${content.length} chars ` +
+      `(prompt ${data.prompt_eval_count ?? "?"} + output ${data.eval_count ?? "?"} tokens, num_ctx ${body.options.num_ctx})`);
     
     return content;
   } catch (error) {
@@ -562,16 +718,23 @@ async function budgetedChat(body, budget) {
 /**
  * Decompose a query into multiple search concepts
  */
-async function decomposeQuery(query) {
-  console.log(`\nDecomposing query: "${query}"`);
-  
+async function decomposeQuery(query, decompRaw = null) {
+  const opts = decompOptions(decompRaw);
+  const model = opts.model || CONFIG.llm.model;
+  console.log(`\nDecomposing query: "${query}" (prompt ${opts.prompt}, ${model})`);
+
   try {
-    const prompt = DECOMPOSITION_PROMPT.replace("{QUERY}", query);
+    const prompt = DECOMP_PROMPTS[opts.prompt].replace("{QUERY}", query);
     // Constrained decoding: the response is guaranteed to parse and to match
     // DECOMPOSITION_SCHEMA, so the old ladder of ```json fence-stripping and
     // /\{[\s\S]*\}/ extraction is gone.
+    // A reasoning model (a planner model used here) gets DECOMP_THINK; any
+    // other model gets no `think`, so gemma3 is called exactly as before.
+    const extra = PLANNER_MODELS.has(model) ? planThinkExtra(opts.think) : {};
+    const t0 = Date.now();
     const response = await callLLM(prompt, query, CONFIG.llm.temperature,
-                                   DECOMPOSITION_SCHEMA);
+                                   DECOMPOSITION_SCHEMA, model, extra);
+    const decompMs = Date.now() - t0;
 
     if (!response || response.length < 10) {
       console.log(`   Empty response, using smart fallback`);
@@ -594,7 +757,8 @@ async function decomposeQuery(query) {
       return createSmartFallback(query);
     }
     
-    console.log(`   Decomposed into ${result.search_queries?.length || 0} search queries`);
+    console.log(`   Decomposed into ${result.search_queries?.length || 0} search queries (${decompMs} ms)`);
+    result.decomp = { prompt: opts.prompt, model, think: extra.think === false ? "off" : "default", ms: decompMs };
     return result;
     
   } catch (error) {
@@ -1324,6 +1488,8 @@ async function unifiedSearch(query, options = {}) {
     executableFirst = false,
     // Per-dataset cap on layer columns (SIBLING_CAP, above); undefined = default.
     siblingCap = undefined,
+    // Decomposition prompt / model / reasoning (decompOptions); null = defaults.
+    decomp = null,
   } = options;
   const search = (q, k, purpose) => performHybridSearch(q, k, purpose, { rerank, executableFirst, siblingCap });
   
@@ -1337,7 +1503,7 @@ async function unifiedSearch(query, options = {}) {
   
   // STEP 1: Decompose Query
   console.log(`\n[STEP 1] Query Decomposition`);
-  const decomposition = await decomposeQuery(query);
+  const decomposition = await decomposeQuery(query, decomp);
   if (populationDenominator) addPopulationDenominator(query, decomposition);
   addReferenceLayer(query, decomposition);
   addPrecisionBounds(query, decomposition);
@@ -1559,7 +1725,7 @@ app.post("/api/unified-search", auth.requireAuth, limitSearch, async (req, res) 
     // much -- on one sample query it cut 18 retrieved rows to 3. That is a
     // reranker's job, and a cross-encoder should replace it (docs/AI-PIPELINE.md
     // section 4). Until then, opt in explicitly if you want the ranking.
-    const { q: query, use_llm_filter = false, top_k = 10, expand, research, rerank, sibling_cap } = req.body;
+    const { q: query, use_llm_filter = false, top_k = 10, expand, research, rerank, sibling_cap, decomp } = req.body;
     
     if (!query || query.trim().length === 0) {
       return res.status(400).json({ error: "Query 'q' is required" });
@@ -1571,7 +1737,8 @@ app.post("/api/unified-search", auth.requireAuth, limitSearch, async (req, res) 
       ...(typeof expand === "boolean" ? { expand } : {}),
       ...(research !== undefined ? { research } : {}),
       ...(rerank !== undefined ? { rerank } : {}),
-      ...(sibling_cap !== undefined ? { siblingCap: sibling_cap } : {})
+      ...(sibling_cap !== undefined ? { siblingCap: sibling_cap } : {}),
+      ...(decomp ? { decomp } : {})
     });
 
     res.json(results);
@@ -1594,7 +1761,7 @@ app.post("/api/decompose-query", auth.requireAuth, limitSearch, async (req, res)
       return res.status(400).json({ error: "Query 'q' is required" });
     }
     
-    const decomposition = await decomposeQuery(query);
+    const decomposition = await decomposeQuery(query, req.body?.decomp);
     res.json(decomposition);
     
   } catch (error) {
@@ -2112,7 +2279,7 @@ async function runAnalysis(opts) {
     population_denominator: opts.populationDenominator,
     plan_think: opts.planThink, plan_model: opts.planModel, coverage: opts.coverage,
     rerank: opts.rerank, executable_first: opts.executableFirst, sibling_cap: opts.siblingCap,
-    definitions: opts.useDefinitions,
+    definitions: opts.useDefinitions, decomp: opts.decomp, candidates: opts.candidateOverrides,
     provider: opts.provider, workflow_step: opts.extraSources ? true : undefined,
   }).filter(([, v]) => v !== null && v !== undefined));
   const base = { query: opts.query, trace, flags, started };
@@ -2169,7 +2336,10 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
                              // (backend/workflow.js): Map<"result:qN", source>.
                              extraSources = null,
                              // Layers uploaded this session (backend/user_layers.js): ids.
-                             userLayers = null }) {
+                             userLayers = null,
+                             // Decomposition and candidate-list overrides (A/B).
+                             decomp = null, candidateOverrides = null }) {
+  const cand = candidateOptions(candidateOverrides);
   const started = Date.now();
   try {
     if (!query || !query.trim()) {
@@ -2197,7 +2367,7 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
     // normalized by population" -- the exact query shape the pipeline exists
     // for -- because facility columns ("Objectid", "Feattype") had taken the
     // slots. Retrieval is ~30ms, so over-fetching is close to free.
-    const RETRIEVAL_BUDGET = Number(process.env.ANALYZE_RETRIEVAL_BUDGET ?? 60);
+    const RETRIEVAL_BUDGET = cand.retrieval_budget;
     const search = await unifiedSearch(query, {
       useLLMFilter: false,            // measured in Phase 2: costs 10pp recall
       topKPerConcept: Math.max(top_k, RETRIEVAL_BUDGET),
@@ -2207,6 +2377,7 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       ...(rerank !== undefined ? { rerank } : {}),
       executableFirst: executableFirst ?? EXECUTABLE_FIRST_ENABLED,
       siblingCap,
+      decomp,
     });
     const candidates = search.all_results || [];
     emit({ stage: "decomposed", decomposition: search.decomposition,
@@ -2250,7 +2421,7 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
     //     of hospitals is essentially never what anyone means.
     //  2. THEY MUST NOT CROWD OUT VALUE SERIES. 83 facility datasets against a
     //     top_k of 20 will happily fill the whole list.
-    const MAX_FEATURE_CANDIDATES = Number(process.env.MAX_FEATURE_CANDIDATES ?? 6);
+    const MAX_FEATURE_CANDIDATES = cand.feature_cap;
     const seenTable = new Set();
     const valueSeries = [];
     const featureRows = [];
@@ -2339,7 +2510,8 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
     // shape this whole pipeline exists to serve.
     // `expanded` is literature expansion (backend/expansion.js). Absent unless
     // expansion ran and kept something, so this is inert when it is off.
-    const QUOTA = { primary: 10, normalization: 6, filter: 2, related: 2,
+    const QUOTA = { primary: cand.primary, normalization: cand.normalization,
+                    filter: cand.filter, related: cand.related,
                     expanded: Number(process.env.EXPAND_QUOTA ?? 4) };
     const takenByPurpose = { primary: 0, normalization: 0, filter: 0, related: 0, expanded: 0 };
     const picked = [];
@@ -2557,6 +2729,19 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
     emit({ stage: "retrieved", retrieved: candidates.length,
            executable: executable.length, by_purpose: takenByPurpose,
            facility: featureRows.length });
+
+    // The candidate list alone, no planner call: what the planner WOULD be
+    // shown. For decomposition / candidate-cap A/Bs (`candidates_only`).
+    if (cand.only) {
+      return { candidates_only: true, query, decomposition: search.decomposition,
+               candidates: executable.map(c => ({ attr_id: c.attr_id, dataset_id: c.dataset_id,
+                 key: resolved.get(c.attr_id)?.census_code || resolved.get(c.attr_id)?.table_name || null,
+                 dataset: c.dataset_clean || null,
+                 attr_desc: c.attr_desc, search_purpose: c.search_purpose,
+                 is_feature_table: !!c.is_feature_table })),
+               by_purpose: takenByPurpose, facility: featureRows.length,
+               retrieved: candidates.length, ms: Date.now() - started };
+    }
 
     // Named separately from "we found nothing": a dataset that IS in the
     // catalog but has no table is a loading gap, not an unsupported question,
@@ -3174,6 +3359,16 @@ function workflowBody(report) {
   if (report.status !== "complete") {
     body.error = `workflow stopped at ${report.stopped_at}: ${report.reason}`;
     body.rows = []; body.layers = []; body.row_count = 0; body.geometry = [];
+    // The step that stopped the workflow is usually an error payload with no
+    // plan, and every reader of the response (the UI's answer card, exports,
+    // the map) dereferences `plan.intent`. Give them a plan that is honest
+    // about being empty rather than leaving the field undefined.
+    if (!body.plan) {
+      const planned = [...report.steps].reverse().find(s => s.response?.plan)?.response.plan;
+      body.plan = planned
+        ? { ...planned }
+        : { intent: String(report.question || ""), output_type: "table", entity_type: "COUNTY", steps: [] };
+    }
   }
   return body;
 }
@@ -3243,6 +3438,8 @@ app.post("/api/research", auth.requireAuth, limitAnalyze, async (req, res) => {
           relevanceCheck: typeof req.body?.relevance_check === "boolean" ? req.body.relevance_check : null,
           namedDataCheck: typeof req.body?.named_data_check === "boolean" ? req.body.named_data_check : null,
           userLayers: Array.isArray(req.body?.user_layers) ? req.body.user_layers : null,
+          decomp: req.body?.decomp && typeof req.body.decomp === "object" ? req.body.decomp : null,
+          candidateOverrides: req.body?.candidates && typeof req.body.candidates === "object" ? req.body.candidates : null,
         },
       }),
       { isAbandoned: () => closed },
@@ -3315,6 +3512,8 @@ app.post("/api/analyze", auth.requireAuth, limitAnalyze, async (req, res) => {
         rerank: typeof req.body?.rerank === "string" ? req.body.rerank : undefined,
         useDefinitions: typeof req.body?.definitions === "boolean" ? req.body.definitions : null,
         userLayers: Array.isArray(req.body?.user_layers) ? req.body.user_layers : null,
+        decomp: req.body?.decomp && typeof req.body.decomp === "object" ? req.body.decomp : null,
+        candidateOverrides: req.body?.candidates && typeof req.body.candidates === "object" ? req.body.candidates : null,
       }),
       { isAbandoned: () => closed },
     );

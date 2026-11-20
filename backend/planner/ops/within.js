@@ -1,5 +1,6 @@
 const { CompileError, expandBox, FEATURE_LABELS } = require("./_sql");
 const { featureAlgebra } = require("../features");
+const N = require("./_network");
 
 /**
  * Select by location: the features of input 1 within `miles` of any feature
@@ -68,6 +69,14 @@ PLAN: {"intent":"The five Nevada police stations with the longest distance to a 
 
   validate(step) {
     const errs = [];
+    if (step.network !== undefined) {
+      // Set by code (planner/network.js), never by the model.
+      try { N.check(step.network); } catch (e) { errs.push(`step "${step.id}" (within): ${e.message}`); }
+      if (step.exclude === true && step.network?.limit === undefined) {
+        errs.push(`step "${step.id}" (within): "exclude" needs a network limit: farther than how far?`);
+      }
+      return errs;
+    }
     if (step.miles !== undefined && step.miles !== null &&
         !(Number.isFinite(Number(step.miles)) && Number(step.miles) > 0)) {
       errs.push(`step "${step.id}" (within): "miles" must be a positive number, got ${JSON.stringify(step.miles)}`);
@@ -79,6 +88,7 @@ PLAN: {"intent":"The five Nevada police stations with the longest distance to a 
   },
 
   compile(step, ctx) {
+    if (step.network) return compileNetwork(step, ctx);
     const [a, b] = ctx.ins;
     const g = "a.geom";
     const dist = `ST_Distance(${g}::geography, b.geom::geography)`;
@@ -107,3 +117,33 @@ PLAN: {"intent":"The five Nevada police stations with the longest distance to a 
 
   valueLabel: "miles to the nearest feature of the second layer",
 };
+
+/**
+ * The network form (H5): each feature's travel time (minutes) or route length
+ * (miles) FROM the nearest feature of input 2, along the directed graph.
+ * With a limit, the features within it (or beyond it, with exclude); with
+ * none, every feature with its cost, for rank. Beyond a limit is computed
+ * over the whole component so the kept features still report their cost; a
+ * feature no source reaches has value NULL and counts as beyond.
+ */
+function compileNetwork(step, ctx) {
+  const [a, b] = ctx.ins;
+  const net = step.network;
+  N.check(net);
+  const lim = N.limitInCost(net);
+  const limP = lim === null ? null : `${ctx.bind(lim)}::float8`;
+  const n = N.reachCtes(net, ctx, {
+    pointsSql: `SELECT geom FROM ${a}`,
+    sourcesSql: `SELECT geom FROM ${b}`,
+  });
+  const keep = FEATURE_LABELS.map(c => `p.${c}`).join(", ");
+  const where = lim === null ? ""
+    : step.exclude === true ? `WHERE r.agg_cost IS NULL OR r.agg_cost > ${limP}`
+    : `WHERE r.agg_cost <= ${limP}`;
+  return `${ctx.name} AS (WITH ${n.head.join(", ")}, ` +
+         `net_pts AS (SELECT a.*, ${N.snap(net, "net_r.region", "a.geom")} AS node ` +
+         `FROM ${a} a, net_r, net_box WHERE a.geom && net_box.bbox), ` +
+         `${n.cost("SELECT node FROM net_pts")} ` +
+         `SELECT p.geom, r.agg_cost / ${ctx.bind(N.costPerUnit(net))}::float8 AS value, ${keep} ` +
+         `FROM net_pts p LEFT JOIN net_cost r ON r.node = p.node ${where})`;
+}

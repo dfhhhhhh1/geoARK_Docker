@@ -536,6 +536,33 @@ UI's upload panel does this and sends the id with each question
 (`user_layers` / `layers=`). A restart forgets every layer. "Our ..." in a
 question prefers the uploaded layer over a catalog one. `backend/user_layers.js`.
 
+### Road networks (H5): drive and walk distance
+
+Network distance ("a 10-minute walk", "a 5-minute drive", "road miles")
+needs a routable graph for the area, built from OpenStreetMap. pgRouting is in
+the db image (`deploy/db/Dockerfile`). The definition (road classes, speeds,
+access rules, walking speed, regions) is `etl/osm_network.yaml`; the eval gold
+reads the same file.
+
+```bash
+# once: a national (or state) extract, e.g. Geofabrik's us-latest.osm.pbf (12.3 GB)
+#   into deploy/incoming/osm_us/
+make road-network                       # REGIONS="stl chi" (osm_network.yaml)
+make road-network REGIONS=chi           # one region
+make network-gold                       # after any reload: eval/gis_ops network gold
+```
+
+- Each region is cut out of the national file by osmium (`/dumps/osm/<region>.pbf`,
+  reused with `--cut`), split at junctions, and loaded into `road_edge` /
+  `road_vertex`. St. Louis city + county: 674k edges, 35 s. Cook County: 2.5M
+  edges, 2 min. Reloading a region replaces it. No catalog rows, so no reindex.
+- A new region is a `regions:` entry (a bbox) in `osm_network.yaml`, or
+  `--bbox w,s,e,n --name <id>` ad hoc. A question over an area with no region
+  is refused (`NETWORK_NOT_LOADED`), never answered in straight lines.
+- Free flow: posted limit x 0.8 (OSRM's `speed_reduction`), else the class
+  default; no turn or signal penalties, no traffic. Measured against OSRM on
+  ten pairs it was not tuned on: median 0.89 of OSRM's time, route length 0.955.
+
 ### Seeing it: the explore map
 
 `/explore` ("Explore map" in the header) draws any loaded measure at the finest

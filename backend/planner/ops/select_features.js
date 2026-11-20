@@ -1,5 +1,6 @@
 const {
   SAFE_DB_IDENT, CompileError, attributeFilterSql, MAX_FEATURES, FEATURE_LABELS, featureFrom,
+  cityPredicate,
 } = require("./_sql");
 const { toFipsPrefixes } = require("../../states");
 const { featureAlgebra, overlayAlgebra, measureAlgebra } = require("../features");
@@ -119,14 +120,8 @@ PLAN: {"intent":"Locations of fire stations in Springfield, Missouri",
             `AND ST_Intersects(c.geom, ${g}) ` +
             `AND LEFT(c.fips, 2) IN (${codes.map(c => ctx.bind(c)).join(", ")}))`);
       }
-      if (step.city) {
-        if (!available.has("city")) {
-          throw new CompileError(
-            `this dataset has no city column, so it cannot be filtered to ` +
-            `"${step.city}". Restrict by state instead.`);
-        }
-        where.push(`f.city ILIKE ${ctx.bind(step.city)}`);
-      }
+      // By the place's boundary when there is one (_sql.cityPredicate).
+      if (step.city) where.push(cityPredicate(step, g, available.has("city"), ctx.bind));
       where.push(...attributeFilterSql(step, "f", ctx.bind));
       return where;
     };
@@ -183,16 +178,9 @@ PLAN: {"intent":"Locations of fire stations in Springfield, Missouri",
       where.push(`LEFT(c.fips, 2) IN (${codes.map(c => ctx.bind(c)).join(", ")})`);
     }
 
-    if (step.city) {
-      if (!available.has("city")) {
-        throw new CompileError(
-          `this dataset has no city column, so it cannot be filtered to ` +
-          `"${step.city}". Restrict by state instead.`);
-      }
-      // Case-insensitive exact match: ILIKE with no wildcards, so "Springfield"
-      // does not also return "Springfield Gardens".
-      where.push(`f.city ILIKE ${ctx.bind(step.city)}`);
-    }
+    // By the place's boundary when there is one (_sql.cityPredicate); the
+    // layer's mailing-city column only for a name with no boundary.
+    if (step.city) where.push(cityPredicate(step, `f.${geom}`, available.has("city"), ctx.bind));
 
     where.push(...attributeFilterSql(step, "f", ctx.bind));
 

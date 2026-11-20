@@ -38,6 +38,7 @@ from pathlib import Path
 import yaml
 
 SUITE = Path(__file__).resolve().parent / "plan_correctness.yaml"
+EXTRA: dict = {}   # --extra JSON, merged into every request body
 
 _C = sys.stdout.isatty()
 GREEN, RED, YELLOW, DIM, BOLD, OFF = (
@@ -50,7 +51,7 @@ def call_analyze(base: str, query: str, timeout: int,
                  expand: bool | None = None,
                  denominator: bool | None = None,
                  plan_think: str | None = None) -> tuple[dict, float]:
-    body = json.dumps({"q": query, "execute": False,
+    body = json.dumps({"q": query, "execute": False, **EXTRA,
                        **({} if expand is None else {"expand": expand}),
                        **({} if denominator is None
                           else {"population_denominator": denominator}),
@@ -258,7 +259,11 @@ def main() -> int:
                     const=False)
     # Reasoning for the planner model: "on", "off", or a token budget.
     ap.add_argument("--plan-think")
+    ap.add_argument("--extra", type=json.loads, default={},
+                    help="JSON merged into every request body (decomp / candidates A/Bs)")
     args = ap.parse_args()
+    global EXTRA
+    EXTRA = args.extra
 
     suite = yaml.safe_load(args.suite_file.read_text(encoding="utf-8"))
     queries = suite["queries"]

@@ -147,6 +147,7 @@ LAST_RESEARCH: dict | None = None
 
 
 RERANK: str | None = None   # --rerank; module-level like LAST_EXPANSION
+EXTRA: dict = {}             # --extra JSON, merged into every POST body
 
 
 def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
@@ -163,6 +164,7 @@ def call_api(base: str, endpoint: str, query: str, top_k: int, timeout: int,
         extra["research"] = [s for s in research.split(",") if s]
     if RERANK is not None:
         extra["rerank"] = RERANK
+    extra.update(EXTRA)
     if endpoint == "analyze":
         req = urllib.request.Request(
             f"{base}/api/analyze",
@@ -553,6 +555,8 @@ def main() -> int:
                          "needs this larger than --top-k or it cannot see them")
     # Cross-encoder reranking (unified_search_server.js), per request, so every
     # arm of the A/B hits the same container. Omitted = the server's RERANK.
+    ap.add_argument("--extra", type=json.loads, default={},
+                    help='JSON merged into every POST body, e.g. {"decomp": {"prompt": "v2"}}')
     ap.add_argument("--rerank", choices=["off", "reorder", "replace", "fuse"], default=None,
                     help="reranking mode to request (default: the server's RERANK)")
     ap.add_argument("--fail-under", type=float,
@@ -560,8 +564,9 @@ def main() -> int:
     args = ap.parse_args()
 
     suites = load_suites(args.suite_file, args.suite)
-    global RERANK
+    global RERANK, EXTRA
     RERANK = args.rerank
+    EXTRA = args.extra
 
     if not args.skip_validate or args.validate_only:
         if validate(suites, args.csv) and not args.validate_only:

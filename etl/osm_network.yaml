@@ -1,0 +1,89 @@
+# The routable road graph's DEFINITION (docs/GIS_OPS_PLAN.md H5).
+#
+# Read by etl/load_osm_network.py (which builds road_edge / road_vertex) AND by
+# eval/gis_ops/network_gold.py (which builds its own graph from the same .pbf
+# with scipy, independently). It is data both sides agree on, not code under
+# test: change it, and both the network and the gold must be rebuilt.
+#
+# Speeds are FREE FLOW. No signals, turn costs or congestion: a "peak hour"
+# question is answered free-flow and says so (GIS_OPS_PLAN.md section 3, rule 6).
+
+# Drive: OSM `highway` classes a car may use, with the default speed (km/h)
+# when the way has no numeric maxspeed. Values are OSRM's car profile
+# (Project-OSRM/osrm-backend profiles/car.lua, speed_profile), the defaults
+# most open routers use.
+drive_kmh:
+  motorway: 90
+  motorway_link: 45
+  trunk: 85
+  trunk_link: 40
+  primary: 65
+  primary_link: 30
+  secondary: 55
+  secondary_link: 25
+  tertiary: 40
+  tertiary_link: 20
+  unclassified: 25
+  residential: 25
+  living_street: 10
+  service: 15
+
+# A posted maxspeed is driven at this fraction of the limit, OSRM's
+# `speed_reduction` (profiles/car.lua, applied in lib/way_handlers.lua
+# WayHandlers.maxspeed). Class defaults above are used as listed, as OSRM does.
+# Added 2026-11-19: without it, ten St. Louis / Chicago fire-station-to-
+# hospital drives read a median 77% of OSRM's time (route length 95%).
+# OSRM's turn and signal penalties need a turn graph and are NOT modelled.
+maxspeed_factor: 0.8
+
+# Walk: classes a pedestrian may use, both directions, unless foot=no.
+# Motorways are excluded (foot is prohibited on US interstates).
+walk_classes:
+  - trunk
+  - trunk_link
+  - primary
+  - primary_link
+  - secondary
+  - secondary_link
+  - tertiary
+  - tertiary_link
+  - unclassified
+  - residential
+  - living_street
+  - service
+  - pedestrian
+  - footway
+  - path
+  - steps
+  - track
+  - cycleway
+  - corridor
+
+# Walking speed when the question states none: 3 mph (1.34112 m/s), the
+# common planning figure. Reported in provenance with every walk answer.
+walk_mph: 3.0
+
+# Ways excluded for every mode: access in these values, unless the mode's own
+# tag (motor_vehicle / motorcar for drive, foot for walk) says yes/designated.
+access_no: [no, private]
+
+# Implied one-way for drive (besides oneway=yes|true|1 forward, -1 reverse):
+# motorways and roundabouts.
+implied_oneway_highway: [motorway]
+implied_oneway_junction: [roundabout, circular]
+
+# A point is snapped to the nearest node of the LARGEST component of that
+# mode's graph: strongly connected for drive (directed), connected for walk.
+# The access leg from the point to the node is not costed.
+
+# Regions loaded so far. A bbox is lon_min, lat_min, lon_max, lat_max; each
+# is the fixture metro's core counties plus about 10 km, so a route that leaves
+# the city (to a hospital across the line) is still in the graph. The loader
+# takes any bbox; these are the ones the eval suite reads.
+regions:
+  stl:
+    label: St. Louis city and County, Missouri
+    bbox: [-90.88, 38.30, -90.00, 38.99]
+  chi:
+    label: Cook County, Illinois
+    bbox: [-88.40, 41.37, -87.40, 42.25]

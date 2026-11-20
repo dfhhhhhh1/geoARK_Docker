@@ -35,6 +35,8 @@ const LEVEL_OPS = new Set([
   // "how many schools in each Chicago community area". Features steps have
   // no level of their own; summarize counts them into the plan's units.
   "count_features", "summarize", "select_features", "within",
+  // People at a network cost, per zone (H5, ops/network_population.js).
+  "network_population",
   // H3: overlay is features in and out, summarized into the units like
   // within. H4: zonal clips the raster to each unit's own polygon.
   "overlay", "zonal",
@@ -282,7 +284,17 @@ async function applyLevel(plan, query, resolved, levelsOf, alternatives = null) 
   }
   if (errors.length) return { level, note: null, errors };
   plan.level = level;
-  return { level, note: `answered by ${unit} (the question asked for ${unit}s)`, errors: [] };
+  // "For EACH Chicago community area, how many ...": one count per unit. qwen3
+  // gave summarize group_by "none", a single total, under that phrasing (H5 dev
+  // r2, 2026-11-19). The unit is the question's, so the count is per unit.
+  let perUnit = "";
+  const words = new Set(String(query || "").toLowerCase().match(/[a-z]+/g) || []);
+  if (["each", "every", "per", "by"].some(w => words.has(w))) {
+    for (const st of steps) {
+      if (st.op === "summarize" && st.group_by === "none") { delete st.group_by; perUnit = ", counted per unit"; }
+    }
+  }
+  return { level, note: `answered by ${unit} (the question asked for ${unit}s)${perUnit}`, errors: [] };
 }
 
 /** The level a plan compiles at; "county" unless applyLevel set one. */

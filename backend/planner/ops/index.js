@@ -107,6 +107,8 @@ const MODULES = [
   require("./output"),
   // Internal: inserted by code (planner/levels.js), never offered, in no order.
   require("./aggregate_to"),
+  // Internal: inserted by planner/network.js (H5), never offered.
+  require("./network_population"),
 ];
 
 const BY_NAME = new Map(MODULES.map(m => [m.name, m]));

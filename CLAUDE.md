@@ -1516,6 +1516,19 @@ docs/GIS_OPS_PLAN.md H4; RUNBOOK "Rasters read on demand". Evidence
 - `dataset_id_for` truncates to 12 characters: two vintages of one raster got
   the same id. Native rasters use the full id.
 
+### Decomposition on qwen3:14b, prompt v3 (2026-11-19)
+
+`eval/decomp/README.md`. **The old prompt's two-item JSON example anchored
+qwen3 to two sub-queries** (mean 2.07, against gemma's 3.65). v3 drops the
+example, asks for "as many as needed" plus 1-3 related terms, and reaches the
+needed measures 95.8% of the time (gemma v1 89.2%), on 83 dev questions x2.
+A full rewrite (v2) under-decomposed on both models. Wider candidate caps did
+not help. Live since 2026-11-19 (`DECOMP_*` in deploy/.env). It is faster end
+to end because there is no model swap, and `numCtxFor` keys on
+`PLAN_MODELS`, so a single-model setup keeps the planner at 8,192 tokens. To A/B the
+setting, pass `decomp` / `candidates` per request; `reach.py` measures the
+candidate list before the planner runs.
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence

@@ -612,3 +612,119 @@ queries:
     wrong:
       - expect: WRONG_VALUE          # the share STEEPER than 5 percent
         sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'stl-ward-steep-share'"
+
+  # ============================================================ network_dev
+  # H5, written 2026-11-19 BEFORE the road graph was loaded or any network op
+  # existed. Modes vary (drive, walk), as do cost units (minutes, miles and
+  # kilometres BY ROAD), output shape (a feature set, per-zone counts, a top 5
+  # of features, a population, a share per zone), city (St. Louis, Chicago)
+  # and layer (schools, fire stations, hospitals, child care, transit stops,
+  # SNAP retailers, law enforcement).
+  #
+  # CONVENTIONS, fixed here and in etl/osm_network.yaml (both the loader and
+  # the gold read that file; it is the definition, not the code under test):
+  # - Graph: OpenStreetMap ways, split at every node shared by two ways.
+  #   Drive: car-accessible highway classes, one-way respected, access=no /
+  #   private excluded. Walk: every highway foot may use, both directions.
+  # - Drive speed: a way's numeric maxspeed, else its class default. Free
+  #   flow: no signals, turns or congestion. Walk: 3 mph unless the question
+  #   states a speed.
+  # - A point (a feature, a WorldPop pixel centre) is snapped to the NEAREST
+  #   NODE of the largest connected component of that mode's graph. The
+  #   access leg from the point to the node is not costed.
+  # - "within T of X": network cost from the nearest X (multi-source
+  #   Dijkstra) <= T. Drive costs run FROM the X for "within"; the gold uses
+  #   the same direction, and the reverse is listed as a wrong answer where
+  #   it changes the result.
+  #
+  # GOLD IS INDEPENDENT OF THE LOADER AND OF pgRouting:
+  # eval/gis_ops/network_gold.py reads the SAME .osm.pbf with pyosmium, builds
+  # its own graph and runs scipy Dijkstra, then writes eval_network_gold(qid,
+  # geoid, value). Only the feature coordinates and zone polygons come from
+  # PostGIS. RE-RUN it after reloading the network or the OSM file.
+  # CORRECTED before any API run (2026-11-19): written as "more than a
+  # 4-minute drive", which left ONE of 110 schools in the gold and both wrong
+  # answers empty, so it could not tell right from wrong. The median school is
+  # a 2.0-minute free-flow drive from a fire station; 2.5 minutes leaves 23.
+  - id: n-stl-schools-fire-drive-2_5min
+    tier: network_dev
+    query: "Which public schools in St. Louis are more than a 2.5-minute drive from the nearest fire station?"
+    note: "the schools (features); drive time by road, not straight-line distance"
+    measures: {m1: public_schools, m2: fire_stations}
+    gold: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'stl-schools-fire-drive-gt2_5'"
+    compare: {kind: set, features: true, min_jaccard: 0.8}
+    wrong:
+      # Both wrong answers are EMPTY here (no school is 1.25 straight-line
+      # miles or 2.5 road miles from a station), which scores WRONG_SHAPE.
+      - expect: WRONG_SHAPE          # straight line: 2.5 minutes at 30 mph = 1.25 miles
+        sql: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'stl-schools-fire-euclid-gt1_25mi'"
+      - expect: WRONG_SHAPE          # 2.5 road miles instead of 2.5 minutes
+        sql: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'stl-schools-fire-drive-gt2_5mi'"
+
+  # CORRECTED 2026-11-19, after dev run r3 scored the first wording CORRECT:
+  # "within a 5-minute walk of a transit stop". --self-test then showed BOTH
+  # wrong answers (all centres; a 5-minute drive) also scored CORRECT: 97% of
+  # Chicago's child care centres are within a 5-minute walk of one of its
+  # 10,911 stops, so the gold could not see whether the walk was applied, and
+  # r3's CORRECT on it means nothing. SNAP retailers at 3 minutes keep 54%.
+  # Same shape (per-zone count, walk, time), a layer where the walk matters.
+  - id: n-chi-ca-childcare-walk-snap
+    tier: network_dev
+    query: "For each Chicago community area, how many child care centers are within a 3-minute walk of a SNAP retailer?"
+    note: "77 counts, zero included; 3 minutes at 3 mph is 241 m of walking network"
+    measures: {m1: child_care, m2: snap_retailers}
+    gold: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'chi-ca-childcare-walk3-snap'"
+    compare: {kind: values, rel_tol: 0.1, abs_tol: 1.5, min_coverage: 1.0}
+    wrong:
+      - expect: WRONG_VALUE          # all child care centers per area: the walk never applied
+        sql: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'chi-ca-childcare-all'"
+      - expect: WRONG_VALUE          # 3 minutes driving instead of walking
+        sql: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'chi-ca-childcare-drive3-snap'"
+
+  - id: n-stl-fire-hospital-top5-roadmiles
+    tier: network_dev
+    query: "Which 5 fire stations in St. Louis have the longest driving distance to a hospital, in road miles?"
+    note: "rank features by shortest-path LENGTH (miles), not time, to the nearest hospital"
+    measures: {m1: fire_stations, m2: hospitals}
+    gold: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'stl-fire-hospital-roadmiles'"
+    # value_rel_tol added 2026-11-19 after --self-test: the straight-line top 5
+    # overlapped the road-miles top 5 enough to score CORRECT. Run r1 had
+    # refused this question, so no scored answer depended on the change.
+    compare: {kind: top_k, features: true, k: 5, direction: desc, min_overlap: 0.8, value_rel_tol: 0.05}
+    wrong:
+      - expect: WRONG_VALUE          # straight-line distance
+        sql: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'stl-fire-hospital-euclid-miles'"
+
+  - id: n-chi-pop-snap-walk10
+    tier: network_dev
+    query: "How many people in Chicago live more than a 10-minute walk from a SNAP retailer?"
+    note: "WorldPop pixels whose centre lies in Chicago, by pixel centre; 10 min at 3 mph"
+    measures: {m1: snap_retailers, m2: worldpop}
+    gold: "SELECT NULL, value FROM eval_network_gold WHERE qid = 'chi-pop-snap-walk-gt10'"
+    compare: {kind: scalar, rel_tol: 0.1}
+    wrong:
+      - expect: WRONG_VALUE          # the people WITHIN a 10-minute walk
+        sql: "SELECT NULL, value FROM eval_network_gold WHERE qid = 'chi-pop-snap-walk-le10'"
+      - expect: WRONG_VALUE          # straight line, half a mile
+        sql: "SELECT NULL, value FROM eval_network_gold WHERE qid = 'chi-pop-snap-euclid-gt05mi'"
+
+  # ======================================================== network_heldout
+  - id: n-chi-police-hospital-drive-km
+    tier: network_heldout
+    query: "How many law enforcement offices in Chicago are within 3 kilometers driving distance of a hospital?"
+    measures: {m1: law_enforcement, m2: hospitals}
+    gold: "SELECT NULL, value FROM eval_network_gold WHERE qid = 'chi-police-hospital-drive-le3km'"
+    compare: {kind: scalar, rel_tol: 0.01, abs_tol: 0.5}
+    wrong:
+      - expect: WRONG_VALUE          # 3 miles
+        sql: "SELECT NULL, value FROM eval_network_gold WHERE qid = 'chi-police-hospital-drive-le3mi'"
+
+  - id: n-stl-ward-pop-hospital-drive5
+    tier: network_heldout
+    query: "What share of each St. Louis ward's population lives within a 5-minute drive of a hospital?"
+    measures: {m1: hospitals, m2: worldpop}
+    gold: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'stl-ward-pop-hospital-drive-le5-pct'"
+    compare: {kind: values, rel_tol: 0.1, abs_tol: 3, min_coverage: 1.0}
+    wrong:
+      - expect: WRONG_VALUE          # population count, not a share
+        sql: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'stl-ward-pop-hospital-drive-le5-count'"

@@ -54,6 +54,11 @@ services:
       # Planner reasoning: on (model default) | off | a token budget, e.g. 512.
       PLAN_THINK: ${PLAN_THINK:-on}
       LLM_THINK: ${LLM_THINK:-}
+      # Query decomposition: prompt v1|v2|v3, model (empty = LLM_MODEL), and
+      # reasoning for a planner-sized model. eval/decomp/README.md.
+      DECOMP_PROMPT: ${DECOMP_PROMPT:-v1}
+      DECOMP_MODEL: ${DECOMP_MODEL:-}
+      DECOMP_THINK: ${DECOMP_THINK:-off}
       # Other planners a request may name as `plan_model` (eval A/Bs, no
       # recreate). Each gets the planner's context window and deadline.
       PLAN_MODEL_CHOICES: ${PLAN_MODEL_CHOICES:-qwen3:14b,qwen3.5:9b}

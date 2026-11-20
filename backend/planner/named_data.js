@@ -140,9 +140,23 @@ function isExempt(phrase, query) {
   if (!words.length) return true;
   // A workflow step id ("the counties from q1") names an earlier result, which
   // is itself listed as an attribute; the id alone names no data.
+  // How a network distance is measured (H5): "longest driving distance",
+  // "road miles", "a 10-minute walk" refused n-stl-fire-hospital-top5-roadmiles
+  // (2026-11-19). Only for a question network.js reads a network cost from,
+  // and "road" only beside a distance word: "miles of road in each ward" names
+  // a roads layer, which must still be covered.
+  const net = require("./network").asksNetwork(query);
+  const roadAsMeasure = words.some(w => ["mile", "miles", "distance", "distances", "kilometer", "kilometers", "kilometre", "kilometres", "km"].includes(w));
+  const travel = (w) => net && (NETWORK_WORDS.has(w) || ((w === "road" || w === "roads") && roadAsMeasure));
   return words.every(w => EXEMPT.has(w) || places.has(w) || zones.has(w) || /^\d/.test(w)
-    || /^q\d+$/.test(w) || REGION_WORDS.test(w));
+    || /^q\d+$/.test(w) || REGION_WORDS.test(w) || travel(w));
 }
+
+const NETWORK_WORDS = new Set((
+  "drive drives driving driven walk walks walking walked travel traveling travelling " +
+  "time times trip trips route routes routing car cars foot longest shortest long short " +
+  "minute minutes free flow"
+).split(" "));
 
 /**
  * The attribute lines the model sees, in the relevance check's format.

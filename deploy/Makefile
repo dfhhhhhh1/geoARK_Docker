@@ -151,6 +151,19 @@ parts:           ## Subdivide large polygons of feature layers for overlay (TABL
 	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo /app/etl/build_parts.py $(if $(TABLE),--table $(TABLE))
 	$(MAKE) reload-corpus
 
+# H5 road network (docs/GIS_OPS_PLAN.md): cut each region of etl/osm_network.yaml
+# out of the national OSM extract and build road_edge / road_vertex. No catalog
+# rows, so no reindex. Re-run network-gold after any reload.
+OSM_PBF ?= /incoming/osm_us/us-latest.osm.pbf
+REGIONS ?= stl chi
+road-network:    ## Build the routable road graph (REGIONS="stl chi", OSM_PBF=/incoming/...)
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm --entrypoint python3 etl-geo \
+	  /app/etl/load_osm_network.py --pbf $(OSM_PBF) $(foreach r,$(REGIONS),--region $(r))
+
+network-gold:    ## Recompute eval_network_gold from the .pbf (independent of pgRouting)
+	MSYS_NO_PATHCONV=1 $(COMPOSE) --profile etl run --rm -v "$(abspath ../eval)":/app/eval \
+	  --entrypoint python3 etl-geo /app/eval/gis_ops/network_gold.py
+
 reload-corpus:   ## Make the API pick up a re-embedded catalog (no recreate; keeps the GPU)
 	@$(COMPOSE) exec -T api node -e \
 	  "fetch('http://localhost:4000/api/reload-corpus',{method:'POST'}).then(async r=>{console.log('  reload-corpus', r.status, (await r.text()).slice(0,200));process.exit(r.ok?0:1)}).catch(e=>{console.error(e.message);process.exit(1)})" \

@@ -14,6 +14,9 @@
  *      than 500ing the request.
  */
 
+const fs = require("node:fs");
+const path = require("node:path");
+
 const { PLAN_SCHEMA, planSchemaFor } = require("../schemas");
 const { queryMentionsArea, statesMentioned, REGIONS, STATE_FIPS } = require("../states");
 const { validatePlan } = require("./validate");
@@ -24,10 +27,11 @@ const { unaskedSubjectErrors } = require("./outcome");
 const { derefDefinitions, checkThresholds, LAYER_PHRASES, GROUP_COMPARISON,
         COMPLEMENT_PHRASES } = require("./conditions");
 const { anchorYears, spans } = require("./vintages");
-const { applyLevel, applyRollup } = require("./levels");
+const { applyLevel, applyRollup, levelOf } = require("./levels");
 const { repairDistanceUnits, repairWithinDirection, widenReferenceLayer, applyAreaUnit, applyMeasures, applyRasterMeasures, fillRasterClasses, yearAsVintage } = require("./features");
 const { preferUserLayer } = require("../user_layers");
 const { applyCatchment } = require("./catchment");
+const { applyNetwork, applyNetworkPopulation, networkUnitErrors } = require("./network");
 const { repairPrecision } = require("./uncertainty");
 const { seriesUnit } = require("./units");
 const { loadLabelInputs, splitOutputs, dropRateOverCount, earlierResultSecond,
@@ -36,6 +40,79 @@ const { compilePlan, CompileError } = require("./compile");
 const opsRegistry = require("./ops");
 
 const MAX_REPAIRS = Number(process.env.PLAN_MAX_REPAIRS ?? 2);
+
+const GBNF_GRAMMAR_PATH = path.join(__dirname, "geoark_dsl.gbnf");
+let GBNF_GRAMMAR = null;
+try {
+  GBNF_GRAMMAR = fs.readFileSync(GBNF_GRAMMAR_PATH, "utf8");
+} catch (_) {}
+
+/**
+ * Parse model plan output.
+ * If GEOARK_USE_DSL=1, parses using dsl_parser.parsePlan.
+ * If output looks like DSL (starts with REFUSE, INTENT, step syntax, or contains pipes),
+ * attempts dsl_parser.parsePlan with fallback to JSON.parse.
+ * Otherwise parses as standard JSON.
+ */
+function parsePlanOutput(raw) {
+  if (typeof raw !== "string") {
+    if (raw && typeof raw === "object") return raw;
+    throw new Error("Empty model response");
+  }
+
+  let text = raw.trim();
+  // Strip markdown fences if present
+  if (text.startsWith("```")) {
+    text = text.replace(/^```[a-zA-Z]*\s*/, "").replace(/\s*```$/, "").trim();
+  }
+
+  const isDsl = process.env.GEOARK_USE_DSL === "1";
+
+  // Check if LLM emitted JSON array of string steps: ["load(a1)", "output"]
+  if (text.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "string") {
+        text = parsed.join(" | ");
+      } else if (!isDsl) {
+        return parsed;
+      }
+    } catch (_) {
+      // not JSON array, continue
+    }
+  }
+
+  const getDslParser = () => {
+    try {
+      return require("./dsl_parser");
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const looksLikeDsl = isDsl ||
+    (!text.startsWith("{") && (
+      /^(?:REFUSE\b|INTENT\b|[a-zA-Z0-9_]+:\s*[a-zA-Z_]+\(|[a-zA-Z_]+\()/i.test(text) ||
+      text.includes(" | ") ||
+      text === "output"
+    ));
+
+  if (looksLikeDsl) {
+    const parser = getDslParser();
+    if (parser && typeof parser.parsePlan === "function") {
+      try {
+        return parser.parsePlan(text);
+      } catch (err) {
+        if (isDsl) throw err;
+        // If not in DSL mode and DSL parse failed, try JSON.parse as fallback
+      }
+    } else if (isDsl) {
+      throw new Error("dsl_parser module not available");
+    }
+  }
+
+  return JSON.parse(text);
+}
 
 /**
  * Is the question asking WHERE things are, rather than how many per county?
@@ -309,7 +386,115 @@ question.`;
  * and an op named here but absent from the decoding enum costs a repair round
  * on a plan the model was never able to emit.
  */
+/**
+ * Build system prompt for 1-line DSL mode.
+ */
+function buildDslSystemPrompt(ctx = {}) {
+  const ops = opsRegistry.offeredFor(ctx);
+  const { hasFeatureTables = false, wantsLocations = false, hasFilterableValues = false } = ctx;
+
+  const preamble = `You convert a geospatial question into an executable analysis plan using a 1-line Domain-Specific Language (DSL).
+
+Output ONLY the 1-line DSL plan or refusal. Do NOT write conversational preambles, explanations, markdown fences, notes, or multi-line text.
+
+SYNTAX:
+- A plan is a single line of steps separated by pipes (|):
+    [step_id:] op_name(arguments...) | ... | output
+- If step_id is omitted, steps are auto-numbered sequentially: s1, s2, s3...
+- An INTENT prefix is optional: INTENT("One sentence describing analysis") | ...
+- End with output step: output or output(step_id).
+- For several layers on one map, end with one output per layer (e.g. ... | output(s2) | ... | output(s4)).
+- If requested data is completely unavailable or cannot answer the question, emit:
+    REFUSE(missing=["attribute description"]) or REFUSE(reason="data_unavailable")
+
+RULES:
+- For attr_id use ONLY a label from AVAILABLE ATTRIBUTES (e.g. a1, a2). Never invent an id.
+- 0-input ops: load, count_features, count_near, nearest_distance, select_features, zonal.
+- 1-input ops: filter_attr, filter_area, filter_place, per_area, aggregate, rank, hotspot, outlier, explain, summarize, neighbors, access, output.
+  If input step id is omitted, it defaults to the preceding step.
+- 2-input ops: normalize, join, combine, correlate, intersect, compare_groups, within, overlay, residual.
+  Pass inputs positionally (e.g. normalize(s1, s2, scale=100)) or named (inputs=[s1, s2]).
+- For rates or percentages, use normalize(numerator, denominator, scale=100). Never divide one primary attribute by another.`;
+
+  const opLines = ops.map(n => {
+    switch (n) {
+      case "load": return '  load(attr_id, year=YYYY) - load per-county measure (year optional)';
+      case "count_features": return '  count_features(attr_id, [col="val"]) - count facilities per county';
+      case "count_near": return '  count_near(attr_id, near_attr_id, miles=N) - count facilities near another';
+      case "nearest_distance": return '  nearest_distance(attr_id) - distance to nearest facility per county';
+      case "select_features": return '  select_features(attr_id, states=[...], city="...", limit=N) - individual locations';
+      case "within": return '  within(in1, in2, miles=N, exclude=bool) - features within distance of another';
+      case "overlay": return '  overlay(in1, in2, exclude=bool) - features inside an area layer';
+      case "summarize": return '  summarize([in1], group_by="state"|"none") - state or national summary';
+      case "filter_attr": return '  filter_attr([in1], operator=">", value=N, percentile=N, definition="...") - threshold filter';
+      case "filter_area": return '  filter_area([in1], states=[...]) - restrict to state(s)';
+      case "filter_place": return '  filter_place([in1], place_kind="place"|"zcta"|"cbsa"|"urban", place_name="...") - restrict to municipality/metro/zip';
+      case "per_area": return '  per_area([in1]) - divide count by land area (density)';
+      case "normalize": return '  normalize(in1, in2, scale=100) - rate or percentage (numerator, denominator)';
+      case "aggregate": return '  aggregate([in1], function="mean"|"sum"|"count"|"min"|"max", group_by="state"|"none") - roll up to states or nation';
+      case "rank": return '  rank([in1], direction="desc"|"asc", limit=N) - top or bottom N';
+      case "join": return '  join(in1, in2) - combine two series on the same map';
+      case "combine": return '  combine(in1, in2, operation="ratio"|"sum"|"difference"|"percent_change") - combine two measures';
+      case "hotspot": return '  hotspot([in1]) - find spatial clusters (high/low)';
+      case "outlier": return '  outlier([in1]) - find spatial anomalies';
+      case "correlate": return '  correlate(in1, in2) - Pearson correlation between two measures';
+      case "explain": return '  explain([in1]) - rank potential explanatory factors';
+      case "intersect": return '  intersect(in1, in2, exclude=bool) - counties meeting both conditions';
+      case "compare_groups": return '  compare_groups(in1, in2) - compare two groups of counties';
+      case "neighbors": return '  neighbors([in1], operation="difference"|"ratio") - difference from neighbors';
+      case "residual": return '  residual(in1, in2) - measure unexplained by predictor';
+      case "access": return '  access([in1], attr_id, miles=N) - spatial access score';
+      case "zonal": return '  zonal(attr_id, year=YYYY) - raster summary over counties';
+      case "output": return '  output([in1]) - terminal step producing map/table/chart';
+      default: return `  ${n}(...)`;
+    }
+  });
+
+  const sections = [
+    preamble,
+    "OPERATIONS AVAILABLE:\n" + opLines.join("\n"),
+  ];
+
+  if (hasFeatureTables) {
+    sections.push(facilityNote(ops.includes("select_features")));
+    if (hasFilterableValues) sections.push(FILTER_NOTE);
+  }
+  if (opsRegistry.fieldOffered("year", ctx)) sections.push(YEAR_NOTE);
+  if (wantsLayers(ctx)) sections.push(LAYERS_NOTE);
+  if (ctx.hasEarlierResults === true) sections.push(EARLIER_NOTE);
+  if (opsRegistry.fieldOffered("percentile", ctx) || opsRegistry.fieldOffered("definition", ctx)) {
+    sections.push(conditionsNote(ctx));
+  }
+
+  const examples = [
+    "WORKED EXAMPLES:\n" +
+    'QUESTION: What is the poverty rate in Ohio by county?\n' +
+    'DSL: load(a1) | load(a2) | normalize(s1, s2, scale=100) | filter_area(["Ohio"]) | output\n\n' +
+    'QUESTION: Show the 10 counties with the highest median income\n' +
+    'DSL: load(a1) | rank(desc, 10) | output\n\n' +
+    'QUESTION: How many hospitals are in each Missouri county?\n' +
+    'DSL: count_features(a1) | filter_area(["Missouri"]) | output\n\n' +
+    'QUESTION: How has unemployment changed from 2013 to 2023 in Texas?\n' +
+    'DSL: load(a1, year=2013) | load(a1, year=2023) | combine(s1, s2, operation="percent_change") | filter_area(["Texas"]) | output\n\n' +
+    'QUESTION: What is the rainfall in Spain?\n' +
+    'DSL: REFUSE(missing=["rainfall in Spain"])'
+  ];
+
+  if (wantsLayers(ctx)) {
+    examples.push(
+      'QUESTION: Map unemployment in Ohio with fire stations on top\n' +
+      'DSL: load(a1) | filter_area(["Ohio"]) | output(s2) | select_features(a2, states=["Ohio"]) | output(s4)'
+    );
+  }
+
+  sections.push(examples.join("\n\n"));
+  return sections.join("\n\n");
+}
+
 function buildSystemPrompt(ctx = {}) {
+  if (process.env.GEOARK_USE_DSL === "1") {
+    return buildDslSystemPrompt(ctx);
+  }
   const {
     hasFeatureTables = false, wantsLocations = false, hasFilterableValues = false,
   } = ctx;
@@ -1168,9 +1353,10 @@ async function generatePlan({
     // the query itself is part of the narrowing context.
     query,
   };
+  const isDsl = process.env.GEOARK_USE_DSL === "1";
   const schema = planSchemaFor(narrowing);
   const withheldOps = new Set();
-  const systemPrompt = buildSystemPrompt(narrowing);
+  const systemPrompt = isDsl ? buildDslSystemPrompt(narrowing) : buildSystemPrompt(narrowing);
 
   // Which ops this query was actually offered. Logged because "the model did
   // not use op X" and "op X was never on the menu" look identical from the
@@ -1190,7 +1376,17 @@ async function generatePlan({
     // at temperature 0.1 the same prompt decoded the same endless
     // filter_attr(= 1) chain on all three attempts, whatever the repair text
     // said (H4 dev, 2026-11-12). The model can then only plan without it.
-    const attemptSchema = withheldOps.size ? withoutOps(schema, withheldOps) : schema;
+    let attemptSchema;
+    if (isDsl) {
+      if (process.env.GEOARK_DSL_FORMAT === "array") {
+        attemptSchema = { type: "array", items: { type: "string" } };
+      } else {
+        attemptSchema = GBNF_GRAMMAR || null;
+      }
+    } else {
+      attemptSchema = withheldOps.size ? withoutOps(schema, withheldOps) : schema;
+    }
+
     const raw = await callLLM(systemPrompt, userPrompt, 0.1, attemptSchema);
     if (!raw) {
       attempts.push({ attempt, errors: ["LLM returned nothing"] });
@@ -1199,22 +1395,17 @@ async function generatePlan({
 
     let plan;
     try {
-      plan = JSON.parse(raw);
+      plan = parsePlanOutput(raw);
     } catch (err) {
-      // Should be impossible under constrained decoding; recorded rather than
-      // silently retried so it is visible if the assumption ever breaks. It
-      // does break when the output-token cap cuts a runaway (H4, 2026-11-12);
-      // the tail shows what was repeating.
-      log(`   Plan JSON unparseable (${String(raw).length} chars), tail: ${String(raw).slice(-300).replace(/\s+/g, " ")}`);
-      attempts.push({ attempt, errors: [`unparseable despite schema: ${err.message}`] });
-      // Without this the next attempt saw the identical prompt and decoded
-      // the identical runaway: "developed land in each Chicago community
-      // area" chained filter_attr(= 1) to step s61, three times (H4 dev).
-      // The repeating text is NOT quoted back: with it in the prompt, attempts
-      // 2 and 3 reproduced the same runaway exactly (filter_attr "= 2021"
-      // to step s58, H4 dev). What repeated is described instead, and a
-      // repeated YEAR is named as one, because that was the habit: a year
-      // the question states, written as a filter instead of a step's year.
+      log(`   Plan unparseable (${String(raw).length} chars), tail: ${String(raw).slice(-300).replace(/\s+/g, " ")}`);
+      attempts.push({ attempt, errors: [`unparseable: ${err.message}`] });
+      if (isDsl) {
+        repairContext =
+          `\nYour previous plan could not be parsed: ${err.message}\n` +
+          `Previous output: ${String(raw).slice(0, 200).replace(/\s+/g, " ")}\n` +
+          `Write a valid 1-line DSL plan separated by | with valid operator calls (e.g. load(a1) | filter_area(["State"]) | output).\n`;
+        continue;
+      }
       const ids = [...String(raw).matchAll(/"id"\s*:\s*"([^"]+)"/g)].length;
       const ops = [...String(raw).matchAll(/"op"\s*:\s*"([a-z_]+)"/g)].map(m => m[1]);
       const repeated = ops.length ? ops[ops.length - 1] : "a step";
@@ -1299,7 +1490,10 @@ async function generatePlan({
     }
     // Which side of the distance, from the question's words; and a reference
     // layer the model restricted to the same area as the features it serves.
-    for (const fix of [repairWithinDirection(plan, query), widenReferenceLayer(plan)]) {
+    // Network cost (H5, planner/network.js): "a 4-minute drive", "a 10-minute
+    // walk", "road miles", read from the question and set on within steps.
+    for (const fix of [repairWithinDirection(plan, query), widenReferenceLayer(plan),
+                       applyNetwork(plan, query)]) {
       if (!fix) continue;
       log(`   Repaired proximity step: ${fix}`);
       emit({ stage: "plan_adjusted", detail: fix });
@@ -1378,6 +1572,27 @@ async function generatePlan({
         log(`   Measures: ${measures}`);
         emit({ stage: "plan_adjusted", detail: `Measures: ${measures}.` });
         adjustments.push(`Measure: ${measures}.`);
+      }
+      // People at a NETWORK cost (H5, planner/network.js): rebuilt as
+      // network_population over WorldPop pixel centres from the plan's
+      // reference layer and area. BEFORE validation: the model's own plans for
+      // "how many people live more than a 10-minute walk from X" never
+      // validated (a facility loaded as a series, a place filter with no
+      // input), and only the layer and the place are needed (H5 dev r2).
+      try {
+        const pop = (await resolve(["WORLDPOP_POP"])).get("WORLDPOP_POP");
+        const np = applyNetworkPopulation(plan, query, {
+          popAttr: pop ? "WORLDPOP_POP" : null,
+          isFeature: (id) => featureTables.has(id),
+          zone: levelOf(query),
+        });
+        if (np) {
+          log(`   Network catchment: ${np}`);
+          emit({ stage: "plan_adjusted", detail: `Network: ${np}.` });
+          adjustments.push(`Network: ${np}.`);
+        }
+      } catch (err) {
+        log(`   Network catchment skipped: ${err.message}`);
       }
       const unsupported = await dropUnsupportedFilters(plan, resolve);
       if (unsupported) {
@@ -1489,6 +1704,16 @@ async function generatePlan({
       }
     }
     for (const st of plan.steps || []) delete st._back;
+
+    // A network question answered by a straight-line per-unit op (H5): refused
+    // into the repair loop, never run (planner/network.js networkUnitErrors).
+    if (check.ok) {
+      const ne = networkUnitErrors(plan, query);
+      if (ne.length) {
+        check.ok = false;
+        check.errors.push(...ne);
+      }
+    }
 
     // The unit the question names (census tracts, ZIP codes, grid cells),
     // set in code after the model has planned (planner/levels.js).
@@ -1722,7 +1947,7 @@ async function generatePlan({
       `\nYour previous plan was rejected. Fix these problems and return a ` +
       `corrected plan:\n` +
       check.errors.map(e => `- ${e}`).join("\n") +
-      `\n\nPrevious plan:\n${JSON.stringify(plan)}\n`;
+      `\n\nPrevious plan:\n${isDsl ? String(raw).trim() : JSON.stringify(plan)}\n`;
   }
 
   return {
@@ -1899,7 +2124,7 @@ async function executePlan(plan, resolved, pool, { timeoutMs = 30000 } = {}) {
 }
 
 module.exports = {
-  generatePlan, executePlan, buildSystemPrompt, queryWantsLocations,
+  generatePlan, executePlan, buildSystemPrompt, buildDslSystemPrompt, parsePlanOutput, queryWantsLocations,
   // Exported for its tests: it is the repair that turns a relative period
   // ("since 2010", "the last decade") into concrete years on the load steps.
   resolveRelativeYears,

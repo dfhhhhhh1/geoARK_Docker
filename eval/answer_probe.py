@@ -256,6 +256,9 @@ def feature_key(f: dict) -> tuple[str | None, float | None]:
     props = f.get("properties") or {}
     # overlay's amount inside the second layer comes back as `amount_inside` (H3).
     v = props.get("miles_to_nearest", props.get("amount_inside", props.get("value")))
+    # H5: a network cost is drive_minutes_to_nearest, road_miles_to_nearest, ...
+    if v is None:
+        v = next((props[k] for k in props if k.endswith("_to_nearest")), None)
     return f"{c[0]:.5f},{c[1]:.5f}", (1.0 if v is None else _num(v))
 
 
@@ -306,7 +309,18 @@ def compare(cmp: dict, gold: list[dict], ans: dict) -> tuple[str, dict]:
             top = {k for k, v in ranked if (v >= cut if desc else v <= cut)}
             overlap = len(got & top) / kk
             base.update(k=kk, overlap=round(overlap, 3))
-            return ("CORRECT" if overlap >= cmp.get("min_overlap", 0.8) else "WRONG_VALUE"), base
+            if overlap < cmp.get("min_overlap", 0.8):
+                return "WRONG_VALUE", base
+            # Optional (H5): the reported values must match too; a straight-line
+            # top 5 overlaps a road-miles one with every number ~20-40% short.
+            if "value_rel_tol" in cmp:
+                shared = [k for k in got if k in want and _num(layer[k]) is not None]
+                close = [k for k in shared
+                         if abs(_num(layer[k]) - want[k]) <= cmp["value_rel_tol"] * abs(want[k]) + 1e-9]
+                base.update(values_within=f"{len(close)}/{len(shared)}")
+                if not shared or len(close) / len(shared) < 0.8:
+                    return "WRONG_VALUE", base
+            return "CORRECT", base
         raise ValueError(f"compare kind {kind} does not take features")
 
     if not ans["layers"]:
@@ -383,8 +397,19 @@ def compare(cmp: dict, gold: list[dict], ans: dict) -> tuple[str, dict]:
         want = {f for f, v in ranked if (v >= cut if desc else v <= cut)}
         overlap = len(set(got) & want) / kk
         base.update(k=kk, overlap=round(overlap, 3))
-        return ("CORRECT" if overlap >= cmp.get("min_overlap", 0.8)
-                else "WRONG_VALUE"), base
+        if overlap < cmp.get("min_overlap", 0.8):
+            return "WRONG_VALUE", base
+        # Optional (H5): the ranked values must also be right. A straight-line
+        # ranking picks nearly the same top 5 as a road-miles one while every
+        # number is ~30% short, so membership alone cannot tell them apart.
+        if "value_rel_tol" in cmp:
+            shared = [f for f in got if f in domain]
+            close = [f for f in shared
+                     if abs(layer[f] - domain[f]) <= cmp["value_rel_tol"] * abs(domain[f]) + 1e-9]
+            base.update(values_within=f"{len(close)}/{len(shared)}")
+            if not shared or len(close) / len(shared) < 0.8:
+                return "WRONG_VALUE", base
+        return "CORRECT", base
 
     raise ValueError(f"unknown compare kind {kind}")
 
@@ -601,6 +626,7 @@ def run(suite: dict, args) -> dict:
         extra["executable_first"] = args.executable_first
     if args.sibling_cap is not None:
         extra["sibling_cap"] = args.sibling_cap
+    extra.update(args.extra)
     created_before = api_created()
     cache: dict = {}
     rows = []
@@ -702,6 +728,8 @@ def main() -> int:
                     const=False)
     ap.add_argument("--endpoint", choices=["analyze", "research"], default="analyze",
                     help="research = /api/research, the multi-step workflow (Phase D)")
+    ap.add_argument("--extra", type=json.loads, default={},
+                    help="JSON merged into every request body (decomp / candidates A/Bs)")
     ap.add_argument("--check-gold", action="store_true")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()

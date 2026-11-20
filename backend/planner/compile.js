@@ -168,6 +168,14 @@ function compilePlan(plan, resolved) {
   // nothing did, or when overlay only selected (exclude).
   const featureValueOf = (id) => {
     for (let st = byId.get(id); st && st.op !== "select_features"; st = byId.get((st.inputs || [])[0])) {
+      if (st.op === "within" && st.network) {
+        // H5: what the network measured, named so a reader cannot take a
+        // drive time for a distance.
+        const n = st.network;
+        return n.cost === "time"
+          ? { column: `${n.mode}_minutes_to_nearest`, label: `minutes ${n.mode === "walk" ? "walking" : "driving"} from the nearest feature of the second layer` }
+          : { column: `${n.mode === "walk" ? "walk" : "road"}_miles_to_nearest`, label: `${n.mode === "walk" ? "walking" : "road"} miles from the nearest feature of the second layer` };
+      }
       if (st.op === "within") return { column: "miles_to_nearest", label: "miles to the nearest feature of the second layer" };
       if (st.op === "overlay") {
         return st.exclude === true ? null

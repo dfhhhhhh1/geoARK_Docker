@@ -1,0 +1,105 @@
+{
+  "endpoint": "search",
+  "llm_filter": false,
+  "rerank": null,
+  "top_k": 20,
+  "queries": 0,
+  "errors": [
+    {
+      "id": "ki-petrochemical",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-biofuel",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-pipeline-infra",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-emergency-housing",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-metal-recovery",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-health-agency",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-tunnel-transport",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-energy-generation",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-gini",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-persistent-poverty",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-child-poverty-2015",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ki-median-income-2017",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ab-mars",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ab-shark",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ab-bitcoin",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ab-football",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ab-recipe",
+      "error": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "id": "ab-latin",
+      "error": "HTTP Error 429: Too Many Requests"
+    }
+  ],
+  "concept_recall": 0.0,
+  "query_success": 0.0,
+  "mrr": 0.0,
+  "latency_p50": 0.0,
+  "latency_p95": 0.0,
+  "per_suite": {
+    "known_item_tag_vocabulary": {
+      "concept_recall": 0.0,
+      "query_success": 0.0
+    },
+    "known_item_described": {
+      "concept_recall": 0.0,
+      "query_success": 0.0
+    },
+    "absent": {
+      "concept_recall": 0.0,
+      "query_success": 0.0
+    }
+  },
+  "detail": {
+    "known_item_tag_vocabulary": [],
+    "known_item_described": [],
+    "absent": []
+  }
+}

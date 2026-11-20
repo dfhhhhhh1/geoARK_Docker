@@ -127,7 +127,35 @@ function featureFrom(src, bind, label = "attribute") {
   return { from: src.table_name, geom, userLayer: false };
 }
 
+/**
+ * A feature restricted to a named city: by the place's BOUNDARY (place_geom,
+ * TIGER places) when one by that name exists, in the step's states if given;
+ * by the layer's own `city` column only when no boundary has that name.
+ *
+ * The column is a MAILING city. NCES spells St. Louis five ways, and "ST
+ * LOUIS" covers 161 schools of which 89 are in St. Louis County, outside the
+ * city; `ILIKE 'St. Louis'` matched 42 of the 110 schools inside it (H5 dev,
+ * 2026-11-19). The boundary is what "in St. Louis" means. Names match as
+ * filter_place matches them: exact, or followed by ", " (no wildcard can
+ * reach the bound name; the validator restricts its characters).
+ */
+function cityPredicate(step, g, hasCityColumn, bind) {
+  const name = bind(String(step.city));
+  const conds = [`p.kind = 'place'`,
+    `(lower(p.name) = lower(${name}) OR lower(p.name) LIKE lower(${name}) || ', %')`];
+  if (Array.isArray(step.states) && step.states.length) {
+    const { codes, unknown } = require("../../states").toFipsPrefixes(step.states);
+    if (unknown.length) throw new CompileError(`unknown state or region: ${unknown.join(", ")}`);
+    conds.push(`p.state_fp IN (${codes.map(c => bind(c)).join(", ")})`);
+  }
+  const place = conds.join(" AND ");
+  return `(CASE WHEN EXISTS (SELECT 1 FROM place_geom p WHERE ${place}) ` +
+         `THEN EXISTS (SELECT 1 FROM place_geom p WHERE ${place} AND p.geom && ${g} AND ST_Intersects(p.geom, ${g})) ` +
+         `ELSE ${hasCityColumn ? `f.city ILIKE ${name}` : `geoark_no_city(${name})`} END)`;
+}
+
 module.exports = {
+  cityPredicate,
   featureFrom,
   CompileError, SAFE_ID, SAFE_DB_IDENT,
   OPERATORS, AGGREGATES, FILTERABLE_COLUMNS, PLACE_KINDS,
