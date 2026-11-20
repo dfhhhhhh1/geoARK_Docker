@@ -3983,8 +3983,18 @@ app.post("/api/cart/suggest", auth.requireAuth, limitSearch, async (req, res) =>
     // when asked, or when CART_CURATOR=1; it is off until eval/cart_probe.py
     // shows it beats the rules (docs/DATA_CART_PLAN.md Phase 2).
     const rules = cart.defaultCart(items);
+    // CART_CURATOR: "off" (default) curates only when the request asks;
+    // "auto" whenever expansion is on; "on" always. On eval/cart dev-r2 it
+    // beat the rules with expansion on (precision 0.66 -> 0.76 with PubMed,
+    // 0.47 -> 0.73 with web, no subject lost), but held-out shrank that to
+    // +0.03 / +0.01 and lost one subject (snowfall), for ~30 s a search.
+    // docs/DATA_CART_PLAN.md "Phase 2 measured".
+    const mode = String(process.env.CART_CURATOR ?? "off").toLowerCase();
+    const expansionOn = req.body?.expand === true ||
+      (typeof req.body?.research === "string" && req.body.research.trim() !== "") ||
+      (Array.isArray(req.body?.research) && req.body.research.length > 0);
     const curateOn = typeof req.body?.curate === "boolean" ? req.body.curate
-      : /^(1|true|on)$/i.test(process.env.CART_CURATOR ?? "");
+      : /^(1|true|on)$/.test(mode) ? true : mode === "auto" ? expansionOn : false;
     let curated = null;
     if (curateOn) {
       const think = req.body?.plan_think ?? CONFIG.llm.planThink;

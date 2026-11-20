@@ -338,6 +338,7 @@ occurs in the text.
 2. **Mapping:** Phase 5. **Built 2026-11-20** (Map in Analysis; Open in
    Explore not yet).
 3. **Curator:** Phase 2, with `cart.yaml`; the default only if it wins.
+   **Built and measured 2026-11-20: opt-in, not the default** (see Progress).
 4. **Paper upload:** U1-U3, a cart from a paper.
 5. **Reproduction:** U4, then U5.
 6. **AutoML:** Phase 6, option B. **Chosen and built 2026-11-20**, ahead of
@@ -457,3 +458,79 @@ need a data test.
 **Not built:** Open in Explore; spatial-lag features (option D); a target
 that is a feature-layer count (offered targets are by-county values only);
 model download.
+
+### Phase 2 measured: the curator is opt-in, not the default (2026-11-20)
+
+**Code:**
+- `backend/curator.js` reuses what exists: the planner model through the same
+  `callLLM`, the relevance check's reasoning setting (`role: "relevance"`),
+  and its "a `none` is overruled if the name shares a content word with the
+  question" rule (`relevance.overrules`). New: one prompt + schema (a fit per
+  shelf row, `direct | related | denominator | none`, and a cart of at most 8;
+  both enums of short labels c1..cN, so nothing off the shelf can be named),
+  and the rules after it:
+  - the asked-about measure goes first;
+  - at most 2 rows per linked concept;
+  - an empty proposal over rows the model itself judged useful uses those
+    rows (dev-r1: extreme heat and lung cancer came back empty while their
+    rows were judged "related");
+  - any failure falls back to the rule-based cart.
+- The planner prompt was deliberately not reused: it is pinned byte for byte
+  (`snapshot_prompt.js`), and the relevance check's prompt asks "does this
+  measure a phrase of the question", which rejects exactly the linked
+  measures a cart is for.
+- `/api/cart/suggest` returns `baselines: {rules, top8}` always and `curated`
+  when asked (`curate: true`, or `CART_CURATOR=auto|on`; default `off`).
+- Page: "Let the model pick the cart" checkbox; shelf rows carry the model's
+  verdict; the header says who picked and how long it took.
+- **Web expansion** is now a third source chip, OFF by default even with the
+  switch on (`research=pubmed,web`). The backend already supported it.
+- Tests: `backend/test_curator.js` (6, in `npm test`). Snapshot identical.
+
+**Measured** (`eval/cart.yaml`, `eval/cart_probe.py`; one shelf per question
+and arm, three carts from it, so paired; temperature 0, one run per arm;
+`eval/cart/`):
+
+| dev, 11 q (r2) | rules prec / subj | top-8 | curator prec / subj |
+|---|--:|--:|--:|
+| off | 0.82 / 0.82 | 0.79 / 0.91 | 0.77 / 0.91 |
+| literature | 0.70 / 0.73 | 0.75 / 0.91 | 0.74 / 0.91 |
+| + PubMed | 0.66 / 0.73 | 0.67 / 0.82 | **0.76 / 0.91** |
+| + PubMed + web | 0.47 / 0.73 | 0.47 / 0.73 | **0.73 / 0.91** |
+
+| held-out, 14 q, scored once | rules prec / subj | top-8 | curator prec / subj |
+|---|--:|--:|--:|
+| + PubMed | 0.74 / 0.92 | 0.76 / 0.92 | 0.77 / **0.85** |
+| + PubMed + web | 0.77 / 0.85 | 0.75 / 0.92 | 0.79 / 0.92 |
+
+- **Dev said yes, held-out said barely.** +0.10 / +0.26 precision on dev
+  became +0.03 / +0.01 on held-out, and the PubMed arm lost one subject
+  (snowfall: an empty cart where the rules kept "total precipitation, rain
+  plus the water equivalent of snow"; the gold, written before the run,
+  counts that). The decision rule (beat the baselines on precision, lose no
+  subject) is not met, so `CART_CURATOR` defaults to `off`. The empty-cart
+  rule was fitted on dev, which is part of why dev and held-out differ.
+- **Where it clearly helps: web expansion.** Rules precision with web falls
+  to 0.47 on dev; the curator holds 0.73. On held-out the web arm's shelves
+  were cleaner and the gap was small.
+- **Cost:** 20-37 s mean per search (50 s on a 14-row web shelf), on top of
+  retrieval.
+- **Duplicates are not fixed by it**: 0.18 duplicated columns per cart in the
+  PubMed arm, the same as the rules. The two PM2.5 columns still go in
+  together. A data test at checkout (|rho| >= 0.97, `partialCompanion`'s
+  rule) would fix it for every selection method; not built.
+
+**Gold defects found by reading the carts, not the scores:**
+- `rainfall` was written as unanswerable (answerability.yaml refuses it).
+  "Average annual precipitation, 1991-2020" is loaded, so the curator's pick
+  was right and the gold was wrong (fixed before r2). **answerability.yaml's
+  r-rainfall "must refuse" may be stale for the same reason; not re-checked.**
+- "obesity rates in Texas counties" retrieves NO obesity measure in any arm.
+  A retrieval gap, not selection; the curator correctly judged every row
+  `none` in the literature arm.
+
+**Seen, not fixed:**
+- The model marks the second copy of a measure (PLACES obesity beside CHR
+  adult obesity) `none`, shown as "not useful here"; it means "duplicate".
+- Web keywords are mostly method words ("county level", "geographically
+  weighted random forests"), as docs/EXPANSION.md recorded.

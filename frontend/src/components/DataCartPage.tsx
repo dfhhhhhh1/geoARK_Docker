@@ -72,9 +72,8 @@ const DataCartPage: React.FC = () => {
   const [searching, setSearching] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  // The LLM curator (backend/curator.js). Opt-in until eval/cart_probe.py
-  // says it beats the rule-based pick; when the server default turns it on,
-  // leaving this unticked still asks the server's default.
+  // The LLM curator (backend/curator.js), opt-in: it beat the rule-based pick
+  // on dev but not clearly on held-out questions (DATA_CART_PLAN.md Phase 2).
   const [curate, setCurate] = useState(false);
 
   const [cart, setCart] = useState<CartItem[]>(() => loadCart());
@@ -103,6 +102,7 @@ const DataCartPage: React.FC = () => {
     setQuery(text);
     setSearching(true); setError(null); setElapsed(0);
     try {
+      // Unticked sends nothing, so the server's CART_CURATOR setting decides.
       const res = await suggest(text, expanded, curate || undefined);
       setShelf(res);
       setAsked(text);
@@ -182,10 +182,10 @@ const DataCartPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <ExpandedSearchControl value={expanded} onChange={setExpanded} disabled={searching} />
             <label className="inline-flex items-center gap-1.5 text-xs text-slate-600"
-                   title="A local model judges every item and picks the cart. Adds about 10-35 s. Being measured against the rule-based pick.">
+                   title="A local model judges every item and picks the cart. Adds about 20-35 s. On held-out questions it was only slightly better than the rule-based pick.">
               <input type="checkbox" checked={curate} disabled={searching}
                      onChange={e => setCurate(e.target.checked)} className="accent-brand-700" />
-              Let the model pick the cart (trial)
+              Let the model pick the cart
             </label>
           </div>
         </div>

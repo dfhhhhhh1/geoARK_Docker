@@ -53,6 +53,11 @@ services:
       PLAN_MODEL: ${PLAN_MODEL:-}
       # Planner reasoning: on (model default) | off | a token budget, e.g. 512.
       PLAN_THINK: ${PLAN_THINK:-on}
+      # Data cart curator (backend/curator.js). off = opt-in per request (the
+      # page's "Let the model pick" box); auto = whenever expansion is on;
+      # on = always. Off by default: it won on dev but not clearly on held-out
+      # (docs/DATA_CART_PLAN.md "Phase 2 measured").
+      CART_CURATOR: ${CART_CURATOR:-off}
       LLM_THINK: ${LLM_THINK:-}
       # Query decomposition: prompt v1|v2|v3, model (empty = LLM_MODEL), and
       # reasoning for a planner-sized model. eval/decomp/README.md.

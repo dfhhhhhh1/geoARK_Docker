@@ -163,6 +163,119 @@ numbers worth re-checking. Add it in the same session as the load.
   covers larger counties only; the sidecar says so. Counts, not rates.
 - **Match:** 3,142 of 3,142.
 
+### Supplementary File A sources, county tables (2026-11-20)
+
+Four tabular sources listed in the GeoARK paper's Supplementary File A whose
+catalog rows had **no data behind them** (the `ACS_combined` groups
+`a781336d_02_01` Food Environment Atlas, `a781336d_03_01` Rural Atlas,
+`ddbfd2c3_01_01` heart disease atlas; USAFacts COVID had no rows at all). Loaded
+as new datasets from current releases. The old unresolved rows were **left in
+the catalog** (see "Open" below).
+
+#### USDA ERS Food Environment Atlas (`ers_fea`, id `ers_fea`)
+- **Source:** July 2025 release, `food-environment-atlas-csv-files.zip`
+  (`StateAndCountyData.csv`, long: FIPS, Variable_Code, Value; `VariableList.csv`).
+- **Script:** `etl/prep_ers_atlases.py fea`.
+- **Prep:** codes carry a 2-digit year suffix (`LACCESS_POP15`, `LACCESS_POP19`);
+  when it matches the label's year it is stripped, so the years become a YEAR
+  column under one measure. `-8888` (county did not exist) and `-9999` / `N/A`
+  are missing.
+- **Dropped (125 of 304):** 48 state-level variables (label ends in `*`: one
+  state value repeated over every county would rank as county variation); 60
+  change variables (`PCH_`, `CH_`, "% change", "percentage points": `combine`
+  computes change from the two years, and `PCH_FDPIR_12_15` is labelled `Count`
+  in ERS's own list); 18 "Socioeconomic Characteristics" (SAIPE poverty, median
+  income, race shares, already loaded under USDA ERS / ACS).
+- **Kept (102 measures):** access, store and restaurant availability, food
+  assistance (county-level), local foods, recreation facilities.
+- **Match:** 3,142 of 3,156; the 14 skipped are CT planning regions, the
+  Valdez-Cordova split and three retired Alaska codes.
+- **Checked:** Taney MO fast-food restaurants per 1,000 (2020) = 1.0694 in the
+  raw file and in the answer to "Which Missouri counties have the most fast-food
+  restaurants per 1,000 people?" (plan `load ERS_FEA_FFRPTH -> filter_area ->
+  rank`).
+
+#### USDA ERS Atlas of Rural and Small-Town America (`ers_rural_atlas`)
+- **Source:** 2024 release, `download-the-data-in-csv.zip` (People, Jobs,
+  Income, Veterans, CountyClassifications; long, plus `VariableNameLookup.csv`).
+- **Script:** `etl/prep_ers_atlases.py rural`.
+- **Encoding:** the files are cp1252 ("Doña Ana"), decided over the whole file.
+- **Dropped (157 of 249):** 138 that duplicate the USDA ERS county files already
+  loaded (population estimates, labor force / employment / unemployment, SAIPE
+  poverty and income, educational attainment, metro / RUCC / UIC codes, migration
+  and natural change); 19 People counts whose percent is kept. Near-duplicates
+  under a second name are the measured retrieval risk (42 unemployment-ish rows
+  before this).
+- **Kept (92):** race / ethnicity, age, foreign born by region, households, home
+  ownership, population change by group, employment by industry, deep poverty,
+  per capita income, veterans (share, disability, poverty, era, income), and the
+  ERS county typologies (2015 edition and the 2000/2003 ones, natural amenities,
+  oil and gas change classes). Five "Percent employment change" codes keep their
+  period in the description, or they read identically.
+- **Units are partly inferred from the code name** (`units_for`); the oil and gas
+  `*_Change` columns are class codes (0 / 2 / 9), not dollars; checked on values.
+- **Match:** 3,220 of 3,226.
+- **Checked:** "Which counties are retirement destinations?" -> `load
+  Retirement_Destination_2015_Update`; "percent of veterans with a disability by
+  county in Texas" -> `PctVetsDisabilty`, 251 counties.
+
+#### USAFacts COVID-19 cases and deaths (`usafacts_covid`)
+- **Source:** `covid_confirmed_usafacts.csv`, `covid_deaths_usafacts.csv`,
+  cumulative daily counts 2020-01-22 to 2023-07-23 (reporting ended).
+- **Script:** `etl/prep_usafacts_covid.py`.
+- **Prep:** ~575 daily columns per file reduced to 4 measures by YEAR:
+  cumulative on 31 Dec (23 Jul for 2023) and new in the calendar year (2020-2022;
+  2023 is half a year and gets no annual value). Statewide-unallocated rows
+  dropped. 55 negative annual changes (corrections) blanked.
+- **Match:** 3,142 of 3,142. Los Angeles cumulative deaths 36,317.
+- **Licence:** CC BY-SA 4.0 (USAFacts), not public domain.
+
+#### CDC heart disease and stroke mortality (`cdc_heart_stroke`)
+- **Source:** data.cdc.gov `mri7-5jtw` (heart) and `y5ii-knwc` (stroke), adults
+  35+, 2022-2024, age-adjusted, spatially smoothed 3-year rates per 100,000 (the
+  data behind the Interactive Atlas of Heart Disease and Stroke).
+- **Script:** `etl/prep_cdc_heart_stroke.py`.
+- **Prep:** CDC's `Year` 2023 is the middle year; dated **2024**, the end of the
+  window. Kept overall, by sex, and by race/ethnicity (both sexes): 10 per topic.
+  Sex x race cells dropped.
+- **Catalog:** 16 of 20; 4 cover under 500 counties (loaded, not catalogued).
+- **Checked:** "Which Georgia counties have the highest stroke death rates among
+  Black adults?" -> `CDC_HEART_STROKE_STROKE_DEATH_RATE_BLACK`, Miller 221.7.
+
+#### Guards after the four loads
+- `known_item.yaml`: **91.7% recall@1, MRR 0.944**, unmoved.
+- `queries.yaml` (search endpoint): single_concept, facilities_via_tags,
+  geographic_level, temporal 100%; multi_concept 87.5 / 75%, paraphrase 80 / 80%
+  (misses: `unemployment-and-snap`, `race-and-poverty`, `jobless`). **No new
+  row appears in the top 20 of any missed query**, so these are not
+  displacement by this load; the 97.8% baseline predates several other loads.
+  Run in per-suite batches: the full suite now trips the API's search rate
+  limiter (30 burst, 60/min) and reports 24 "request errors" (HTTP 429).
+
+#### Open
+- **The old unresolved rows are still in the catalog**: 280 FEA, 235 Rural Atlas,
+  26 heart atlas, 113 Harvard hospital capacity, 59 smoking. They resolve to
+  nothing and compete in retrieval with the new rows. Removing them is a
+  retrieval change: run `known_item.yaml` and `queries.yaml` before and after.
+- "Which counties had the most COVID-19 deaths per person?" planned over the
+  older `AHRF_POPULATION_HEAL_COVID_DETH` / CHR population and returned 0.85 for
+  Mississippi County AR, whose stored values are 57 deaths and 38,663 people.
+  Not caused by this load; not investigated.
+
+#### Supplementary File A: what is still not loaded (checked 2026-11-20)
+Against `attribute_source` (a dataset counts as loaded if any of its rows
+resolve). Sources not checked for current availability unless stated.
+
+| Kind | Not loaded |
+|---|---|
+| Tabular | Harvard GHI hospital capacity (2020, static); BRFSS / IHME smoking prevalence 1996-2012 (IHME GHDx, registration) |
+| In the catalog, no data (truncated HSIP archive) | Petroleum Ports, POL Terminals, POL Pumping Stations, Power Plants, Prison Boundaries, Public Health Departments, Public Refrigerated Warehouses, Public Transit Routes / Stations, Station Transfers, Rail Company, Road Tunnels, Sand and Gravel Operations, Solid Waste Landfills, Supplemental Colleges, Uranium-Vanadium Deposits, Urgent Care, VHA Medical Facilities |
+| Not in the catalog at all | PAD-US (only NPS units loaded); NLCD impervious, land cover change index, forest disturbance; CropScape CDL and corn / soybean / cotton / wheat frequency; EPA RMP, TSCA; EMS stations, local EOCs, PSAP boundaries; HGL and natural gas pipelines, oil / gas interconnects, oil refinery polygons; DoD site points; FUDS munitions response sites and property boundaries; IRM project boundaries; LandScan USA; TGS mines; US coal fields; FEMA NFHL; landslide regions; plate boundaries; seismic hazard 2% / 10%; places of worship; trails; NHD waterbodies (small scale) |
+
+Already covered by another load: Food Access Research Atlas and EJScreen (tract /
+block group), the ACS tables, public / private schools (NCES locations), military
+installations (DoD boundaries), NWI, NLCD land cover.
+
 ---
 
 ## Tract and block-group datasets
