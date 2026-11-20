@@ -163,7 +163,6 @@ const DatasetCard: React.FC<DatasetCardProps> = ({ dataset, onSelect }) => {
           <span>{dataset.coverage.geographic} level</span>
           {dataset.variables?.length ? (
             <>
-              <span>•</span>
               <span>{dataset.variables.length} variables</span>
             </>
           ) : null}

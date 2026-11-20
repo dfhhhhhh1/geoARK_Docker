@@ -58,12 +58,12 @@ export default function ComparisonCard({ result, comparison, compact = false }: 
           <div key={k} className={`rounded-lg border bg-white px-3 py-2.5
                                    ${higher === label ? 'border-ink' : 'border-slate-200'}`}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 truncate" title={label}>
-              {k === 'a' ? 'A' : 'B'} · {label}
+              {k === 'a' ? 'A' : 'B'}: {label}
             </p>
             <p className={`${compact ? 'text-2xl' : 'text-3xl'} font-semibold tabular-nums text-slate-900 mt-0.5`}>
               {fmtValue(med)}
             </p>
-            <p className="text-xs text-slate-500 tabular-nums">median · {n?.toLocaleString() ?? '–'} counties</p>
+            <p className="text-xs text-slate-500 tabular-nums">median, {n?.toLocaleString() ?? '–'} counties</p>
           </div>
         ))}
       </div>

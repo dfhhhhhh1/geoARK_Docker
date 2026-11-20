@@ -3,7 +3,10 @@ import {
   Search, Loader2, Plus, Check, X, ShoppingCart, BookOpen, FileText, MessageSquareText,
   Download, Table2, Map as MapIcon, Layers, ChevronDown, ChevronRight, AlertTriangle, Wand2,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import ExpandedSearchControl from './ExpandedSearchControl';
+import CartModelPanel from './CartModelPanel';
+import type { CartMapRequest } from './AnalysisPage';
 import { useExpandedSearch } from '../hooks/useExpandedSearch';
 import { STATES } from '../lib/places';
 import {
@@ -20,8 +23,8 @@ import {
  *
  * The suggestion is code, not a model, on purpose: an LLM picker is Phase 2 and
  * has to beat this list first (an LLM filter has lost recall here before).
- * Mapping and AutoML are not offered until they work end to end; the cart this
- * page replaced was removed for a checkout that 404'd.
+ * Mapping (Phase 5) hands the cart to /analysis as map_measure edits; AutoML
+ * (Phase 6, CartModelPanel) trains on the checkout's own table with spatial CV.
  */
 
 const ROLE_TITLE: Record<ShelfRole, { title: string; hint: string }> = {
@@ -61,6 +64,7 @@ const WhyChip: React.FC<{ why: ShelfItem['why'][number] }> = ({ why }) => {
 };
 
 const DataCartPage: React.FC = () => {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useExpandedSearch();
   const [query, setQuery] = useState('');
   const [asked, setAsked] = useState<string | null>(null);
@@ -299,10 +303,22 @@ const DataCartPage: React.FC = () => {
           )}
 
           {table && (
-            <TableSummary table={table} stale={stale} cart={cart} query={asked} />
+            <TableSummary table={table} stale={stale} cart={cart} query={asked}
+                          onMap={() => {
+                            const ids = new Set(table.columns.map(c => c.item));
+                            const req: CartMapRequest = {
+                              items: cart.filter(c => ids.has(c.id)).map(c => ({ id: c.id, label: c.label, kind: c.kind })),
+                              states: state ? [state] : null,
+                            };
+                            navigate('/analysis', { state: { cartMap: req } });
+                          }} />
           )}
         </aside>
       </div>
+
+      {table && !stale && (
+        <CartModelPanel table={table} items={table.columns.map(c => c.item)} states={state ? [state] : null} />
+      )}
     </main>
   );
 };
@@ -324,8 +340,8 @@ const ShelfRow: React.FC<{
           </div>
           <div className="text-xs text-slate-500 mt-0.5">
             {item.dataset ?? 'catalog'}
-            {item.coverage != null && <> · {item.coverage.toLocaleString()} counties</>}
-            {item.period && <> · {item.period}</>}
+            {item.coverage != null && <>, {item.coverage.toLocaleString()} counties</>}
+            {item.period && <>, {item.period}</>}
           </div>
           <div className="mt-1 flex flex-col gap-0.5">
             {item.why.slice(0, 2).map((w, i) => <WhyChip key={i} why={w} />)}
@@ -371,8 +387,9 @@ const AddButton: React.FC<{ added: boolean; disabled?: boolean; small?: boolean;
   </button>
 );
 
-const TableSummary: React.FC<{ table: CartTable; stale: boolean; cart: CartItem[]; query: string | null }> =
-  ({ table, stale, cart, query }) => {
+const TableSummary: React.FC<{ table: CartTable; stale: boolean; cart: CartItem[]; query: string | null;
+                               onMap: () => void }> =
+  ({ table, stale, cart, query, onMap }) => {
     const [busy, setBusy] = useState(false);
     const geo = async () => {
       setBusy(true);
@@ -383,7 +400,7 @@ const TableSummary: React.FC<{ table: CartTable; stale: boolean; cart: CartItem[
       <div className="pt-2 border-t border-slate-200 space-y-2">
         <p className="text-xs text-slate-600">
           {table.row_count.toLocaleString()} counties × {table.columns.length} columns
-          {stale && <span className="text-amber-700"> · the cart changed since this was built</span>}
+          {stale && <span className="text-amber-700">, the cart changed since this was built</span>}
         </p>
         <ul className="text-xs space-y-0.5">
           {table.columns.map(c => (
@@ -402,6 +419,12 @@ const TableSummary: React.FC<{ table: CartTable; stale: boolean; cart: CartItem[
             Dictionary
           </DlButton>
         </div>
+        <button type="button" onClick={onMap} disabled={stale}
+                title={stale ? 'Rebuild the table first' : 'Open in Analysis: the first measure as the map, the rest as layers'}
+                className="w-full inline-flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded-lg border
+                           border-brand-300 text-brand-700 hover:bg-brand-50 disabled:opacity-50">
+          <MapIcon className="w-3.5 h-3.5" /> Map in Analysis
+        </button>
       </div>
     );
   };

@@ -3,7 +3,7 @@
  * table. No database; `node test_cart.js`.
  */
 const assert = require("assert");
-const { buildShelf, defaultCart, cartPlan, wideTable, CartError, MAX_ITEMS } = require("./cart");
+const { buildShelf, defaultCart, cartPlan, wideTable, partialCompanion, CartError, MAX_ITEMS } = require("./cart");
 
 let passed = 0;
 const test = (name, fn) => { fn(); passed++; console.log(`  ok  ${name}`); };
@@ -149,6 +149,26 @@ test("a state restriction keeps only that state's counties", () => {
     { states: ["Missouri"], stateNames: new Map([["29", "Missouri"], ["17", "Illinois"]]) });
   assert.deepStrictEqual(t.rows.map(r => r.fips), ["29001"]);
   assert.deepStrictEqual(t.missing, [1]);
+});
+
+// ---------------------------------------------------------------------------
+console.log("model companion");
+
+test("a duplicated column is set aside, and the others still get a partial rho", () => {
+  // y depends on a and b; c is a copy of a (two sources of one estimate).
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
+  const rows = Array.from({ length: 200 }, (_, i) => {
+    const a = rnd(), b = rnd();
+    return { fips: String(10000 + i), y: 2 * a + b + 0.3 * rnd(), x: [a, b, a * 1.0001 + 1] };
+  });
+  const out = partialCompanion(rows, ["A", "B", "A copy"], new Map());
+  assert.strictEqual(out[2].status, "same_measure_as_another_column");
+  assert.strictEqual(out[2].same_as, "A");
+  assert.strictEqual(out[0].status, "ok");
+  assert.strictEqual(out[1].status, "ok");
+  assert.ok(out[0].partial_rho > 0.8, `A partial ${out[0].partial_rho}`);
+  assert.ok(out[1].partial_rho > 0.5, `B partial ${out[1].partial_rho}`);
 });
 
 console.log(`\n${passed} passed`);

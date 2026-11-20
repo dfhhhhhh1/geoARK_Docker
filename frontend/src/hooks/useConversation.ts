@@ -214,6 +214,30 @@ export function useConversation() {
     finish(id, await stream.run(question, layerIds(), expandedRef.current));
   }, [busy, active, add, update, lineage, runEdit, finish, stream]);
 
+  /**
+   * Map one measure as a new topic, optionally restricted to states: the data
+   * cart's "Map in Analysis". Two plan edits, no planner. Resolves to the new
+   * turn's id once it is done, or null if it failed.
+   */
+  const openMeasure = useCallback(async (attrId: string, label: string, states: string[] | null) => {
+    if (busy) return null;
+    const mapEdit: FollowUpEdit = { kind: 'map_measure', attr_id: attrId };
+    const id = add({ kind: 'edit', edit: mapEdit, userText: `Map ${label} (from the data cart)`,
+                     baseTurnId: null, status: 'running' });
+    try {
+      let result = await reviseAnalysis(null, mapEdit, uploadsRef.current, layerIds());
+      if (states?.length) {
+        result = await reviseAnalysis(result, { kind: 'restrict_area', states }, uploadsRef.current, layerIds());
+      }
+      finish(id, { status: 'done', result });
+      return id;
+    } catch (err) {
+      const e = err as FollowUpRequestError;
+      finish(id, { status: 'failed', error: e.message, failure: e.failure ?? null });
+      return null;
+    }
+  }, [busy, add, finish]);
+
   /** Re-run a failed or cancelled turn exactly as it was sent. */
   const retry = useCallback((turnId: string) => {
     const t = turnsRef.current.find(x => x.id === turnId);
@@ -250,7 +274,7 @@ export function useConversation() {
 
   return {
     turns, active, activeId, setActiveId, busy, uploads, layers, expanded, setExpanded,
-    ask, edit, editStep, retry, clear, addUploads, removeUpload, addLayer, removeLayer, labelFor,
+    ask, edit, editStep, openMeasure, retry, clear, addUploads, removeUpload, addLayer, removeLayer, labelFor,
     // Progress of the one question that can be running.
     stream: { stage: stream.stage, events: stream.events, elapsedMs: stream.elapsedMs, cancel: stream.cancel },
   };

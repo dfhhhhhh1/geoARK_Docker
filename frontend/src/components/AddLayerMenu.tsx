@@ -55,7 +55,7 @@ const AddLayerMenu: React.FC<Props> = ({ sources, present, onAdd, onClose }) => 
     setAdding(m.attr_id); setError(null);
     try {
       const result = await reviseAnalysis(null, { kind: 'map_measure', attr_id: m.attr_id }, []);
-      const layers = layersOf(result, `cat:${m.attr_id}`, `Catalog${m.dataset ? ` · ${m.dataset}` : ''}`, true)
+      const layers = layersOf(result, `cat:${m.attr_id}`, `Catalog${m.dataset ? `, ${m.dataset}` : ''}`, true)
         .map(l => ({ ...l, label: m.label }));
       if (!layers.length) throw new Error('that dataset returned nothing to draw');
       onAdd(layers);
@@ -102,7 +102,7 @@ const AddLayerMenu: React.FC<Props> = ({ sources, present, onAdd, onClose }) => 
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm text-ink leading-snug line-clamp-2" title={s.title}>{s.title}</span>
                         <span className="block text-[11px] text-slate-500">
-                          {s.subtitle} · {s.layers.length} layer{s.layers.length === 1 ? '' : 's'}
+                          {s.subtitle}, {s.layers.length} layer{s.layers.length === 1 ? '' : 's'}
                         </span>
                       </span>
                       <button type="button" disabled={!fresh.length} onClick={() => onAdd(fresh)}
@@ -145,7 +145,7 @@ const AddLayerMenu: React.FC<Props> = ({ sources, present, onAdd, onClose }) => 
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm text-slate-800 truncate" title={m.description ?? m.label}>{m.label}</span>
                         <span className="block text-[11px] text-slate-500 truncate">
-                          {m.dataset ?? ''}{m.kind === 'feature' ? ' · locations' : ' · county values'}
+                          {m.dataset ?? ''}{m.kind === 'feature' ? ', locations' : ', county values'}
                         </span>
                       </span>
                       <button type="button" disabled={!!adding || onMap} onClick={() => void addCatalog(m)}

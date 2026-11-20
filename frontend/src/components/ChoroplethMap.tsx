@@ -671,11 +671,11 @@ const ChoroplethBody: React.FC<BodyProps> = ({
   const legend = (
     <>
       <p className="text-xs font-medium text-slate-700 mb-1.5">
-        {series.length > 1 ? `${intent} · colored by ${active.label}` : intent}
+        {series.length > 1 ? `${intent}, colored by ${active.label}` : intent}
         {/* Names the unit for a derived statistic. "14.2" means nothing on
             its own; "14.2 Gi* z-score" is checkable. */}
         {valueLabel && (
-          <span className="font-normal text-slate-500"> · {valueLabel}</span>
+          <span className="font-normal text-slate-500">, {valueLabel}</span>
         )}
       </p>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">

@@ -474,8 +474,8 @@ export const MeasurePanel: React.FC<{
             <span className="min-w-0 flex-1">
               <span className="block text-sm text-slate-800 truncate" title={m.description ?? m.label}>{m.label}</span>
               <span className="block text-xs text-slate-500 truncate" title={detail(m) ?? undefined}>
-                {m.dataset ?? ''}{m.kind === 'feature' ? ' · locations' : ''}
-                {detail(m) && <> · <span className="text-slate-600">{detail(m)}</span></>}
+                {m.dataset ?? ''}{m.kind === 'feature' ? ', locations' : ''}
+                {detail(m) && <>, <span className="text-slate-600">{detail(m)}</span></>}
               </span>
             </span>
             <span className="flex gap-1.5">{actions(m)}</span>

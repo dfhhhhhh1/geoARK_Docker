@@ -407,7 +407,7 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
             <LayersIcon className="w-4 h-4 text-slate-500" />
             <div className="min-w-0 mr-auto">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Layers · {ordered.length}
+                Layers ({ordered.length})
               </p>
               <p className="text-xs text-slate-600 truncate" title={intent}>{intent}</p>
             </div>
@@ -469,7 +469,7 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
                         <span className={`block text-xs font-medium truncate ${st.visible ? 'text-ink' : 'text-slate-400'}`}
                               title={l.label}>{l.label}</span>
                         <span className="block text-[10px] text-slate-500 truncate">
-                          {l.source} · {l.mode === 'features'
+                          {l.source}, {l.mode === 'features'
                             ? `${(l.features?.length ?? 0).toLocaleString()} locations`
                             : `${(l.rows?.length ?? 0).toLocaleString()} counties`}
                         </span>

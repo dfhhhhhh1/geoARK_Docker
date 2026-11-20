@@ -392,7 +392,7 @@ const ExplorePage: React.FC = () => {
           {data && !data.too_many && (
             <div className="text-sm">
               <span className="font-medium">{data.level_label}</span>
-              <span className="text-slate-600"> · {data.in_view.toLocaleString()} in view · {data.year}</span>
+              <span className="text-slate-600">, {data.in_view.toLocaleString()} in view, {data.year}</span>
               <div className="text-[11px] text-slate-500">
                 {level === 'auto' ? 'Auto: the finest level that fits this view' : 'Level fixed'}
                 {' '}({data.ms} ms)
@@ -431,7 +431,7 @@ const ExplorePage: React.FC = () => {
           <div className="font-medium">
             {data.level.startsWith('grid') ? `${hover.levelLabel} cell` : hover.props.name ?? hover.props.id}
           </div>
-          <div className="text-xs text-slate-600">{hover.levelLabel} · {hover.props.id}</div>
+          <div className="text-xs text-slate-600">{hover.levelLabel}, {hover.props.id}</div>
           {hover.props.derived && (
             <div className="text-xs text-amber-800">
               Estimate from {hover.props.derived.parts} {hover.props.derived.from_label.toLowerCase()}
@@ -447,7 +447,7 @@ const ExplorePage: React.FC = () => {
               )}
               <div>{data.per === 'km2' ? 'Total ' : ''}<span className={data.per === 'km2' ? '' : 'font-semibold'}>
                 {fmt(hover.props.value)}</span> {data.units ?? ''}
-                {hover.props.km2 ? <span className="text-slate-500"> · {fmt(hover.props.km2)} km²</span> : null}
+                {hover.props.km2 ? <span className="text-slate-500">, {fmt(hover.props.km2)} km²</span> : null}
               </div>
             </div>
           )}

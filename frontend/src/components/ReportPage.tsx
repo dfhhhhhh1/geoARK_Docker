@@ -548,7 +548,7 @@ function ReportPage() {
               {/* Success banner */}
               <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-5 flex items-center gap-4">
                 <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0"><CheckCircle2 className="w-6 h-6 text-emerald-600" /></div>
-                <div><h4 className="font-semibold text-emerald-800">Training Complete</h4><p className="text-sm text-emerald-600">{automlResult.leaderboard.length} model{automlResult.leaderboard.length !== 1 ? 's' : ''} · {automlResult.problemType} · {automlResult.evalMetric}</p></div>
+                <div><h4 className="font-semibold text-emerald-800">Training Complete</h4><p className="text-sm text-emerald-600">{automlResult.leaderboard.length} model{automlResult.leaderboard.length !== 1 ? 's' : ''}, {automlResult.problemType}, {automlResult.evalMetric}</p></div>
               </div>
 
               {/* Metrics */}

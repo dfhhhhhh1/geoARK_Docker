@@ -239,6 +239,11 @@ services:
     profiles: ["automl"]
     environment:
       OMP_NUM_THREADS: ${OMP_NUM_THREADS:-4}
+      # Data cart spatial CV (/automl/cv): seconds of AutoGluon per fold, x5 folds.
+      AUTOML_FOLD_SECONDS: ${AUTOML_FOLD_SECONDS:-25}
+    # 8 GB of Docker RAM already OOM-killed the model runner once; cap this
+    # service so a training run cannot take ollama or the embedder with it.
+    mem_limit: ${AUTOML_MEM_LIMIT:-6g}
     volumes:
       - automl_models:/app/AutogluonModels
     restart: unless-stopped

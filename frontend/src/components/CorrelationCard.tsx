@@ -50,7 +50,7 @@ export default function CorrelationCard({ result }: { result: AnalysisResponse }
           ρ = {fmt(rho)}
         </span>
         <span className="text-sm text-slate-600 tabular-nums">
-          95% CI {fmt(s.ci_low)} to {fmt(s.ci_high)} · p {fmtP(s.p_value)}
+          95% CI {fmt(s.ci_low)} to {fmt(s.ci_high)}, p {fmtP(s.p_value)}
         </span>
       </div>
 

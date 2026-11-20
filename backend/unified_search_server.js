@@ -4006,79 +4006,225 @@ app.post("/api/cart/suggest", auth.requireAuth, limitSearch, async (req, res) =>
  */
 const STATE_NAME_BY_FIPS = new Map(Object.entries(require("./states").STATE_FIPS).map(([n, f]) => [f, n]));
 let countyListCache = null;
+
+/** A refusal the cart endpoints send as is: status + body. */
+class CartHttpError extends Error {
+  constructor(status, error, detail) { super(error); this.status = status; this.detail = detail; }
+}
+
+/**
+ * Build the cart's county table from a request body. Shared by the checkout
+ * and the model endpoint, so a model is always trained on exactly the table a
+ * download would contain.
+ */
+async function buildCartTable(body) {
+  const ids = [...new Set((Array.isArray(body?.items) ? body.items : [])
+    .filter(x => typeof x === "string" && x && !x.startsWith("user:")))];
+  if (!ids.length) throw new CartHttpError(400, "the cart is empty");
+  if (ids.length > cart.MAX_ITEMS) throw new CartHttpError(400, `a cart holds at most ${cart.MAX_ITEMS} items`);
+  const states = Array.isArray(body?.states)
+    ? body.states.filter(s => typeof s === "string" && require("./states").STATE_FIPS[s]) : null;
+
+  const resolved = await resolveAttributes(ids);
+  const missing = ids.filter(id => !resolved.has(id));
+  if (missing.length) throw new CartHttpError(422, "some items hold no data", missing.join(", "));
+  const items = ids.map(id => {
+    const k = resolved.get(id).source_kind;
+    return { id, kind: k === "feature_table" ? "feature" : k === "raster" ? "raster" : "value" };
+  });
+  let built;
+  try { built = cart.cartPlan(items, { states }); }
+  catch (err) {
+    if (err instanceof cart.CartError) throw new CartHttpError(422, err.message);
+    throw err;
+  }
+  const check = await validatePlan(built.plan, resolveAttributes);
+  if (!check.ok) throw new CartHttpError(422, "the cart could not be built", check.errors.join(" "));
+  for (const [k, v] of check.resolved) resolved.set(k, v);
+  const result = await executePlan(built.plan, resolved, pool, { timeoutMs: 60000 });
+
+  if (!countyListCache) {
+    countyListCache = (await pool.query("SELECT fips, name FROM county_geom ORDER BY fips")).rows;
+  }
+  const columns = built.outputs.map(o => {
+    const src = resolved.get(o.item);
+    const cand = catalogRow(o.item) || {};
+    const isFeature = src.source_kind === "feature_table";
+    return {
+      item: o.item, step: o.step,
+      header: isFeature ? `${cand.dataset_clean || src.table_name} (count)`
+        : cart.displayLabel(followup.measureLabel(cand.attr_desc || src.description) || o.item),
+      description: isFeature ? `Number of ${cand.dataset_clean || src.table_name} features in the county`
+        : (cart.displayLabel(cand.attr_desc || src.description) || null),
+      dataset: cand.dataset_clean || null,
+      source_kind: src.source_kind,
+      table_name: src.table_name || null,
+      census_code: src.census_code || null,
+      period: cand.end_date || cand.start_date || null,
+      // National range in the latest year: tells a 0-1 fraction (CHR) from
+      // a percentage, which the label often does not.
+      range: src.value_range ? { min: src.value_range.lo, max: src.value_range.hi } : null,
+    };
+  });
+  const table = cart.wideTable(countyListCache, columns, result.layers,
+                               { states, stateNames: STATE_NAME_BY_FIPS });
+  columns.forEach((c, i) => { c.missing = table.missing[i]; delete c.step; });
+  return {
+    columns, rows: table.rows, row_count: table.rows.length,
+    provenance: {
+      generated_at: new Date().toISOString(),
+      database: CONFIG.database.database,
+      corpus_cache_key: corpusCacheKey ?? null,
+      states: states?.length ? states : null,
+      level: "county",
+      note: "One row per county; an empty cell means the source has no value for that county.",
+    },
+  };
+}
+
+function sendCartError(res, err, what) {
+  if (err instanceof CartHttpError) {
+    return res.status(err.status).json({ error: err.message, ...(err.detail ? { detail: err.detail } : {}) });
+  }
+  console.error(`Cart ${what} error:`, err);
+  return res.status(500).json({ error: `the cart ${what} failed`, details: err.message });
+}
+
 app.post("/api/cart/table", auth.requireAuth, limitSearch, async (req, res) => {
   const started = Date.now();
   try {
-    const ids = [...new Set((Array.isArray(req.body?.items) ? req.body.items : [])
-      .filter(x => typeof x === "string" && x && !x.startsWith("user:")))];
-    if (!ids.length) return res.status(400).json({ error: "the cart is empty" });
-    if (ids.length > cart.MAX_ITEMS) return res.status(400).json({ error: `a cart holds at most ${cart.MAX_ITEMS} items` });
-    const states = Array.isArray(req.body?.states)
-      ? req.body.states.filter(s => typeof s === "string" && require("./states").STATE_FIPS[s]) : null;
+    const table = await buildCartTable(req.body);
+    return res.json({ ...table, ms: Date.now() - started });
+  } catch (err) {
+    return sendCartError(res, err, "table");
+  }
+});
 
-    const resolved = await resolveAttributes(ids);
-    const missing = ids.filter(id => !resolved.has(id));
-    if (missing.length) {
-      return res.status(422).json({ error: "some items hold no data", detail: missing.join(", ") });
-    }
-    const items = ids.map(id => {
-      const k = resolved.get(id).source_kind;
-      return { id, kind: k === "feature_table" ? "feature" : k === "raster" ? "raster" : "value" };
-    });
-    let built;
-    try { built = cart.cartPlan(items, { states }); }
-    catch (err) {
-      if (err instanceof cart.CartError) return res.status(422).json({ error: err.message });
-      throw err;
-    }
-    const check = await validatePlan(built.plan, resolveAttributes);
-    if (!check.ok) {
-      return res.status(422).json({ error: "the cart could not be built", detail: check.errors.join(" ") });
-    }
-    for (const [k, v] of check.resolved) resolved.set(k, v);
-    const result = await executePlan(built.plan, resolved, pool, { timeoutMs: 60000 });
+/**
+ * POST /api/cart/model  { items, states?, target, split?: "spatial"|"random" }
+ *
+ * AutoML on the cart table, honest about location (docs/DATA_CART_PLAN.md
+ * Phase 6, option B). The table is the checkout's; identifiers never reach the
+ * model; the service (ml_service.py /automl/cv) scores it out of fold with
+ * whole states (or, inside a few states, contiguous blocks) held out together.
+ * Here, after it returns: Moran's I of the out-of-fold residuals, and the
+ * interpretable companion, a partial Spearman per feature holding the other
+ * features fixed, computed by the explain op's own code. `split: "random"` is
+ * the A/B arm that shows what a random split would have claimed.
+ */
+const AUTOML_URL = process.env.AUTOML_URL || "http://automl:8000";
+let neighborCache = null;
+let centroidCache = null;
 
-    if (!countyListCache) {
-      countyListCache = (await pool.query("SELECT fips, name FROM county_geom ORDER BY fips")).rows;
+async function cartNeighbors() {
+  if (!neighborCache) {
+    const m = new Map();
+    for (const r of (await pool.query("SELECT fips, neighbor_fips FROM county_neighbors")).rows) {
+      if (!m.has(r.fips)) m.set(r.fips, []);
+      m.get(r.fips).push(r.neighbor_fips);
     }
-    const columns = built.outputs.map(o => {
-      const src = resolved.get(o.item);
-      const cand = catalogRow(o.item) || {};
-      const isFeature = src.source_kind === "feature_table";
-      return {
-        item: o.item, step: o.step,
-        header: isFeature ? `${cand.dataset_clean || src.table_name} (count)`
-          : cart.displayLabel(followup.measureLabel(cand.attr_desc || src.description) || o.item),
-        description: isFeature ? `Number of ${cand.dataset_clean || src.table_name} features in the county`
-          : (cart.displayLabel(cand.attr_desc || src.description) || null),
-        dataset: cand.dataset_clean || null,
-        source_kind: src.source_kind,
-        table_name: src.table_name || null,
-        census_code: src.census_code || null,
-        period: cand.end_date || cand.start_date || null,
-        // National range in the latest year: tells a 0-1 fraction (CHR) from
-        // a percentage, which the label often does not.
-        range: src.value_range ? { min: src.value_range.lo, max: src.value_range.hi } : null,
-      };
-    });
-    const table = cart.wideTable(countyListCache, columns, result.layers,
-                                 { states, stateNames: STATE_NAME_BY_FIPS });
-    columns.forEach((c, i) => { c.missing = table.missing[i]; delete c.step; });
+    neighborCache = m;
+  }
+  return neighborCache;
+}
+
+async function cartCentroids() {
+  if (!centroidCache) {
+    const { rows } = await pool.query(
+      "SELECT fips, ST_X(ST_PointOnSurface(geom)) AS lon, ST_Y(ST_PointOnSurface(geom)) AS lat FROM county_geom");
+    centroidCache = new Map(rows.map(r => [r.fips, [Number(r.lon), Number(r.lat)]]));
+  }
+  return centroidCache;
+}
+
+app.post("/api/cart/model", auth.requireAuth, limitSearch, async (req, res) => {
+  const started = Date.now();
+  try {
+    const target = req.body?.target;
+    if (typeof target !== "string" || !target) throw new CartHttpError(400, "choose a target column");
+    const split = req.body?.split === "random" ? "random" : "spatial";
+    const table = await buildCartTable(req.body);
+    const ti = table.columns.findIndex(c => c.item === target);
+    if (ti < 0) throw new CartHttpError(400, "the target is not in the cart");
+    const featureIdx = table.columns.map((c, i) => i).filter(i => i !== ti);
+    if (!featureIdx.length) throw new CartHttpError(400, "add at least one other item to predict the target from");
+
+    const neighbors = await cartNeighbors();
+    const centroids = await cartCentroids();
+    const rows = table.rows.filter(r => r.values[ti] !== null);
+    if (rows.length < 30) {
+      throw new CartHttpError(422, `only ${rows.length} counties have the target; at least 30 are needed`);
+    }
+    const names = featureIdx.map(i => table.columns[i].header);
+    const payload = {
+      target: table.columns[ti].header, features: names, split,
+      rows: rows.map(r => ({
+        id: r.fips, state: r.state,
+        lon: centroids.get(r.fips)?.[0] ?? null, lat: centroids.get(r.fips)?.[1] ?? null,
+        y: r.values[ti], x: featureIdx.map(i => r.values[i]),
+      })),
+    };
+
+    let ml;
+    try {
+      const resp = await fetch(`${AUTOML_URL}/automl/cv`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload), signal: AbortSignal.timeout(280000),
+      });
+      ml = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        throw new CartHttpError(resp.status === 429 ? 429 : 502, "the model service refused",
+                                ml.detail || `HTTP ${resp.status}`);
+      }
+    } catch (err) {
+      if (err instanceof CartHttpError) throw err;
+      throw new CartHttpError(503, "the model service is not running", "start it with `make automl`");
+    }
+
+    const S = require("./planner/stats");
+    // Moran's I over the counties in this table, neighbours restricted to them.
+    const moranOver = (list, valueOf) => {
+      const pos = new Map(list.map((r, i) => [r.fips, i]));
+      const nb = list.map(r => (neighbors.get(r.fips) || []).map(f => pos.get(f)).filter(i => i !== undefined));
+      return list.length ? S.moranI(list.map(valueOf), nb) : null;
+    };
+    const oof = new Map((ml.oof || []).map(o => [o.id, o.pred]));
+    const scored = rows.filter(r => oof.has(r.fips));
+    const residualMoran = moranOver(scored, r => r.values[ti] - oof.get(r.fips));
+    const targetMoran = moranOver(rows, r => r.values[ti]);
+
+    // The interpretable companion: each feature's partial Spearman with the
+    // target, the other features held fixed, through explain's own compute().
+    const companion = cart.partialCompanion(
+      rows.map(r => ({ fips: r.fips, y: r.values[ti], x: featureIdx.map(i => r.values[i]) })),
+      names, neighbors);
+
+    const isPlaces = (c) => /PLACES/i.test(c.dataset || "") || /^PLACES_/i.test(c.item);
+    const warnings = [];
+    if (table.columns.every(isPlaces)) {
+      warnings.push("Every column is a CDC PLACES model estimate. PLACES estimates share model " +
+        "covariates, so associations among them are inflated; do not cite them as findings.");
+    }
+    if (split === "random") {
+      warnings.push("Random split: neighbouring counties sit on both sides of the split, so this " +
+        "score includes copying from neighbours. Shown for comparison only.");
+    }
+    if (ml.cv?.grouping === "blocks") {
+      warnings.push(`Fewer than ${ml.cv.min_groups} states in the table, so folds hold out ` +
+        "contiguous blocks of counties instead of whole states.");
+    }
     return res.json({
-      columns, rows: table.rows, row_count: table.rows.length,
-      provenance: {
-        generated_at: new Date().toISOString(),
-        database: CONFIG.database.database,
-        corpus_cache_key: corpusCacheKey ?? null,
-        states: states?.length ? states : null,
-        level: "county",
-        note: "One row per county; an empty cell means the source has no value for that county.",
-      },
+      target: table.columns[ti].header, target_item: target, split,
+      counties: rows.length, features: names,
+      cv: ml.cv, folds: ml.folds, importance: ml.importance, models: ml.models,
+      sample: ml.sample,
+      spatial: { target_moran: targetMoran, residual_moran: residualMoran },
+      companion, warnings,
+      provenance: { ...table.provenance, service: "AutoGluon tabular", ml_ms: ml.ms },
       ms: Date.now() - started,
     });
   } catch (err) {
-    console.error("Cart table error:", err);
-    return res.status(500).json({ error: "the cart table failed", details: err.message });
+    return sendCartError(res, err, "model");
   }
 });
 

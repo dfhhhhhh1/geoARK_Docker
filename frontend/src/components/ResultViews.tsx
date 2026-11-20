@@ -207,7 +207,7 @@ export const ChartView: React.FC<{
 
   return (
     <div className="space-y-5">
-      <Bars title={`Highest${valueLabel ? ` · ${valueLabel}` : ''}`} data={top} />
+      <Bars title={`Highest${valueLabel ? `, ${valueLabel}` : ''}`} data={top} />
       {bottom.length > 0 && <Bars title="Lowest" data={bottom} />}
       <p className="text-xs text-slate-500">
         {rows.length.toLocaleString()} counties in the result; the extremes of the

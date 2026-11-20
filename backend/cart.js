@@ -236,5 +236,55 @@ function wideTable(counties, columns, layers, { states = null, stateNames = new 
   return { rows, missing };
 }
 
-module.exports = { buildShelf, defaultCart, cartPlan, wideTable, baseLabel, displayLabel, whyOf, CartError,
-                   MAX_ITEMS, IDENTIFIER };
+/**
+ * The interpretable companion to a cart model: each feature's partial Spearman
+ * with the target, the other features held fixed, through the explain op's own
+ * compute(). Features that are the same measure as an earlier one (|rho| >=
+ * 0.97 on shared counties, e.g. two sources of one PM2.5 estimate) are set
+ * aside first and reported as such: left in, they make the controls singular
+ * and no feature gets a number at all (measured on the first live run).
+ *
+ * @param rows     [{fips, y, x: [feature values]}]
+ * @param names    feature display names, x order
+ * @param neighbors Map<fips, fips[]>
+ */
+function partialCompanion(rows, names, neighbors) {
+  const S = require("./planner/stats");
+  const explainOp = require("./planner/ops/explain");
+  const SAME = 0.97;
+  const sameAs = new Array(names.length).fill(null);
+  for (let j = 0; j < names.length; j++) {
+    for (let i = 0; i < j && sameAs[j] === null; i++) {
+      if (sameAs[i] !== null) continue;
+      const both = rows.filter(r => r.x[i] !== null && r.x[j] !== null);
+      if (both.length < 10) continue;
+      const rho = S.pearson(S.rank(both.map(r => r.x[i])), S.rank(both.map(r => r.x[j])));
+      if (Math.abs(rho) >= SAME) sameAs[j] = i;
+    }
+  }
+  const kept = names.map((n, i) => i).filter(i => sameAs[i] === null);
+  const wide = rows.map(r => {
+    const o = { fips: r.fips, y: r.y };
+    kept.forEach((i, k) => { o[`v${k}`] = r.x[i]; });
+    return o;
+  });
+  return names.map((name, i) => {
+    if (sameAs[i] !== null) {
+      return { feature: name, status: "same_measure_as_another_column", same_as: names[sameAs[i]],
+               rho: null, partial_rho: null, ci_low: null, ci_high: null, n: null, n_effective: null };
+    }
+    const k = kept.indexOf(i);
+    const factors = kept.map((ci, j) => ({ attr_id: `f${ci}`, description: names[ci],
+                                            role: j === k ? "factor" : "control" }));
+    const rec = explainOp.compute(wide, { factors, neighbors }).factors.find(f => f.attr_id === `f${i}`) || {};
+    return {
+      feature: name, status: rec.status ?? "not_fitted", same_as: rec.same_as ?? null,
+      rho: rec.rho ?? null, partial_rho: rec.partial_rho ?? null,
+      ci_low: rec.ci_low ?? null, ci_high: rec.ci_high ?? null,
+      n: rec.n ?? null, n_effective: rec.n_effective ?? null,
+    };
+  });
+}
+
+module.exports = { buildShelf, defaultCart, cartPlan, wideTable, partialCompanion, baseLabel, displayLabel,
+                   whyOf, CartError, MAX_ITEMS, IDENTIFIER };

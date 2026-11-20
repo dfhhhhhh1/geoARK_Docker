@@ -115,7 +115,7 @@ const AnalysisProgress: React.FC<Props> = ({ stage, events, elapsedMs, onCancel 
         <div className="flex items-baseline justify-between gap-3 mb-4">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             {failed ? 'Analysis stopped' : stage === 'queued' ? 'Waiting to start'
-              : multi ? `Multi-step analysis · step ${Math.max(currentIdx, 0) + 1} of ${multi.length}`
+              : multi ? `Multi-step analysis, step ${Math.max(currentIdx, 0) + 1} of ${multi.length}`
               : 'Analysis in progress'}
           </h3>
           <div className="flex items-baseline gap-3">

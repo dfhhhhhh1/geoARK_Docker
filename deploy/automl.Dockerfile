@@ -15,7 +15,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         "fastapi==0.115.6" "uvicorn[standard]==0.34.0" \
         "autogluon.tabular[all]==1.2" "pandas==2.2.3" "python-multipart==0.0.20"
 
-COPY ml_service.py .
+COPY ml_service.py test_ml_cv.py ./
 
 EXPOSE 8000
 CMD ["uvicorn", "ml_service:app", "--host", "0.0.0.0", "--port", "8000"]

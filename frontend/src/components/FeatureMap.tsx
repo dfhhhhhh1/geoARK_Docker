@@ -265,7 +265,7 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
         <span className="inline-block w-3 h-3 rounded-full border border-white shadow-sm"
               style={{ backgroundColor: accent }} />
         {features.length.toLocaleString()} location{features.length === 1 ? '' : 's'}
-        {kinds.length ? ` · ${kinds.join(', ').toLowerCase()}` : ''}
+        {kinds.length ? `, ${kinds.join(', ').toLowerCase()}` : ''}
       </span>
     </>
   );

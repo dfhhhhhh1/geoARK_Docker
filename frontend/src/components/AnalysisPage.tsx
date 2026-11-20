@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Loader2, AlertTriangle, Send, Paperclip, CornerDownRight, Pencil,
   RotateCcw, Eye, Trash2, Zap, MessageSquarePlus, CheckCircle2,
@@ -19,11 +19,18 @@ import MapStage from './MapStage';
 import WorkflowPipeline from './WorkflowPipeline';
 import { fmtValue, isMultiStep } from '../lib/workflow';
 import { layersOf, type StackLayer } from '../lib/layers';
+import { reviseAnalysis } from '../lib/followup';
 import type { LayerSource } from './AddLayerMenu';
 import type { AnalysisResponse } from '../types';
 import type { FitPadding } from './MapControls';
 import type { ViewKind } from './ResultViews';
 import { unitPlural } from '../lib/units';
+
+/** What the data cart sends to map (DataCartPage, "Map in Analysis"). */
+export interface CartMapRequest {
+  items: { id: string; label: string; kind: 'value' | 'feature' | 'raster' }[];
+  states: string[] | null;
+}
 
 const EXAMPLES = [
   'poverty rate normalized by total population for counties',
@@ -153,6 +160,36 @@ const AnalysisPage: React.FC = () => {
     }
     return out;
   }, [activeResult, activeId, stepOnMap, convo.turns]);
+
+  // "Map in Analysis" from the data cart: the first by-county item becomes the
+  // answer, the rest go into its layer stack. Every one is a map_measure edit
+  // (no planner), restricted to the cart's area when it has one. The router
+  // state is cleared first, so a reload does not map it all again.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const cartHandoff = useRef(false);
+  useEffect(() => {
+    const req = (location.state as { cartMap?: CartMapRequest } | null)?.cartMap;
+    if (!req?.items?.length || cartHandoff.current) return;
+    cartHandoff.current = true;
+    navigate(location.pathname + location.search, { replace: true, state: null });
+    const ordered = [...req.items].sort((a, b) => Number(a.kind !== 'value') - Number(b.kind !== 'value'));
+    const [first, ...rest] = ordered;
+    void (async () => {
+      const id = await convo.openMeasure(first.id, first.label, req.states);
+      if (!id) return;
+      const extra: StackLayer[] = [];
+      for (const it of rest) {
+        try {
+          let r = await reviseAnalysis(null, { kind: 'map_measure', attr_id: it.id }, []);
+          if (req.states?.length) r = await reviseAnalysis(r, { kind: 'restrict_area', states: req.states }, []);
+          extra.push(...layersOf(r, `cart:${it.id}`, 'Data cart', true).map(l => ({ ...l, label: it.label })));
+        } catch { /* one item that cannot be drawn should not cost the rest */ }
+      }
+      if (extra.length) setAdded(a => ({ ...a, [id]: [...(a[id] ?? []), ...extra] }));
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const hasThread = convo.turns.length > 0;
   const asFollowUp = followUp && !!convo.active;
@@ -364,7 +401,7 @@ const AnalysisPage: React.FC = () => {
                      rounded-xl px-3.5 py-2.5 flex items-center gap-2 text-sm font-medium text-ink"
         >
           <MessagesSquare className="w-4 h-4" />
-          {hasThread ? `Conversation · ${convo.turns.length}` : 'Ask a question'}
+          {hasThread ? `Conversation (${convo.turns.length})` : 'Ask a question'}
           {convo.busy && <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-700" />}
         </button>
       )}
@@ -561,7 +598,7 @@ const TurnView: React.FC<{
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium text-slate-800 truncate">{r.plan?.intent ?? t.userText}</span>
             <span className="block text-xs text-slate-500">
-              {summarize(r)}{t.elapsedMs ? ` · ${(t.elapsedMs / 1000).toFixed(1)}s` : ''}
+              {summarize(r)}{t.elapsedMs ? `, ${(t.elapsedMs / 1000).toFixed(1)}s` : ''}
             </span>
           </span>
           <span className="text-xs text-brand-700 flex items-center gap-1 opacity-70 group-hover:opacity-100">
@@ -645,10 +682,10 @@ function summarize(r: NonNullable<Turn['result']>): string {
     const w = r.workflow!;
     const n = Math.max(w.steps.length, w.decomposition.steps.length);
     if (w.status !== 'complete') return `${n}-step analysis, stopped`;
-    if (r.comparison) return `${n}-step analysis · ${r.comparison.labels?.a ?? 'A'} vs ${r.comparison.labels?.b ?? 'B'}`;
-    return `${n}-step analysis · ${(r.row_count ?? 0).toLocaleString()} counties`;
+    if (r.comparison) return `${n}-step analysis, ${r.comparison.labels?.a ?? 'A'} vs ${r.comparison.labels?.b ?? 'B'}`;
+    return `${n}-step analysis, ${(r.row_count ?? 0).toLocaleString()} counties`;
   }
-  if (r.comparison) return `comparison · ${r.comparison.labels?.a ?? 'A'} vs ${r.comparison.labels?.b ?? 'B'}`;
+  if (r.comparison) return `comparison, ${r.comparison.labels?.a ?? 'A'} vs ${r.comparison.labels?.b ?? 'B'}`;
   if (r.stats) {
     const rho = r.stats.value;
     return rho === null || rho === undefined ? 'correlation' : `correlation ρ = ${rho.toFixed(2)}`;

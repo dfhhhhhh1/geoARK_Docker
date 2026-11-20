@@ -33,9 +33,9 @@ export const slug = (s: string): string =>
  * match ("website") would misstate the source of the number.
  */
 function sourceRef(o: AttributeOrigin): string {
-  if (o.census_code) return `acs_county_values · ${o.census_code}`;
-  if (o.geometry_column) return `${o.table_name ?? '-'} · ${o.geometry_column} (geometry)`;
-  return `${o.table_name ?? '-'}${o.value_column ? ` · ${o.value_column}` : ''}`;
+  if (o.census_code) return `acs_county_values, ${o.census_code}`;
+  if (o.geometry_column) return `${o.table_name ?? '-'}, ${o.geometry_column} (geometry)`;
+  return `${o.table_name ?? '-'}${o.value_column ? `, ${o.value_column}` : ''}`;
 }
 
 const csvEscape = (v: unknown): string => {

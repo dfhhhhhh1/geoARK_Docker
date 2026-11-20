@@ -270,7 +270,7 @@ const ResultBlock: React.FC<Props> = ({
                   {layers.filter(l => l.mode === 'features').map(l => (
                     <div key={l.id} className="mt-5">
                       <p className="text-xs font-medium text-slate-500 mb-1.5">
-                        Locations · {l.row_count.toLocaleString()}
+                        Locations ({l.row_count.toLocaleString()})
                       </p>
                       <FeatureMap features={l.features ?? []}
                                   intent={result.plan.intent} />
@@ -349,7 +349,7 @@ const StageExtras: React.FC<{ result: AnalysisResponse }> = ({ result }) => {
         {featureLayers.filter(l => l.id !== onStage).map(l => (
           <div key={l.id}>
             <p className="text-xs font-medium text-slate-500 mb-1.5">
-              Locations · {l.row_count.toLocaleString()}
+              Locations ({l.row_count.toLocaleString()})
             </p>
             <ErrorBoundary label="the map">
               <FeatureMap features={l.features ?? []} intent={result.plan.intent} />

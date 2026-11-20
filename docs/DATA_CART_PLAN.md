@@ -202,7 +202,7 @@ state also go in as features.
 | C | No AutoML; use `explain` / `residual` only | Yes, and interpretable | none, but no non-linear models |
 | D | B plus spatial-lag features (neighbour means from `county_neighbors`) | Yes | moderate; later |
 
-**B, concretely:**
+**B, chosen 2026-11-20. Concretely:**
 - **Drop identifiers:** `geoid / name / state` are dropped from the features.
 - **Spatial cross-validation:** folds are grouped by state (GroupKFold, 5
   folds), so a test county never has its neighbours in training. County data
@@ -335,11 +335,13 @@ occurs in the text.
 
 1. **Slice 1:** Phases 1 + 4 + 3. A working, downloadable cart with no LLM
    picking. **Built 2026-11-20, see "Progress".**
-2. **Mapping:** Phase 5.
+2. **Mapping:** Phase 5. **Built 2026-11-20** (Map in Analysis; Open in
+   Explore not yet).
 3. **Curator:** Phase 2, with `cart.yaml`; the default only if it wins.
 4. **Paper upload:** U1-U3, a cart from a paper.
 5. **Reproduction:** U4, then U5.
-6. **AutoML:** Phase 6, option B once chosen.
+6. **AutoML:** Phase 6, option B. **Chosen and built 2026-11-20**, ahead of
+   3-5 because it reuses the checkout and nothing else.
 
 ## Progress
 
@@ -397,3 +399,61 @@ occurs in the text.
 - A zip of all three downloads.
 - Mapping (Phase 5) and AutoML (Phase 6) buttons. These are deliberately absent
   until they work end to end.
+
+### Phases 5 and 6 built (2026-11-20)
+
+**Code:**
+- **Map in Analysis** (`DataCartPage` -> router state -> `AnalysisPage`,
+  `useConversation.openMeasure`). The first by-county item becomes the answer,
+  each other item a layer in its stack; every one is a `map_measure` edit, plus
+  `restrict_area` when the cart has an area. No planner call.
+- **`POST /api/cart/model {items, states?, target, split?}`** builds the same
+  table as the checkout (`buildCartTable`, shared), sends values and ids
+  SEPARATELY to `ml_service.py` `POST /automl/cv`, then computes Moran's I of
+  the out-of-fold residuals and the companion (`cart.partialCompanion`,
+  explain's own `compute()`).
+- **Folds** (`_fold_groups`): 5 folds of whole states, balanced by size; with
+  fewer than 5 states, contiguous blocks (k-means on county centroids, ~n/10
+  blocks). `split: "random"` is the comparison arm only. AutoGluon
+  `medium_quality`, 25 s per fold (`AUTOML_FOLD_SECONDS`), no neural nets,
+  permutation importance on each held-out fold, averaged. One training at a
+  time (429 otherwise).
+- **Compose:** `automl` gets `mem_limit: 6g` (`AUTOML_MEM_LIMIT`).
+  `/automl/train` (the CSV tools page) is unchanged.
+- **Tests:** `backend/test_ml_cv.py` (fold assignment, in the image) and a
+  12th `test_cart.js` case (a duplicated column).
+
+**Checked live, the default CHD cart (CHD target, 6 features):**
+
+| | national, by state | national, random | Missouri, by block |
+|---|--:|--:|--:|
+| counties | 2,945 | 2,945 | 115 |
+| out-of-fold R² | **0.37** | 0.43 | 0.21 |
+| RMSE (guess-the-mean) | 1.19 (1.49) | 1.12 (1.49) | 1.28 (1.44) |
+| residual Moran's I (target) | 0.42 (0.45) | 0.36 | 0.24 (0.35) |
+| wall time | 18 s | 17 s | 9 s |
+
+- **The random split overstates skill by 0.06 R²** on this cart, which is the
+  measurement option B was chosen for. Option A's split would have been worse
+  still (FIPS as a feature).
+- **The model leaves most of the spatial structure**: residual I 0.42 against
+  0.45 for CHD itself. The panel says so ("something regional is missing").
+- **Importance and the partial rho agree on order**: child mortality (0.26;
+  partial +0.34) and cardiology MDs per capita (0.15; partial -0.33) lead;
+  diabetes and obesity are small once the others are held fixed (+0.06,
+  +0.11). Associations, not causes; child mortality is the weak PubMed link
+  noted above, standing in for general county health.
+- **Wall time is far under the cap**: ~3,000 rows x 6 columns trains each fold
+  in ~3 s, so "2-3 min" on the button is conservative.
+
+**Defect found on the first live run, fixed:** the two PM2.5 columns are the
+same values, which made the companion's controls singular, so EVERY feature
+read `controls_collinear` and nothing got a partial rho. `partialCompanion`
+now sets aside any column with |rho| >= 0.97 to an earlier one and reports it
+as "same measure as ...". AutoGluon had already dropped the copy (no
+importance). Same lesson as the slice 1 finding: two sources of one estimate
+need a data test.
+
+**Not built:** Open in Explore; spatial-lag features (option D); a target
+that is a feature-layer count (offered targets are by-county values only);
+model download.

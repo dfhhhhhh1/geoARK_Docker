@@ -236,17 +236,17 @@ const AnalysisReport: React.FC<Props> = ({ result }) => {
                     {o.dataset ?? 'Unknown dataset'}
                     {o.start_date && (
                       <span className="font-normal text-slate-500">
-                        {' '}· {o.start_date}{o.end_date && o.end_date !== o.start_date ? `, ${o.end_date}` : ''}
+                        , {o.start_date}{o.end_date && o.end_date !== o.start_date ? `, ${o.end_date}` : ''}
                       </span>
                     )}
                   </p>
                   <p className="text-slate-600 mt-0.5">{o.description}</p>
                   <p className="text-xs text-slate-500 mt-1 font-mono break-all">
                     {o.census_code
-                      ? `acs_county_values · ${o.census_code}`
+                      ? `acs_county_values, ${o.census_code}`
                       : o.geometry_column
-                        ? `${o.table_name} · ${o.geometry_column} (geometry)`
-                        : `${o.table_name}${o.value_column ? ` · ${o.value_column}` : ''}`}
+                        ? `${o.table_name}, ${o.geometry_column} (geometry)`
+                        : `${o.table_name}${o.value_column ? `, ${o.value_column}` : ''}`}
                   </p>
                 </div>
               ))}

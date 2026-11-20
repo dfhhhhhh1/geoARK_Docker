@@ -318,9 +318,9 @@ const LayeredMap: React.FC<Props> = ({
             </button>
             <span className={`flex-1 truncate ${
               st.visible ? 'text-slate-700' : 'text-slate-400'}`} title={label(l, i)}>
-              {i === 0 && <span className="text-slate-400">top · </span>}
+              {i === 0 && <span className="text-slate-400">top, </span>}
               {label(l, i)}
-              <span className="text-slate-400"> · {l.row_count.toLocaleString()}</span>
+              <span className="text-slate-400">, {l.row_count.toLocaleString()}</span>
             </span>
 
             <select

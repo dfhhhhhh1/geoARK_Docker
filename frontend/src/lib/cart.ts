@@ -93,6 +93,40 @@ export const checkout = (items: string[], states: string[] | null) =>
   post<CartTable>('/api/cart/table', { items, ...(states?.length ? { states } : {}) });
 
 // ---------------------------------------------------------------------------
+// AutoML with spatial cross-validation (POST /api/cart/model; plan Phase 6, B).
+
+export interface ModelResult {
+  target: string;
+  target_item: string;
+  split: 'spatial' | 'random';
+  counties: number;
+  features: string[];
+  cv: {
+    split: string; grouping: 'states' | 'blocks' | 'random'; groups: number | null; folds: number;
+    min_groups: number; r2: number | null; r2_fold_mean: number | null;
+    rmse: number | null; baseline_rmse: number | null; scored: number; seconds_per_fold: number;
+  };
+  folds: { fold: number; n_test: number; held_out: string[] | null; r2: number | null; rmse: number | null;
+           best_model: string }[];
+  importance: { feature: string; importance: number | null; spread: number | null; folds: number }[];
+  models: Record<string, number>;
+  sample: { id: string; actual: number | null; predicted: number | null }[];
+  spatial: { target_moran: number | null; residual_moran: number | null };
+  companion: {
+    feature: string; status: string; rho: number | null; partial_rho: number | null;
+    ci_low: number | null; ci_high: number | null; n: number | null; n_effective: number | null;
+    same_as: string | null;
+  }[];
+  warnings: string[];
+  provenance: CartTable['provenance'] & { service: string; ml_ms: number };
+  ms: number;
+}
+
+export const trainModel = (items: string[], states: string[] | null, target: string,
+                           split: 'spatial' | 'random' = 'spatial') =>
+  post<ModelResult>('/api/cart/model', { items, target, split, ...(states?.length ? { states } : {}) });
+
+// ---------------------------------------------------------------------------
 // The cart itself: kept per browser. Storage can be blocked; the cart then
 // lives for the page, which is still usable.
 

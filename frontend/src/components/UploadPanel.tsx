@@ -174,7 +174,7 @@ const UploadPanel: React.FC<Props> = ({ onAdd, onAddLayer, onClose }) => {
       {draft && (
         <div className="space-y-3">
           <p className="text-sm text-slate-700">
-            <strong>{draft.file}</strong> · {draft.parsed.rows.length.toLocaleString()} rows ·
+            <strong>{draft.file}</strong>, {draft.parsed.rows.length.toLocaleString()} rows,
             county codes from <code className="font-mono">{draft.parsed.headers[draft.fipsCol]}</code>
           </p>
           <p className="text-xs text-slate-500">Choose the columns to add. Each becomes its own measure.</p>
@@ -206,14 +206,14 @@ const UploadPanel: React.FC<Props> = ({ onAdd, onAddLayer, onClose }) => {
                         {counties
                           ? `${p.matched.toLocaleString()} of ${p.fips.length.toLocaleString()} rows match a county on the map`
                           : `${p.fips.length.toLocaleString()} rows (could not check them against the county map)`}
-                        {p.unmatched.length > 0 && ` · not counties: ${p.unmatched.slice(0, 3).join(', ')}${p.unmatched.length > 3 ? '…' : ''}`}
+                        {p.unmatched.length > 0 && `, not counties: ${p.unmatched.slice(0, 3).join(', ')}${p.unmatched.length > 3 ? '…' : ''}`}
                       </span>
                       {(p.badFips + p.duplicates + p.badValues) > 0 && (
                         <span className="block text-xs text-slate-500">
                           {[p.badFips && `${p.badFips} rows skipped with no FIPS code`,
                             p.duplicates && `${p.duplicates} repeated counties skipped (first kept)`,
                             p.badValues && `${p.badValues} non-numeric values left blank`]
-                            .filter(Boolean).join(' · ')}
+                            .filter(Boolean).join(', ')}
                         </span>
                       )}
                     </span>
