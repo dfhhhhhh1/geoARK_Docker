@@ -42,7 +42,7 @@ interface Props {
 
 /** "Load › Rank › Output" without the bookkeeping steps. */
 function opsLine(ops: PlanOp[]): string {
-  return ops.filter(o => o !== 'output').map(o => OP_LABEL[o] ?? o).join(' › ');
+  return ops.filter(o => o !== 'output').map(o => OP_LABEL[o] ?? o).join(' → ');
 }
 
 /** One line for what a step produced. */
@@ -52,7 +52,7 @@ function resultLine(s: WorkflowStep): string {
   if (s.result?.stats) return `ρ = ${s.result.stats.value?.toFixed(2) ?? '–'}`;
   if (!s.summary) return s.error ? 'no result' : '–';
   const { counties, min, max } = s.summary;
-  return `${counties.toLocaleString()} ${counties === 1 ? 'county' : 'counties'} · ${fmtValue(min)}–${fmtValue(max)}`;
+  return `${counties.toLocaleString()} ${counties === 1 ? 'county' : 'counties'}, ${fmtValue(min)} to ${fmtValue(max)}`;
 }
 
 const WorkflowPipeline: React.FC<Props> = ({
@@ -75,6 +75,8 @@ const WorkflowPipeline: React.FC<Props> = ({
   // map on demand, and counting it pushed the map's fit into a sliver above it,
   // which then stayed after the inspector closed.
   const stripRef = useRef<HTMLElement>(null);
+  // Same height, kept locally so the drawer can be sized to the room left.
+  const [stripPx, setStripPx] = useState(0);
 
   // Steps that were planned but never ran (the workflow stopped first) are
   // still drawn, greyed, so the chain reads as what was attempted.
@@ -92,8 +94,8 @@ const WorkflowPipeline: React.FC<Props> = ({
 
   useLayoutEffect(() => {
     const el = stripRef.current;
-    if (!el || !onHeight) return;
-    const report = () => onHeight(el.offsetHeight);
+    if (!el) return;
+    const report = () => { setStripPx(el.offsetHeight); onHeight?.(el.offsetHeight); };
     report();
     const ro = new ResizeObserver(report);
     ro.observe(el);
@@ -114,7 +116,7 @@ const WorkflowPipeline: React.FC<Props> = ({
 
   if (collapsed) {
     return (
-      <div className="fixed z-[1050] pointer-events-none"
+      <div className="fixed z-[1120] pointer-events-none"
            style={isDesktop ? { left, bottom: 12 } : { left: 12, top: 'calc(var(--header-offset) + 3.25rem)' }}>
         <button
           ref={stripRef as React.Ref<HTMLButtonElement>}
@@ -149,12 +151,14 @@ const WorkflowPipeline: React.FC<Props> = ({
   }
 
   return (
-    <div className="fixed z-[1050] flex flex-col gap-2 pointer-events-none" style={style}
+    // Above the conversation panel (1100) so an open step is never behind it,
+    // below the header (1150).
+    <div className="fixed z-[1120] flex flex-col gap-2 pointer-events-none" style={style}
          aria-label="Multi-step analysis">
       {/* Inspector and methods open ABOVE the strip on desktop, below it on a
           phone (where the strip sits at the top). */}
       {isDesktop && (inspectedStep || showMethods) && (
-        <Drawer>
+        <Drawer maxH={`calc(100vh - var(--header-offset) - ${stripPx + 44}px)`}>
           {showMethods ? (
             <Methods text={w.methods} onClose={() => setShowMethods(false)} />
           ) : inspectedStep && (
@@ -173,8 +177,8 @@ const WorkflowPipeline: React.FC<Props> = ({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 pt-3 pb-2">
           <GitBranch className="w-4 h-4 text-slate-500 rotate-90" />
           <div className="min-w-0 mr-auto">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-              Multi-step analysis · {total} steps
+            <p className="text-xs font-medium text-slate-500">
+              Multi-step analysis, {total} steps
             </p>
             <p className="text-sm font-medium text-ink truncate max-w-[38rem]" title={w.question}>{w.question}</p>
           </div>
@@ -213,7 +217,7 @@ const WorkflowPipeline: React.FC<Props> = ({
 
         {/* The chain */}
         {(
-          <ol className="flex items-stretch gap-0 overflow-x-auto px-4 pb-3.5 pt-0.5 [scrollbar-width:thin]">
+          <ol className="flex items-stretch gap-0 overflow-x-auto px-4 pb-4 pt-1.5 [scrollbar-width:thin]">
             {w.steps.map((s, i) => {
               const next = w.steps[i + 1] ?? pending[0];
               const feedsNext = !!next && (next.uses ?? []).includes(s.id);
@@ -243,7 +247,7 @@ const WorkflowPipeline: React.FC<Props> = ({
       </section>
 
       {!isDesktop && (inspectedStep || showMethods) && (
-        <Drawer>
+        <Drawer maxH={`calc(100vh - var(--header-offset) - 3.25rem - ${stripPx + 44}px)`}>
           {showMethods ? (
             <Methods text={w.methods} onClose={() => setShowMethods(false)} />
           ) : inspectedStep && (
@@ -284,9 +288,9 @@ const StepNode: React.FC<{
 }> = ({ step: s, index, isFinal, failed, onMap, inspected, onShow, onInspect }) => {
   const data = stepDataLabel(s);
   return (
-    <li className={`relative shrink-0 w-[17.5rem] rounded-xl border bg-white/85 transition-all
+    <li className={`relative shrink-0 w-[17.5rem] rounded-xl border bg-white transition-all
                     ${inspected ? 'ring-2 ring-brand-400 border-transparent' : onMap ? 'border-ink' : 'border-slate-200'}
-                    ${failed ? 'border-red-300 bg-red-50/70' : ''}`}>
+                    ${failed ? 'border-red-300' : ''}`}>
       <button type="button" onClick={onInspect} className="w-full text-left px-3.5 pt-3 pb-2 block"
               aria-expanded={inspected} title="Inspect this step">
         <div className="flex items-center gap-2">
@@ -294,11 +298,11 @@ const StepNode: React.FC<{
                             ${failed ? 'bg-red-600 text-white' : onMap ? 'bg-ink text-white' : 'bg-slate-200 text-slate-700'}`}>
             {index}
           </span>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+          <span className="text-xs font-medium text-slate-600">
             {isFinal ? 'Answer' : `Step ${index}`}
           </span>
           {s.uses.length > 0 && (
-            <span className="text-[11px] text-slate-500">· uses {s.uses.map(u => u.replace('q', '')).join(', ')}</span>
+            <span className="text-xs text-slate-500">uses step {s.uses.map(u => u.replace('q', '')).join(', ')}</span>
           )}
           <span className="ml-auto flex items-center gap-1">
             {s.edited && <PencilLine className="w-3.5 h-3.5 text-amber-600" aria-label="Data changed" />}
@@ -309,7 +313,7 @@ const StepNode: React.FC<{
         <p className="mt-1.5 text-sm text-ink leading-snug line-clamp-2 min-h-[2.5rem]" title={s.question}>
           {s.question.replace(/\bthe counties from q(\d)\b/gi, 'the counties from step $1')}
         </p>
-        <p className="mt-1.5 text-[11px] text-slate-500 truncate" title={opsLine(s.ops)}>{opsLine(s.ops) || '–'}</p>
+        <p className="mt-1.5 text-xs text-slate-500 truncate" title={opsLine(s.ops)}>{opsLine(s.ops) || '–'}</p>
         <p className="mt-1 text-xs text-slate-700 truncate flex items-center gap-1" title={data ?? undefined}>
           <Layers className="w-3.5 h-3.5 shrink-0 text-slate-400" />
           <span className="truncate">{data ?? 'no data'}</span>
@@ -332,12 +336,12 @@ const StepNode: React.FC<{
 };
 
 const PendingNode: React.FC<{ index: number; question: string }> = ({ index, question }) => (
-  <li className="shrink-0 w-[17.5rem] rounded-xl border border-dashed border-slate-300 bg-white/40 px-3.5 py-3">
+  <li className="shrink-0 w-[17.5rem] rounded-xl border border-dashed border-slate-300 px-3.5 py-3">
     <div className="flex items-center gap-2">
-      <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold bg-slate-100 text-slate-400">
+      <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold bg-slate-100 text-slate-500">
         {index}
       </span>
-      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Not run</span>
+      <span className="text-xs font-medium text-slate-500">Not run</span>
     </div>
     <p className="mt-1.5 text-sm text-slate-500 leading-snug line-clamp-2">
       {question.replace(/\bthe counties from q(\d)\b/gi, 'the counties from step $1')}
@@ -348,18 +352,19 @@ const PendingNode: React.FC<{ index: number; question: string }> = ({ index, que
 /** The hand-off between two steps: what flows into the next one. */
 const Connector: React.FC<{ feeds: boolean; label: string | null }> = ({ feeds, label }) => (
   <li aria-hidden className="shrink-0 w-24 flex flex-col items-center justify-center px-1 text-center">
-    {label && <span className="text-[10px] font-medium text-slate-600 leading-tight mb-1 tabular-nums">{label}</span>}
+    {label && <span className="text-xs font-medium text-slate-600 leading-tight mb-1 tabular-nums">{label}</span>}
     <span className={`flex items-center w-full ${feeds ? 'text-ink' : 'text-slate-300'}`}>
       <span className={`flex-1 h-px ${feeds ? 'bg-ink' : 'border-t border-dashed border-slate-300'}`} />
       <ArrowRight className="w-4 h-4 -ml-1" />
     </span>
-    {feeds && <span className="text-[10px] text-slate-500 mt-1">feeds next</span>}
+    {feeds && <span className="text-xs text-slate-500 mt-1">feeds next</span>}
   </li>
 );
 
-const Drawer: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="pointer-events-auto glass glass-raisable rounded-2xl max-h-[min(52vh,34rem)] overflow-y-auto
-                  overscroll-contain md:max-w-[52rem]">
+const Drawer: React.FC<{ children: React.ReactNode; maxH: string }> = ({ children, maxH }) => (
+  <div className="pointer-events-auto glass glass-raisable glass-floor rounded-2xl overflow-y-auto
+                  overscroll-contain md:max-w-[52rem]"
+       style={{ maxHeight: `min(${maxH}, 34rem)` }}>
     {children}
   </div>
 );
@@ -375,8 +380,8 @@ const Methods: React.FC<{ text: string | null; onClose: () => void }> = ({ text,
         <X className="w-4 h-4" />
       </button>
     </div>
-    <pre className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap font-mono bg-white/70
-                    border border-slate-200 rounded-lg p-3">{text}</pre>
+    <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap bg-white
+                  border border-slate-200 rounded-lg p-3">{text}</p>
   </div>
 );
 
@@ -408,9 +413,9 @@ const Inspector: React.FC<{
           {index}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-            Step {index} of {total}{isFinal ? ' · the answer' : ''}
-            {inputs.length > 0 && <> · works on the counties from step {inputs.join(', ')}</>}
+          <p className="text-xs font-medium text-slate-500">
+            Step {index} of {total}{isFinal ? ', the answer' : ''}
+            {inputs.length > 0 && <>, works on the counties from step {inputs.join(', ')}</>}
           </p>
           <h3 className="text-base font-semibold text-ink leading-snug mt-0.5">
             {s.question.replace(/\bthe counties from q(\d)\b/gi, 'the counties from step $1')}
@@ -481,8 +486,8 @@ const Inspector: React.FC<{
 
       {/* Data this step reads */}
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Data used</p>
-        <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white/80">
+        <p className="text-xs font-medium text-slate-500 mb-1.5">Data used</p>
+        <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
           {inputs.map(n => (
             <li key={`in-${n}`} className="flex items-center gap-2 px-3 py-2 text-sm">
               <GitBranch className="w-4 h-4 text-slate-400 rotate-90" />
@@ -533,8 +538,8 @@ const Inspector: React.FC<{
 };
 
 const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="rounded-lg border border-slate-200 bg-white/80 px-3 py-2">
-    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+  <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+    <p className="text-xs font-medium text-slate-500">{label}</p>
     <p className="text-lg font-semibold tabular-nums text-ink">{value}</p>
   </div>
 );

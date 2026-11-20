@@ -1,0 +1,36 @@
+  MISS r-rainfall    refuse -> answered  16.5s  load->output                             direct:Average annual precipitation, 1991-2020 
+  MISS r-snowfall    refuse -> answered  11.5s  load->rank->output                       proxy:Winter Weather - Expected Annual Loss - 
+  ok   r-dogs        refuse -> refused   10.6s                                           Estimate!!VEHICLES AVAILABLE!!Occupied housing uni
+  ok   r-milk        refuse -> refused   11.2s                                           Food environment index
+  ok   r-mars        refuse -> refused    5.6s                                           
+  ok   r-sharks      refuse -> refused    8.0s                                           
+  ok   r-bitcoin     refuse -> refused    4.4s                                           
+  ok   r-football    refuse -> refused    4.5s                                           
+  ok   r-sourdough   refuse -> refused    4.5s                                           
+  ok   r-latin       refuse -> refused    4.5s                                           
+  ok   a-income      answer -> answered   9.5s  load->output                             direct:Median household income in dollars
+  ok   a-poorest     answer -> answered  14.1s  load->rank->output                       proxy:Median household income in dollars
+  ok   a-wealthiest  answer -> answered  36.1s  load->rank->output                       proxy:Median household income, 2016 (dollars)
+  ok   a-hosp-pc     answer -> answered  29.2s  count_features->load->normalize->rank->o direct:Hospitals (mapped locations) | denominator:Total population (resident population es
+  ok   a-uninsured   answer -> answered  12.6s  load->rank->output                       direct:Percent of persons without health insura
+  ok   a-doctor      answer -> answered  20.8s  load->output                             proxy:Visits to doctor for routine checkup wit
+  ok   a-texas       answer -> answered  12.9s  load->filter_area->rank->output          direct:Unemployment rate (percent)
+  ok   a-compare     answer -> answered  12.0s  load->load->join->output                 direct:Obesity among adults (age-adjusted preva | direct:Percent of people of all ages in 
+  ok   a-diabetes    answer -> answered  11.9s  load->outlier->output                    direct:Diagnosed diabetes among adults (age-adj
+  ok   a-fire        answer -> answered  14.2s  select_features->output                  direct:Fire Stations (mapped locations)
+  ok   a-detroit     answer -> answered  10.7s  load->filter_place->output               direct:Percent of people of all ages in poverty
+  ok   a-florida     answer -> answered  12.1s  load->filter_area->output                proxy:Estimate!!HEALTH INSURANCE COVERAGE!!Civ
+  ok   a-corr-ob     answer -> answered  15.0s  load->load->correlate->output            direct:Obesity among adults (age-adjusted preva | direct:Diagnosed diabetes among adults (
+  ok   a-corr-inc    answer -> answered  13.5s  load->load->correlate->output            direct:Median household income in dollars | direct:Current asthma among adults (crude prev
+  ok   a-renters     answer -> answered  12.0s  load->output                             proxy:Percent Estimate!!GROSS RENT AS A PERCEN
+  ok   a-seniors     answer -> answered  11.4s  load->output                             direct:Percent of persons aged 65 and older
+  ok   a-expl-asthma answer -> answered  12.8s  load->explain->output                    direct:Current asthma among adults (age-adjuste
+  ok   a-expl-obesity answer -> answered  12.5s  load->explain->output                    direct:Obesity among adults (crude prevalence) 
+  ok   a-expl-heart  answer -> answered  13.7s  load->explain->output                    unchecked:Coronary heart disease among adults (age
+  ok   a-expl-unemp  answer -> answered  12.0s  load->explain->output                    unchecked:Unemployment rate (percent)
+
+  catch rate          80%  (10 must-refuse; not answered)
+  honest refusals     80%  (refused with a reason, not a crash)
+  false refusals      0%  (20 answerable)
+
+  saved -> tractonly\base-answerability.json

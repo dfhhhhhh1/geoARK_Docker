@@ -1,0 +1,40 @@
+answer-correctness probe  18 queries
+
+  CORRECT          r-poverty-top-mo             load->filter_area->rank->output  (13s)
+  CORRECT          r-hospitals-per-capita-tx    count_features->load->normalize->filter_area->rank->output  (26s)
+  CORRECT          r-density-midwest            load->filter_area->per_area->output  (16s)
+  CORRECT          r-income-diabetes            load->load->correlate->output  (22s)
+  CORRECT          r-poverty-stl-metro          load->filter_place->output  (13s)
+  CORRECT          r-poverty-detroit            load->filter_place->output  (13s)
+  CORRECT          r-unemp-change-2019-2020     load->load->combine->rank->output  (16s)
+  CORRECT          r-fire-stations-co           count_features->filter_area->output  (12s)
+  CORRECT          r-hospital-distance-mo       nearest_distance->filter_area->output  (12s)
+  WRONG_MEASURE    r-uninsured-big-counties     load->load->filter_attr->intersect->rank->output  (22s)
+      {"missing": ["uninsured_rate"], "loaded": ["SVI_EP_UNINSUR | Percent of persons without health insurance | CDC Social Vulnerability Index", "POP_ESTIMATE | Total population (resident population estimate, July 1) | USDA ERS"]}
+  CORRECT          r-rural-poor-no-hospital     load->filter_attr->load->filter_attr->intersect->count_features->filter_attr->intersect->output  (29s)
+  NO_ANSWER        r-unemp-decade                 (32s)
+      {"error": "the loaded data does not cover the period this question asks about"}
+  CORRECT          r-south-vs-northeast         load->filter_area->filter_area->compare_groups->output  (16s)
+  NO_ANSWER        r-access-gap                   (19s)
+      {"error": "could not produce a valid plan"}
+  NO_ANSWER        r-obesity-top50-income         (17s)
+      {"error": "could not produce a valid plan"}
+  FALSE_ANSWER     r-refuse-rainfall            load->output  (12s)
+      {}
+  CORRECT_REFUSAL  r-refuse-ckd                   (22s)
+  FALSE_ANSWER     r-refuse-schools             load->rank->output  (22s)
+      {}
+
+==============================================================
+  answer correctness  66.7%  n=18
+    now        9/10
+    phase_c    2/4
+    phase_d    0/1
+    refuse     1/3
+    CORRECT          11
+    NO_ANSWER        3
+    FALSE_ANSWER     2
+    WRONG_MEASURE    1
+    CORRECT_REFUSAL  1
+  mean latency 18.6s
+  saved -> tractonly\i-research.json

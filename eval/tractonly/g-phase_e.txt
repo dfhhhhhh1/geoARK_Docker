@@ -1,0 +1,25 @@
+answer-correctness probe  29 queries
+
+  CORRECT          e-stl-tract-poverty          load->filter_place->rank->output  (16s)
+  CORRECT          e-cook-zip-diabetes          load->filter_area->filter_place->output  (17s)
+  NO_ANSWER        e-mi-noveh-rollup              (14s)
+      {"error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"}
+  EMPTY            e-co-grid-density            load->per_area->rank->filter_area->output  (27s)
+      {}
+  WRONG_GEOGRAPHY  e-denver-tract-uninsured     load->filter_place->output  (11s)
+      {"rows": 181, "gold_rows": 176, "outside": 5, "outside_sample": ["18103952000", "29227960100", "37109071101", "42071010102", "19017004600"], "gold_alt": 0, "bind": {"m1": "SVI_EP_UNINSUR"}}
+  NO_ANSWER        e-mo-tract-poverty-spread      (23s)
+      {"error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"}
+  NO_ANSWER        e-zip-65721-counties           (13s)
+      {"error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\""}
+  CORRECT          e-co-worldpop-county         load->filter_area->output  (12s)
+
+==============================================================
+  answer correctness  37.5%  n=8
+    phase_e    3/8
+    CORRECT          3
+    NO_ANSWER        3
+    EMPTY            1
+    WRONG_GEOGRAPHY  1
+  mean latency 16.5s
+  saved -> tractonly\g-phase_e.json

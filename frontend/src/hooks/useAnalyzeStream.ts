@@ -41,6 +41,26 @@ export const isStale = (s: { isRunning: boolean; result: unknown }) =>
 const TERMINAL: AnalysisStage[] = ['done', 'failed'];
 
 /**
+ * Expanded search: widen retrieval with measures linked to the condition asked
+ * about. Two independent sources, both on once `on` is set:
+ *   literature  SemMedDB relations, looked up on this machine (backend/expansion.js)
+ *   pubmed      keywords read from PubMed abstracts (backend/research.js);
+ *               the condition's name is sent to NCBI
+ */
+export interface ExpandedSearch { on: boolean; literature: boolean; pubmed: boolean }
+export const EXPANDED_OFF: ExpandedSearch = { on: false, literature: true, pubmed: true };
+
+/**
+ * Always explicit. The server's own default has literature expansion ON, so
+ * omitting the parameters when the button is off would not mean off.
+ */
+export function expandedParams(s: ExpandedSearch): string {
+  const lit = s.on && s.literature;
+  const pub = s.on && s.pubmed;
+  return `&expand=${lit}&research=${pub ? 'pubmed' : ''}`;
+}
+
+/**
  * How one run ended. `run` resolves with this, so a caller that keeps several
  * answers (the conversation thread) can file each result under the turn that
  * asked for it instead of watching shared state change and guessing.
@@ -94,7 +114,8 @@ export function useAnalyzeStream() {
     setState(s => ({ ...s, isRunning: false, stage: 'idle' }));
   }, [close, settle]);
 
-  const run = useCallback((query: string, layers: string[] = []): Promise<AnalyzeOutcome> => {
+  const run = useCallback((query: string, layers: string[] = [],
+                           search: ExpandedSearch = EXPANDED_OFF): Promise<AnalyzeOutcome> => {
     if (!query.trim()) return Promise.resolve({ status: 'cancelled' });
     close();
     settle({ status: 'cancelled' });
@@ -115,7 +136,8 @@ export function useAnalyzeStream() {
 
     // Uploaded map layers ride along by id (backend/user_layers.js).
     const url = `/api/analyze/stream?q=${encodeURIComponent(query)}` +
-      (layers.length ? `&layers=${encodeURIComponent(layers.join(','))}` : '');
+      (layers.length ? `&layers=${encodeURIComponent(layers.join(','))}` : '') +
+      expandedParams(search);
     const es = new EventSource(url);
     sourceRef.current = es;
 

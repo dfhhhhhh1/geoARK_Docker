@@ -703,8 +703,9 @@ def ingest_table(args, meta: dict, data_path: Path) -> int:
                  f"  id:  in the sidecar.\n")
 
     if level != "county":
-        print(f"\n  {level} values go to geo_values. No catalog rows: nothing can plan over\n"
-              f"  a {level} measure until ops are level-aware (Phase 6).")
+        print(f"\n  {level} values go to geo_values. No catalog rows, by design: a question\n"
+              f"  that names the unit (census tracts, block groups) finds this measure\n"
+              f"  through geo_measure (backend/level_measures.js); county questions never see it.")
 
     if not args.commit:
         conn.close()

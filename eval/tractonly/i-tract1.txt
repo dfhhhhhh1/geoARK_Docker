@@ -1,0 +1,17 @@
+answer-correctness probe  29 queries
+
+  CORRECT          t-pm25-mo-tracts             load->filter_area->rank->output  (20s)
+  WRONG_MEASURE    t-lifeexp-jackson            load->filter_area->filter_place->rank->output  (31s)
+      {"missing": ["life_exp"], "loaded": ["EPA_EJSCREEN_LIFEEXPPCT | Share low life expectancy: relative life expectancy indicator (higher means shorter life expectancy) (share 0-1) | EPA EJScreen"]}
+  CORRECT          t-walk-stl-bg                load->filter_place->rank->output  (13s)
+  CORRECT          t-pm25-mo-county-rollup      load->aggregate_to->filter_area->rank->output  (17s)
+  WRONG_MEASURE    t-lila-iowa                  load->filter_attr->load->filter_attr->intersect->filter_area->output  (30s)
+      {"missing": ["lila"], "loaded": ["USDA_FARA_LOWINCOMETRACTS | Low income tract flag (1 = low income tract) (flag 1/0) | USDA Food Access Research Atlas", "USDA_FARA_DD_SRAM_LILATRACTS_VEHICLE | Driving Distance, SNAP-authorized Retailer Access Map, Low income 
+
+==============================================================
+  answer correctness  60.0%  n=5
+    tract_only 3/5
+    CORRECT          3
+    WRONG_MEASURE    2
+  mean latency 22.0s
+  saved -> tractonly\i-tract1.json

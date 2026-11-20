@@ -194,6 +194,8 @@ const CONFIG = {
 
 // Database pool for PostGIS queries
 const pool = new Pool(CONFIG.database);
+// Measures that exist only below the county, reached at a named unit (level_measures.js).
+const levelMeasures = require("./level_measures").create({ pool });
 
 // Value ranges, area coverage and verified equivalents per series
 // (series_stats.js). Cached per process; cleared by /api/reload-corpus.
@@ -1859,6 +1861,7 @@ async function reloadCorpus() {
   // as absent (2026-11-12, NWI had no `type` filter until a restart).
   featureColumnsCache = null;
   featurePartsCache = null;
+  levelMeasures.clear();
   await loadZoneSets();
   const corpus = await fetchJSON(`${CONFIG.embedder.url}/corpus/vectors`, {}, 600000);
   // The ROWS are re-read too, not just the vectors. Before 2026-11-10 only the
@@ -2191,6 +2194,12 @@ async function resolveAttributes(attrIds) {
       if (parts?.has(r.table_name)) r.parts = parts.get(r.table_name);
     }
     out.set(r.attr_id, r);
+  }
+  // A measure held only below the county has no attribute_source row; geo_measure
+  // says what it is (level_measures.js).
+  const missing = attrIds.filter(id => !out.has(id));
+  if (missing.length) {
+    for (const [id, src] of await levelMeasures.sources(missing).catch(() => new Map())) out.set(id, src);
   }
   return out;
 }
@@ -2674,6 +2683,40 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
           }
         }
       }
+      // Measures that exist ONLY at this unit have no catalog row, so none of the
+      // searches above can reach them: "which census tracts in Missouri have the
+      // highest PM2.5" refused with the EJScreen tract series loaded. They are
+      // searched in geo_measure itself, per sub-query like the search above
+      // (level_measures.js). Nothing unless the question names a unit.
+      let levelOnlyAdded = 0;
+      const levelOnly = [];
+      const levelOnlyLate = [];
+      const offeredText = kept.map(c => `${c.attr_desc || ""} ${c.dataset_clean || ""}`);
+      for (const sq of subQueries) {
+        // Already served by something offered: still reachable, but at the END
+        // of the list, where it cannot displace what retrieval found.
+        const alsoServed = levelMeasures.covered(sq, offeredText);
+        for (const row of await levelMeasures.search(namedLevel, sq, alsoServed ? 2 : 3)) {
+          if (have.has(row.code) || levelOnlyAdded >= 8) continue;
+          levelOnlyAdded++;
+          const src = (await resolveAttributes([row.code])).get(row.code);
+          if (!src) continue;
+          resolved.set(row.code, src);
+          (alsoServed ? levelOnlyLate : levelOnly).push(levelMeasures.candidate(row, namedLevel));
+          have.add(row.code);
+          console.log(`   level ${namedLevel}: ${row.code} found in geo_measure for "${sq}"`);
+        }
+      }
+      // They lead the list: each matched the question's own words inside the
+      // unit's measures, and behind the rasters (offered at every unit) the
+      // planner took a terrain-slope raster for PM2.5 on a roll-up.
+      // Not ahead of measures that retrieval already found at this unit: with
+      // them first, "households without a vehicle" took a tract-only COUNT over
+      // the SVI rate that rolls up (regression found 2026-11-20). Ahead of the
+      // rasters only, which are offered at every unit.
+      const firstRaster = kept.findIndex(c => resolved.get(c.attr_id)?.source_kind === "raster");
+      kept.splice(firstRaster < 0 ? kept.length : firstRaster, 0, ...levelOnly);
+      kept.push(...levelOnlyLate);
       // A unit holding only a few measures gets all of them (the grid levels
       // hold one, WorldPop, which retrieval never found for "densely populated
       // 4 km grid cells").

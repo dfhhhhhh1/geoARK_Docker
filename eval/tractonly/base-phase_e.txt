@@ -1,0 +1,24 @@
+answer-correctness probe  29 queries
+
+  CORRECT          e-stl-tract-poverty          load->filter_place->rank->output  (18s)
+  CORRECT          e-cook-zip-diabetes          load->filter_area->filter_place->output  (15s)
+  CORRECT          e-mi-noveh-rollup            load->aggregate_to->filter_area->output  (20s)
+  EMPTY            e-co-grid-density            load->per_area->rank->filter_area->output  (27s)
+      {}
+  WRONG_GEOGRAPHY  e-denver-tract-uninsured     load->filter_place->output  (13s)
+      {"rows": 181, "gold_rows": 176, "outside": 5, "outside_sample": ["18103952000", "29227960100", "37109071101", "42071010102", "19017004600"], "gold_alt": 0, "bind": {"m1": "SVI_EP_UNINSUR"}}
+  NO_ANSWER        e-mo-tract-poverty-spread      (35s)
+      {"error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about"}
+  NO_ANSWER        e-zip-65721-counties           (11s)
+      {"error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"what percent of the ZIP is in each\""}
+  CORRECT          e-co-worldpop-county         load->filter_area->output  (11s)
+
+==============================================================
+  answer correctness  50.0%  n=8
+    phase_e    4/8
+    CORRECT          4
+    NO_ANSWER        2
+    EMPTY            1
+    WRONG_GEOGRAPHY  1
+  mean latency 18.7s
+  saved -> tractonly\base-phase_e.json

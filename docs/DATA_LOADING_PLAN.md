@@ -714,7 +714,9 @@ Phase E.
   the statistics ops at other levels, and city names with no state at tract
   level (Denver: five other states' Denvers, which is the user's to settle).
 
-### Open: tract-only measures are not findable (found 2026-11-12)
+### Tract-only measures are not findable (found 2026-11-12, FIXED 2026-11-20)
+
+**Fixed; see "Resolution (2026-11-20)" at the end of this section.** The text below is the problem as found.
 
 **What happens.** "Which census tracts in Missouri have the highest PM2.5?"
 returns `the loaded data does not include "PM2.5"`, although EPA EJScreen's
@@ -772,6 +774,70 @@ from their recorded values: `known_item.yaml` 91.7% / 0.944, `queries.yaml`
 **Until then.** Do not describe tract or block-group data as available to
 questions. Loading more of it is fine (it is correct and replayable), but
 nothing about it can be tested end to end.
+
+### Resolution (2026-11-20)
+
+Option 3 (a separate index searched only at a named unit), built without a
+new store: `backend/level_measures.js` reads `geo_measure`, which every loader
+already fills for every level, and scores BM25 over each measure's description,
+label, code and dataset name. At a named unit, sub-queries get their best
+matches from it (<= 3 each, <= 8 in all, within 70% of the best score, at least
+half the query's content words; a one-word query only if the word singles
+measures out). Placement: a sub-query that something already offered at the unit
+covers (half its words in one candidate's description) gets its matches at the
+END of the list; an uncovered one goes ahead of the rasters. A measure with no
+`attribute_source` row is resolved from `geo_measure` (`resolveAttributes`).
+Nothing is written to the catalog CSV, so the embedded corpus, its cache key
+and every county ranking are untouched, and the 48-context prompt snapshot is
+identical. No dataset, measure or unit is named in code, and a dataset loaded
+tomorrow is findable with no tagging step.
+
+Also needed, each found by running the questions:
+
+1. **"Jackson County, Missouri" was planned as the CITY of Jackson** (a
+   different county, 1 tract returned). `repairCountyKind` now also fires when
+   the question literally says "<name> County" and the plan names the bare name.
+2. **Block groups could not be named at all** (`levels.js` knew tract, ZCTA and
+   grid). "block group(s)" is now a unit; the ops already accepted `bg`.
+
+**Placement was the hard part, and the first version regressed the guards.**
+Matches first on the list took a tract-only COUNT over the SVI rate that rolls
+up (`e-mi-noveh-rollup` NO_ANSWER 3/3) and a different poverty measure
+(`e-stl-tract-poverty` WRONG_MEASURE); matches behind the rasters lost to a
+terrain-slope raster for PM2.5. An A/B on one build (my backend edits stashed)
+gave the baseline: phase_e 50.0%, research.yaml 66.7%, answerability 80% caught
+/ 0% false refusals. Final build: **phase_e 50.0%, research.yaml 66.7%,
+answerability 80% / 0%**, the same. (`eval/tractonly/`: `base-*` baseline,
+`g-*` first version, `i-*` final.) The baselines recorded earlier in this file
+(5/8, 77.8%+, 10/10) predate the 2026-11-13 to 11-20 commits (single-model
+planner, decomposition v3, network); the whole system reads lower on this
+build with or without this change.
+
+Measured (`research_advanced.yaml` tier `tract_only`, gold is SQL over
+`geo_values`, `--self-test` passed before any API run; final build, 2 runs):
+
+| question | run 1 | run 2 |
+|---|---|---|
+| highest PM2.5 census tracts in Missouri | CORRECT | CORRECT |
+| most walkable block groups in St. Louis | CORRECT | CORRECT |
+| Missouri counties by PM2.5 from tract data (pop-weighted roll-up) | CORRECT | WRONG_SHAPE (extra `aggregate`) |
+| lowest life expectancy tracts in Jackson County, MO | WRONG_MEASURE | WRONG_MEASURE |
+| low-income low-access tracts in Iowa | WRONG_MEASURE | WRONG_MEASURE |
+
+**3 of 5 correct and 2 repeatable misses.** Life expectancy: the plan loads
+EJScreen's "share low life expectancy" (a different measure, a county twin
+exists) and the gold is USALEEP; USALEEP is on the list, at the end, because an
+already-offered candidate covers the words. Food access: gold is one of seven
+LILA definitions and the plan composes another (low-income tract + vehicle
+access). Neither gold was edited after a run. Before the placement fix, a
+version with USALEEP offered first scored 4/5, at the cost of the regressions
+above.
+
+**Not covered:** a question that names no unit ("PM2.5 in Missouri") still
+cannot reach a tract-only measure, by design: a county answer from it is a
+roll-up, which needs the question to say so. `r-unemp-decade` (county level, no
+unit) failed 3/3 on one intermediate build and passes on others, with no unit
+path in its log; unexplained, treated as the known flake.
 
 ## 11. Sources
 

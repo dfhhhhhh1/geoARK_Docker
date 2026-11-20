@@ -720,10 +720,19 @@ function derefPlan(plan, refs) {
  * retries lost the output step (2026-11-11). Sets the internal kind "county"
  * (ops/filter_place.js compileCounty) and the bare name county_geom stores.
  */
-function repairCountyKind(plan) {
+function repairCountyKind(plan, query = "") {
   for (const st of plan.steps || []) {
     if (st.op !== "filter_place" || st.place_kind === "county") continue;
-    const m = String(st.place_name || "").match(/^(.+?)\s+(?:County|Parish|Borough)$/i);
+    let m = String(st.place_name || "").match(/^(.+?)\s+(?:County|Parish|Borough)$/i);
+    // The model also drops the word: "Jackson County, Missouri" planned as the
+    // CITY of Jackson (place_name "Jackson"), which is a different county
+    // (2026-11-20, tract life expectancy returned one tract in Cape Girardeau).
+    // When the question itself says "<name> County", that is the county.
+    const bare = String(st.place_name || "").trim();
+    if (!m && bare && !/^\d{5}$/.test(bare)) {
+      const escaped = bare.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+      if (new RegExp(`\\b${escaped}\\s+(?:County|Parish|Borough)\\b`, "i").test(String(query))) m = [bare, bare];
+    }
     if (!m) continue;
     const was = st.place_kind;
     st.place_kind = "county";
@@ -1445,7 +1454,7 @@ async function generatePlan({
       log(`   Dropped filter(s) the question did not ask for: ${unasked}`);
       emit({ stage: "plan_adjusted", detail: `dropped unasked filter ${unasked}` });
     }
-    const countyFix = repairCountyKind(plan);
+    const countyFix = repairCountyKind(plan, query);
     if (countyFix) {
       log(`   Repaired place kind: ${countyFix}`);
       emit({ stage: "plan_adjusted", detail: countyFix });
@@ -2129,6 +2138,6 @@ module.exports = {
   // ("since 2010", "the last decade") into concrete years on the load steps.
   resolveRelativeYears,
   // Exported for planner/test_zones.js.
-  filterValueAsLayer, dropUnaskedEquality, dropUnaskedFilters, withoutOps,
+  filterValueAsLayer, dropUnaskedEquality, dropUnaskedFilters, withoutOps, repairCountyKind,
   PLAN_SYSTEM_PROMPT, MAX_REPAIRS, CompileError,
 };

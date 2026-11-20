@@ -194,13 +194,13 @@ Climate and environment rasters (PRISM / gridMET, NLCD, 3DEP) via
 answer; kidney disease; the 22 never-imported catalog datasets; block
 population for `w_pop`.
 
-**Blocking Phase G, found 2026-11-12: tract and block-group measures are loaded
-but not findable.** EJScreen, Food Access, USALEEP and Smart Location (106
-measures) have no catalog rows, so the planner refuses "highest PM2.5 tracts in
-Missouri" as missing data. Loading more tract-level data does not help research
-questions until this is fixed. Plan, options and done-when:
-[DATA_LOADING_PLAN.md](DATA_LOADING_PLAN.md), "Open: tract-only measures are
-not findable".
+**Was blocking Phase G (found 2026-11-12, fixed 2026-11-20): tract and
+block-group measures were loaded but not findable.** EJScreen, Food Access,
+USALEEP and Smart Location (106 measures) have no catalog rows, so the planner
+refused "highest PM2.5 tracts in Missouri" as missing data. They are now found
+at a named unit through `geo_measure` (`backend/level_measures.js`); 3 of 5
+`tract_only` questions correct, guards at their same-build baseline. Details and the open miss:
+[DATA_LOADING_PLAN.md](DATA_LOADING_PLAN.md), "Resolution (2026-11-20)".
 
 ## 3. Order
 

@@ -1,0 +1,158 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 5,
+  "answer_correctness": 0.4,
+  "by_tier": {
+    "tract_only": {
+      "pass": 2,
+      "n": 5,
+      "rate": 0.4
+    }
+  },
+  "classes": {
+    "CORRECT": 2,
+    "WRONG_MEASURE": 2,
+    "WRONG_SHAPE": 1
+  },
+  "latency_mean": 21.6,
+  "api_container_created": "2026-11-20T15:52:32.536941049Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "analyze",
+  "detail": [
+    {
+      "id": "t-pm25-mo-tracts",
+      "tier": "tract_only",
+      "query": "Which census tracts in Missouri have the highest PM2.5?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 1654,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "EPA_EJSCREEN_PM25"
+        }
+      },
+      "ops": "load->filter_area->rank->output",
+      "intent": "Census tracts in Missouri with the highest PM2.5 concentration",
+      "loaded": [
+        "EPA_EJSCREEN_PM25 | Annual average fine particulate matter (PM2.5) concentration (micrograms per cubic meter) | EPA EJScreen"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "seconds": 20.4
+    },
+    {
+      "id": "t-lifeexp-jackson",
+      "tier": "tract_only",
+      "query": "Which census tracts in Jackson County, Missouri have the lowest life expectancy?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "life_exp"
+        ],
+        "loaded": [
+          "EPA_EJSCREEN_LIFEEXPPCT | Share low life expectancy: relative life expectancy indicator (higher means shorter life expectancy) (share 0-1) | EPA EJScreen"
+        ]
+      },
+      "ops": "load->filter_area->filter_place->rank->output",
+      "intent": "Census tracts in Jackson County, Missouri with the lowest life expectancy",
+      "loaded": [
+        "EPA_EJSCREEN_LIFEEXPPCT | Share low life expectancy: relative life expectancy indicator (higher means shorter life expectancy) (share 0-1) | EPA EJScreen"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "seconds": 22.9
+    },
+    {
+      "id": "t-walk-stl-bg",
+      "tier": "tract_only",
+      "query": "Which block groups in St. Louis have the highest walkability?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 309,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "EPA_SLD_NATWALKIND"
+        }
+      },
+      "ops": "load->filter_place->rank->output",
+      "intent": "Block groups in St. Louis with the highest walkability scores",
+      "loaded": [
+        "EPA_SLD_NATWALKIND | National Walkability Index score: 1 (least walkable) to 20 (most walkable) (score 1-20) | EPA Smart Location Database"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "seconds": 13.0
+    },
+    {
+      "id": "t-pm25-mo-county-rollup",
+      "tier": "tract_only",
+      "query": "Using census tract data, which Missouri counties have the highest PM2.5?",
+      "class": "WRONG_SHAPE",
+      "pass": false,
+      "detail": {
+        "why": "no per-county rows",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "EPA_EJSCREEN_PM25"
+        }
+      },
+      "ops": "load->aggregate_to->filter_area->aggregate->output",
+      "intent": "Which Missouri counties have the highest PM2.5 concentrations, using census tract data?",
+      "loaded": [
+        "EPA_EJSCREEN_PM25 | Annual average fine particulate matter (PM2.5) concentration (micrograms per cubic meter) | EPA EJScreen"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "seconds": 15.8
+    },
+    {
+      "id": "t-lila-iowa",
+      "tier": "tract_only",
+      "query": "Which census tracts in Iowa are low income and have low access to food?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "lila"
+        ],
+        "loaded": [
+          "USDA_FARA_LOWINCOMETRACTS | Low income tract flag (1 = low income tract) (flag 1/0) | USDA Food Access Research Atlas",
+          "USDA_FARA_DD_SRAM_LILATRACTS_VEHICLE | Driving Distance, SNAP-authorized Retailer Access Map, Low income and low access tract using vehicle access or low income and low access tract measured at 20 miles. (flag 1/0) | USDA Food Access Research Atlas"
+        ]
+      },
+      "ops": "load->filter_attr->load->filter_attr->intersect->filter_area->output",
+      "intent": "Census tracts in Iowa that are low income and have low access to food",
+      "loaded": [
+        "USDA_FARA_LOWINCOMETRACTS | Low income tract flag (1 = low income tract) (flag 1/0) | USDA Food Access Research Atlas",
+        "USDA_FARA_DD_SRAM_LILATRACTS_VEHICLE | Driving Distance, SNAP-authorized Retailer Access Map, Low income and low access tract using vehicle access or low income and low access tract measured at 20 miles. (flag 1/0) | USDA Food Access Research Atlas"
+      ],
+      "row_count": 26,
+      "error": null,
+      "exec_error": null,
+      "seconds": 35.8
+    }
+  ]
+}

@@ -58,6 +58,11 @@ measures:
   unit_population: '^(SVI_E_TOTPOP|WORLDPOP_POP)\b'
   worldpop: '^WORLDPOP_POP\b'
   diabetes_zip: '^PLACES_DIABETES_CrdPrv\b'
+  # Tract / block-group-ONLY measures (no county twin, no catalog row): reached through geo_measure.
+  pm25: '^EPA_EJSCREEN_PM25\b'
+  life_exp: '^USALEEP_LIFE_EXPECTANCY\b'
+  walk_idx: '^EPA_SLD_NATWALKIND\b'
+  lila: '^USDA_FARA_DD_SRAM_LILATRACTS_1AND10\b'
   # Phase F: the published 90% confidence bounds of the ERS poverty rate.
   pov_ci_upper: '^CI90UBALLP\b'
   pov_ci_lower: '^CI90LBALLP\b'
@@ -476,6 +481,74 @@ queries:
       - expect: WRONG_VALUE          # the raw rate: income never accounted for
         sql: |
           SELECT fips, value FROM {latest:m1} t
+
+  # ============================================================ tract_only
+  # Measures that exist ONLY below the county have no catalog row, so retrieval
+  # could not find them (DATA_LOADING_PLAN.md, "tract-only measures are not
+  # findable"). Gold is hand-written SQL over geo_values.
+  - id: t-pm25-mo-tracts
+    tier: tract_only
+    query: "Which census tracts in Missouri have the highest PM2.5?"
+    note: "EJScreen PM2.5, tract only; was refused as missing data"
+    measures: {m1: pm25}
+    gold: |
+      SELECT t.fips, t.value FROM {geo:tract:m1} t
+      JOIN geo_unit_tract u ON u.geoid = t.fips WHERE u.state_fp = '29'
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.8}
+    wrong:
+      - expect: WRONG_GEOGRAPHY      # every tract in the country
+        sql: |
+          SELECT t.fips, t.value FROM {geo:tract:m1} t ORDER BY t.value DESC LIMIT 10
+
+  - id: t-lifeexp-jackson
+    tier: tract_only
+    query: "Which census tracts in Jackson County, Missouri have the lowest life expectancy?"
+    note: >-
+      USALEEP, tract only. "Jackson County" must be the county (29095), not the
+      city of Jackson in Cape Girardeau County (29031)
+    measures: {m1: life_exp}
+    gold: |
+      SELECT t.fips, t.value FROM {geo:tract:m1} t
+      JOIN geo_unit_tract u ON u.geoid = t.fips WHERE u.county_fips = '29095'
+    compare: {kind: top_k, k: 10, direction: asc, min_overlap: 0.8}
+    wrong:
+      - expect: WRONG_GEOGRAPHY      # the city of Jackson's county
+        sql: |
+          SELECT t.fips, t.value FROM {geo:tract:m1} t
+          JOIN geo_unit_tract u ON u.geoid = t.fips WHERE u.county_fips = '29031'
+          ORDER BY t.value ASC LIMIT 10
+
+  - id: t-walk-stl-bg
+    tier: tract_only
+    query: "Which block groups in St. Louis have the highest walkability?"
+    note: "Smart Location Database, block group only; the city of St. Louis is county 29510"
+    measures: {m1: walk_idx}
+    gold: |
+      SELECT t.fips, t.value FROM {geo:bg:m1} t WHERE t.fips LIKE '29510%'
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.7}
+
+  - id: t-pm25-mo-county-rollup
+    tier: tract_only
+    query: "Using census tract data, which Missouri counties have the highest PM2.5?"
+    note: "the same measure rolled up to counties, population-weighted"
+    measures: {m1: pm25}
+    gold: |
+      SELECT u.county_fips, sum(v.value * p.value) / NULLIF(sum(p.value), 0) AS value
+      FROM {geo:tract:m1} v
+      JOIN (SELECT geoid AS fips, value FROM geo_values WHERE level = 'tract' AND code = 'SVI_E_TOTPOP') p USING (fips)
+      JOIN geo_unit_tract u ON u.geoid = v.fips
+      WHERE u.state_fp = '29' GROUP BY u.county_fips
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.8}
+
+  - id: t-lila-iowa
+    tier: tract_only
+    query: "Which census tracts in Iowa are low income and have low access to food?"
+    note: "USDA Food Access flag (1 mile urban / 10 miles rural); the flag is 1 for a food-desert tract"
+    measures: {m1: lila}
+    gold: |
+      SELECT t.fips, t.value FROM {geo:tract:m1} t
+      JOIN geo_unit_tract u ON u.geoid = t.fips WHERE u.state_fp = '19' AND t.value = 1
+    compare: {kind: set, min_jaccard: 0.6}
 
   # ================================================================== refuse
   - id: x-denver-tract-rainfall

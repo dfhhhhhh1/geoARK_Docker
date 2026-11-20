@@ -18,7 +18,7 @@
 
 // Units a question can name, finest first within each family.
 const LEVEL_LABEL = {
-  tract: "census tract", zcta: "ZIP code area",
+  tract: "census tract", bg: "census block group", zcta: "ZIP code area",
   grid4k: "4 km grid cell", grid16k: "16 km grid cell", grid64k: "64 km grid cell",
 };
 const LEVELS = new Set(Object.keys(LEVEL_LABEL));
@@ -151,6 +151,8 @@ const asksDistance = (query) => DISTANCE.test(String(query || ""));
 
 /** The finer unit a question names, whatever its answer unit is. */
 function unitNamed(q) {
+  // Block groups first: "block groups in a census tract" is about block groups.
+  if (/\b(?:census\s+)?block\s*groups?\b/i.test(q)) return "bg";
   if (/\b(?:census\s+)?tracts?\b/i.test(q)) return "tract";
   if (/\bzip\s*codes\b|\bzips\b|\bzctas\b|\bzip\s*code\s+areas\b/i.test(q)) return "zcta";
   // A singular ZIP after each / every / per / by still means all of them.
