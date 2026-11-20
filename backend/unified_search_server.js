@@ -36,6 +36,7 @@ const LOCATION_COLUMN = new RegExp("^(?:" + [
 ].join("|") + ")$", "i");
 const { levelOf, rollupOf, asksDistance, registerZoneSets, isZoneLevel, zoneSet } = require("./planner/levels");
 const { referencePhrase } = require("./planner/features");
+const cart = require("./cart");
 const { boundsQueries } = require("./planner/uncertainty");
 const { asksAccess } = require("./planner/ops/access");
 const planOps = require("./planner/ops");
@@ -3944,6 +3945,140 @@ app.post("/api/measures/search", auth.requireAuth, limitSearch, async (req, res)
   } catch (err) {
     console.error("Measure search error:", err);
     return res.status(500).json({ error: "search failed", details: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// The data cart (backend/cart.js, docs/DATA_CART_PLAN.md slice 1)
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/cart/suggest  { q, expand?, research? }
+ *
+ * The shelf: what retrieval (with the expansion the request asks for) found
+ * that actually holds data, one row per measure or layer, grouped by role and
+ * saying why each row is there, plus a default cart chosen by code. No planner
+ * and no curator call; retrieval only.
+ */
+app.post("/api/cart/suggest", auth.requireAuth, limitSearch, async (req, res) => {
+  const started = Date.now();
+  try {
+    if (!isEmbeddingsReady) return res.status(503).json({ error: "search index not ready" });
+    const q = String(req.body?.q ?? "").trim().slice(0, 300);
+    if (!q) return res.status(400).json({ error: "field 'q' is required" });
+    const search = await unifiedSearch(q, {
+      useLLMFilter: false,
+      topKPerConcept: 12,
+      ...(typeof req.body?.expand === "boolean" ? { expand: req.body.expand } : {}),
+      ...(req.body?.research !== undefined ? { research: req.body.research } : {}),
+    });
+    const resolved = await resolveAttributes([...new Set((search.all_results || []).map(r => r.attr_id))]);
+    const { items, dropped } = cart.buildShelf(search, resolved, {
+      label: (r) => followup.measureLabel(r.attr_desc) || r.attr_orig || r.attr_id,
+      isLocationColumn: (s) => LOCATION_COLUMN.test(s),
+    });
+    return res.json({
+      query: q,
+      items,
+      default_cart: cart.defaultCart(items),
+      dropped,
+      expansion: search.expansion
+        ? { concepts: (search.expansion.concepts || []).filter(c => c.kept).map(c => c.name) } : null,
+      research: search.research
+        ? { sources: search.research.sources,
+            keywords: (search.research.keywords || []).filter(k => k.kept).map(k => k.keyword) } : null,
+      ms: Date.now() - started,
+    });
+  } catch (err) {
+    console.error("Cart suggest error:", err);
+    return res.status(500).json({ error: "search failed", details: err.message });
+  }
+});
+
+/**
+ * POST /api/cart/table  { items: [attr_id], states?: [name] }
+ *
+ * The checkout the old cart never had: one row per county, one column per
+ * item. Each item compiles as its own load (or count_features) -> output
+ * branch of ONE plan, validated by validatePlan and executed in one READ ONLY
+ * transaction, so every column reads the same snapshot and no SQL is written
+ * here. Kinds come from attribute_source, never from the browser.
+ */
+const STATE_NAME_BY_FIPS = new Map(Object.entries(require("./states").STATE_FIPS).map(([n, f]) => [f, n]));
+let countyListCache = null;
+app.post("/api/cart/table", auth.requireAuth, limitSearch, async (req, res) => {
+  const started = Date.now();
+  try {
+    const ids = [...new Set((Array.isArray(req.body?.items) ? req.body.items : [])
+      .filter(x => typeof x === "string" && x && !x.startsWith("user:")))];
+    if (!ids.length) return res.status(400).json({ error: "the cart is empty" });
+    if (ids.length > cart.MAX_ITEMS) return res.status(400).json({ error: `a cart holds at most ${cart.MAX_ITEMS} items` });
+    const states = Array.isArray(req.body?.states)
+      ? req.body.states.filter(s => typeof s === "string" && require("./states").STATE_FIPS[s]) : null;
+
+    const resolved = await resolveAttributes(ids);
+    const missing = ids.filter(id => !resolved.has(id));
+    if (missing.length) {
+      return res.status(422).json({ error: "some items hold no data", detail: missing.join(", ") });
+    }
+    const items = ids.map(id => {
+      const k = resolved.get(id).source_kind;
+      return { id, kind: k === "feature_table" ? "feature" : k === "raster" ? "raster" : "value" };
+    });
+    let built;
+    try { built = cart.cartPlan(items, { states }); }
+    catch (err) {
+      if (err instanceof cart.CartError) return res.status(422).json({ error: err.message });
+      throw err;
+    }
+    const check = await validatePlan(built.plan, resolveAttributes);
+    if (!check.ok) {
+      return res.status(422).json({ error: "the cart could not be built", detail: check.errors.join(" ") });
+    }
+    for (const [k, v] of check.resolved) resolved.set(k, v);
+    const result = await executePlan(built.plan, resolved, pool, { timeoutMs: 60000 });
+
+    if (!countyListCache) {
+      countyListCache = (await pool.query("SELECT fips, name FROM county_geom ORDER BY fips")).rows;
+    }
+    const columns = built.outputs.map(o => {
+      const src = resolved.get(o.item);
+      const cand = catalogRow(o.item) || {};
+      const isFeature = src.source_kind === "feature_table";
+      return {
+        item: o.item, step: o.step,
+        header: isFeature ? `${cand.dataset_clean || src.table_name} (count)`
+          : cart.displayLabel(followup.measureLabel(cand.attr_desc || src.description) || o.item),
+        description: isFeature ? `Number of ${cand.dataset_clean || src.table_name} features in the county`
+          : (cart.displayLabel(cand.attr_desc || src.description) || null),
+        dataset: cand.dataset_clean || null,
+        source_kind: src.source_kind,
+        table_name: src.table_name || null,
+        census_code: src.census_code || null,
+        period: cand.end_date || cand.start_date || null,
+        // National range in the latest year: tells a 0-1 fraction (CHR) from
+        // a percentage, which the label often does not.
+        range: src.value_range ? { min: src.value_range.lo, max: src.value_range.hi } : null,
+      };
+    });
+    const table = cart.wideTable(countyListCache, columns, result.layers,
+                                 { states, stateNames: STATE_NAME_BY_FIPS });
+    columns.forEach((c, i) => { c.missing = table.missing[i]; delete c.step; });
+    return res.json({
+      columns, rows: table.rows, row_count: table.rows.length,
+      provenance: {
+        generated_at: new Date().toISOString(),
+        database: CONFIG.database.database,
+        corpus_cache_key: corpusCacheKey ?? null,
+        states: states?.length ? states : null,
+        level: "county",
+        note: "One row per county; an empty cell means the source has no value for that county.",
+      },
+      ms: Date.now() - started,
+    });
+  } catch (err) {
+    console.error("Cart table error:", err);
+    return res.status(500).json({ error: "the cart table failed", details: err.message });
   }
 });
 

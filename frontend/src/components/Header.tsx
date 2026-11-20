@@ -12,9 +12,11 @@ import { SURVEY_URL } from './SurveyPrompt';
  * out what data exists, and the CSV tool is a separate utility that happens to
  * live here.
  *
- * The data cart is gone. Its checkout opened /api/download, which the backend
- * has never implemented, so the whole flow ended in a 404 after asking people
- * to collect things. Map Explorer is gone for a worse reason: it plotted
+ * The FIRST data cart was removed: its checkout opened /api/download, which the
+ * backend never implemented, so the flow ended in a 404 after asking people to
+ * collect things. The cart now at /data-search was built checkout-first
+ * (POST /api/cart/table, backend/test_cart.js; docs/DATA_CART_PLAN.md).
+ * Map Explorer is gone for a worse reason: it plotted
  * datasets at coordinates derived from a hash of their id, inside a hardcoded
  * Missouri bounding box. Those positions were invented, and shown next to real
  * ones.
@@ -24,7 +26,7 @@ const NAV = [
   // Not the removed Map Explorer: every unit drawn here is a real boundary
   // with a stored value, at the level that fits the view.
   { to: '/explore', label: 'Explore map', short: 'Map', hint: 'Any loaded measure, county to 1 km' },
-  { to: '/data-search', label: 'Browse data', short: 'Data', hint: 'What is in the catalog' },
+  { to: '/data-search', label: 'Data cart', short: 'Data', hint: 'Collect and download data on a topic' },
   { to: '/csv-report', label: 'CSV tools', short: 'CSV', hint: 'Analyze your own file' },
 ];
 

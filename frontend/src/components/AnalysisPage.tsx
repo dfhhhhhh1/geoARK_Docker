@@ -4,10 +4,10 @@ import {
   Loader2, AlertTriangle, Send, Paperclip, CornerDownRight, Pencil,
   RotateCcw, Eye, Trash2, Zap, MessageSquarePlus, CheckCircle2,
   Pin, PinOff, PanelLeftClose, MessagesSquare, ChevronsLeftRight, GitBranch, Eye as EyeIcon,
-  Sparkles,
 } from 'lucide-react';
 import { useConversation, type Turn } from '../hooks/useConversation';
 import type { ExpandedSearch } from '../hooks/useAnalyzeStream';
+import ExpandedSearchControl from './ExpandedSearchControl';
 import AnalysisProgress from './AnalysisProgress';
 import AnalysisFailurePanel from './AnalysisFailure';
 import ErrorBoundary from './ErrorBoundary';
@@ -403,31 +403,8 @@ const Composer: React.FC<{
     className="bg-white/70 rounded-xl border border-slate-300 focus-within:ring-2
                focus-within:ring-brand-400 focus-within:border-transparent p-1.5"
   >
-    <div className="flex flex-wrap items-center gap-1 px-1.5 pt-0.5 pb-1.5">
-      <button type="button" aria-pressed={expanded.on} disabled={busy}
-              onClick={() => onExpandedChange({ ...expanded, on: !expanded.on })}
-              title="Also search for measures linked to the condition you ask about (risk factors, causes), using the medical literature"
-              className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full transition-colors
-                ${expanded.on ? 'bg-brand-700 text-white' : 'text-slate-600 hover:bg-white/70 border border-slate-300'}`}>
-        <Sparkles className="w-3.5 h-3.5" /> Expanded search {expanded.on ? 'on' : 'off'}
-      </button>
-      {expanded.on && (
-        <>
-          <SourceChip on={expanded.literature} disabled={busy}
-                      title="SemMedDB relations, looked up on this machine"
-                      onClick={() => onExpandedChange({ ...expanded, literature: !expanded.literature })}>
-            Literature
-          </SourceChip>
-          <SourceChip on={expanded.pubmed} disabled={busy}
-                      title="Keywords read from PubMed abstracts. The condition's name is sent to NCBI."
-                      onClick={() => onExpandedChange({ ...expanded, pubmed: !expanded.pubmed })}>
-            PubMed
-          </SourceChip>
-          {!expanded.literature && !expanded.pubmed && (
-            <span className="text-xs text-amber-700">no source selected: runs as a normal search</span>
-          )}
-        </>
-      )}
+    <div className="px-1.5 pt-0.5 pb-1.5">
+      <ExpandedSearchControl value={expanded} onChange={onExpandedChange} disabled={busy} />
     </div>
     {hasActive && (
       <div className="flex flex-wrap items-center gap-1 px-1.5 pt-0.5 pb-1.5" role="radiogroup"
@@ -479,16 +456,6 @@ const Composer: React.FC<{
     </div>
   </form>
 );
-
-const SourceChip: React.FC<{ on: boolean; disabled: boolean; title: string; onClick: () => void;
-                             children: React.ReactNode }> =
-  ({ on, disabled, title, onClick, children }) => (
-    <button type="button" role="checkbox" aria-checked={on} disabled={disabled} title={title} onClick={onClick}
-            className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors
-              ${on ? 'bg-ink text-white border-ink' : 'text-slate-600 border-slate-300 hover:bg-white/70'}`}>
-      {on && <CheckCircle2 className="w-3 h-3" />}{children}
-    </button>
-  );
 
 const ModeButton: React.FC<{ on: boolean; onClick: () => void; children: React.ReactNode }> =
   ({ on, onClick, children }) => (

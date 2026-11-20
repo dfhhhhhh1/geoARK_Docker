@@ -2,7 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type {
   AnalysisFailure, AnalysisResponse, FollowUpEdit, UserLayer, UserSeries,
 } from '../types';
-import { useAnalyzeStream, EXPANDED_OFF, type AnalyzeOutcome, type ExpandedSearch } from './useAnalyzeStream';
+import { useAnalyzeStream, type AnalyzeOutcome } from './useAnalyzeStream';
+import { useExpandedSearch } from './useExpandedSearch';
 import { rememberUnit } from '../lib/units';
 import {
   describeEdit, FollowUpRequestError, historyFrom, interpretFollowUp,
@@ -50,22 +51,10 @@ const newId = () => `t${Date.now().toString(36)}${(seq++).toString(36)}`;
 
 export function useConversation() {
   const stream = useAnalyzeStream();
-  // Expanded search. Remembered per browser, off until the user turns it on.
-  const [expanded, setExpandedState] = useState<ExpandedSearch>(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem('geoark.expanded') ?? 'null');
-      if (raw && typeof raw === 'object') {
-        return { on: !!raw.on, literature: raw.literature !== false, pubmed: raw.pubmed !== false };
-      }
-    } catch { /* storage blocked: fall through to the default */ }
-    return EXPANDED_OFF;
-  });
+  // Expanded search: one setting per browser, shared with the data cart.
+  const [expanded, setExpanded] = useExpandedSearch();
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
-  const setExpanded = useCallback((e: ExpandedSearch) => {
-    setExpandedState(e);
-    try { localStorage.setItem('geoark.expanded', JSON.stringify(e)); } catch { /* not worth failing */ }
-  }, []);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [uploads, setUploads] = useState<UserSeries[]>([]);
