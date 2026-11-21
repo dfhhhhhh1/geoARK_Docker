@@ -106,6 +106,15 @@ const EXEMPT = new Set((
   // "How far, in miles" refused r-hospital-distance-mo (2026-11-11)
   "how what which where when why far farther farthest further furthest " +
   "near nearer nearest nearby close closer closest distance distances away " +
+  // how much of a computed quantity: "how many miles away", "average distance
+  // in miles" refused n-mo-hospital-name / n-tx-hospitals-mean3 (H6 item 3,
+  // 2026-11-20). A phrase with a noun as well ("average income") is still
+  // checked on that noun.
+  "many much average mean median " +
+  // which of the nearest: "the second-closest fire station" refused
+  // n-ks-fire-second once in three (same day); "second homes" is still
+  // checked on "homes"
+  "first second third fourth fifth sixth seventh eighth ninth tenth " +
   // a radius around something is geometry the ops derive, like a distance:
   // "using a 30-mile catchment" refused the 2SFCA question (2026-11-11)
   "catchment catchments radius radii buffer buffers " +
@@ -224,7 +233,7 @@ async function namedCoverage({ query, items, callLLM, log = () => {} }) {
  * an attribute the plan uses. `used` comes from relevance.usedAttributes.
  * @returns {{ errors: string[], named: Array, uncovered: string[], skipped?: string }}
  */
-async function checkNamedData({ query, used, candidates, refs, callLLM, log = () => {} }) {
+async function checkNamedData({ query, used, candidates, refs, callLLM, log = () => {}, plan = null }) {
   // An earlier workflow step's result (backend/workflow.js, `result:q1`) is
   // listed like any other attribute, under its own description: "Counties from
   // q1: <intent> (N counties, values ...)". It covers "those counties" and q1's
@@ -242,7 +251,33 @@ async function checkNamedData({ query, used, candidates, refs, callLLM, log = ()
              desc: c.attr_desc, dataset: c.dataset_clean, role };
   });
   const r = await namedCoverage({ query, items, callLLM, log });
+  // A comparison on a layer's own column ("more than 100 beds") is covered by
+  // the layer whose value filter was read from it (planner/feature_filters.js):
+  // no ATTRIBUTE measures it, the step's column does. Matched on the filter's
+  // own record of the question's words: the same number and a shared word.
+  // "burned more than 100,000 acres" refused vf-fires-2020-acres 3 of 3
+  // attempts with the filter in place (2026-11-20).
+  if (plan && r.uncovered.length) {
+    const { sameWord } = require("./feature_filters");
+    const filters = [];
+    for (const st of plan.steps || []) {
+      for (const f of st.value_filters || []) if (f.said) filters.push({ f, st });
+    }
+    const numbers = (s) => (String(s).match(/\d[\d,]*(?:\.\d+)?/g) || []).map(x => Number(x.replace(/,/g, "")));
+    const words = (s) => norm(s).split(" ").filter(w => w.length >= 3 && !/^\d/.test(w));
+    for (const n of r.named) {
+      if (n.covered_by || n.exempt || !n.grounded) continue;
+      const hit = filters.find(({ f }) => numbers(n.phrase).some(x => numbers(f.said).includes(x)) &&
+        words(n.phrase).some(w => words(f.said).some(v => sameWord(v, w)) || sameWord(f.column, w)));
+      if (!hit) continue;
+      n.covered_by = labelOf.get(hit.st.attr_id) || hit.st.attr_id;
+      n.value_filter = hit.f.column;
+      log(`   named "${n.phrase}" -> ${n.covered_by} (value filter on ${hit.f.column})`);
+    }
+    r.uncovered = r.uncovered.filter(p => !r.named.some(n => n.phrase === p && n.covered_by));
+  }
   for (const n of r.named) {
+    if (n.value_filter) continue;
     log(`   named "${n.phrase}" -> ${n.covered_by || (n.exempt ? "exempt" : !n.grounded ? "not in question, ignored" : n.own_data ? "NOT COVERED (their own data, not uploaded)" : "NOT COVERED")}`);
   }
   const own = new Set(r.named.filter(n => n.own_data).map(n => n.phrase));

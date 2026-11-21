@@ -1,0 +1,201 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "nearest_dev": {
+      "pass": 4,
+      "n": 4,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 4
+  },
+  "latency_mean": 29.8,
+  "api_container_created": "2026-11-21T06:15:30.40528849Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "n-mo-hospital-name",
+      "tier": "nearest_dev",
+      "query": "Which hospital is closest to the center of each Missouri county, and how many miles away is it?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 115,
+        "gold_rows": 115,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "names_match": "115/115",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "nearest_distance->filter_area->output",
+      "intent": "The closest hospital to the center of each Missouri county and the distance in miles to it",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 115,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which hospital is closest to the center of each Missouri county, and how many miles away is it?",
+            "uses": [],
+            "ops": "nearest_distance->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 31.1
+    },
+    {
+      "id": "n-tx-hospitals-mean3",
+      "tier": "nearest_dev",
+      "query": "What is the average distance in miles from each Texas county to its 3 nearest hospitals?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 254,
+        "gold_rows": 254,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "nearest_distance->filter_area->output",
+      "intent": "Average distance in miles from each Texas county to its three nearest hospitals",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 254,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What is the average distance in miles from each Texas county to its 3 nearest hospitals?",
+            "uses": [],
+            "ops": "nearest_distance->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 19.2
+    },
+    {
+      "id": "n-ks-fire-second",
+      "tier": "nearest_dev",
+      "query": "How far, in miles, is the second-closest fire station from the center of each Kansas county?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 105,
+        "gold_rows": 105,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations"
+        }
+      },
+      "ops": "nearest_distance->filter_attr->nearest_distance->intersect->filter_area->output",
+      "intent": "Distance in miles from the center of each Kansas county to its second-closest fire station",
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations"
+      ],
+      "row_count": 105,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How far, in miles, is the second-closest fire station from the center of each Kansas county?",
+            "uses": [],
+            "ops": "nearest_distance->filter_attr->nearest_distance->intersect->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 41.3
+    },
+    {
+      "id": "n-de-tract-fire-name",
+      "tier": "nearest_dev",
+      "query": "For each census tract in Delaware, which fire station is nearest?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 262,
+        "gold_rows": 262,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "names_match": "262/262",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations"
+        }
+      },
+      "ops": "nearest_distance->filter_area->output",
+      "intent": "For each census tract in Delaware, identify the nearest fire station",
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations"
+      ],
+      "row_count": 262,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "For each census tract in Delaware, which fire station is nearest?",
+            "uses": [],
+            "ops": "nearest_distance->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 27.4
+    }
+  ]
+}

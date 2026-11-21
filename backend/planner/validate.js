@@ -81,9 +81,11 @@ async function validatePlan(plan, resolve) {
       }
     }
     const inputs = st.inputs || [];
-    if (inputs.length !== spec.inputs) {
+    // A fixed count, or a [min, max] pair (composite takes 2 to 6).
+    const [lo, hi] = Array.isArray(spec.inputs) ? spec.inputs : [spec.inputs, spec.inputs];
+    if (inputs.length < lo || inputs.length > hi) {
       errors.push(
-        `step "${st.id}" (${st.op}): expects ${spec.inputs} input(s), got ${inputs.length}`);
+        `step "${st.id}" (${st.op}): expects ${lo === hi ? lo : `${lo} to ${hi}`} input(s), got ${inputs.length}`);
     }
   }
 
@@ -403,6 +405,32 @@ async function validatePlan(plan, resolve) {
         continue;
       }
       f.value = match;   // normalize to the stored spelling
+    }
+  }
+
+  // --- value filters name a numeric / date column the layer has --------------
+  //
+  // Set by code (planner/feature_filters.js), never by the model, but a
+  // follow-up plan comes back from the browser, so it is checked like one.
+  const { FEATURE_FILTER_OPS } = require("./feature_filters");
+  for (const st of steps) {
+    if (st.value_filters === undefined) continue;
+    if (!Array.isArray(st.value_filters) || !FEATURE_FILTER_OPS.has(st.op)) {
+      errors.push(`step "${st.id}": value_filters only apply to ${[...FEATURE_FILTER_OPS].join(" or ")}`);
+      continue;
+    }
+    const src = st.attr_id ? resolved.get(st.attr_id) : null;
+    if (!src) continue;
+    const cols = new Map((src.value_columns || []).map(c => [c.column, c]));
+    for (const f of st.value_filters) {
+      const c = cols.get(f?.column);
+      if (!c) {
+        errors.push(`step "${st.id}": "${st.attr_id}" has no numeric or date column "${f?.column}"`);
+      } else if (!["<", "<=", ">", ">="].includes(f.operator)) {
+        errors.push(`step "${st.id}": value filter operator ${JSON.stringify(f.operator)} is not a comparison`);
+      } else if (c.kind === "date" ? !/^\d{4}-\d{2}-\d{2}$/.test(String(f.value)) : !Number.isFinite(Number(f.value))) {
+        errors.push(`step "${st.id}": value filter on "${c.column}" needs a ${c.kind === "date" ? "date" : "number"}`);
+      }
     }
   }
 

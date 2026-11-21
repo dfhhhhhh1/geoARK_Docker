@@ -170,6 +170,7 @@ an empty result.
 | `rank` | 1 | | `direction`, `limit` | top or bottom n |
 | `join` | 2 | | | two measures in one layer |
 | `combine` | 2 | `operation` | `scale` | ratio / sum / difference / percent change |
+| `composite` | 2 to 6 | | *(set by code: `weights`, `directions`, `method`, `standardize`)* | one score from several measures: percentile ranks (or z / min-max), combined by weighted sum, geometric mean or minimum; the only op with a `[min, max]` arity (planner/composite.js, GIS_OPS_PLAN.md H6 item 4) |
 | `hotspot` | 1 | | | Gi\* z-score per county **(signed)** |
 | `outlier` | 1 | | | only the unusual counties, in IQRs **(signed)** |
 | `correlate` | 2 | | | **one row**: Spearman rho, CI, p on effective n (see [CORRELATE.md](CORRELATE.md)) |

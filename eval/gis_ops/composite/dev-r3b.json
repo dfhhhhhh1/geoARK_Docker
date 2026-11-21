@@ -1,0 +1,214 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.75,
+  "by_tier": {
+    "composite_dev": {
+      "pass": 3,
+      "n": 4,
+      "rate": 0.75
+    }
+  },
+  "classes": {
+    "CORRECT": 3,
+    "INCOMPLETE": 1
+  },
+  "latency_mean": 22.5,
+  "api_container_created": "2026-11-21T16:38:03.943599649Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "c-mo-vuln-equal",
+      "tier": "composite_dev",
+      "query": "Rank Missouri counties by a vulnerability index built from the poverty rate, the unemployment rate and the share of adults without health insurance. Which ten score highest?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 115,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "values_within": "10/10",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PCTPOVALL",
+          "m2": "UNEMPLOYMENT_RATE",
+          "m3": "PLACES_ACCESS2_CrdPrv"
+        }
+      },
+      "ops": "load->filter_area->load->filter_area->load->filter_area->composite->rank->output",
+      "intent": "Rank Missouri counties by a vulnerability index built from the poverty rate, the unemployment rate and the share of adults without health insurance. Which ten score highest?",
+      "loaded": [
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS",
+        "UNEMPLOYMENT_RATE | Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS) | USDA ERS",
+        "PLACES_ACCESS2_CrdPrv | Current lack of health insurance among adults aged 18-64 years (crude prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Rank Missouri counties by a vulnerability index built from the poverty rate, the unemployment rate and the share of adults without health insurance. Which ten score highest?",
+            "uses": [],
+            "ops": "load->filter_area->load->filter_area->load->filter_area->composite->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 21.5
+    },
+    {
+      "id": "c-tx-stated-weights",
+      "tier": "composite_dev",
+      "query": "Score every Texas county on poverty rate, median household income and distance to the nearest hospital, weighting poverty at 50%, income at 25% and hospital distance at 25%. Lower income should score higher.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 254,
+        "gold_rows": 254,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PCTPOVALL",
+          "m2": "MEDIAN_HOUSEHOLD_INCOME",
+          "m3": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "load->filter_area->load->filter_area->nearest_distance->composite->output",
+      "intent": "A composite score for Texas counties based on poverty rate, median household income and distance to the nearest hospital, with poverty weighted at 50%, income at 25% and hospital distance at 25%. Higher income scores higher.",
+      "loaded": [
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS",
+        "MEDIAN_HOUSEHOLD_INCOME | Median household income in dollars | USDA ERS",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 254,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Score every Texas county on poverty rate, median household income and distance to the nearest hospital, weighting poverty at 50%, income at 25% and hospital distance at 25%. Lower income should score higher.",
+            "uses": [],
+            "ops": "load->filter_area->load->filter_area->nearest_distance->composite->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 23.7
+    },
+    {
+      "id": "c-ga-bottleneck",
+      "tier": "composite_dev",
+      "query": "Which Georgia counties score high on all three of obesity, diabetes and physical inactivity? Give each county the lowest of its three percentile ranks, so one good measure cannot make up for a bad one.",
+      "class": "INCOMPLETE",
+      "pass": false,
+      "detail": {
+        "rows": 86,
+        "gold_rows": 159,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 0.541,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V011_RAWVALUE",
+          "m2": "CHR_V060_RAWVALUE",
+          "m3": "CHR_V070_RAWVALUE"
+        }
+      },
+      "ops": "load->load->load->filter_area->filter_area->filter_area->rank->rank->rank->intersect->intersect->output",
+      "intent": "Georgia counties that score high on all three of obesity, diabetes and physical inactivity, with each county's lowest of its three percentile ranks",
+      "loaded": [
+        "CHR_V011_RAWVALUE | Adult obesity | County Health Rankings",
+        "CHR_V060_RAWVALUE | Diabetes prevalence | County Health Rankings",
+        "CHR_V070_RAWVALUE | Physical inactivity | County Health Rankings"
+      ],
+      "row_count": 86,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Georgia counties score high on all three of obesity, diabetes and physical inactivity? Give each county the lowest of its three percentile ranks, so one good measure cannot make up for a bad one.",
+            "uses": [],
+            "ops": "load->load->load->filter_area->filter_area->filter_area->rank->rank->rank->intersect->intersect->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 23.0
+    },
+    {
+      "id": "c-ky-emphasis",
+      "tier": "composite_dev",
+      "query": "Which Kentucky counties are most in need? Focus primarily on child poverty, while also considering the unemployment rate and median household income, where lower income means more need.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 120,
+        "gold_rows": 120,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 10,
+        "overlap": 1.0,
+        "values_within": "10/10",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PCTPOV017",
+          "m2": "UNEMPLOYMENT_RATE",
+          "m3": "CHR_V063_RAWVALUE"
+        }
+      },
+      "ops": "load->filter_area->load->filter_area->load->filter_area->composite->output",
+      "intent": "Kentucky counties most in need, focusing on child poverty, while also considering unemployment rate and median household income, where lower income means more need",
+      "loaded": [
+        "PCTPOV017 | Percent of children ages 0-17 in poverty (child poverty rate, SAIPE) | USDA ERS",
+        "UNEMPLOYMENT_RATE | Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS) | USDA ERS",
+        "CHR_V063_RAWVALUE | Median household income | County Health Rankings"
+      ],
+      "row_count": 120,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Kentucky counties are most in need? Focus primarily on child poverty, while also considering the unemployment rate and median household income, where lower income means more need.",
+            "uses": [],
+            "ops": "load->filter_area->load->filter_area->load->filter_area->composite->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 21.7
+    }
+  ]
+}

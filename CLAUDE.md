@@ -1529,6 +1529,68 @@ to end because there is no model swap, and `numCtxFor` keys on
 setting, pass `decomp` / `candidates` per request; `reach.py` measures the
 candidate list before the planner runs.
 
+### Numeric and date filters on feature columns (H6 item 2, 2026-11-20)
+
+docs/GIS_OPS_PLAN.md "H6 tier 1, item 2". `planner/feature_filters.js`:
+"more than 100 beds", "magnitude 3 or greater", "since 2005" are read from the
+question in code and grounded against the layer's own columns
+(`featureValueColumns`), carried as `value_filters`; prompt byte-identical.
+
+- **HSIP "not available" is -999** (-999999 for voltage), one negative value
+  in a non-negative column. Any "fewer than" on an HSIP column counts every
+  unknown unless the sentinel is excluded; discovery does that. Hospital
+  `ttl_staff` is -999 on every row.
+- **A gold must be able to see the defect**: Texas nursing homes < 50 beds
+  moved 1,346 -> 1,351 with the sentinel, inside tolerance.
+- **count_features over LINES double counts**: a tornado track crossing three
+  counties is three in a per-county sum (58-77 for 32). Pre-existing.
+- **select_features ships full geometry**: 481 archive fire perimeters died
+  with `Invalid string length`. Pre-existing, open.
+- `--check-gold` ignores `--only` and checks the whole suite (>500 s); check a
+  family through a filtered copy of the suite.
+
+### Nearest with identity, and k (H6 item 3, 2026-11-20)
+
+docs/GIS_OPS_PLAN.md "H6 tier 1, item 3". `planner/nearest.js` sets
+`identify` / `k` / `k_stat` on `nearest_distance` from the question ("which
+hospital is nearest", "the 3 nearest", "second-closest"); prompt
+byte-identical. Equal to brute force on 599 units (names and values).
+
+- **A name rides a separate column and only survives row-subset ops.** The
+  output joins `nearest_name` back on through filter_* and rank; anything that
+  makes a new value ends it. Put that join AFTER the geometry `USING (fips)`
+  join, or Postgres calls fips ambiguous.
+- **qwen3 reads "which X" as a count**: it joined count_features(X) to
+  nearest_distance(X), 3 of 3, and "average ... to its 3 nearest" as a mean
+  over counties, 3 of 3. Both are repaired in code, narrowly.
+- **The named-data check needs computed-quantity words exempt**: "how many
+  miles away", "average distance", "second-closest" were refused as data.
+- Held-out 16 answered 2, 1, 0 across three runs (Q16 mobile home parks, Q1
+  school enrollment), model-verdict variance on paths this does not touch.
+  The "0 of 16" recorded at H5 is not stable.
+
+### Composite index (H6 item 4, 2026-11-21)
+
+docs/GIS_OPS_PLAN.md "H6 tier 1, item 4". `planner/composite.js`,
+`ops/composite.js`: one score from 2 to 6 measures. The model picks the
+measures; weights (stated shares, ratios / AHP, emphasis 2:1, else equal),
+direction per input, method (sum, geometric, minimum) and standardization
+(percentile default) are code, echoed in the response. Equal to independent
+gold on 743 counties (2e-16); dev 4/4 x3, held-out 2/2; gate reaches 0 of
+321 other eval questions; snapshot byte-identical.
+
+- **An op that binds a parameter its SQL does not use fails at execution**:
+  `minimum` bound unused weights (12 params, 9 placeholders), on a plan that
+  had validated. Second time after combine's `scale`; test every method's
+  bind count, not just the default's.
+- **Multi-sentence questions are split into workflows** (`/api/research`),
+  and a second sentence that only describes the method ("Focus primarily on
+  ...") broke 3 of 4 composite questions. A gated single-analysis op may need
+  an exemption in `workflow.needsWorkflow`.
+- **A negation is often the measure's own name**: "adults without health
+  insurance" is the uninsured rate, not "low insurance". Direction cues must
+  skip words of the measure's own label.
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence

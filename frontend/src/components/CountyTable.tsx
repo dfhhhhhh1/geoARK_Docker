@@ -55,6 +55,8 @@ const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, h
     return m;
   }, [rows]);
 
+  // nearest_distance with identify / k: which feature is nearest.
+  const hasNearest = useMemo(() => rows.some(r => r.nearest_name), [rows]);
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const filtered = needle
@@ -117,6 +119,7 @@ const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, h
                   </button>
                 </th>
               ))}
+              {hasNearest && <th className="py-1.5 pr-3 font-medium">Nearest</th>}
             </tr>
           </thead>
           <tbody>
@@ -145,11 +148,16 @@ const CountyTable: React.FC<Props> = ({ rows, series, onPick, selected = null, h
                       {fmt(r[s.key] as number | null | undefined)}
                     </td>
                   ))}
+                  {hasNearest && (
+                    <td className="py-1 pr-3 text-xs text-slate-600 max-w-[16rem] truncate" title={r.nearest_name ?? ''}>
+                      {r.nearest_name ?? ''}
+                    </td>
+                  )}
                 </tr>
               );
             })}
             {!shown.length && (
-              <tr><td colSpan={2 + series.length} className="px-3 py-3 text-sm text-slate-500">No county matches “{q}”.</td></tr>
+              <tr><td colSpan={2 + series.length + (hasNearest ? 1 : 0)}className="px-3 py-3 text-sm text-slate-500">No county matches “{q}”.</td></tr>
             )}
           </tbody>
         </table>

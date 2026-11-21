@@ -1,0 +1,162 @@
+{
+  "suite": "vf_suite.yaml",
+  "queries": 4,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "value_filters_dev": {
+      "pass": 2,
+      "n": 4,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "CORRECT": 2,
+    "WRONG_SHAPE": 1,
+    "NO_ANSWER": 1
+  },
+  "latency_mean": 17.1,
+  "api_container_created": "2026-11-21T03:59:41.221653122Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "vf-mo-hospitals-beds-gt100",
+      "tier": "value_filters_dev",
+      "query": "Which hospitals in Missouri have more than 100 beds?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 66,
+        "gold_features": 66,
+        "jaccard": 1.0,
+        "extra": 0,
+        "missed": 0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "select_features->output",
+      "intent": "Hospitals in Missouri with more than 100 beds",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 66,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which hospitals in Missouri have more than 100 beds?",
+            "uses": [],
+            "ops": "select_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.4
+    },
+    {
+      "id": "vf-az-hospitals-beds-lt50",
+      "tier": "value_filters_dev",
+      "query": "How many hospitals in Arizona have fewer than 50 beds?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 40.0,
+        "got": 40.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "count_features->filter_area->aggregate->output",
+      "intent": "Number of hospitals in Arizona with fewer than 50 beds",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many hospitals in Arizona have fewer than 50 beds?",
+            "uses": [],
+            "ops": "count_features->filter_area->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 19.9
+    },
+    {
+      "id": "vf-ok-tornadoes-mag3-since2005",
+      "tier": "value_filters_dev",
+      "query": "How many tornadoes of magnitude 3 or greater have crossed Oklahoma since 2005?",
+      "class": "WRONG_SHAPE",
+      "pass": false,
+      "detail": {
+        "why": "no single statistic returned",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "c862525677cf485a84b2ba86a78e277d_histtornadotracks"
+        }
+      },
+      "ops": "count_features->output",
+      "intent": "Number of tornado tracks of magnitude 3 or greater that have crossed Oklahoma since 2005",
+      "loaded": [
+        "c862525677cf485a84b2ba86a78e277d_histtornadotracks | Hist Tornado Tracks (mapped locations) | Hist Tornado Tracks"
+      ],
+      "row_count": 3233,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many tornadoes of magnitude 3 or greater have crossed Oklahoma since 2005?",
+            "uses": [],
+            "ops": "count_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 13.7
+    },
+    {
+      "id": "vf-fires-2020-acres",
+      "tier": "value_filters_dev",
+      "query": "Show the wildfire perimeters from 2020 that burned more than 100,000 acres.",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "research failed"
+      },
+      "ops": "",
+      "intent": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "research failed",
+      "exec_error": null,
+      "seconds": 20.3
+    }
+  ]
+}

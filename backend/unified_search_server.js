@@ -1991,6 +1991,93 @@ async function featureFilterValues(tableName, availableColumns) {
   return out;
 }
 
+/**
+ * The numeric, year and date columns of a feature layer, for value filters
+ * (planner/feature_filters.js): "more than 100 beds", "since 2010".
+ *
+ * Per column: kind (number / year / date), the catalog's label, description
+ * and tags for it (what the question's words are matched against), min and
+ * max, and the "not available" SENTINEL where there is one. HSIP writes a
+ * missing value as one negative number in an otherwise non-negative column
+ * (-999 for 307 hospitals' beds, -999999 for 15,127 transmission lines'
+ * voltage): one distinct negative value, <= -9, beside values >= 0, is that.
+ * A column that holds nothing else (hospital ttl_staff is -999 on every row)
+ * is not offered at all.
+ *
+ * Identifiers, coordinates and geometry bookkeeping are never measures and
+ * are left out. The publisher's record-keeping dates (HSIP SOURCEDATE /
+ * VAL_DATE, EPA FRS CREATE_DATE / UPDATE_DATE, ArcGIS editor tracking) are
+ * kept but marked `record`, so "since 2010" never reads one as the event date.
+ *
+ * Lazy and cached per table, like featureFilterValues. One scan per layer.
+ */
+const NOT_A_MEASURE =
+  /^(?:objectid(?:_\d+)?|fid|ogc_fid|gid|id)$|_?id$|^(?:lat|lon|long|latitude\d*|longitude\d*|x|y|geo[xy]|[se](?:lat|lon)|(?:surf|bot)_(?:lat|long))$|^shape_|^shapest|^geoark_|^gdb_.*oid$|zip|fips|_code$|^code$/i;
+const RECORD_DATE =
+  /^(?:source_?date|val_date|loaddate|load_date|create_?dat\w*|createdate|update_?dat\w*|last_repor\w*|datecurrent|contdate|geodate|adddate|editdate|edit_date|gdb_\w+)$/i;
+const valueColumnsCache = new Map();
+async function featureValueColumns(tableName) {
+  if (valueColumnsCache.has(tableName)) return valueColumnsCache.get(tableName);
+  if (!/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(tableName || "")) return [];
+  let out = [];
+  try {
+    const { rows: cols } = await pool.query(
+      `SELECT column_name::text AS column, data_type::text AS type
+         FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = $1
+          AND data_type IN ('integer','smallint','bigint','double precision','real','numeric',
+                            'date','timestamp with time zone','timestamp without time zone')
+        ORDER BY ordinal_position`, [tableName]);
+    const usable = cols.filter(c => /^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(c.column) && !NOT_A_MEASURE.test(c.column));
+    if (usable.length) {
+      const isDate = (t) => /date|timestamp/.test(t);
+      const parts = usable.map((c, i) => isDate(c.type)
+        ? `min(${c.column})::date::text AS mn${i}, max(${c.column})::date::text AS mx${i}, count(${c.column})::int AS n${i}, 0 AS nn${i}, NULL::float8 AS neg${i}, NULL::float8 AS pmn${i}`
+        : `min(${c.column})::float8 AS mn${i}, max(${c.column})::float8 AS mx${i}, count(${c.column})::int AS n${i}, ` +
+          `count(DISTINCT ${c.column}) FILTER (WHERE ${c.column} < 0)::int AS nn${i}, ` +
+          `min(${c.column}) FILTER (WHERE ${c.column} < 0)::float8 AS neg${i}, ` +
+          `min(${c.column}) FILTER (WHERE ${c.column} >= 0)::float8 AS pmn${i}`);
+      const { rows: [s] } = await pool.query(`SELECT ${parts.join(", ")} FROM ${tableName}`);
+      // Catalog text for each column: the attribute_source rows of this table.
+      const { rows: attrs } = await pool.query(
+        `SELECT attr_id, value_column FROM attribute_source WHERE table_name = $1`, [tableName]);
+      const byCol = new Map();
+      for (const a of attrs) {
+        const v = catalogRow(a.attr_id);
+        if (v && a.value_column) byCol.set(String(a.value_column).toLowerCase(), v);
+      }
+      const tagsOf = (t) => Array.isArray(t) ? t
+        : String(t || "").replace(/^\[|\]$/g, "").split(",").map(x => x.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
+      usable.forEach((c, i) => {
+        const n = s[`n${i}`];
+        if (!n) return;
+        const date = isDate(c.type);
+        let sentinel = null, min = s[`mn${i}`], max = s[`mx${i}`];
+        if (!date && s[`nn${i}`] === 1 && s[`neg${i}`] <= -9) {
+          if (s[`pmn${i}`] === null) return;      // nothing but the sentinel
+          sentinel = s[`neg${i}`];
+          min = s[`pmn${i}`];
+        }
+        const integer = /int/.test(c.type) || (!date && Number.isInteger(min) && Number.isInteger(max));
+        const kind = date ? "date"
+          : (integer && /(?:^|_)(?:yr|year)|year/i.test(c.column) && min >= 1700 && max <= 2100) ? "year"
+          : "number";
+        const v = byCol.get(c.column.toLowerCase());
+        out.push({
+          column: c.column, kind, min, max, n, sentinel,
+          record: RECORD_DATE.test(c.column),
+          label: v?.attr_label || "", description: v?.attr_desc || "", tags: tagsOf(v?.tags),
+        });
+      });
+    }
+  } catch (err) {
+    console.warn(`   value columns unavailable for ${tableName}: ${err.message}`);
+    out = [];
+  }
+  valueColumnsCache.set(tableName, out);
+  return out;
+}
+
 // One information_schema query, cached: the layers do not change at runtime.
 let featureColumnsCache = null;
 /**
@@ -2193,6 +2280,7 @@ async function resolveAttributes(attrIds) {
       // Carried on the resolved row so the validator can check a filter against
       // real values and the compiler can bind them -- same path attr_ids take.
       r.filter_values = await featureFilterValues(r.table_name, r.label_columns);
+      r.value_columns = await featureValueColumns(r.table_name);
       if (parts?.has(r.table_name)) r.parts = parts.get(r.table_name);
     }
     out.set(r.attr_id, r);
@@ -3231,6 +3319,17 @@ async function finishAnalysis({ query, started, planning, executable, candidates
       if (result.stats) {
         body.stats = result.stats;
         body.value_label = result.valueLabel ?? null;
+      }
+      // A named / k nearest_distance (planner/nearest.js): "mean miles to the
+      // 3 nearest features" is not readable as plain miles, so the legend
+      // says which. Only these layers; other ops' labels are unchanged.
+      if (!body.value_label && result.valueLabel && result.rows?.[0] && "nearest_name" in result.rows[0]) {
+        body.value_label = result.valueLabel;
+      }
+      // A composite score (planner/composite.js): "composite score (0 to 1,
+      // weighted sum of percentile ranks)", through any rank or filter after it.
+      if (!body.value_label && result.valueLabel && result.composite) {
+        body.value_label = result.valueLabel;
       }
       // compare_groups: which group is which, the medians, and the test. Kept
       // apart from `stats` because the UI reads that as a one-row correlation

@@ -28,9 +28,12 @@ const { derefDefinitions, checkThresholds, LAYER_PHRASES, GROUP_COMPARISON,
         COMPLEMENT_PHRASES } = require("./conditions");
 const { anchorYears, spans } = require("./vintages");
 const { applyLevel, applyRollup, levelOf } = require("./levels");
+const { applyValueFilters, loadedColumnAsCount, FEATURE_FILTER_OPS } = require("./feature_filters");
 const { repairDistanceUnits, repairWithinDirection, widenReferenceLayer, repairEnrichPercentile, applyAreaUnit, applyMeasures, applyRasterMeasures, fillRasterClasses, yearAsVintage } = require("./features");
 const { preferUserLayer } = require("../user_layers");
 const { applyCatchment } = require("./catchment");
+const { applyNearest } = require("./nearest");
+const { applyComposite, asksComposite } = require("./composite");
 const { applyNetwork, applyNetworkPopulation, networkUnitErrors } = require("./network");
 const { repairPrecision } = require("./uncertainty");
 const { seriesUnit } = require("./units");
@@ -139,7 +142,25 @@ function queryWantsLocations(query) {
   // "with fire stations on top", "overlay hospitals": a layer of facilities
   // is their locations, so the locations op must be on the menu.
   if (LAYER_PHRASES.test(String(query))) return true;
-  return LOCATION_PHRASES.some(re => re.test(String(query)));
+  if (LOCATION_PHRASES.some(re => re.test(String(query)))) return true;
+  return asksWhichFeatures(query);
+}
+
+/**
+ * "Which hospitals in Missouri have more than 100 beds?", "Show the wildfire
+ * perimeters from 2020 that burned ...": which things of a kind, narrowed by
+ * a number or a date of their own (planner/feature_filters.js). Without it the
+ * locations op was never offered, and the model counted hospitals per county
+ * and compared the COUNT to 100 (H6 dev r1, 2026-11-20). Not a question whose
+ * subject is a unit ("which counties have more than 5 hospitals").
+ */
+const WHICH_THINGS = /^\s*(?:which|what|show(?:\s+me)?|list|map|find)\s+(?:the\s+|all\s+)?(?:[a-z][a-z-]*\s+){0,3}?([a-z][a-z-]{2,}s)\b/i;
+function asksWhichFeatures(query) {
+  const m = String(query || "").match(WHICH_THINGS);
+  if (!m) return false;
+  if (/^(?:count(?:ie)?s|states|tracts|zips?|codes|areas|regions|places|cities|towns|neighbou?rhoods|wards|districts|cells|people|residents|households|years|rates|percentages|shares)$/i.test(m[1])) return false;
+  const { numericMentions, dateMentions } = require("./feature_filters");
+  return numericMentions(query).length > 0 || dateMentions(query).length > 0;
 }
 
 // --------------------------------------------------------------------------
@@ -435,6 +456,7 @@ RULES:
       case "rank": return '  rank([in1], direction="desc"|"asc", limit=N) - top or bottom N';
       case "join": return '  join(in1, in2) - combine two series on the same map';
       case "combine": return '  combine(in1, in2, operation="ratio"|"sum"|"difference"|"percent_change") - combine two measures';
+      case "composite": return '  composite(in1, in2, ...) - one score from 2 to 6 measures';
       case "hotspot": return '  hotspot([in1]) - find spatial clusters (high/low)';
       case "outlier": return '  outlier([in1]) - find spatial anomalies';
       case "correlate": return '  correlate(in1, in2) - Pearson correlation between two measures';
@@ -1589,6 +1611,43 @@ async function generatePlan({
         emit({ stage: "plan_adjusted", detail: `Measures: ${measures}.` });
         adjustments.push(`Measure: ${measures}.`);
       }
+      // Numeric and date filters on a layer's own columns, "more than 100
+      // beds", "since 2010" (planner/feature_filters.js): read from the
+      // question, grounded against the columns the layer has. Prompt untouched.
+      const nameOf = (id, src) => {
+        const c = candidates.find(x => x.attr_id === id);
+        return c?.dataset_clean || String(src?.description || c?.attr_desc || id).replace(/\s*\(mapped locations\)\s*$/i, "");
+      };
+      const loads = (plan.steps || []).filter(s => s.op === "load" && s.attr_id && featureTables.has(s.attr_id));
+      if (loads.length) {
+        const lr = await resolve(loads.map(s => s.attr_id));
+        const asCount = loadedColumnAsCount(plan, query, (id) => lr.get(id), (id) => nameOf(id, lr.get(id)));
+        if (asCount) {
+          log(`   Rewired plan: ${asCount}`);
+          emit({ stage: "plan_adjusted", detail: asCount });
+          adjustments.push(`Plan corrected: ${asCount}.`);
+        }
+      }
+      const featureSteps = (plan.steps || []).filter(s => FEATURE_FILTER_OPS.has(s.op) && s.attr_id);
+      if (featureSteps.length) {
+        const fr = await resolve(featureSteps.map(s => s.attr_id));
+        const vf = applyValueFilters(plan, query, (id) => {
+          const src = fr.get(id);
+          if (!src?.value_columns?.length) return null;
+          const c = candidates.find(x => x.attr_id === id);
+          const name = c?.dataset_clean || String(src.description || c?.attr_desc || id).replace(/\s*\(mapped locations\)\s*$/i, "");
+          return { columns: src.value_columns, name };
+        });
+        for (const f of vf?.fixes || []) {
+          log(`   Value filter: ${f}`);
+          emit({ stage: "plan_adjusted", detail: `Filter: ${f}.` });
+          adjustments.push(`Filter: ${f}.`);
+        }
+        for (const n of vf?.notes || []) {
+          log(`   Value filter note: ${n}`);
+          adjustments.push(`Filter: ${n}.`);
+        }
+      }
       // People at a NETWORK cost (H5, planner/network.js): rebuilt as
       // network_population over WorldPop pixel centres from the plan's
       // reference layer and area. BEFORE validation: the model's own plans for
@@ -1841,7 +1900,7 @@ async function generatePlan({
     // (planner/named_data.js). Same repair loop as NOT_RELEVANT.
     let named = null;
     if (check.ok && namedDataCheck) {
-      named = await checkNamedData({ query, used: usedAttributes(plan), candidates, refs, callLLM, log });
+      named = await checkNamedData({ query, used: usedAttributes(plan), candidates, refs, callLLM, log, plan });
       if (named.errors.length) {
         log(`   Plan leaves data the question names uncovered (attempt ${attempt + 1})`);
         emit({ stage: "plan_irrelevant", attempt: attempt + 1, errors: named.errors });
@@ -1888,6 +1947,98 @@ async function generatePlan({
         // Coverage is advice about the answer, not part of it: a failure here
         // must never cost the user a plan that already passed every check.
         log(`   Coverage check skipped: ${err.message}`);
+      }
+    }
+
+    // Nearest with identity, and k (planner/nearest.js): "which hospital is
+    // nearest to each county", "the mean distance to the 3 nearest". Fields
+    // set in code on the accepted plan; the distance it measures is the same
+    // one the checks accepted.
+    if (check.ok) {
+      try {
+        const before = JSON.stringify(plan.steps);
+        const nr = applyNearest(plan, query, {
+          nameOf: (id) => {
+            const c = candidates.find(x => x.attr_id === id);
+            return c?.dataset_clean || String(resolvedFinal?.get(id)?.description || c?.attr_desc || id)
+              .replace(/\s*\(mapped locations\)\s*$/i, "");
+          },
+          labelsOf: (id) => resolvedFinal?.get(id)?.label_columns ?? null,
+        });
+        if (nr?.fixes.length) {
+          const recheck = await validatePlan(plan, resolve);
+          if (recheck.ok) {
+            resolvedFinal = recheck.resolved;
+            for (const f of nr.fixes) {
+              log(`   Nearest: ${f}`);
+              emit({ stage: "plan_adjusted", detail: `Nearest: ${f}.` });
+              adjustments.push(`Nearest: ${f}.`);
+            }
+          } else {
+            plan.steps = JSON.parse(before);
+            log(`   Nearest reverted, it did not validate: ${recheck.errors.join("; ")}`);
+          }
+        }
+        for (const n of nr?.notes || []) {
+          log(`   Nearest note: ${n}`);
+          adjustments.push(`Nearest: ${n}.`);
+        }
+      } catch (err) {
+        log(`   Nearest skipped: ${err.message}`);
+      }
+    }
+
+    // Composite index (planner/composite.js): the model chose the measures;
+    // weights, directions, method and standardization are read from the
+    // question here, on the accepted plan, and echoed so the user can change
+    // them. A place filter after the composite moves before it, so scores
+    // rank the area's units against each other.
+    // Also when the question asks for one and the plan has none: a bottleneck
+    // composite planned as intersected top lists is rebuilt (intersectAsComposite).
+    if (check.ok && ((plan.steps || []).some(s => s.op === "composite") || asksComposite(query))) {
+      try {
+        const before = JSON.stringify(plan.steps);
+        const phrases = new Map();
+        const addPhrase = (id, p) => {
+          if (!id || !p) return;
+          if (!phrases.has(id)) phrases.set(id, []);
+          phrases.get(id).push(p);
+        };
+        for (const v of relevance?.verdicts || []) if (v.grounded) addPhrase(v.attr_id, v.question_phrase);
+        for (const n of named?.named || []) {
+          if (n.grounded && !n.exempt && n.covered_by) addPhrase(refs.get(n.covered_by), n.phrase);
+        }
+        const cr = applyComposite(plan, query, {
+          info: (id) => {
+            const c = candidates.find(x => x.attr_id === id) || {};
+            const src = resolvedFinal?.get(id) || {};
+            const name = featureTables.has(id)
+              ? (c.dataset_clean || String(src.description || id).replace(/\s*\(mapped locations\)\s*$/i, ""))
+              : String(c.attr_desc || src.description || id).slice(0, 90);
+            return { name, text: [c.attr_desc, c.dataset_clean, c.tags, src.description].filter(Boolean).join(" ") };
+          },
+          phrasesOf: (id) => phrases.get(id) || [],
+        });
+        if (cr?.fixes.length) {
+          const recheck = await validatePlan(plan, resolve);
+          if (recheck.ok) {
+            resolvedFinal = recheck.resolved;
+            for (const f of cr.fixes) {
+              log(`   Composite: ${f}`);
+              emit({ stage: "plan_adjusted", detail: `Composite: ${f}.` });
+              adjustments.push(`Composite: ${f}.`);
+            }
+            for (const n of cr.notes) {
+              log(`   Composite note: ${n}`);
+              adjustments.push(`Composite: ${n}.`);
+            }
+          } else {
+            plan.steps = JSON.parse(before);
+            log(`   Composite reverted, it did not validate: ${recheck.errors.join("; ")}`);
+          }
+        }
+      } catch (err) {
+        log(`   Composite skipped: ${err.message}`);
       }
     }
 
@@ -2015,6 +2166,7 @@ function shapeLayer(out, res, ms) {
     part: out.part === true,
     diverging: out.diverging,
     valueLabel: out.valueLabel,
+    composite: out.composite === true,
     // How many measures each row carries. A `join` that reaches the output
     // keeps both, so "population and poverty rate" is one layer with two
     // series rather than two separate analyses.

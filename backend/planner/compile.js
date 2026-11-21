@@ -28,6 +28,7 @@
 const { planLevel, LEVELS: LEVEL_SET, LEVEL_LABEL } = require("./levels");
 const ops = require("./ops");
 const { describeGroup } = require("./conditions");
+const { nearestValueLabel } = require("./nearest");
 const {
   CompileError, SAFE_DB_IDENT, cte, featureFrom,
   OPERATORS, AGGREGATES, MAX_FEATURES, MAX_RESULT_ROWS,
@@ -138,7 +139,9 @@ function compilePlan(plan, resolved) {
       // Same rule for a statistic's extra columns (correlate): only when the
       // output reads that step directly, or the column does not exist.
       if (mod.statColumns && st.id === rootId) statColumns = mod.statColumns;
-      if (mod.rowColumns && st.id === rootId) rowColumns = mod.rowColumns;
+      if (mod.rowColumns && st.id === rootId) {
+        rowColumns = typeof mod.rowColumns === "function" ? mod.rowColumns(st) : mod.rowColumns;
+      }
       if (mod.summaryColumns && st.id === rootId) summaryColumns = mod.summaryColumns;
     }
 
@@ -198,6 +201,19 @@ function compilePlan(plan, resolved) {
     return null;
   };
 
+  // A named nearest_distance (planner/nearest.js) reached through ops that
+  // only drop or reorder rows and leave the value alone: its nearest_name is
+  // joined back on at the output, or "which hospital is nearest to each
+  // Missouri county" would lose the name at filter_area. Any other op between
+  // them (normalize, combine, aggregate) makes a different value, and the name
+  // no longer describes it.
+  const ROW_SUBSET = new Set(["filter_area", "filter_place", "filter_attr", "rank"]);
+  const nearestOf = (id) => {
+    let st = byId.get(id);
+    while (st && ROW_SUBSET.has(st.op)) st = byId.get((st.inputs || [])[0]);
+    return st && st.op === "nearest_distance" && (st.identify === true || Number(st.k) > 1) ? st : null;
+  };
+
   // --- one statement per output ---------------------------------------------
   const outputSteps = steps.filter(s => ops.byName(s.op)?.terminal);
   if (!outputSteps.length) throw new CompileError("plan produced no output");
@@ -216,7 +232,7 @@ function compilePlan(plan, resolved) {
    * from the plan's shape, and a prompt change would cost a measurement to
    * justify. Inputs already carried by an explicit output are not duplicated.
    */
-  const SHOW_PARTS = new Set(["combine", "normalize"]);
+  const SHOW_PARTS = new Set(["combine", "normalize", "composite"]);
   const explicit = new Set(outputSteps.map(o => (o.inputs || [])[0]).filter(Boolean));
   const derived = [];
   for (const out of outputSteps) {
@@ -237,6 +253,13 @@ function compilePlan(plan, resolved) {
     const srcStep = byId.get(srcId);
     if (!srcStep) throw new CompileError(`output "${out.id}" names no known step`);
     const srcMod = ops.byName(srcStep.op);
+    // The composite this layer's value is, through row-subset ops only.
+    let comp = srcStep;
+    while (comp && ["filter_area", "filter_place", "filter_attr", "rank", "intersect"].includes(comp.op)) {
+      comp = byId.get((comp.inputs || [])[0]);
+    }
+    if (comp?.op !== "composite") comp = null;
+    const compMod = comp ? ops.byName("composite") : null;
 
     if (types.get(srcId) === "features" && srcStep.op !== "select_features") {
       // A features result built by other ops (within, rank, filter_attr on
@@ -290,8 +313,12 @@ function compilePlan(plan, resolved) {
     }
 
     const from = cte(srcId);
-    const { sql: prelude, params, hasSecond, statColumns, rowColumns, summaryColumns } =
+    const { sql: prelude, params, hasSecond, statColumns, rowColumns: ownRowColumns, summaryColumns } =
       preludeFor(srcId);
+    const near = nearestOf(srcId);
+    const nearJoin = !!near && near.id !== srcId;
+    const rowColumns = near && !ownRowColumns.includes("nearest_name")
+      ? [...ownRowColumns, "nearest_name"] : ownRowColumns;
 
     // Aggregates with group_by=none yield a single NULL-fips row, so join to
     // geometry with LEFT JOIN rather than dropping it.
@@ -305,7 +332,8 @@ function compilePlan(plan, resolved) {
       prelude +
       `SELECT r.fips, g.name, g.state_fp, r.value,\n` +
       (hasSecond ? `       r.value_b,\n` : "") +
-      [...statColumns, ...rowColumns, ...summaryColumns].map(c => `       r.${c},\n`).join("") +
+      [...statColumns, ...rowColumns, ...summaryColumns]
+        .map(c => `       ${nearJoin && c === "nearest_name" ? "nn" : "r"}.${c},\n`).join("") +
       `       CASE WHEN g.geom IS NULL THEN NULL ELSE ST_AsGeoJSON(g.geom) END AS geometry\n` +
       `FROM ${from} r\n` +
       // Another level draws from geo_unit, at its z12 display tier: full
@@ -315,6 +343,8 @@ function compilePlan(plan, resolved) {
         ? `LEFT JOIN county_geom g USING (fips)\n`
         : `LEFT JOIN (SELECT geoid AS fips, name, state_fp, COALESCE(geom_z12, geom) AS geom ` +
           `FROM geo_unit WHERE level = '${level}') g USING (fips)\n`) +
+      // After the geometry join: before it, USING (fips) would see two fips.
+      (nearJoin ? `LEFT JOIN ${cte(near.id)} nn ON nn.fips = r.fips\n` : "") +
       `ORDER BY r.value DESC NULLS LAST\n` +
       `LIMIT ${MAX_RESULT_ROWS}`;
 
@@ -343,8 +373,13 @@ function compilePlan(plan, resolved) {
       // numbers alone -- a series that happens to be all-positive is still a
       // diverging measure -- so it travels with the layer.
       op: srcStep.op,
-      diverging: srcMod?.diverging === true,
-      valueLabel: srcMod?.valueLabel ?? null,
+      // A composite score keeps its label (and its diverging ramp, over
+      // z-scores) through the filters and ranks after it: "the 10 most
+      // vulnerable" is still a composite score, not a rank's bare value.
+      diverging: comp ? compMod.diverging(comp) === true : srcMod?.diverging === true,
+      valueLabel: near ? nearestValueLabel(near)
+        : comp ? compMod.valueLabel(comp) : (srcMod?.valueLabel ?? null),
+      composite: comp ? true : undefined,
     };
   });
 

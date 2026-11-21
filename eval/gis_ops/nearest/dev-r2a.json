@@ -1,0 +1,224 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.25,
+  "by_tier": {
+    "nearest_dev": {
+      "pass": 1,
+      "n": 4,
+      "rate": 0.25
+    }
+  },
+  "classes": {
+    "WRONG_VALUE": 2,
+    "WRONG_SHAPE": 1,
+    "CORRECT": 1
+  },
+  "latency_mean": 29.4,
+  "api_container_created": "2026-11-21T05:26:03.871087376Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "n-mo-hospital-name",
+      "tier": "nearest_dev",
+      "query": "Which hospital is closest to the center of each Missouri county, and how many miles away is it?",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "rows": 115,
+        "gold_rows": 115,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "names_match": "0/115",
+        "name_sample": [
+          {
+            "fips": "29001",
+            "gold": "northeast regional medical center, kirksville, mo",
+            "got": null
+          },
+          {
+            "fips": "29003",
+            "gold": "northwest mo psychiatric rehab ctr, st. joseph, mo",
+            "got": null
+          }
+        ],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "count_features->filter_area->nearest_distance->join->output",
+      "intent": "The nearest hospital to the center of each Missouri county and the distance in miles to it",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 115,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which hospital is closest to the center of each Missouri county, and how many miles away is it?",
+            "uses": [],
+            "ops": "count_features->filter_area->nearest_distance->join->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 29.2
+    },
+    {
+      "id": "n-tx-hospitals-mean3",
+      "tier": "nearest_dev",
+      "query": "What is the average distance in miles from each Texas county to its 3 nearest hospitals?",
+      "class": "WRONG_SHAPE",
+      "pass": false,
+      "detail": {
+        "why": "no per-county rows",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "nearest_distance->filter_area->aggregate->output",
+      "intent": "Average distance in miles from each Texas county to its three nearest hospitals",
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What is the average distance in miles from each Texas county to its 3 nearest hospitals?",
+            "uses": [],
+            "ops": "nearest_distance->filter_area->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 16.9
+    },
+    {
+      "id": "n-ks-fire-second",
+      "tier": "nearest_dev",
+      "query": "How far, in miles, is the second-closest fire station from the center of each Kansas county?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 105,
+        "gold_rows": 105,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations"
+        }
+      },
+      "ops": "nearest_distance->filter_attr->nearest_distance->intersect->filter_area->output",
+      "intent": "Distance in miles from the center of each Kansas county to its second-closest fire station",
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations"
+      ],
+      "row_count": 105,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How far, in miles, is the second-closest fire station from the center of each Kansas county?",
+            "uses": [],
+            "ops": "nearest_distance->filter_attr->nearest_distance->intersect->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 42.5
+    },
+    {
+      "id": "n-de-tract-fire-name",
+      "tier": "nearest_dev",
+      "query": "For each census tract in Delaware, which fire station is nearest?",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "rows": 262,
+        "gold_rows": 262,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 0.092,
+        "mismatch_sample": [
+          {
+            "fips": "10001040100",
+            "gold": 4.7906,
+            "got": 0.0
+          },
+          {
+            "fips": "10001040201",
+            "gold": 0.1814,
+            "got": 1.0
+          },
+          {
+            "fips": "10001040203",
+            "gold": 3.2088,
+            "got": 0.0
+          }
+        ],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations"
+        }
+      },
+      "ops": "count_features->filter_area->nearest_distance->join->output",
+      "intent": "For each census tract in Delaware, identify the nearest fire station",
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations"
+      ],
+      "row_count": 262,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "For each census tract in Delaware, which fire station is nearest?",
+            "uses": [],
+            "ops": "count_features->filter_area->nearest_distance->join->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 29.0
+    }
+  ]
+}

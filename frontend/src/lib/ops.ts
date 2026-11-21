@@ -30,6 +30,7 @@ export const OP_LABEL: Record<PlanOp, string> = {
   output: 'Output',
   intersect: 'Keep matching counties',
   compare_groups: 'Compare two groups',
+  composite: 'Composite index',
 };
 
 /**
@@ -38,6 +39,14 @@ export const OP_LABEL: Record<PlanOp, string> = {
  * "2.3" means without being told.
  */
 export const OP_READING: Partial<Record<PlanOp, string>> = {
+  composite:
+    'One score per county from several measures. Each measure is standardized ' +
+    'across the counties scored (percentile rank unless the question asked for ' +
+    'z-scores or 0-1 rescaling), turned so that the end the question cares about ' +
+    'scores high, then combined: a weighted sum (a high value on one measure can ' +
+    'offset a low one), a geometric mean (a zero on any measure gives zero), or ' +
+    'the minimum (the weakest measure decides). The weights and directions used ' +
+    'are listed with the plan.',
   compare_groups:
     'The difference in medians between the two groups, with a Mann-Whitney test ' +
     'whose sample sizes are discounted for neighbouring counties resembling each ' +

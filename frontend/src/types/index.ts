@@ -159,7 +159,7 @@ export type PlanOp =
   | 'filter_attr' | 'filter_area' | 'filter_place' | 'per_area'
   | 'normalize' | 'aggregate' | 'rank' | 'join' | 'combine'
   | 'hotspot' | 'outlier' | 'correlate' | 'explain' | 'output'
-  | 'intersect' | 'compare_groups';
+  | 'intersect' | 'compare_groups' | 'composite';
 
 /**
  * One returned result. A plan with several `output` steps produces several.
@@ -231,6 +231,11 @@ export interface PlanStep {
   attribute_filters?: Array<{ column: string; value: string }>;
   /** combine: how the two inputs are put together. */
   operation?: 'ratio' | 'sum' | 'difference' | 'percent_change';
+  /** composite: set by the server from the question, one entry per input. */
+  weights?: number[];
+  directions?: Array<'high' | 'low'>;
+  method?: 'sum' | 'geometric' | 'minimum';
+  standardize?: 'percentile' | 'zscore' | 'minmax';
 }
 
 /**
@@ -300,6 +305,11 @@ export interface AnalysisRow {
   value_b?: number | null;
   /** compare_groups: which group the county is in, 'a' (input 1) or 'b'. */
   grp?: 'a' | 'b' | null;
+  /**
+   * nearest_distance with identify or k (backend planner/nearest.js): the
+   * nearest feature's name, or the k nearest, nearest first, "; "-separated.
+   */
+  nearest_name?: string | null;
 }
 
 /**

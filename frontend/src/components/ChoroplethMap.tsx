@@ -665,6 +665,13 @@ const ChoroplethBody: React.FC<BodyProps> = ({
           </span>
         </p>
       ))}
+      {hovered.nearest_name && (
+        <p className="mt-1 text-xs leading-tight">
+          <span className="text-slate-500">Nearest</span>
+          <br />
+          <span className="text-slate-700">{hovered.nearest_name}</span>
+        </p>
+      )}
     </div>
   );
 

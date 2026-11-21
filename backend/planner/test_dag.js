@@ -72,7 +72,10 @@ const statPlan = (op) => plan(
   await test("every registered op declares what the planner needs from it", () => {
     for (const mod of ops.MODULES) {
       assert.ok(mod.name, "an op has no name");
-      assert.ok(Number.isInteger(mod.inputs), `${mod.name}: inputs must be a number`);
+      // A fixed count, or a [min, max] range (composite: 2 to 6).
+      assert.ok(Number.isInteger(mod.inputs) ||
+        (Array.isArray(mod.inputs) && mod.inputs.length === 2 && mod.inputs.every(Number.isInteger) &&
+         mod.inputs[0] <= mod.inputs[1]), `${mod.name}: inputs must be a number or a [min, max] pair`);
       assert.ok(Array.isArray(mod.needs), `${mod.name}: needs must be an array`);
       assert.strictEqual(typeof mod.offered, "function", `${mod.name}: no offered()`);
       // Internal ops (aggregate_to) are inserted by code and never shown to

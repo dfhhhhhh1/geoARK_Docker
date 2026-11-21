@@ -118,9 +118,14 @@ def expand(sql: str, bind: dict[str, str], regions: dict[str, list[str]]) -> str
     def fkey(m):
         # A feature's identity: its first coordinate to 5 decimals, the same
         # key normalise() takes from the answer's GeoJSON (feature_key).
+        # ST_Points gives the vertices in order, so this is the first vertex
+        # of a line or polygon too (feature_key walks to the same one); for a
+        # point or multipoint it is the same key as before (2026-11-20, for
+        # the value_filters family's polygon questions).
         g = m.group(1)
-        return (f"(round(ST_X(ST_GeometryN({g}, 1))::numeric, 5) || ',' || "
-                f"round(ST_Y(ST_GeometryN({g}, 1))::numeric, 5))")
+        p = f"ST_GeometryN(ST_Points({g}), 1)"
+        return (f"(round(ST_X({p})::numeric, 5) || ',' || "
+                f"round(ST_Y({p})::numeric, 5))")
 
     sql = re.sub(r"\{table:(\w+)\}", table, sql)
     sql = re.sub(r"\{fkey:([\w.]+)\}", fkey, sql)
@@ -139,6 +144,9 @@ def gold_rows(sql: str) -> list[dict]:
         d = {"fips": r[0], "value": None if r[1] is None else float(r[1])}
         if len(r) > 2:
             d["grp"] = r[2]
+            # The same third column, read as the nearest feature's name by a
+            # `compare.names` question (GIS_OPS_PLAN.md H6 item 3).
+            d["label"] = r[2]
         rows.append(d)
     return rows
 
@@ -209,7 +217,9 @@ def normalise(body: dict) -> dict:
             layers.extend(by.values())
         else:
             layers.append({r["fips"]: r.get("value") for r in rows})
+            name_layers.append({r["fips"]: r.get("nearest_name") for r in rows})
 
+    name_layers = []
     feature_layers = []
     if body.get("layers"):
         for l in body["layers"]:
@@ -239,6 +249,8 @@ def normalise(body: dict) -> dict:
         "row_count": body.get("row_count") or 0,
         "layers": [l for l in layers if l],
         "feature_layers": [l for l in feature_layers if l],
+        # nearest_distance with identify / k: the first values layer's names.
+        "names": next((n for n in name_layers if n), {}),
         "scalar": scalar,
         "origins": origins,
     }
@@ -380,8 +392,23 @@ def compare(cmp: dict, gold: list[dict], ans: dict) -> tuple[str, dict]:
         bad = [f for f in both if not _close(layer[f], domain[f], cmp)][:3]
         base["mismatch_sample"] = [{"fips": f, "gold": round(domain[f], 4),
                                     "got": round(layer[f], 4)} for f in bad]
-        return ("CORRECT" if ok / len(both) >= cmp.get("min_within", 0.95)
-                else "WRONG_VALUE"), base
+        if ok / len(both) < cmp.get("min_within", 0.95):
+            return "WRONG_VALUE", base
+        if cmp.get("names"):
+            # H6 item 3: WHICH feature is nearest, not only how far. Gold's
+            # third column is the name ("NAME, CITY, ST", k of them joined by
+            # "; "), compared case- and space-insensitively.
+            norm = lambda s: " ".join(str(s or "").casefold().split())
+            want = {r["fips"]: norm(r.get("label")) for r in gold if r.get("label")}
+            got = ans.get("names") or {}
+            shared = [f for f in want if f in layer]
+            hit = [f for f in shared if norm(got.get(f)) == want[f]]
+            base["names_match"] = f"{len(hit)}/{len(shared)}"
+            if not shared or len(hit) / len(shared) < cmp.get("min_name_match", 0.95):
+                miss = [f for f in shared if f not in hit][:2]
+                base["name_sample"] = [{"fips": f, "gold": want[f], "got": got.get(f)} for f in miss]
+                return "WRONG_VALUE", base
+        return "CORRECT", base
 
     if kind == "top_k":
         desc = cmp.get("direction", "desc") == "desc"
@@ -531,7 +558,8 @@ def self_test(suite: dict) -> int:
         else:
             layers = [{r["fips"]: r["value"] for r in rows}]
         return {"planned": True, "error": None, "exec_error": None, "mode": "values",
-                "row_count": len(rows), "layers": layers, "scalar": None, "origins": origins}
+                "row_count": len(rows), "layers": layers, "scalar": None, "origins": origins,
+                "names": {r["fips"]: r.get("label") for r in rows}}
 
     def check(label, got, want):
         nonlocal fails, n

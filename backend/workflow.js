@@ -117,6 +117,17 @@ const CLAUSE_BREAK = /[;:]\s*|,?\s+(?:and\s+)?then\s+|\s+and\s+|,\s*(?=(?:of|amo
  */
 function needsWorkflow(question) {
   const q = String(question || "");
+  // A composite index (planner/composite.js) is ONE analysis however many
+  // sentences describe it: "Which Kentucky counties are most in need? Focus
+  // primarily on child poverty, while also considering ..." states the
+  // score's weights, not a second question. Split, the first step planned the
+  // composite and later steps replaced it, 3 of 4 composite_dev questions
+  // (eval/gis_ops/composite/dev-r1.json, 2026-11-21). A later sentence that
+  // refers back still makes a workflow.
+  if (SEVERAL_SENTENCES.test(q) && require("./planner/composite").asksComposite(q)) {
+    const later = q.slice(q.search(SEVERAL_SENTENCES) + 4);
+    return REFERS_BACK.test(later);
+  }
   if (SEVERAL_SENTENCES.test(q)) return true;
   const m = CLAUSE_BREAK.exec(q);
   return !!m && REFERS_BACK.test(q.slice(m.index + m[0].length));

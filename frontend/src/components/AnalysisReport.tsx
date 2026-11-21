@@ -115,6 +115,19 @@ const AnalysisReport: React.FC<Props> = ({ result }) => {
         return `${from}, matched on county`;
       case 'combine':
         return `${step.operation ?? 'combination'} of ${from}`;
+      case 'composite': {
+        const n = step.inputs.length;
+        const parts = step.inputs.map((i, k) => {
+          const w = Math.round((step.weights?.[k] ?? 1 / n) * 1000) / 10;
+          const d = step.directions?.[k] === 'low' ? ', lower scores higher' : '';
+          return `step ${stepNumber(i)} (${w}%${d})`;
+        });
+        const how = step.method === 'geometric' ? 'geometric mean'
+          : step.method === 'minimum' ? 'minimum' : 'weighted sum';
+        const std = step.standardize === 'zscore' ? 'z-scores'
+          : step.standardize === 'minmax' ? '0-1 rescaled values' : 'percentile ranks';
+        return `${how} of the ${std} of ${parts.join(', ')}`;
+      }
       case 'hotspot':
         return `spatial clustering of ${from}, as a Gi* z-score per county`;
       case 'outlier':

@@ -73,6 +73,40 @@ function attributeFilterSql(step, alias, bind) {
 }
 
 /**
+ * SQL predicates for a step's value_filters (planner/feature_filters.js):
+ * `alias.col op $n` on a numeric, year or date column of the layer.
+ *
+ * The column must be one the layer's discovery reported (`src.value_columns`,
+ * from information_schema), checked again here because a follow-up plan comes
+ * back from the browser. A column's "not available" sentinel (-999 on HSIP
+ * layers) is excluded, or "fewer than 50 beds" counts every unknown.
+ */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function valueFilterSql(step, alias, bind, src) {
+  const filters = step.value_filters || [];
+  if (!filters.length) return [];
+  const cols = new Map((src?.value_columns || []).map(c => [c.column, c]));
+  const out = [];
+  for (const f of filters) {
+    const c = cols.get(f?.column);
+    if (!c || !SAFE_DB_IDENT.test(c.column)) throw new CompileError(`unsupported value filter column ${f?.column}`);
+    const op = OPERATORS[f.operator];
+    if (!op || op === "=" || op === "<>") throw new CompileError(`unsupported value filter operator ${f.operator}`);
+    if (c.kind === "date") {
+      if (!ISO_DATE.test(String(f.value))) throw new CompileError(`value filter on ${c.column} needs a date`);
+      out.push(`${alias}.${c.column} ${op} ${bind(String(f.value))}::date`);
+      continue;
+    }
+    const v = Number(f.value);
+    if (!Number.isFinite(v)) throw new CompileError(`value filter on ${c.column} needs a number`);
+    const sentinel = Number.isFinite(Number(c.sentinel)) && c.sentinel !== null ? Number(c.sentinel) : null;
+    out.push(`${alias}.${c.column} ${op} ${bind(v)}` +
+             (sentinel !== null ? ` AND ${alias}.${c.column} <> ${bind(sentinel)}` : ""));
+  }
+  return out;
+}
+
+/**
  * The FEATURES contract (GIS_OPS_PLAN.md H1), the counterpart of (fips, value).
  *
  * A features step that something other than an output reads is a CTE with
@@ -161,5 +195,5 @@ module.exports = {
   OPERATORS, AGGREGATES, FILTERABLE_COLUMNS, PLACE_KINDS,
   PLACE_OVERLAP_MIN, MAX_FEATURES, MAX_RESULT_ROWS,
   FEATURE_LABELS, FEATURE_COLUMNS,
-  cte, attributeFilterSql, featureColumns, expandBox,
+  cte, attributeFilterSql, valueFilterSql, featureColumns, expandBox,
 };

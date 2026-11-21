@@ -1,5 +1,5 @@
 const {
-  SAFE_DB_IDENT, CompileError, attributeFilterSql, MAX_FEATURES, FEATURE_LABELS, featureFrom,
+  SAFE_DB_IDENT, CompileError, attributeFilterSql, valueFilterSql, MAX_FEATURES, FEATURE_LABELS, featureFrom,
   cityPredicate,
 } = require("./_sql");
 const { toFipsPrefixes } = require("../../states");
@@ -123,6 +123,7 @@ PLAN: {"intent":"Locations of fire stations in Springfield, Missouri",
       // By the place's boundary when there is one (_sql.cityPredicate).
       if (step.city) where.push(cityPredicate(step, g, available.has("city"), ctx.bind));
       where.push(...attributeFilterSql(step, "f", ctx.bind));
+      where.push(...valueFilterSql(step, "f", ctx.bind, src));
       return where;
     };
     const parts = step.geometry_only === true ? partsOf(src) : null;
@@ -183,6 +184,7 @@ PLAN: {"intent":"Locations of fire stations in Springfield, Missouri",
     if (step.city) where.push(cityPredicate(step, `f.${geom}`, available.has("city"), ctx.bind));
 
     where.push(...attributeFilterSql(step, "f", ctx.bind));
+    where.push(...valueFilterSql(step, "f", ctx.bind, src));
 
     const limit = Number.isInteger(step.limit) && step.limit > 0
       ? Math.min(step.limit, MAX_FEATURES) : MAX_FEATURES;

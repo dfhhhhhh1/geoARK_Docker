@@ -1,0 +1,159 @@
+{
+  "suite": "vf_suite.yaml",
+  "queries": 4,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "value_filters_dev": {
+      "pass": 0,
+      "n": 4,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 3,
+    "WRONG_MEASURE": 1
+  },
+  "latency_mean": 24.1,
+  "api_container_created": "2026-11-21T03:42:28.959890634Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "vf-mo-hospitals-beds-gt100",
+      "tier": "value_filters_dev",
+      "query": "Which hospitals in Missouri have more than 100 beds?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"more than 100 beds\""
+      },
+      "ops": "",
+      "intent": "Which hospitals in Missouri have more than 100 beds?",
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"more than 100 beds\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which hospitals in Missouri have more than 100 beds?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"more than 100 beds\""
+      },
+      "seconds": 21.7
+    },
+    {
+      "id": "vf-az-hospitals-beds-lt50",
+      "tier": "value_filters_dev",
+      "query": "How many hospitals in Arizona have fewer than 50 beds?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "hifld_hospitals"
+        ],
+        "loaded": [
+          "AHRF_FACILITIES_HOSP_LICD_BEDS | Licensed hospital beds, all hospitals | AHRF health facilities and utilization"
+        ]
+      },
+      "ops": "load->filter_attr->filter_area->aggregate->output",
+      "intent": "Number of hospitals in Arizona with fewer than 50 beds",
+      "loaded": [
+        "AHRF_FACILITIES_HOSP_LICD_BEDS | Licensed hospital beds, all hospitals | AHRF health facilities and utilization"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many hospitals in Arizona have fewer than 50 beds?",
+            "uses": [],
+            "ops": "load->filter_attr->filter_area->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 17.5
+    },
+    {
+      "id": "vf-ok-tornadoes-mag3-since2005",
+      "tier": "value_filters_dev",
+      "query": "How many tornadoes of magnitude 3 or greater have crossed Oklahoma since 2005?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": "How many tornadoes of magnitude 3 or greater have crossed Oklahoma since 2005?",
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many tornadoes of magnitude 3 or greater have crossed Oklahoma since 2005?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 11.7
+    },
+    {
+      "id": "vf-fires-2020-acres",
+      "tier": "value_filters_dev",
+      "query": "Show the wildfire perimeters from 2020 that burned more than 100,000 acres.",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"burned more than 100,000 acres\""
+      },
+      "ops": "",
+      "intent": "Show the wildfire perimeters from 2020 that burned more than 100,000 acres.",
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"burned more than 100,000 acres\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Show the wildfire perimeters from 2020 that burned more than 100,000 acres.",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"burned more than 100,000 acres\""
+      },
+      "seconds": 45.5
+    }
+  ]
+}

@@ -28,7 +28,7 @@ const LEVELS = new Set(Object.keys(LEVEL_LABEL));
 // count_near, output).
 const LEVEL_OPS = new Set([
   "load", "filter_area", "filter_place", "filter_attr", "rank", "normalize",
-  "per_area", "join", "intersect", "combine", "output",
+  "per_area", "join", "intersect", "combine", "composite", "output",
   // Distance ops measure from each unit's own geometry (2026-11-11).
   "nearest_distance", "count_near",
   // Counting features per unit, from the unit's geometry (H2, 2026-11-11):

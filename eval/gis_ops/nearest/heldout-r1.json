@@ -1,0 +1,103 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "nearest_heldout": {
+      "pass": 1,
+      "n": 2,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "CORRECT": 1,
+    "NO_ANSWER": 1
+  },
+  "latency_mean": 15.8,
+  "api_container_created": "2026-11-21T06:15:30.40528849Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "n-mt-nursing-name",
+      "tier": "nearest_heldout",
+      "query": "Name the nearest nursing home to each county in Montana, with its distance in miles.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 56,
+        "gold_rows": 56,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "names_match": "56/56",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "f2628a3f051b4e8aa02a6217207b8b86_nursinghomes"
+        }
+      },
+      "ops": "nearest_distance->filter_area->output",
+      "intent": "Name the nearest nursing home to each county in Montana, with its distance in miles",
+      "loaded": [
+        "f2628a3f051b4e8aa02a6217207b8b86_nursinghomes | Nursing Homes (mapped locations) | Nursing Homes"
+      ],
+      "row_count": 56,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Name the nearest nursing home to each county in Montana, with its distance in miles.",
+            "uses": [],
+            "ops": "nearest_distance->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 19.6
+    },
+    {
+      "id": "n-ia-police-mean4",
+      "tier": "nearest_heldout",
+      "query": "For every Iowa county, what is the mean distance in miles to the four closest law enforcement agencies?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": "For every Iowa county, what is the mean distance in miles to the four closest law enforcement agencies?",
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "For every Iowa county, what is the mean distance in miles to the four closest law enforcement agencies?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 12.0
+    }
+  ]
+}

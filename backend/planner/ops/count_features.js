@@ -1,4 +1,4 @@
-const { CompileError, attributeFilterSql, featureFrom } = require("./_sql");
+const { CompileError, attributeFilterSql, valueFilterSql, featureFrom } = require("./_sql");
 
 /**
  * Facility datasets are point/polygon features with no fips key. This op is the
@@ -66,7 +66,7 @@ PLAN: {"intent":"Number of critical access hospitals in each county",
     // they would delete every county with no MATCHING feature, so "critical
     // access hospitals per county" would silently drop every county that has
     // only general hospitals, rather than showing it as 0.
-    const filters = attributeFilterSql(step, "f", ctx.bind);
+    const filters = [...attributeFilterSql(step, "f", ctx.bind), ...valueFilterSql(step, "f", ctx.bind, src)];
     if (ctx.level && ctx.level !== "county") {
       // Another unit (planner/levels.js): a tract, a ZIP area, or a zone set a
       // user loaded (H2: "schools in each Chicago community area"). The same

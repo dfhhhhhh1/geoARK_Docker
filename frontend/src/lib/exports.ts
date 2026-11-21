@@ -141,11 +141,14 @@ export function toCsv(result: AnalysisResponse, rows: AnalysisRow[]): string {
   // `value_b` cannot be read a month later without the plan beside it.
   const series = deriveSeries(result, rows);
   const twoSeries = series.length > 1;
-  const header = twoSeries
+  // nearest_distance with identify / k: which feature, beside how far.
+  const nearest = rows.some(r => r.nearest_name);
+  const header = (twoSeries
     ? `fips,name,state_fp,${series.map(s => csvEscape(s.label)).join(',')}`
-    : 'fips,name,state_fp,value';
+    : 'fips,name,state_fp,value') + (nearest ? ',nearest_name' : '');
   const body = rows.map(r =>
-    [r.fips, r.name, r.state_fp, ...series.map(s => r[s.key] ?? null)]
+    [r.fips, r.name, r.state_fp, ...series.map(s => r[s.key] ?? null),
+     ...(nearest ? [r.nearest_name ?? null] : [])]
       .map(csvEscape).join(','));
   return [...csvProvenanceHeader(result), header, ...body].join('\n');
 }
@@ -239,6 +242,7 @@ export function toGeoJson(
             ? { value_b: row.value_b ?? null, [series[0].label]: row.value,
                 [series[1].label]: row.value_b ?? null }
             : {}),
+          ...(row.nearest_name ? { nearest_name: row.nearest_name } : {}),
         },
       };
     });

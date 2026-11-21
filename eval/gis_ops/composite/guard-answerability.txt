@@ -1,0 +1,36 @@
+  MISS r-rainfall    refuse -> answered  20.6s  load->output                             proxy:Average annual precipitation, 1991-2020 
+  ok   r-snowfall    refuse -> refused   19.1s                                           Winter Weather - Expected Annual Loss - Total
+  ok   r-dogs        refuse -> refused   11.1s                                           Total population (resident population estimate, Ju
+  ok   r-milk        refuse -> refused   12.1s                                           Direct farm sales per capita (Local Foods, USDA ER
+  ok   r-mars        refuse -> refused    5.6s                                           
+  ok   r-sharks      refuse -> refused    7.8s                                           
+  ok   r-bitcoin     refuse -> refused    4.3s                                           
+  ok   r-football    refuse -> refused    4.5s                                           
+  ok   r-sourdough   refuse -> refused    4.8s                                           
+  ok   r-latin       refuse -> refused    5.1s                                           
+  ok   a-income      answer -> answered   9.7s  load->output                             direct:Median household income in dollars
+  ok   a-poorest     answer -> answered  11.9s  load->rank->output                       direct:Median household income in dollars
+  ok   a-wealthiest  answer -> answered  16.7s  load->rank->output                       proxy:Median household income, 2016 (dollars)
+  ok   a-hosp-pc     answer -> answered  14.7s  load->load->normalize->rank->output      direct:Total number of hospitals | denominator:Estimate|Total|Total population
+  ok   a-uninsured   answer -> answered  13.7s  load->rank->output                       direct:Percent of persons without health insura
+  ok   a-doctor      answer -> answered  22.0s  load->output                             proxy:Number of critical access hospitals
+  ok   a-texas       answer -> answered  12.9s  load->filter_area->rank->output          direct:Unemployment rate (percent)
+  ok   a-compare     answer -> answered  12.2s  load->load->join->output                 direct:Obesity among adults (age-adjusted preva | direct:Percent of people of all ages in 
+  ok   a-diabetes    answer -> answered  19.9s  load->outlier->output                    direct:Diagnosed diabetes among adults (crude p
+  ok   a-fire        answer -> answered  13.9s  select_features->output                  direct:Fire Stations (mapped locations)
+  ok   a-detroit     answer -> answered  11.7s  load->filter_place->output               direct:Percent of people of all ages in poverty
+  ok   a-florida     answer -> answered  17.5s  load->filter_area->output                direct:Estimate!!HEALTH INSURANCE COVERAGE!!Civ
+  ok   a-corr-ob     answer -> answered  14.4s  load->load->correlate->output            direct:Obesity among adults (age-adjusted preva | direct:Diagnosed diabetes among adults (
+  ok   a-corr-inc    answer -> answered  13.4s  load->load->correlate->output            direct:Median household income in dollars | direct:Current asthma among adults (crude prev
+  ok   a-renters     answer -> answered  19.7s  load->output                             proxy:Housing insecurity in the past 12 months
+  ok   a-seniors     answer -> answered  13.2s  load->output                             direct:Percent of population 65 or older (USDA 
+  ok   a-expl-asthma answer -> answered  12.5s  load->explain->output                    direct:Current asthma among adults (age-adjuste
+  ok   a-expl-obesity answer -> answered  12.2s  load->explain->output                    direct:Obesity among adults (age-adjusted preva
+  ok   a-expl-heart  answer -> answered  15.9s  load->explain->output                    unchecked:Community Risk Factor - Value
+  ok   a-expl-unemp  answer -> answered  14.2s  load->explain->output                    direct:Unemployment rate (percent)
+
+  catch rate          90%  (10 must-refuse; not answered)
+  honest refusals     90%  (refused with a reason, not a crash)
+  false refusals      0%  (20 answerable)
+
+  saved -> eval\gis_ops\composite\guard-answerability.json

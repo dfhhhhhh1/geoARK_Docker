@@ -1,0 +1,132 @@
+{
+  "suite": "vf_suite.yaml",
+  "queries": 3,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "value_filters_heldout": {
+      "pass": 0,
+      "n": 3,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "WRONG_VALUE": 1,
+    "NO_ANSWER": 1,
+    "EMPTY": 1
+  },
+  "latency_mean": 17.2,
+  "api_container_created": "2026-11-21T03:59:41.221653122Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "vf-ca-power-plants-500mw",
+      "tier": "value_filters_heldout",
+      "query": "Which power plants in California have a capacity of at least 500 MW?",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "features": 42,
+        "gold_features": 42,
+        "jaccard": 0.909,
+        "extra": 2,
+        "missed": 2,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "eia_power_plants"
+        }
+      },
+      "ops": "select_features->output",
+      "intent": "Power plants in California with a capacity of at least 500 MW",
+      "loaded": [
+        "eia_power_plants | Power Plants (mapped locations) | Power Plants"
+      ],
+      "row_count": 42,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which power plants in California have a capacity of at least 500 MW?",
+            "uses": [],
+            "ops": "select_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.5
+    },
+    {
+      "id": "vf-ks-transmission-345kv",
+      "tier": "value_filters_heldout",
+      "query": "How many transmission lines in Kansas carry 345 kV or more?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"345 kV or more\""
+      },
+      "ops": "",
+      "intent": "How many transmission lines in Kansas carry 345 kV or more?",
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"345 kV or more\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many transmission lines in Kansas carry 345 kV or more?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"345 kV or more\""
+      },
+      "seconds": 13.0
+    },
+    {
+      "id": "vf-il-campuses-enroll-20k",
+      "tier": "value_filters_heldout",
+      "query": "Which college and university campuses in Illinois enroll more than 20,000 students?",
+      "class": "EMPTY",
+      "pass": false,
+      "detail": {},
+      "ops": "select_features->output",
+      "intent": "College and university campuses in Illinois that enroll more than 20,000 students",
+      "loaded": [
+        "supplemental_colleges | Supplemental Colleges (mapped locations) | Supplemental Colleges"
+      ],
+      "row_count": 0,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which college and university campuses in Illinois enroll more than 20,000 students?",
+            "uses": [],
+            "ops": "select_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.1
+    }
+  ]
+}

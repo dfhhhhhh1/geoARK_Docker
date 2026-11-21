@@ -56,6 +56,24 @@ measures:
   # hospitals, and none of those sit in a Missouri tract over 40%, so a gold
   # bound to them is empty (--check-gold).
   hifld_hospitals: '^table_[0-9a-f]+_hospitals\b'
+  # H6 tier 1 item 2 (numeric / date filters on a layer's own columns), added
+  # 2026-11-20 before any planner run against them.
+  tornadoes: '_histtornadotracks\b'
+  power_plants: '^eia_power_plants\b'
+  # H6 tier 1 item 4 (composite index), added 2026-11-21 before any planner
+  # run against them.
+  unemployment_rate: '^(UNEMPLOYMENT_RATE|DP03_0009PE|SVI_EP_UNEMP)\b'
+  uninsured_adults: '^(PLACES_ACCESS2_(CrdPrv|AgeAdjPrv)|DP03_0099PE|CHR_V085_RAWVALUE|SVI_EP_UNINSUR)\b'
+  med_income: '^(MEDHHINC|MEDIAN_HOUSEHOLD_INCOME|CHR_V063_RAWVALUE|DP03_0062E)\b'
+  child_poverty: '^(PCTPOV017|DP03_0129PE)\b'
+  # Widened after dev r1 (2026-11-21): the plan loaded County Health Rankings'
+  # adult obesity / diabetes prevalence / physical inactivity, the same
+  # measures from another publisher, and the PLACES-only list scored that
+  # WRONG_MEASURE. A defect in the acceptable set, not in the plan.
+  obesity: '^(PLACES_OBESITY_(CrdPrv|AgeAdjPrv)|CHR_V011_RAWVALUE)\b'
+  diabetes: '^(PLACES_DIABETES_(CrdPrv|AgeAdjPrv)|CHR_V060_RAWVALUE)\b'
+  inactivity: '^(PLACES_LPA_(CrdPrv|AgeAdjPrv)|CHR_V070_RAWVALUE)\b'
+
 
 queries:
   # ============================================================ proximity_dev
@@ -860,3 +878,494 @@ queries:
         sql: |
           SELECT {fkey:h.geom}, 1 FROM {table:m1} h JOIN county_geom c ON ST_Covers(c.geom, h.geom)
           WHERE c.state_fp = '42'
+
+  # ===================================================== value_filters_dev
+  # H6 tier 1 item 2 (docs/GIS_OPS_PLAN.md): a layer narrowed by one of its
+  # own numeric or date columns. Gold compares the source column directly.
+  # HSIP writes "not available" as -999; a gold for "fewer than" leaves those
+  # out (unknown is not small), and the wrong answer that counts them is
+  # listed, because that is the failure this family exists to catch.
+  - id: vf-mo-hospitals-beds-gt100
+    tier: value_filters_dev
+    query: "Which hospitals in Missouri have more than 100 beds?"
+    measures: {m1: hifld_hospitals}
+    gold: |
+      SELECT {fkey:h.geom}, 1 FROM {table:m1} h
+      WHERE h.beds > 100
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '29' AND ST_Intersects(c.geom, h.geom))
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # every Missouri hospital: the filter never applied
+        sql: |
+          SELECT {fkey:h.geom}, 1 FROM {table:m1} h
+          WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '29' AND ST_Intersects(c.geom, h.geom))
+
+  # Arizona, not the first draft's Texas nursing homes: there the -999 rows
+  # moved the count 1,346 -> 1,351, inside the tolerance, so the question
+  # could not see the defect it was written for (found before any run).
+  # Arizona hospitals: 40, or 83 with the "not available" rows counted.
+  - id: vf-az-hospitals-beds-lt50
+    tier: value_filters_dev
+    query: "How many hospitals in Arizona have fewer than 50 beds?"
+    note: "HSIP beds; -999 (not available) is not fewer than 50"
+    measures: {m1: hifld_hospitals}
+    gold: |
+      SELECT NULL, count(*) FROM {table:m1} h
+      WHERE h.beds < 50 AND h.beds >= 0
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '04' AND ST_Intersects(c.geom, h.geom))
+    compare: {kind: scalar, rel_tol: 0.02, abs_tol: 0.5}
+    wrong:
+      - expect: WRONG_VALUE          # the -999 "not available" rows counted as small
+        sql: |
+          SELECT NULL, count(*) FROM {table:m1} h
+          WHERE h.beds < 50
+            AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '04' AND ST_Intersects(c.geom, h.geom))
+
+  - id: vf-ok-tornadoes-mag3-since2005
+    tier: value_filters_dev
+    query: "How many tornadoes of magnitude 3 or greater have crossed Oklahoma since 2005?"
+    note: "two filters on one layer, a number and a year"
+    measures: {m1: tornadoes}
+    gold: |
+      SELECT NULL, count(*) FROM {table:m1} t
+      WHERE t.mag >= 3 AND t.yr >= 2005
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '40' AND ST_Intersects(c.geom, t.geom))
+    compare: {kind: scalar, rel_tol: 0.02, abs_tol: 0.5}
+    wrong:
+      - expect: WRONG_VALUE          # the year never applied
+        sql: |
+          SELECT NULL, count(*) FROM {table:m1} t WHERE t.mag >= 3
+            AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '40' AND ST_Intersects(c.geom, t.geom))
+      - expect: WRONG_VALUE          # the magnitude never applied
+        sql: |
+          SELECT NULL, count(*) FROM {table:m1} t WHERE t.yr >= 2005
+            AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '40' AND ST_Intersects(c.geom, t.geom))
+
+  - id: vf-fires-2020-acres
+    tier: value_filters_dev
+    query: "Show the wildfire perimeters from 2020 that burned more than 100,000 acres."
+    note: "a timestamp column (polygondatetime) and the layer's own GIS acres"
+    measures: {m1: fire_perimeters}
+    gold: |
+      SELECT {fkey:f.geom}, 1 FROM {table:m1} f
+      WHERE f.gisacres > 100000
+        AND f.polygondatetime >= '2020-01-01' AND f.polygondatetime < '2021-01-01'
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # every year
+        sql: "SELECT {fkey:f.geom}, 1 FROM {table:m1} f WHERE f.gisacres > 100000"
+
+  # ================================================= value_filters_heldout
+  - id: vf-ca-power-plants-500mw
+    tier: value_filters_heldout
+    query: "Which power plants in California have a capacity of at least 500 MW?"
+    measures: {m1: power_plants}
+    gold: |
+      SELECT {fkey:p.geom}, 1 FROM {table:m1} p
+      WHERE p.capacity_mw >= 500
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '06' AND ST_Intersects(c.geom, p.geom))
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # every California plant
+        sql: |
+          SELECT {fkey:p.geom}, 1 FROM {table:m1} p
+          WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '06' AND ST_Intersects(c.geom, p.geom))
+
+  - id: vf-ks-transmission-345kv
+    tier: value_filters_heldout
+    query: "How many transmission lines in Kansas carry 345 kV or more?"
+    measures: {m1: transmission}
+    gold: |
+      SELECT NULL, count(*) FROM {table:m1} t
+      WHERE t.voltage >= 345
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '20' AND ST_Intersects(c.geom, t.geom))
+    compare: {kind: scalar, rel_tol: 0.02, abs_tol: 0.5}
+    wrong:
+      - expect: WRONG_VALUE          # every Kansas line
+        sql: |
+          SELECT NULL, count(*) FROM {table:m1} t
+          WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '20' AND ST_Intersects(c.geom, t.geom))
+
+  - id: vf-il-campuses-enroll-20k
+    tier: value_filters_heldout
+    query: "Which college and university campuses in Illinois enroll more than 20,000 students?"
+    measures: {m1: campuses}
+    gold: |
+      SELECT {fkey:u.geom}, 1 FROM {table:m1} u
+      WHERE u.tot_enroll > 20000
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '17' AND ST_Intersects(c.geom, u.geom))
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # every Illinois campus
+        sql: |
+          SELECT {fkey:u.geom}, 1 FROM {table:m1} u
+          WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '17' AND ST_Intersects(c.geom, u.geom))
+
+  # ===================================================== nearest_dev
+  # H6 tier 1 item 3 (docs/GIS_OPS_PLAN.md): WHICH feature is nearest, and k.
+  # Written 2026-11-20 before any planner run. Gold is brute force: every
+  # unit point x every feature of the layer, nationally, ranked by geodesic
+  # distance (no index, no box). A county is measured from ST_Centroid, a
+  # tract from geo_unit.pt, as the op measures them. Names are the layer's
+  # "name, city, state", k of them nearest first joined by "; ", ties broken by
+  # name; `compare.names` checks them, so a distance with no name, or the
+  # wrong feature at the right distance, is not CORRECT.
+  - id: n-mo-hospital-name
+    tier: nearest_dev
+    query: "Which hospital is closest to the center of each Missouri county, and how many miles away is it?"
+    measures: {m1: hifld_hospitals}
+    gold: |
+      WITH u AS (SELECT fips, ST_Centroid(geom) AS pt FROM county_geom WHERE state_fp = '29'),
+      d AS (SELECT u.fips, ST_Distance(u.pt::geography, h.geom::geography) AS d,
+                   concat_ws(', ', NULLIF(h.name::text,''), NULLIF(h.city::text,''), NULLIF(h.state::text,'')) AS lbl
+            FROM u CROSS JOIN {table:m1} h),
+      r AS (SELECT *, row_number() OVER (PARTITION BY fips ORDER BY d, lbl) AS rn FROM d)
+      SELECT fips, d / 1609.344, lbl FROM r WHERE rn = 1
+    compare: {kind: values, rel_tol: 0.03, abs_tol: 0.5, names: true}
+    wrong:
+      - expect: WRONG_VALUE          # the distance, but no name
+        sql: |
+          SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                          FROM {table:m1} h) / 1609.344
+          FROM county_geom g WHERE g.state_fp = '29'
+      - expect: WRONG_VALUE          # kilometres
+        sql: |
+          WITH u AS (SELECT fips, ST_Centroid(geom) AS pt FROM county_geom WHERE state_fp = '29'),
+          d AS (SELECT u.fips, ST_Distance(u.pt::geography, h.geom::geography) AS d,
+                       concat_ws(', ', NULLIF(h.name::text,''), NULLIF(h.city::text,''), NULLIF(h.state::text,'')) AS lbl
+                FROM u CROSS JOIN {table:m1} h),
+          r AS (SELECT *, row_number() OVER (PARTITION BY fips ORDER BY d, lbl) AS rn FROM d)
+          SELECT fips, d / 1000, lbl FROM r WHERE rn = 1
+      - expect: WRONG_VALUE          # the second-nearest named, at the nearest's distance
+        sql: |
+          WITH u AS (SELECT fips, ST_Centroid(geom) AS pt FROM county_geom WHERE state_fp = '29'),
+          d AS (SELECT u.fips, ST_Distance(u.pt::geography, h.geom::geography) AS d,
+                       concat_ws(', ', NULLIF(h.name::text,''), NULLIF(h.city::text,''), NULLIF(h.state::text,'')) AS lbl
+                FROM u CROSS JOIN {table:m1} h),
+          r AS (SELECT *, row_number() OVER (PARTITION BY fips ORDER BY d, lbl) AS rn FROM d)
+          SELECT a.fips, a.d / 1609.344, b.lbl FROM r a JOIN r b ON b.fips = a.fips AND b.rn = 2 WHERE a.rn = 1
+
+  - id: n-tx-hospitals-mean3
+    tier: nearest_dev
+    query: "What is the average distance in miles from each Texas county to its 3 nearest hospitals?"
+    note: "mean of the three nearest, per county; the three names travel"
+    measures: {m1: hifld_hospitals}
+    gold: |
+      WITH u AS (SELECT fips, ST_Centroid(geom) AS pt FROM county_geom WHERE state_fp = '48'),
+      d AS (SELECT u.fips, ST_Distance(u.pt::geography, h.geom::geography) AS d FROM u CROSS JOIN {table:m1} h),
+      r AS (SELECT *, row_number() OVER (PARTITION BY fips ORDER BY d) AS rn FROM d)
+      SELECT fips, avg(d) / 1609.344 FROM r WHERE rn <= 3 GROUP BY fips
+    compare: {kind: values, rel_tol: 0.03, abs_tol: 0.5}
+    wrong:
+      - expect: WRONG_VALUE          # the single nearest
+        sql: |
+          SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                          FROM {table:m1} h) / 1609.344
+          FROM county_geom g WHERE g.state_fp = '48'
+      - expect: WRONG_VALUE          # the third-nearest, not the mean
+        sql: |
+          WITH u AS (SELECT fips, ST_Centroid(geom) AS pt FROM county_geom WHERE state_fp = '48'),
+          d AS (SELECT u.fips, ST_Distance(u.pt::geography, h.geom::geography) AS d FROM u CROSS JOIN {table:m1} h),
+          r AS (SELECT *, row_number() OVER (PARTITION BY fips ORDER BY d) AS rn FROM d)
+          SELECT fips, d / 1609.344 FROM r WHERE rn = 3
+
+  - id: n-ks-fire-second
+    tier: nearest_dev
+    query: "How far, in miles, is the second-closest fire station from the center of each Kansas county?"
+    measures: {m1: fire_stations}
+    gold: |
+      WITH u AS (SELECT fips, ST_Centroid(geom) AS pt FROM county_geom WHERE state_fp = '20'),
+      d AS (SELECT u.fips, ST_Distance(u.pt::geography, h.geom::geography) AS d FROM u CROSS JOIN {table:m1} h),
+      r AS (SELECT *, row_number() OVER (PARTITION BY fips ORDER BY d) AS rn FROM d)
+      SELECT fips, d / 1609.344 FROM r WHERE rn = 2
+    compare: {kind: values, rel_tol: 0.03, abs_tol: 0.3}
+    wrong:
+      - expect: WRONG_VALUE          # the closest
+        sql: |
+          SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                          FROM {table:m1} h) / 1609.344
+          FROM county_geom g WHERE g.state_fp = '20'
+      - expect: WRONG_VALUE          # the mean of the two closest
+        sql: |
+          WITH u AS (SELECT fips, ST_Centroid(geom) AS pt FROM county_geom WHERE state_fp = '20'),
+          d AS (SELECT u.fips, ST_Distance(u.pt::geography, h.geom::geography) AS d FROM u CROSS JOIN {table:m1} h),
+          r AS (SELECT *, row_number() OVER (PARTITION BY fips ORDER BY d) AS rn FROM d)
+          SELECT fips, avg(d) / 1609.344 FROM r WHERE rn <= 2 GROUP BY fips
+
+  - id: n-de-tract-fire-name
+    tier: nearest_dev
+    query: "For each census tract in Delaware, which fire station is nearest?"
+    note: "tract unit; the name is the answer, the distance rides along"
+    measures: {m1: fire_stations}
+    gold: |
+      WITH u AS (SELECT geoid AS fips, pt FROM geo_unit WHERE level = 'tract' AND state_fp = '10'),
+      d AS (SELECT u.fips, ST_Distance(u.pt::geography, h.geom::geography) AS d,
+                   concat_ws(', ', NULLIF(h.name::text,''), NULLIF(h.city::text,''), NULLIF(h.state::text,'')) AS lbl
+            FROM u CROSS JOIN {table:m1} h),
+      r AS (SELECT *, row_number() OVER (PARTITION BY fips ORDER BY d, lbl) AS rn FROM d)
+      SELECT fips, d / 1609.344, lbl FROM r WHERE rn = 1
+    compare: {kind: values, rel_tol: 0.03, abs_tol: 0.3, names: true}
+    wrong:
+      - expect: WRONG_GEOGRAPHY      # counties, not tracts
+        sql: |
+          SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                          FROM {table:m1} h) / 1609.344
+          FROM county_geom g WHERE g.state_fp = '10'
+      - expect: WRONG_VALUE          # the distance, but no name
+        sql: |
+          SELECT u.geoid, (SELECT min(ST_Distance(u.pt::geography, h.geom::geography)) FROM {table:m1} h) / 1609.344
+          FROM geo_unit u WHERE u.level = 'tract' AND u.state_fp = '10'
+
+  # ===================================================== nearest_heldout
+  - id: n-mt-nursing-name
+    tier: nearest_heldout
+    query: "Name the nearest nursing home to each county in Montana, with its distance in miles."
+    measures: {m1: nursing_homes}
+    gold: |
+      WITH u AS (SELECT fips, ST_Centroid(geom) AS pt FROM county_geom WHERE state_fp = '30'),
+      d AS (SELECT u.fips, ST_Distance(u.pt::geography, h.geom::geography) AS d,
+                   concat_ws(', ', NULLIF(h.name::text,''), NULLIF(h.city::text,''), NULLIF(h.state::text,'')) AS lbl
+            FROM u CROSS JOIN {table:m1} h),
+      r AS (SELECT *, row_number() OVER (PARTITION BY fips ORDER BY d, lbl) AS rn FROM d)
+      SELECT fips, d / 1609.344, lbl FROM r WHERE rn = 1
+    compare: {kind: values, rel_tol: 0.03, abs_tol: 0.5, names: true}
+    wrong:
+      - expect: WRONG_VALUE          # the distance, but no name
+        sql: |
+          SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                          FROM {table:m1} h) / 1609.344
+          FROM county_geom g WHERE g.state_fp = '30'
+
+  - id: n-ia-police-mean4
+    tier: nearest_heldout
+    query: "For every Iowa county, what is the mean distance in miles to the four closest law enforcement agencies?"
+    measures: {m1: law_enforcement}
+    gold: |
+      WITH u AS (SELECT fips, ST_Centroid(geom) AS pt FROM county_geom WHERE state_fp = '19'),
+      d AS (SELECT u.fips, ST_Distance(u.pt::geography, h.geom::geography) AS d FROM u CROSS JOIN {table:m1} h),
+      r AS (SELECT *, row_number() OVER (PARTITION BY fips ORDER BY d) AS rn FROM d)
+      SELECT fips, avg(d) / 1609.344 FROM r WHERE rn <= 4 GROUP BY fips
+    compare: {kind: values, rel_tol: 0.03, abs_tol: 0.3}
+    wrong:
+      - expect: WRONG_VALUE          # the single closest
+        sql: |
+          SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                          FROM {table:m1} h) / 1609.344
+          FROM county_geom g WHERE g.state_fp = '19'
+
+  # ======================================================== composite_dev
+  # H6 tier 1, item 4: one score from several measures. Gold recomputes every
+  # percentile rank independently of the op: (count of units with a strictly
+  # smaller value) / (n - 1), over the units of the STATE that have every
+  # input (the study area; planner/composite.js scores within the area the
+  # question names). A "low" input counts strictly LARGER values instead.
+  # Distances are brute force over the whole hospital layer from the county
+  # centroid, as nearest_distance measures.
+  - id: c-mo-vuln-equal
+    tier: composite_dev
+    query: "Rank Missouri counties by a vulnerability index built from the poverty rate, the unemployment rate and the share of adults without health insurance. Which ten score highest?"
+    note: "equal weights, percentile ranks within Missouri, all three higher = more vulnerable"
+    measures: {m1: poverty_rate, m2: unemployment_rate, m3: uninsured_adults}
+    gold: |
+      WITH b AS (
+        SELECT p.fips, p.value AS v1, u.value AS v2, i.value AS v3
+        FROM {latest:m1} p JOIN {latest:m2} u USING (fips) JOIN {latest:m3} i USING (fips)
+        WHERE left(p.fips, 2) = '29' AND p.value IS NOT NULL AND u.value IS NOT NULL AND i.value IS NOT NULL),
+      n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+      SELECT b.fips,
+        ((SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+       + (SELECT count(*) FROM b x WHERE x.v2 < b.v2) / n.d
+       + (SELECT count(*) FROM b x WHERE x.v3 < b.v3) / n.d) / 3
+      FROM b, n
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.8, value_rel_tol: 0.03}
+    wrong:
+      - expect: WRONG_VALUE          # national percentile ranks, then Missouri shown
+        sql: |
+          WITH b AS (
+            SELECT p.fips, p.value AS v1, u.value AS v2, i.value AS v3
+            FROM {latest:m1} p JOIN {latest:m2} u USING (fips) JOIN {latest:m3} i USING (fips)
+            WHERE p.value IS NOT NULL AND u.value IS NOT NULL AND i.value IS NOT NULL),
+          n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+          SELECT b.fips,
+            ((SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+           + (SELECT count(*) FROM b x WHERE x.v2 < b.v2) / n.d
+           + (SELECT count(*) FROM b x WHERE x.v3 < b.v3) / n.d) / 3
+          FROM b, n WHERE left(b.fips, 2) = '29'
+      - expect: WRONG_VALUE          # ranked by poverty alone
+        sql: |
+          SELECT fips, value FROM {latest:m1} WHERE left(fips, 2) = '29'
+
+  - id: c-tx-stated-weights
+    tier: composite_dev
+    query: "Score every Texas county on poverty rate, median household income and distance to the nearest hospital, weighting poverty at 50%, income at 25% and hospital distance at 25%. Lower income should score higher."
+    note: "stated weights; income inverted; farther from a hospital scores higher"
+    measures: {m1: poverty_rate, m2: med_income, m3: hospitals}
+    gold: |
+      WITH d AS (
+        SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                        FROM {table:m3} h) / 1609.344 AS v3
+        FROM county_geom g WHERE g.state_fp = '48'),
+      b AS (
+        SELECT p.fips, p.value AS v1, m.value AS v2, d.v3
+        FROM {latest:m1} p JOIN {latest:m2} m USING (fips) JOIN d USING (fips)
+        WHERE p.value IS NOT NULL AND m.value IS NOT NULL AND d.v3 IS NOT NULL),
+      n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+      SELECT b.fips,
+        0.50 * (SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+      + 0.25 * (SELECT count(*) FROM b x WHERE x.v2 > b.v2) / n.d
+      + 0.25 * (SELECT count(*) FROM b x WHERE x.v3 < b.v3) / n.d
+      FROM b, n
+    compare: {kind: values, rel_tol: 0, abs_tol: 0.02, min_within: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # equal weights: the stated ones ignored
+        sql: |
+          WITH d AS (
+            SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                            FROM {table:m3} h) / 1609.344 AS v3
+            FROM county_geom g WHERE g.state_fp = '48'),
+          b AS (SELECT p.fips, p.value AS v1, m.value AS v2, d.v3
+                FROM {latest:m1} p JOIN {latest:m2} m USING (fips) JOIN d USING (fips)
+                WHERE p.value IS NOT NULL AND m.value IS NOT NULL AND d.v3 IS NOT NULL),
+          n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+          SELECT b.fips, ((SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+                        + (SELECT count(*) FROM b x WHERE x.v2 > b.v2) / n.d
+                        + (SELECT count(*) FROM b x WHERE x.v3 < b.v3) / n.d) / 3
+          FROM b, n
+      - expect: WRONG_VALUE          # income not inverted: richer scores higher
+        sql: |
+          WITH d AS (
+            SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                            FROM {table:m3} h) / 1609.344 AS v3
+            FROM county_geom g WHERE g.state_fp = '48'),
+          b AS (SELECT p.fips, p.value AS v1, m.value AS v2, d.v3
+                FROM {latest:m1} p JOIN {latest:m2} m USING (fips) JOIN d USING (fips)
+                WHERE p.value IS NOT NULL AND m.value IS NOT NULL AND d.v3 IS NOT NULL),
+          n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+          SELECT b.fips, 0.50 * (SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+                       + 0.25 * (SELECT count(*) FROM b x WHERE x.v2 < b.v2) / n.d
+                       + 0.25 * (SELECT count(*) FROM b x WHERE x.v3 < b.v3) / n.d
+          FROM b, n
+
+  - id: c-ga-bottleneck
+    tier: composite_dev
+    query: "Which Georgia counties score high on all three of obesity, diabetes and physical inactivity? Give each county the lowest of its three percentile ranks, so one good measure cannot make up for a bad one."
+    note: "non-compensatory: the minimum of three percentile ranks"
+    measures: {m1: obesity, m2: diabetes, m3: inactivity}
+    gold: |
+      WITH b AS (
+        SELECT o.fips, o.value AS v1, d.value AS v2, l.value AS v3
+        FROM {latest:m1} o JOIN {latest:m2} d USING (fips) JOIN {latest:m3} l USING (fips)
+        WHERE left(o.fips, 2) = '13' AND o.value IS NOT NULL AND d.value IS NOT NULL AND l.value IS NOT NULL),
+      n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+      SELECT b.fips, LEAST((SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d,
+                           (SELECT count(*) FROM b x WHERE x.v2 < b.v2) / n.d,
+                           (SELECT count(*) FROM b x WHERE x.v3 < b.v3) / n.d)
+      FROM b, n
+    compare: {kind: values, rel_tol: 0, abs_tol: 0.02, min_within: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # compensatory: the mean of the three
+        sql: |
+          WITH b AS (
+            SELECT o.fips, o.value AS v1, d.value AS v2, l.value AS v3
+            FROM {latest:m1} o JOIN {latest:m2} d USING (fips) JOIN {latest:m3} l USING (fips)
+            WHERE left(o.fips, 2) = '13' AND o.value IS NOT NULL AND d.value IS NOT NULL AND l.value IS NOT NULL),
+          n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+          SELECT b.fips, ((SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+                        + (SELECT count(*) FROM b x WHERE x.v2 < b.v2) / n.d
+                        + (SELECT count(*) FROM b x WHERE x.v3 < b.v3) / n.d) / 3
+          FROM b, n
+
+  - id: c-ky-emphasis
+    tier: composite_dev
+    query: "Which Kentucky counties are most in need? Focus primarily on child poverty, while also considering the unemployment rate and median household income, where lower income means more need."
+    note: "emphasis read as 2:1:1 (child poverty 50%, the other two 25% each); income inverted"
+    measures: {m1: child_poverty, m2: unemployment_rate, m3: med_income}
+    gold: |
+      WITH b AS (
+        SELECT c.fips, c.value AS v1, u.value AS v2, m.value AS v3
+        FROM {latest:m1} c JOIN {latest:m2} u USING (fips) JOIN {latest:m3} m USING (fips)
+        WHERE left(c.fips, 2) = '21' AND c.value IS NOT NULL AND u.value IS NOT NULL AND m.value IS NOT NULL),
+      n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+      SELECT b.fips,
+        0.50 * (SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+      + 0.25 * (SELECT count(*) FROM b x WHERE x.v2 < b.v2) / n.d
+      + 0.25 * (SELECT count(*) FROM b x WHERE x.v3 > b.v3) / n.d
+      FROM b, n
+    # Was `values` over all 120 counties: "which counties are most in need" is
+    # answered with a top list, and dev r2 planned composite -> rank(10) and
+    # scored INCOMPLETE on coverage. top_k with values keeps the emphasis
+    # check only with a tight value tolerance: at 3% equal weights scored
+    # CORRECT on the top 10 (self-test); at 0.5% they do not, and the op equals
+    # this gold to 1e-16 (eval/gis_ops/composite/README.md). Changed 2026-11-21.
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.8, value_rel_tol: 0.005}
+    wrong:
+      - expect: WRONG_VALUE          # equal weights: the emphasis ignored
+        sql: |
+          WITH b AS (
+            SELECT c.fips, c.value AS v1, u.value AS v2, m.value AS v3
+            FROM {latest:m1} c JOIN {latest:m2} u USING (fips) JOIN {latest:m3} m USING (fips)
+            WHERE left(c.fips, 2) = '21' AND c.value IS NOT NULL AND u.value IS NOT NULL AND m.value IS NOT NULL),
+          n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+          SELECT b.fips, ((SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+                        + (SELECT count(*) FROM b x WHERE x.v2 < b.v2) / n.d
+                        + (SELECT count(*) FROM b x WHERE x.v3 > b.v3) / n.d) / 3
+          FROM b, n
+
+  # ===================================================== composite_heldout
+  - id: c-co-ratio
+    tier: composite_heldout
+    query: "Build a composite score for Colorado counties from the unemployment rate and median household income, counting unemployment twice as heavily as income; low income should raise the score."
+    measures: {m1: unemployment_rate, m2: med_income}
+    gold: |
+      WITH b AS (
+        SELECT u.fips, u.value AS v1, m.value AS v2
+        FROM {latest:m1} u JOIN {latest:m2} m USING (fips)
+        WHERE left(u.fips, 2) = '08' AND u.value IS NOT NULL AND m.value IS NOT NULL),
+      n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+      SELECT b.fips, (2.0 * (SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+                    + 1.0 * (SELECT count(*) FROM b x WHERE x.v2 > b.v2) / n.d) / 3
+      FROM b, n
+    compare: {kind: values, rel_tol: 0, abs_tol: 0.02, min_within: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # equal weights
+        sql: |
+          WITH b AS (
+            SELECT u.fips, u.value AS v1, m.value AS v2
+            FROM {latest:m1} u JOIN {latest:m2} m USING (fips)
+            WHERE left(u.fips, 2) = '08' AND u.value IS NOT NULL AND m.value IS NOT NULL),
+          n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+          SELECT b.fips, ((SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+                        + (SELECT count(*) FROM b x WHERE x.v2 > b.v2) / n.d) / 2
+          FROM b, n
+
+  - id: c-tn-geometric
+    tier: composite_heldout
+    query: "For Tennessee counties, combine the poverty rate, diabetes prevalence and the unemployment rate as a geometric mean of percentile ranks, so a county at the bottom on any one of them scores zero. Map the score for every county."
+    # Was "List the top 10" with a top_k compare: --self-test showed the
+    # arithmetic mean scores CORRECT on that top 10 (counties high on all three
+    # read alike either way), so the gold could not tell the two methods apart.
+    # Changed before any API run.
+    measures: {m1: poverty_rate, m2: diabetes, m3: unemployment_rate}
+    gold: |
+      WITH b AS (
+        SELECT p.fips, p.value AS v1, d.value AS v2, u.value AS v3
+        FROM {latest:m1} p JOIN {latest:m2} d USING (fips) JOIN {latest:m3} u USING (fips)
+        WHERE left(p.fips, 2) = '47' AND p.value IS NOT NULL AND d.value IS NOT NULL AND u.value IS NOT NULL),
+      n AS (SELECT (count(*) - 1)::float8 AS d FROM b),
+      r AS (SELECT b.fips, (SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d AS r1,
+                           (SELECT count(*) FROM b x WHERE x.v2 < b.v2) / n.d AS r2,
+                           (SELECT count(*) FROM b x WHERE x.v3 < b.v3) / n.d AS r3 FROM b, n)
+      SELECT fips, power(r1 * r2 * r3, 1.0 / 3) FROM r
+    compare: {kind: values, rel_tol: 0, abs_tol: 0.02, min_within: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # the arithmetic mean
+        sql: |
+          WITH b AS (
+            SELECT p.fips, p.value AS v1, d.value AS v2, u.value AS v3
+            FROM {latest:m1} p JOIN {latest:m2} d USING (fips) JOIN {latest:m3} u USING (fips)
+            WHERE left(p.fips, 2) = '47' AND p.value IS NOT NULL AND d.value IS NOT NULL AND u.value IS NOT NULL),
+          n AS (SELECT (count(*) - 1)::float8 AS d FROM b)
+          SELECT b.fips, ((SELECT count(*) FROM b x WHERE x.v1 < b.v1) / n.d
+                        + (SELECT count(*) FROM b x WHERE x.v2 < b.v2) / n.d
+                        + (SELECT count(*) FROM b x WHERE x.v3 < b.v3) / n.d) / 3
+          FROM b, n

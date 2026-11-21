@@ -82,6 +82,10 @@ const MODULES = [
   require("./rank"),
   require("./join"),
   require("./combine"),
+  // One score from several measures (H6 tier 1, item 4). Gated on a list of
+  // criteria or a stated weighting (planner/composite.js); weights, direction
+  // and method are code's, never the model's.
+  require("./composite"),
   // Spatial and distributional statistics. Both are pure SQL against
   // county_neighbors and window aggregates -- see the modules for why that is
   // not a shortcut around PySAL but the right implementation at this scale.
@@ -132,14 +136,14 @@ const BY_NAME = new Map(MODULES.map(m => [m.name, m]));
 const SCHEMA_ORDER = [
   "load", "count_features", "count_near", "nearest_distance", "select_features",
   "within", "overlay", "summarize", "enrich", "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
-  "aggregate", "rank", "join", "combine", "hotspot", "outlier", "correlate", "explain",
+  "aggregate", "rank", "join", "combine", "composite", "hotspot", "outlier", "correlate", "explain",
   "intersect", "compare_groups", "neighbors", "residual", "access", "zonal", "output",
 ];
 
 const PROMPT_ORDER = [
   "load", "count_features", "nearest_distance", "select_features", "within", "overlay", "summarize",
   "enrich", "count_near", "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
-  "aggregate", "rank", "join", "combine", "hotspot", "outlier", "correlate", "explain",
+  "aggregate", "rank", "join", "combine", "composite", "hotspot", "outlier", "correlate", "explain",
   "intersect", "compare_groups", "neighbors", "residual", "access", "zonal", "output",
 ];
 
@@ -147,7 +151,7 @@ const PROMPT_ORDER = [
 // question that asks whether they are related is the stronger signal, and the
 // model reads this table top to bottom.
 const CHOICE_ORDER = [
-  "normalize", "rank", "explain", "correlate", "compare_groups", "intersect", "join", "combine", "hotspot", "outlier",
+  "normalize", "composite", "rank", "explain", "correlate", "compare_groups", "intersect", "join", "combine", "hotspot", "outlier",
   "neighbors", "residual", "access", "zonal",
   // within before count_near: "WHICH X are within N miles of Y" is the more
   // specific reading, and the table is read top to bottom.
@@ -164,7 +168,7 @@ const CHOICE_ORDER = [
  * its position here, in the order its module lists them.
  */
 const EXAMPLE_ORDER = [
-  "normalize", "rank", "explain", "correlate", "compare_groups", "intersect", "join", "combine", "hotspot", "outlier",
+  "normalize", "composite", "rank", "explain", "correlate", "compare_groups", "intersect", "join", "combine", "hotspot", "outlier",
   "neighbors", "residual", "access", "zonal",
   "count_features", "aggregate", "filter_attr", "load", "filter_area",
   "filter_place", "count_near", "select_features", "within", "overlay", "enrich", "summarize", "nearest_distance",

@@ -1,0 +1,38 @@
+answer-correctness probe  18 queries
+
+  CORRECT          r-poverty-top-mo             load->filter_area->rank->output  (12s)
+  CORRECT          r-hospitals-per-capita-tx    count_features->load->normalize->filter_area->rank->output  (17s)
+  CORRECT          r-density-midwest            load->filter_area->per_area->output  (21s)
+  CORRECT          r-income-diabetes            load->load->correlate->output  (24s)
+  CORRECT          r-poverty-stl-metro          load->filter_place->output  (14s)
+  CORRECT          r-poverty-detroit            load->filter_place->output  (12s)
+  CORRECT          r-unemp-change-2019-2020     load->load->combine->rank->output  (15s)
+  CORRECT          r-fire-stations-co           count_features->filter_area->output  (13s)
+  CORRECT          r-hospital-distance-mo       nearest_distance->filter_area->output  (15s)
+  WRONG_MEASURE    r-uninsured-big-counties     load->load->filter_attr->intersect->rank->output  (18s)
+      {"missing": ["uninsured_rate"], "loaded": ["SVI_EP_UNINSUR | Percent of persons without health insurance | CDC Social Vulnerability Index", "CHR_V051_RAWVALUE | Population | County Health Rankings"]}
+  CORRECT          r-rural-poor-no-hospital     load->filter_attr->load->filter_attr->intersect->count_features->filter_attr->intersect->output  (28s)
+  CORRECT          r-unemp-decade               load->load->combine->rank->output  (24s)
+  CORRECT          r-south-vs-northeast         load->filter_area->filter_area->compare_groups->output  (17s)
+  CORRECT          r-access-gap                 load->filter_attr->nearest_distance->filter_attr->intersect->output  (27s)
+  NO_ANSWER        r-obesity-top50-income         (17s)
+      {"error": "could not produce a valid plan"}
+  FALSE_ANSWER     r-refuse-rainfall            load->output  (13s)
+      {}
+  CORRECT_REFUSAL  r-refuse-ckd                   (8s)
+  FALSE_ANSWER     r-refuse-schools             load->rank->output  (37s)
+      {}
+
+==============================================================
+  answer correctness  77.8%  n=18
+    now        9/10
+    phase_c    4/4
+    phase_d    0/1
+    refuse     1/3
+    CORRECT          13
+    FALSE_ANSWER     2
+    WRONG_MEASURE    1
+    NO_ANSWER        1
+    CORRECT_REFUSAL  1
+  mean latency 18.4s
+  saved -> eval\gis_ops\nearest\guard-research.json
