@@ -1,6 +1,6 @@
 # Analyst GIS operations: plan
 
-Status (2026-11-12): **H0-H3 built, H4 built for rasters over units** (section 8); the rest of H4 and H5 are a plan. Follows
+Status (2026-11-20): **H0-H3 built, H4 built for rasters over units, H5 partly built** (network distance; section 8); the rest of H4 and H5 are a plan. **H6** (primitive gaps, tiered) is planned in section 5. Follows
 RESEARCH_PLAN.md (A-F built, G planned) and DATA_LOADING_PLAN.md (phases 1-7).
 
 Goal: answer the class of question a working GIS analyst asks, buffers,
@@ -201,6 +201,79 @@ so. VRP / balanced clustering last, as a compute op.
 
 *Done when:* family **network** correct 3/3 against pgRouting-independent gold
 (for a few hand-checked pairs) and drive times within 15% of a reference.
+
+(Partly built: drive / walk distance and time through `within` +
+`network_population`, `planner/network.js`, RUNBOOK "Road networks".
+`route`, an isochrone POLYGON and VRP are not.)
+
+### H6. Closing the primitive gaps (planned 2026-11-20)
+
+An audit of the op registry against a standard 24-primitive spatial algebra
+(predicates, construction, overlay, joins, network, raster) plus the
+relational operators. Counted against it: **10 covered, 9 partial, 5 missing**.
+The relational side (filter, sort/limit, tabular join, CRS) is complete.
+
+| # | primitive | today | gap |
+|---|---|---|---|
+| 1 | intersects | `overlay`, `filter_place` | -- |
+| 2 | contains / within | `overlay` (intersects) | no strict containment |
+| 3 | touches / adjacent | `county_neighbors` | county only; no `tract_neighbors`, none for features |
+| 4 | crosses | -- | line x line ("roads crossing rivers") |
+| 5 | distance within | `within`, `count_near`, network form | -- |
+| 6 | buffer | selection by distance | the buffer is never a geometry (mappable, measurable, dissolved) |
+| 7 | centroid | internal | not needed as an op |
+| 8 | convex / concave hull | -- | low value alone; the isochrone polygon needs it |
+| 9 | Voronoi | -- | needed for allocation (below) |
+| 10 | simplify / densify | `geo_unit` display tiers | infrastructure, not a question |
+| 11 | intersection / clip | `overlay` + measured `summarize` | -- |
+| 12 | union | internal (overlay input 2) | -- |
+| 13 | difference / erase | `exclude` (whole features) | geometric A minus B area |
+| 14 | dissolve | `aggregate` by state, `aggregate_to`, zone sets | geometry dissolve by attribute |
+| 15 | spatial join | features -> units (`summarize`, catchments) | **units -> features**: a feature cannot carry the value of the unit it lies in |
+| 16 | k-NN | `nearest_distance` (k=1, distance only) | which feature is nearest; k > 1 |
+| 17 | spatial aggregation | `summarize`, `zonal`, `aggregate`, `geoark_apportion` | -- |
+| 18 | shortest path | -- | `route` (H5) |
+| 19 | isochrone | reach is answered | not drawn as a polygon |
+| 20 | OD matrix | nearest-source cost | network nearest cost per unit |
+| 21 | zonal | over units | over features (H4 remainder) |
+| 22 | map algebra | pixel threshold inside `zonal`; `combine` at units | `raster_calc` (H4 remainder) |
+| 23 | interpolation / KDE | `per_area` density per unit | no surface |
+| 24 | terrain | slope at load | aspect, hillshade, viewshed |
+
+Operations the 24 leave out that natural-language questions need more than
+several of the 24: global Moran's I and LISA classes, a composite
+(standardized, weighted) index over N series, local geocoding of a named
+point, allocation and location-allocation, clustering / regionalization, a
+multi-year trend slope, date-range feature filters, raster value at points,
+and classification as an analysis step.
+
+**The constraint is unchanged**: every op the model sees costs planner
+accuracy, so each item below is a field variant or a code-attached behaviour
+on an existing op wherever it can be, phrasing-gated, snapshot byte-identical,
+and each gets its own `eval/gis_ops.yaml` family with brute-force gold and a
+held-out split. "All 24 primitives" is not the goal; the measured
+bottlenecks are still measure choice, catalog text and coverage.
+
+**Tier 1** (cheap, existing pieces):
+
+1. **Feature enrichment** (units -> features spatial join): each feature takes
+   the value of a series at the unit it lies in, so `filter_attr` / `rank`
+   over features can answer "hospitals in tracts with poverty over 30%",
+   "the schools in the lowest-income ZIP codes".
+2. Numeric and date filters on feature attributes (open since H1).
+3. `nearest_distance` names the nearest feature, and takes `k`.
+4. Composite index: z-score or min-max N series, weighted sum.
+5. `zonal` over features (H4 remainder).
+6. Global Moran's I as a scalar answer, LISA classes as a diverging series.
+
+**Tier 2**: network nearest cost per unit; `route`; isochrone and dissolved
+buffer as geometry; allocation (Voronoi or network nearest) x WorldPop;
+`raster_calc` + threshold -> features; KDE over the grid levels; local
+geocoding against layer name / address columns.
+
+**Tier 3** (possible, not now): hulls, centroid / simplify as ops, crosses,
+feature adjacency, aspect / hillshade, viewshed, IDW / kriging (no point
+measurements loaded), location-allocation optimisation, VRP, GWR.
 
 ## 6. Measuring "in general"
 

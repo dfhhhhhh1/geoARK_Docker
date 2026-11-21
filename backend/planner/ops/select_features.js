@@ -3,10 +3,10 @@ const {
   cityPredicate,
 } = require("./_sql");
 const { toFipsPrefixes } = require("../../states");
-const { featureAlgebra, overlayAlgebra, measureAlgebra } = require("../features");
+const { featureAlgebra, overlayAlgebra, measureAlgebra, enrichAlgebra } = require("../features");
 
 // Every feature-algebra reading: distance (H1), overlay and amounts (H3).
-const composable = (ctx) => featureAlgebra(ctx) || overlayAlgebra(ctx) || measureAlgebra(ctx);
+const composable = (ctx) => featureAlgebra(ctx) || overlayAlgebra(ctx) || measureAlgebra(ctx) || enrichAlgebra(ctx);
 
 /**
  * NOT a bridge: returns the features themselves.

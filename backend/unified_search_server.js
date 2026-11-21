@@ -35,7 +35,7 @@ const LOCATION_COLUMN = new RegExp("^(?:" + [
   "latitude\\s*\\d*", "longitude\\s*\\d*", "countyfips", "fips(?:\\s*code)?",
 ].join("|") + ")$", "i");
 const { levelOf, rollupOf, asksDistance, registerZoneSets, isZoneLevel, zoneSet } = require("./planner/levels");
-const { referencePhrase } = require("./planner/features");
+const { referencePhrase, asksEnrichment } = require("./planner/features");
 const cart = require("./cart");
 const curator = require("./curator");
 const { boundsQueries } = require("./planner/uncertainty");
@@ -2619,9 +2619,11 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       const levelCodes = new Set(atLevel.map(r => r.code));
       // At a zone set (H2) counting features IS the question ("how many
       // schools in each Chicago ward"), and the set holds one measure
-      // (WorldPop), so feature layers always stay.
+      // (WorldPop), so feature layers always stay. So do they for features
+      // located in units that meet a condition (H6, ops/enrich.js): "hospitals
+      // in census tracts where poverty is above 30%" is about the hospitals.
       const keepFeatures = levelOf(query) === namedLevel &&
-        (asksDistance(query) || isZoneLevel(namedLevel));
+        (asksDistance(query) || isZoneLevel(namedLevel) || asksEnrichment(query));
       // Only measures with values at that unit stay on the list, topped up
       // from everything retrieval found. A county-only measure can only fail
       // there: "uninsured rate for every census tract" chose CHR Uninsured,

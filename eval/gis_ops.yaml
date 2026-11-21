@@ -45,6 +45,17 @@ measures:
   nlcd: '^NLCD_LANDCOVER\b'
   dem: '^DEM_ELEVATION\b'
   slope: '^TERRAIN_SLOPE\b'
+  # H6 tier 1 (enrichment, units -> features), added 2026-11-20 before any
+  # planner run against them. County poverty as research.yaml accepts it;
+  # the tract ones exist only below the county (geo_measure).
+  poverty_rate: '^(DP03_0128PE|PCTPOVALL)\b'
+  pov150: '^SVI_EP_POV150\b'
+  uninsured_tract: '^SVI_EP_UNINSUR\b'
+  noveh: '^SVI_EP_NOVEH\b'
+  # The HIFLD layer only: `hospitals` also accepts CMS long-term-care
+  # hospitals, and none of those sit in a Missouri tract over 40%, so a gold
+  # bound to them is empty (--check-gold).
+  hifld_hospitals: '^table_[0-9a-f]+_hospitals\b'
 
 queries:
   # ============================================================ proximity_dev
@@ -728,3 +739,124 @@ queries:
     wrong:
       - expect: WRONG_VALUE          # population count, not a share
         sql: "SELECT geoid, value FROM eval_network_gold WHERE qid = 'stl-ward-pop-hospital-drive-le5-count'"
+
+  # ===================================================== enrichment_dev
+  # H6 tier 1 (docs/GIS_OPS_PLAN.md): features located in units that meet a
+  # condition, each unit found by point-in-polygon (ST_Covers), brute force.
+  # A feature on a shared boundary may sit in two units; at these counts that
+  # moves nothing past the tolerances.
+  - id: e-oh-hospitals-county-poverty
+    tier: enrichment_dev
+    query: "Which hospitals in Ohio are in counties where the poverty rate is above 15 percent?"
+    note: "the hospitals themselves, in the Ohio counties whose poverty rate passes"
+    measures: {m1: hifld_hospitals, m2: poverty_rate}
+    gold: |
+      SELECT {fkey:h.geom}, 1 FROM {table:m1} h
+      JOIN county_geom c ON ST_Covers(c.geom, h.geom)
+      JOIN {latest:m2} v ON v.fips = c.fips
+      WHERE c.state_fp = '39' AND v.value > 15
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # every Ohio hospital: the condition never applied
+        sql: |
+          SELECT {fkey:h.geom}, 1 FROM {table:m1} h JOIN county_geom c ON ST_Covers(c.geom, h.geom)
+          WHERE c.state_fp = '39'
+      - expect: WRONG_VALUE          # the other side of the threshold
+        sql: |
+          SELECT {fkey:h.geom}, 1 FROM {table:m1} h
+          JOIN county_geom c ON ST_Covers(c.geom, h.geom) JOIN {latest:m2} v ON v.fips = c.fips
+          WHERE c.state_fp = '39' AND v.value <= 15
+
+  - id: e-mo-hospitals-tract-pov150
+    tier: enrichment_dev
+    query: "Which hospitals in Missouri are in census tracts where more than 40 percent of people live below 150 percent of the poverty line?"
+    note: "tract values (SVI); a county poverty rate is the wrong unit"
+    measures: {m1: hifld_hospitals, m2: pov150}
+    gold: |
+      SELECT {fkey:h.geom}, 1 FROM {table:m1} h
+      JOIN geo_unit u ON u.level = 'tract' AND ST_Covers(u.geom, h.geom)
+      JOIN {geo:tract:m2} v ON v.fips = u.geoid
+      WHERE u.state_fp = '29' AND v.value > 40
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # every Missouri hospital
+        sql: |
+          SELECT {fkey:h.geom}, 1 FROM {table:m1} h JOIN county_geom c ON ST_Covers(c.geom, h.geom)
+          WHERE c.state_fp = '29'
+      - expect: WRONG_VALUE          # the tracts at or under 40
+        sql: |
+          SELECT {fkey:h.geom}, 1 FROM {table:m1} h
+          JOIN geo_unit u ON u.level = 'tract' AND ST_Covers(u.geom, h.geom)
+          JOIN {geo:tract:m2} v ON v.fips = u.geoid
+          WHERE u.state_fp = '29' AND v.value <= 40
+
+  - id: e-ga-nursing-tract-uninsured-count
+    tier: enrichment_dev
+    query: "How many nursing homes in Georgia are in census tracts where more than 20 percent of residents have no health insurance?"
+    note: "one count of features, by tract"
+    measures: {m1: nursing_homes, m2: uninsured_tract}
+    gold: |
+      SELECT NULL, count(DISTINCT h.geom) FROM {table:m1} h
+      JOIN geo_unit u ON u.level = 'tract' AND ST_Covers(u.geom, h.geom)
+      JOIN {geo:tract:m2} v ON v.fips = u.geoid
+      WHERE u.state_fp = '13' AND v.value > 20
+    compare: {kind: scalar, rel_tol: 0.02, abs_tol: 0.5}
+    wrong:
+      - expect: WRONG_VALUE          # every Georgia nursing home
+        sql: |
+          SELECT NULL, count(DISTINCT h.geom) FROM {table:m1} h
+          JOIN county_geom c ON ST_Covers(c.geom, h.geom) WHERE c.state_fp = '13'
+      - expect: WRONG_VALUE          # the number of tracts, not nursing homes
+        sql: |
+          SELECT NULL, count(*) FROM {geo:tract:m2} v WHERE LEFT(v.fips, 2) = '13' AND v.value > 20
+
+  - id: e-tx-hospitals-top-county-poverty
+    tier: enrichment_dev
+    query: "Which 10 hospitals in Texas are in the counties with the highest poverty rates?"
+    note: "hospitals ranked by their county's rate; ties at the cut all count"
+    measures: {m1: hifld_hospitals, m2: poverty_rate}
+    gold: |
+      SELECT {fkey:h.geom}, v.value FROM {table:m1} h
+      JOIN county_geom c ON ST_Covers(c.geom, h.geom)
+      JOIN {latest:m2} v ON v.fips = c.fips
+      WHERE c.state_fp = '48'
+    compare: {kind: top_k, k: 10, direction: desc, min_overlap: 0.8, features: true}
+    wrong:
+      - expect: WRONG_VALUE          # the lowest-poverty counties
+        sql: |
+          SELECT {fkey:h.geom}, -v.value FROM {table:m1} h
+          JOIN county_geom c ON ST_Covers(c.geom, h.geom) JOIN {latest:m2} v ON v.fips = c.fips
+          WHERE c.state_fp = '48'
+
+  # ================================================= enrichment_heldout
+  - id: e-ms-hospitals-county-poverty-count
+    tier: enrichment_heldout
+    query: "How many hospitals in Mississippi are located in counties with a poverty rate over 20%?"
+    measures: {m1: hifld_hospitals, m2: poverty_rate}
+    gold: |
+      SELECT NULL, count(DISTINCT h.geom) FROM {table:m1} h
+      JOIN county_geom c ON ST_Covers(c.geom, h.geom)
+      JOIN {latest:m2} v ON v.fips = c.fips
+      WHERE c.state_fp = '28' AND v.value > 20
+    compare: {kind: scalar, rel_tol: 0.02, abs_tol: 0.5}
+    wrong:
+      - expect: WRONG_VALUE          # every Mississippi hospital
+        sql: |
+          SELECT NULL, count(DISTINCT h.geom) FROM {table:m1} h
+          JOIN county_geom c ON ST_Covers(c.geom, h.geom) WHERE c.state_fp = '28'
+
+  - id: e-pa-childcare-tract-noveh
+    tier: enrichment_heldout
+    query: "Show the child care centers in Pennsylvania that are in census tracts where more than 15 percent of households have no vehicle."
+    measures: {m1: child_care, m2: noveh}
+    gold: |
+      SELECT {fkey:h.geom}, 1 FROM {table:m1} h
+      JOIN geo_unit u ON u.level = 'tract' AND ST_Covers(u.geom, h.geom)
+      JOIN {geo:tract:m2} v ON v.fips = u.geoid
+      WHERE u.state_fp = '42' AND v.value > 15
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # every Pennsylvania child care center
+        sql: |
+          SELECT {fkey:h.geom}, 1 FROM {table:m1} h JOIN county_geom c ON ST_Covers(c.geom, h.geom)
+          WHERE c.state_fp = '42'

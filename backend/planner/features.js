@@ -301,6 +301,71 @@ function overlayAlgebra(ctx = {}) {
   return OVERLAY.test(q);
 }
 
+/*
+ * ENRICHMENT (H6 tier 1, ops/enrich.js): features located in units that meet a
+ * condition, or carrying their unit's value. Three shapes, all naming the
+ * features' units as a qualifier rather than as the answer:
+ *   "in census tracts where / with / whose ...", "in counties that have ..."
+ *   "in high-poverty tracts", "in low-income neighborhoods", "in the poorest counties"
+ *   "its tract", "the county each school is in", "the surrounding county"
+ * Region words ("in Southwest counties") are not qualifiers.
+ */
+const UNITS_PLURAL = String.raw`(?:census\s+)?(?:tracts|counties|zip\s*codes|zctas|block\s+groups|neighbou?rhoods|communities|areas)`;
+const UNIT_ONE = String.raw`(?:census\s+)?(?:tracts?|count(?:y|ies)|zip\s*codes?|block\s+groups?|neighbou?rhoods?|communit(?:y|ies)|areas?)`;
+const IN_UNITS_WHERE = new RegExp(
+  String.raw`\b(?:in|inside|within)\s+(?:the\s+)?(?:[a-z]+\s+){0,2}?${UNITS_PLURAL}\s+(?:with|where|whose|having|that\s+(?:have|has|are|is))\b`, "i");
+const QUALIFIER = String.raw`(?:(?:most|least|highly|very)\s+)?(?:[a-z]+-[a-z]+|high|higher|low|lower|poor|poorer|rich|richer|wealthy|wealthier|affluent|rural|urban|underserved|vulnerable|disadvantaged|deprived|distressed|(?!(?:north|south|east|west|mid))[a-z]{2,}est)`;
+const IN_QUALIFIED_UNITS = new RegExp(
+  String.raw`\b(?:in|inside|within)\s+(?:the\s+)?${QUALIFIER}\s+(?:[a-z]+\s+)?${UNITS_PLURAL}\b`, "i");
+const OWN_UNIT = new RegExp(
+  String.raw`\b(?:its|their)\s+(?:own\s+)?${UNIT_ONE}\b|` +
+  String.raw`\bthe\s+${UNIT_ONE}\s+(?:each|every|it|they|that|the)\b[^.?]{0,40}?\b(?:is|are|lies|lie|sits?|falls?|located)\s+in\b|` +
+  String.raw`\b(?:surrounding|containing|enclosing)\s+${UNIT_ONE}\b`, "i");
+
+const asksEnrichment = (q) => IN_UNITS_WHERE.test(q) || IN_QUALIFIED_UNITS.test(q) || OWN_UNIT.test(q);
+
+/** Whether `enrich` (and the select_features / summarize it needs) is on offer. */
+function enrichAlgebra(ctx = {}) {
+  const q = String(ctx.query || "");
+  if (!q || !ctx.hasFeatureTables || !(ctx.featureTableCount >= 1)) return false;
+  // People in such units are a population sum, not features.
+  if (ABOUT_PEOPLE.test(q) || !ABOUT_FEATURES.test(q)) return false;
+  return asksEnrichment(q);
+}
+
+/**
+ * A percentile filter the model put AFTER enrich is a percentile of the
+ * features' values: "hospitals in high-poverty tracts" would then mean the
+ * hospitals whose tracts rank high among hospital tracts. The question means
+ * the tracts that rank high among tracts, so the filter moves to the series
+ * side, before enrich. A numeric threshold means the same on either side and
+ * is left where it is.
+ */
+function repairEnrichPercentile(plan) {
+  const steps = plan?.steps || [];
+  const byId = new Map(steps.map(s => [s.id, s]));
+  const moved = [];
+  for (const f of [...steps]) {
+    if (f.op !== "filter_attr" || f.percentile === undefined || f.percentile === null) continue;
+    const e = byId.get((f.inputs || [])[0]);
+    if (!e || e.op !== "enrich" || (e.inputs || []).length !== 2) continue;
+    // Readers of the filter read the enrich step instead; the filter reads
+    // the series and enrich reads the filter.
+    for (const s of steps) {
+      if (s !== f) s.inputs = (s.inputs || []).map(i => (i === f.id ? e.id : i));
+    }
+    f.inputs = [e.inputs[1]];
+    e.inputs = [e.inputs[0], f.id];
+    // Keep execution order: the filter now precedes enrich.
+    steps.splice(steps.indexOf(f), 1);
+    steps.splice(steps.indexOf(e), 0, f);
+    moved.push(f.id);
+  }
+  return moved.length
+    ? `the "high / low" condition (${moved.join(", ")}) is applied to the units before matching features to them`
+    : null;
+}
+
 /** Whether summarize may total the length or area of a line / polygon layer. */
 function measureAlgebra(ctx = {}) {
   const q = String(ctx.query || "");
@@ -543,6 +608,7 @@ function fillRasterClasses(plan, query, srcOf) {
 const UNIT_PER_M = Object.fromEntries([...AREA_UNITS, ...LENGTH_UNITS].map(([, u, f]) => [u, f]));
 
 module.exports = {
+  enrichAlgebra, asksEnrichment, repairEnrichPercentile,
   overlayAlgebra, measureAlgebra, applyMeasures, measureFor, UNIT_PER_M, AMOUNT, OVERLAY,
   applyRasterMeasures, SHARE, fillRasterClasses, yearAsVintage,
   applyAreaUnit, PER_KM2,

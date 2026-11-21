@@ -25,6 +25,7 @@ import csv
 import io
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -46,6 +47,16 @@ def connect(args):
         host=args.host, port=args.port, dbname=args.dbname,
         user=args.user, password=args.password,
     )
+
+
+# A real ACS variable looks like S2201_C01_001E, DP02_0003E or B01001_001E.
+# The merged CSV also carries GEO_ID, NAME, source_file and pandas'
+# "Unnamed: 458_level_0" header fragments, which are not variables.
+_ACS_CODE = re.compile(r"^[A-Z]+\d+[A-Z]*_\w+$")
+
+
+def is_acs_code(code: str) -> bool:
+    return bool(_ACS_CODE.match(code))
 
 
 def classify(code: str) -> str:
@@ -111,6 +122,7 @@ def load_acs(conn, acs_csv: Path) -> tuple[int, int]:
     codes: list[str | None] = []
     variables: list[tuple[str, str, str]] = []
     seen: set[str] = set()
+    junk: list[str] = []
     fips_idx = None
     for i, h in enumerate(header):
         if h.strip().upper() == "FIPS":
@@ -125,21 +137,27 @@ def load_acs(conn, acs_csv: Path) -> tuple[int, int]:
         if not code or code in seen:
             codes.append(None)      # skip duplicates: PK is (fips, census_code)
             continue
+        if not is_acs_code(code):
+            codes.append(None)      # GEO_ID, NAME, source_file, "Unnamed: N_level_0"
+            junk.append(code)
+            continue
         seen.add(code)
         codes.append(code)
         variables.append((code, desc, classify(code)))
 
     if fips_idx is None:
         sys.exit("no FIPS column in the ACS csv")
-    print(f"  acs: {len(variables)} distinct variables")
+    print(f"  acs: {len(variables)} declared variables"
+          f" ({len(junk)} non-variable headers skipped)")
+
+    # A column the Census filled entirely with "(X)" (not available / not
+    # applicable) has no values to load. It is declared only after the pass, so
+    # acs_variables lists codes that carry data. Re-downloading does not change
+    # this: the 2026-11 audit found 371 such columns, 1,190,779 "(X)" cells.
+    had_value: set[str] = set()
 
     with conn.cursor() as cur:
         cur.execute("TRUNCATE acs_variables")
-        cur.executemany(
-            "INSERT INTO acs_variables (census_code, description, kind) VALUES (%s,%s,%s)",
-            variables,
-        )
-        conn.commit()
 
         # COPY through an in-memory buffer, flushed per row-block. Row-by-row
         # INSERT of ~12M values would take far longer than the whole rest of
@@ -164,6 +182,7 @@ def load_acs(conn, acs_csv: Path) -> tuple[int, int]:
                 except ValueError:
                     continue
                 buf.write(f"{fips}\t{code}\t{val}\n")
+                had_value.add(code)
                 n_vals += 1
             if n_rows % 250 == 0:
                 buf.seek(0)
@@ -174,10 +193,16 @@ def load_acs(conn, acs_csv: Path) -> tuple[int, int]:
         buf.seek(0)
         cur.copy_from(buf, "acs_county_values",
                       columns=("fips", "census_code", "value"))
+        kept = [v for v in variables if v[0] in had_value]
+        cur.executemany(
+            "INSERT INTO acs_variables (census_code, description, kind) VALUES (%s,%s,%s)",
+            kept,
+        )
     conn.commit()
     fh.close()
-    print(f"\n  acs: {n_rows} counties, {n_vals:,} values loaded")
-    return len(variables), n_vals
+    print(f"\n  acs: {n_rows} counties, {n_vals:,} values loaded;"
+          f" {len(variables) - len(kept)} all-suppressed columns not declared")
+    return len(kept), n_vals
 
 
 # --------------------------------------------------------------------------- #

@@ -40,6 +40,8 @@ const LEVEL_OPS = new Set([
   // H3: overlay is features in and out, summarized into the units like
   // within. H4: zonal clips the raster to each unit's own polygon.
   "overlay", "zonal",
+  // H6: each feature takes the value of the unit (tract, ZIP, zone) it lies in.
+  "enrich",
 ]);
 
 /*

@@ -70,6 +70,9 @@ const MODULES = [
   // layer among the candidates (planner/features.js overlayAlgebra).
   require("./overlay"),
   require("./summarize"),
+  // Units -> features (H6 tier 1): each feature takes its unit's value. Gated
+  // on phrasing that qualifies the features' units (planner/features.js).
+  require("./enrich"),
   require("./filter_attr"),
   require("./filter_area"),
   require("./filter_place"),
@@ -128,14 +131,14 @@ const BY_NAME = new Map(MODULES.map(m => [m.name, m]));
  */
 const SCHEMA_ORDER = [
   "load", "count_features", "count_near", "nearest_distance", "select_features",
-  "within", "overlay", "summarize", "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
+  "within", "overlay", "summarize", "enrich", "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
   "aggregate", "rank", "join", "combine", "hotspot", "outlier", "correlate", "explain",
   "intersect", "compare_groups", "neighbors", "residual", "access", "zonal", "output",
 ];
 
 const PROMPT_ORDER = [
   "load", "count_features", "nearest_distance", "select_features", "within", "overlay", "summarize",
-  "count_near", "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
+  "enrich", "count_near", "filter_attr", "filter_area", "filter_place", "per_area", "normalize",
   "aggregate", "rank", "join", "combine", "hotspot", "outlier", "correlate", "explain",
   "intersect", "compare_groups", "neighbors", "residual", "access", "zonal", "output",
 ];
@@ -148,7 +151,7 @@ const CHOICE_ORDER = [
   "neighbors", "residual", "access", "zonal",
   // within before count_near: "WHICH X are within N miles of Y" is the more
   // specific reading, and the table is read top to bottom.
-  "within", "overlay", "summarize",
+  "within", "overlay", "enrich", "summarize",
   "count_features", "count_near", "nearest_distance", "select_features",
   "aggregate", "filter_attr", "filter_area", "filter_place", "per_area", "load",
 ];
@@ -164,7 +167,7 @@ const EXAMPLE_ORDER = [
   "normalize", "rank", "explain", "correlate", "compare_groups", "intersect", "join", "combine", "hotspot", "outlier",
   "neighbors", "residual", "access", "zonal",
   "count_features", "aggregate", "filter_attr", "load", "filter_area",
-  "filter_place", "count_near", "select_features", "within", "overlay", "summarize", "nearest_distance",
+  "filter_place", "count_near", "select_features", "within", "overlay", "enrich", "summarize", "nearest_distance",
   "per_area",
 ];
 

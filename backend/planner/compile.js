@@ -25,7 +25,7 @@
  * question return, say, a point layer and a choropleth.
  */
 
-const { planLevel, LEVELS: LEVEL_SET } = require("./levels");
+const { planLevel, LEVELS: LEVEL_SET, LEVEL_LABEL } = require("./levels");
 const ops = require("./ops");
 const { describeGroup } = require("./conditions");
 const {
@@ -177,6 +177,19 @@ function compilePlan(plan, resolved) {
           : { column: `${n.mode === "walk" ? "walk" : "road"}_miles_to_nearest`, label: `${n.mode === "walk" ? "walking" : "road"} miles from the nearest feature of the second layer` };
       }
       if (st.op === "within") return { column: "miles_to_nearest", label: "miles to the nearest feature of the second layer" };
+      if (st.op === "enrich") {
+        // H6: the value of the unit each feature lies in, named by the measure
+        // when input 2 leads back to one load.
+        const lv = stepLevel.get(st.id) || "county";
+        const unit = lv === "county" ? "county" : (LEVEL_LABEL[lv] || lv);
+        let s2 = byId.get((st.inputs || [])[1]);
+        while (s2 && s2.op !== "load" && (s2.inputs || []).length === 1) s2 = byId.get(s2.inputs[0]);
+        const desc = s2?.op === "load" ? resolved.get(s2.attr_id)?.description : null;
+        return {
+          column: `${lv === "county" ? "county" : lv.startsWith("z_") ? "zone" : lv}_value`,
+          label: `${desc ? String(desc).slice(0, 80) : "value"} of the ${unit} it lies in`,
+        };
+      }
       if (st.op === "overlay") {
         return st.exclude === true ? null
           : { column: "amount_inside", label: `${st.unit || "miles or square miles"} inside the second layer (none for points)` };

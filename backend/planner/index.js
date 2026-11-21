@@ -28,7 +28,7 @@ const { derefDefinitions, checkThresholds, LAYER_PHRASES, GROUP_COMPARISON,
         COMPLEMENT_PHRASES } = require("./conditions");
 const { anchorYears, spans } = require("./vintages");
 const { applyLevel, applyRollup, levelOf } = require("./levels");
-const { repairDistanceUnits, repairWithinDirection, widenReferenceLayer, applyAreaUnit, applyMeasures, applyRasterMeasures, fillRasterClasses, yearAsVintage } = require("./features");
+const { repairDistanceUnits, repairWithinDirection, widenReferenceLayer, repairEnrichPercentile, applyAreaUnit, applyMeasures, applyRasterMeasures, fillRasterClasses, yearAsVintage } = require("./features");
 const { preferUserLayer } = require("../user_layers");
 const { applyCatchment } = require("./catchment");
 const { applyNetwork, applyNetworkPopulation, networkUnitErrors } = require("./network");
@@ -1507,6 +1507,13 @@ async function generatePlan({
       log(`   Repaired proximity step: ${fix}`);
       emit({ stage: "plan_adjusted", detail: fix });
       adjustments.push(`Proximity: ${fix}.`);
+    }
+    // H6: a "high / low" percentile on enriched features belongs to the units.
+    const enrichFix = repairEnrichPercentile(plan);
+    if (enrichFix) {
+      log(`   Repaired enrich step: ${enrichFix}`);
+      emit({ stage: "plan_adjusted", detail: enrichFix });
+      adjustments.push(`Units: ${enrichFix}.`);
     }
 
     const implied = applyImpliedState(plan, query);

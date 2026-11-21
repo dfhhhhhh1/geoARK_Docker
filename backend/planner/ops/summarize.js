@@ -1,5 +1,5 @@
 const { CompileError } = require("./_sql");
-const { featureAlgebra, asksCount, overlayAlgebra, measureAlgebra, UNIT_PER_M } = require("../features");
+const { featureAlgebra, asksCount, overlayAlgebra, measureAlgebra, enrichAlgebra, UNIT_PER_M } = require("../features");
 
 /**
  * Count a features step: one number per unit of the plan (counties, or the
@@ -31,7 +31,8 @@ module.exports = {
   choiceLine: `  "how many of the X that ...", "the number of X within ..."  -> summarize`,
 
   offered: (ctx) => (featureAlgebra(ctx) && asksCount(ctx.query)) ||
-    (overlayAlgebra(ctx) && asksCount(ctx.query)) || measureAlgebra(ctx),
+    (overlayAlgebra(ctx) && asksCount(ctx.query)) || measureAlgebra(ctx) ||
+    (enrichAlgebra(ctx) && asksCount(ctx.query)),
 
   // H3: the same op totals a length or an area when the question asks for an
   // amount of a line or polygon layer. Whether it counts or measures, and in
