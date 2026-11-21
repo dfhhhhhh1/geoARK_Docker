@@ -828,3 +828,43 @@ still a refusal.
 Not done in H4: zonal over FEATURES (slope per parcel, solar per roof);
 `raster_calc` / `threshold` -> features (NDVI change, cut/fill); user raster
 uploads; CDL; per-tract histogram caches.
+
+### H6 tier 1, item 1: feature enrichment, built 2026-11-20 (not yet run through the planner)
+
+`backend/planner/ops/enrich.js`, gate and repair in `planner/features.js`
+(`enrichAlgebra`, `asksEnrichment`, `repairEnrichPercentile`), tests
+`planner/test_enrich.js` (9). Eval family `enrichment` in `eval/gis_ops.yaml`
+(4 dev, 2 held out), written before any planner run.
+
+- **What it does.** `enrich(features, series) -> features`: each feature takes
+  the value of the unit holding its `ST_PointOnSurface`, the county or the
+  unit `levels.js` reads from the question (tract, ZIP, zone). Only features
+  whose unit is IN the series are kept, so `load -> filter_attr -> enrich`
+  answers "hospitals in census tracts where poverty is above 30%", and
+  `enrich -> rank` or `-> summarize` rank or count them. A boundary point goes
+  to the lowest geoid, so each feature is one row.
+- **Why the filter goes before it.** A percentile ("high-poverty tracts") placed
+  after enrich would rank tracts among the features' tracts, not among
+  tracts. `repairEnrichPercentile` moves it to the series side; a stated number
+  means the same either way and is left alone.
+- **Gate.** Three phrasings that name the features' units as a qualifier ("in
+  counties where / with ...", "in high-poverty tracts", "its tract" / "the
+  county each X is in"), a feature layer among the candidates, a question
+  about the features (not people). It reaches **0 of 284** eval questions (the
+  one phrasing match, "people in rural counties", is a people question).
+  Prompt and schema byte-identical across 48 contexts; all 15 existing planner
+  test files pass. The retrieval filter at a named unit now keeps feature
+  layers for these questions too (`unified_search_server.js keepFeatures`),
+  or "hospitals in census tracts ..." would never see Hospitals.
+- **Equal to brute force** (compiled SQL vs `ST_Covers` joins, live DB):
+  Ohio hospitals in counties with PCTPOVALL > 15, **141 = 141**, 270 ms;
+  Missouri hospitals in tracts with SVI_EP_POV150 > 40, **26 = 26**, 273 ms;
+  all 805 Texas hospitals at tract, 635 ms.
+- **Gold.** `--check-gold` 0 problems, `--self-test` 22/22 on the family. The
+  suite's `hospitals` measure also accepts CMS long-term-care hospitals, whose
+  Missouri gold is empty; the family uses `hifld_hospitals` instead.
+
+Not done: the planner run (`enrichment_dev` 3x, then the guards), which needs
+the API rebuilt from this tree; the output column is `county_value` /
+`tract_value` / `zone_value` with the measure in `valueLabel`, and the
+frontend was not checked for it.
