@@ -278,10 +278,45 @@ gold changed first, which is a decision, not a cleanup:
 - child poverty 2015 and median income 2017 exist in no loaded year (ERS SAIPE
   `PCTPOV017` / `MEDHHINC` are loaded for 2023 only); Gini has no loaded measure.
 Backup of the removed state's input: `etl/_backups/geoark_attributes.csv.bak-20261120-180341-pre-supfileA-cleanup`.
+**Do not restore it**: it predates the feature-layer loads and the HSIP cleanup.
+
+#### Removed for good, after retargeting the gold (2026-11-20, later)
+The gold was changed first, then the 541 rows removed (catalog 7,266 -> 6,725,
+corpus key `94f4d4bf82e9e811`; backup
+`etl/_backups/geoark_attributes.csv.bak-*-pre-ers-replaced-cleanup`).
+
+- `ki-persistent-poverty` -> `ERS_FEA_PERPOV`.
+- `ki-child-poverty-2015` -> `ki-child-poverty` ("child poverty rate", SAIPE
+  `PCTPOV017`) and `ki-median-income-2017` -> `ki-median-income-saipe` (SAIPE
+  `MEDHHINC`). The years are gone because no loaded series has them.
+- `ki-gini` -> `ab-gini` in the `absent` suite: no Gini is loaded. Its top hit
+  is now CHR "Income inequality" (`CHR_V044`, the 80/20 income ratio) at 0.67,
+  a fair proxy, so this item sits at the top of the absent range by design.
+- temporal `unemployment-2017` now asserts `covers: "2017"`, a new `run.py`
+  predicate (the row's start..end contains the period). It is needed because
+  the year became a column: `UNEMPLOYMENT_RATE` is one row spanning 2000-2023.
+  `income-2013-2017` is deleted: no loaded income measure covers that period.
+
+Same build, same retargeted gold, before and after removal (known_item with the
+HSIP retargeting the other session already made, 11 attribute items):
+
+| | rows kept | rows removed |
+|---|--:|--:|
+| known_item recall@1 / MRR | 72.7% / 0.826 | **90.9% / 0.917** |
+| multi_concept recall / success | 87.5 / 75% | **93.8 / 87.5%** |
+| paraphrase, single_concept, facilities_via_tags, geographic_level, temporal | 80 / 100 / 100 / 100 / 100% | unchanged |
+
+Removing them helped: the no-data rows were outranking the loaded measures
+(persistent and child poverty both went from rank 2 to rank 1). The one
+known-item miss left is `ki-energy-generation` (@12, an HSIP target from the
+feature-layer session). The remaining misses (`unemployment-and-snap`,
+`jobless`) predate this work. Results: `eval/supa/retarget_*_known.json`.
+These numbers are **not comparable** to the 91.7% / 0.958 recorded above,
+because the gold changed.
 
 #### Open
-- **The old unresolved rows are still in the catalog** (above), plus 113 Harvard
-  hospital capacity and 59 smoking rows with no replacement.
+- The replaced rows are removed (above). 113 Harvard hospital capacity and 59
+  smoking rows with no replacement are still in the catalog with no data.
 - "Which counties had the most COVID-19 deaths per person?" planned over the
   older `AHRF_POPULATION_HEAL_COVID_DETH` / CHR population and returned 0.85 for
   Mississippi County AR, whose stored values are 57 deaths and 38,663 people.

@@ -87,6 +87,17 @@ def row_matches(row: dict, pred: dict) -> bool:
             return False
     if "entity" in pred and (row.get("entity_type") or "") != pred["entity"]:
         return False
+    # covers: "2017" or "2013-2017". The row's start..end years must contain the
+    # period. Needed since the year became a column: one catalog row such as
+    # UNEMPLOYMENT_RATE (2000-2023) answers "unemployment during 2017", and a
+    # regex on start or end cannot say so.
+    if "covers" in pred:
+        lo, _, hi = str(pred["covers"]).partition("-")
+        lo, hi = int(lo), int(hi or lo)
+        s = re.match(r"\d{4}", row.get("start_date") or "")
+        e = re.match(r"\d{4}", row.get("end_date") or "") or s
+        if not s or not (int(s.group()) <= lo and int(e.group()) >= hi):
+            return False
     return True
 
 

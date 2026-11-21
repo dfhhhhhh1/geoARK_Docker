@@ -247,17 +247,20 @@ suites:
       - id: unemployment-2017
         query: "unemployment during 2017"
         concepts:
-          unemp_2017: {desc: "unemploy", any_of: [{start: "2017"}, {end: "2017"}]}
+          # Was any_of start/end 2017, which only the never-loaded per-year
+          # ERS rows satisfied (removed 2026-11-20). Loaded unemployment
+          # carries the year as a column, so its row spans 2000-2023.
+          unemp_2017: {desc: "unemploy", covers: "2017"}
 
       - id: acs-2018
         query: "2018 american community survey estimates"
         concepts:
           acs_2018: {start: "2018"}
 
-      - id: income-2013-2017
-        query: "median income covering 2013 to 2017"
-        concepts:
-          income_range: {desc: "income", start: "2013"}
+      # income-2013-2017 ("median income covering 2013 to 2017") removed
+      # 2026-11-20. Only the no-data ERS row "Median household income 2017"
+      # satisfied it. No loaded income measure covers 2013-2017 (SAIPE 2023,
+      # ERS 2022, ACS 2018), so it had no answer the system could execute.
 
       - id: recent-2020
         query: "2020 data"

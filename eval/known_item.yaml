@@ -78,21 +78,20 @@ suites:
   - name: known_item_described
     mode: known_item
     queries:
-      - id: ki-gini
-        query: "income inequality gini index"
-        expect_desc: "Gini"
-
+      # Retargeted 2026-11-20, when the no-data ERS per-year rows they pointed
+      # at were removed. Gini moved to `absent` (no loaded Gini measure); the
+      # 2015 / 2017 items lost their year because no loaded series has it.
       - id: ki-persistent-poverty
         query: "counties with persistent poverty designation"
-        expect_desc: "Persistent-poverty"
+        expect_desc: "Persistent-poverty counties (Socioeconomic"
 
-      - id: ki-child-poverty-2015
-        query: "child poverty rate in 2015"
-        expect_desc: "Child poverty rate 2015"
+      - id: ki-child-poverty
+        query: "child poverty rate"
+        expect_desc: "Percent of children ages 0-17 in poverty"
 
-      - id: ki-median-income-2017
-        query: "median household income 2017 inflation adjusted"
-        expect_desc: "Median household income 2017"
+      - id: ki-median-income-saipe
+        query: "median household income SAIPE estimate"
+        expect_desc: "Median household income in dollars (Census SAIPE"
 
   # ---------------------------------------------------------------------
   # Data the catalog does not contain. There is no correct result, so the
@@ -102,6 +101,8 @@ suites:
   - name: absent
     mode: absent
     queries:
+      - id: ab-gini           # was ki-gini; no Gini measure is loaded (2026-11-20)
+        query: "income inequality gini index"
       - id: ab-mars
         query: "crater diameters on the surface of Mars"
       - id: ab-shark
