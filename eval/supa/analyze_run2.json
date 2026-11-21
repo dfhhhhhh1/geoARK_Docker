@@ -1,0 +1,108 @@
+[
+ {
+  "dataset": "ing_ntadtransitr",
+  "q": "where are the bus routes in Missouri",
+  "secs": 17.2,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_ntadtransitr_01"
+  ],
+  "filters": [
+   [
+    {
+     "column": "type",
+     "value": "Bus"
+    }
+   ]
+  ],
+  "row_count": 168,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_usgswaterbod",
+  "q": "where are the lakes in Minnesota",
+  "secs": 12.2,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_usgswaterbod_01"
+  ],
+  "filters": [
+   [
+    {
+     "column": "type",
+     "value": "Lake"
+    }
+   ]
+  ],
+  "row_count": 1477,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_supplemental",
+  "q": "where are the branch campuses of colleges in North Carolina",
+  "secs": 14.3,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_supplemental_01"
+  ],
+  "filters": [],
+  "row_count": 108,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_plateboundar",
+  "q": "show the tectonic plate boundaries",
+  "secs": 12.7,
+  "error": null,
+  "ops": [
+   "count_features",
+   "output"
+  ],
+  "used": [
+   "ing_plateboundar_01"
+  ],
+  "filters": [],
+  "row_count": 3233,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_vhafacilitie",
+  "q": "where are the VA medical centers in Missouri",
+  "secs": 10.6,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_vhafacilitie_01"
+  ],
+  "filters": [
+   [
+    {
+     "column": "type",
+     "value": "VA Medical Center"
+    }
+   ]
+  ],
+  "row_count": 5,
+  "features": null,
+  "uses_new": true
+ }
+]

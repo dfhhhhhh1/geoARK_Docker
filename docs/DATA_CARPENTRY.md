@@ -184,9 +184,11 @@ the catalog** (see "Open" below).
   state value repeated over every county would rank as county variation); 60
   change variables (`PCH_`, `CH_`, "% change", "percentage points": `combine`
   computes change from the two years, and `PCH_FDPIR_12_15` is labelled `Count`
-  in ERS's own list); 18 "Socioeconomic Characteristics" (SAIPE poverty, median
-  income, race shares, already loaded under USDA ERS / ACS).
-- **Kept (102 measures):** access, store and restaurant availability, food
+  in ERS's own list); 17 of the 18 "Socioeconomic Characteristics" (SAIPE poverty, median
+  income, race shares, already loaded under USDA ERS / ACS). **`PERPOV17_21`
+  (persistent-poverty counties) is kept as `PERPOV`**: nothing else carries it.
+  The first load dropped it with the rest; re-ingested with `--replace` the same day.
+- **Kept (103 measures):** access, store and restaurant availability, food
   assistance (county-level), local foods, recreation facilities.
 - **Match:** 3,142 of 3,156; the 14 skipped are CT planning regions, the
   Valdez-Cordova split and three retired Alaska codes.
@@ -243,7 +245,8 @@ the catalog** (see "Open" below).
   Black adults?" -> `CDC_HEART_STROKE_STROKE_DEATH_RATE_BLACK`, Miller 221.7.
 
 #### Guards after the four loads
-- `known_item.yaml`: **91.7% recall@1, MRR 0.944**, unmoved.
+- `known_item.yaml`: **91.7% recall@1, MRR 0.944**, unmoved (0.958 after `PERPOV`
+  was added, below).
 - `queries.yaml` (search endpoint): single_concept, facilities_via_tags,
   geographic_level, temporal 100%; multi_concept 87.5 / 75%, paraphrase 80 / 80%
   (misses: `unemployment-and-snap`, `race-and-poverty`, `jobless`). **No new
@@ -252,11 +255,33 @@ the catalog** (see "Open" below).
   Run in per-suite batches: the full suite now trips the API's search rate
   limiter (30 burst, 60/min) and reports 24 "request errors" (HTTP 429).
 
+#### Removing the replaced no-data rows: tried, reverted (2026-11-20)
+The 541 unresolved `ACS_combined` rows these loads replace (`a781336d_02_01`
+FEA 280, `a781336d_03_01` Rural Atlas 235, `ddbfd2c3_01_01` heart atlas 26)
+were removed, re-embedded and measured, then **restored**:
+
+| | before | removed | restored + `PERPOV` |
+|---|--:|--:|--:|
+| known_item recall@1 / MRR | 91.7% / 0.944 | **66.7% / 0.667** | 91.7% / **0.958** |
+| multi_concept recall / success | 87.5 / 75% | 93.8 / 87.5% | 87.5 / 75% |
+| temporal (queries.yaml) | 100% | **refuses to run** | 100% |
+
+**The suites are anchored on rows with no data.** The four known-item misses
+(`ki-gini`, `ki-persistent-poverty`, `ki-child-poverty-2015`,
+`ki-median-income-2017`) match only removed rows, and two temporal assertions
+(`unemployment-2017`, `income-2013-2017`) become unsatisfiable. The other 8
+known items kept rank 1. So part of what these suites measure is how well
+retrieval finds catalog rows that no plan can use. Removing the rows needs the
+gold changed first, which is a decision, not a cleanup:
+- `ki-persistent-poverty` is now satisfiable by real data (`ERS_FEA_PERPOV`,
+  which also lifted MRR to 0.958);
+- child poverty 2015 and median income 2017 exist in no loaded year (ERS SAIPE
+  `PCTPOV017` / `MEDHHINC` are loaded for 2023 only); Gini has no loaded measure.
+Backup of the removed state's input: `etl/_backups/geoark_attributes.csv.bak-20261120-180341-pre-supfileA-cleanup`.
+
 #### Open
-- **The old unresolved rows are still in the catalog**: 280 FEA, 235 Rural Atlas,
-  26 heart atlas, 113 Harvard hospital capacity, 59 smoking. They resolve to
-  nothing and compete in retrieval with the new rows. Removing them is a
-  retrieval change: run `known_item.yaml` and `queries.yaml` before and after.
+- **The old unresolved rows are still in the catalog** (above), plus 113 Harvard
+  hospital capacity and 59 smoking rows with no replacement.
 - "Which counties had the most COVID-19 deaths per person?" planned over the
   older `AHRF_POPULATION_HEAL_COVID_DETH` / CHR population and returned 0.85 for
   Mississippi County AR, whose stored values are 57 deaths and 38,663 people.
@@ -275,6 +300,249 @@ resolve). Sources not checked for current availability unless stated.
 Already covered by another load: Food Access Research Atlas and EJScreen (tract /
 block group), the ACS tables, public / private schools (NCES locations), military
 installations (DoD boundaries), NWI, NLCD land cover.
+
+**Update, same day:** 23 feature layers from this table are now loaded, see the
+next section. What is still missing, and why, is under "Still not loaded" there.
+
+### Supplementary File A feature layers (2026-11-20)
+
+HIFLD Open was retired in 2025 and its ArcGIS Online org
+(`services1.arcgis.com/Hp6G80Pky0om7QvQ`) now holds none of its layers. Every
+layer below was re-sourced, in this order of preference: (1) the agency that now
+publishes it (EIA, BTS NTAD, HRSA, USGS, EPA FRS); (2) a federal copy of the
+HIFLD layer (FEMA RAPT / National Integration Center, `services.arcgis.com/XG15cJAlne2vxtgt`);
+(3) when neither exists, a third-party copy of the **2021 HIFLD Open release**
+(`services5.arcgis.com/HDRa0B57OVrv2E1q`, owner clibby007), named as such in
+the layer's originator so a user can see it is a 2021 snapshot.
+
+**Script:** `etl/prep_supp_a_layers.py fetch|prep <layer>` for 21 layers (`list`
+shows them); `etl/prep_geo_layers.py rmp|tsca` for the two FRS layers.
+`fetch` saves the raw download to `deploy/incoming/_raw/supa_<layer>.*` (ArcGIS
+layers are paged by OBJECTID with `f=geojson`, and the fetched count is checked
+against the service's own count); `prep` reads only that raw file and writes the
+data file and the sidecar, so a re-run reproduces the loaded file byte for byte.
+Points are CSV with latitude / longitude, lines and polygons GeoJSON rounded to 6
+decimals. **Each sidecar carries an `include:` allowlist** (as `transit_stops`
+does), so latitude, longitude, ids and source dates are stored but never become
+search entries: 149 catalog rows for the 23 layers.
+
+| Folder (table) | Features | Source used | Replaces |
+|---|--:|---|---|
+| `eia_power_plants` | 14,864 | EIA-860M, September 2026 generator inventory, built per plant | HSIP Power Plants, EPA FRS Power Plants |
+| `ntad_petroleum_ports` | 242 | BTS NTAD `Petroleum_Ports` (2026-07) | Petroleum Ports |
+| `ntad_pipeline_terminals` | 1,401 | BTS NTAD Intermodal Freight Facilities: Pipeline Terminals (carries `HIFLD_ID`) | POL Terminals |
+| `pol_pumping_stations` | 1,270 | third-party copy of HIFLD 2021 | POL Pumping Stations |
+| `prison_boundaries` (polygons) | 6,471 | FEMA RAPT copy of HIFLD (edited 2025-12) | Prison Boundaries |
+| `public_health_departments` | 3,699 | FEMA NIC copy of HIFLD Open (edited 2026-01) | Public Health Departments |
+| `urgent_care_facilities` | 4,810 | FEMA RAPT copy of HIFLD (edited 2025-09) | Urgent Care Facs |
+| `vha_facilities` | 1,657 | VA sites as published by HRSA (`gisportal.hrsa.gov`, VHAFacilities_FS) | VHA Medical Facilities |
+| `ntad_passenger_stations` | 15,488 | BTS Intermodal Passenger Connectivity Database | Public Transit Stations |
+| `ntad_transit_routes` (lines) | 16,472 | BTS National Transit Map routes (2026-11), one line per route | Public Transit Routes |
+| `ntad_road_tunnels` | 580 | FHWA National Tunnel Inventory via BTS NTAD | Road Tunnels |
+| `solid_waste_landfills` | 7,376 | third-party copy of HIFLD 2021 | Solid Waste Landfill Facilities |
+| `supplemental_colleges` | 2,767 | third-party copy of HIFLD 2021 | Supplemental Colleges |
+| `uranium_vanadium_deposits` | 158 | USGS MRDS via third-party copy of HIFLD 2021 | Uranium Vanadium Deposits |
+| `usgs_sand_gravel_operations` | 2,829 | USGS Mineral Industry Locations (`mrdata.usgs.gov/mineplant`, 2003 canvass) | Sand And Gravel Operations |
+| `places_of_worship` | 254,742 | FEMA copy of HIFLD All Places of Worship (edited 2025-09) | (not catalogued) |
+| `epa_rmp_facilities` | 21,855 | EPA FRS interests geodatabase, layer RMP (already on disk) | (not catalogued) |
+| `epa_tsca_facilities` | 17,747 | EPA FRS, layer TSCA, one per registry id | (not catalogued) |
+| `usgs_coal_fields` (polygons) | 602 | USGS coal fields (Tully 1996) via Esri Living Atlas | (not catalogued) |
+| `usgs_landslide_regions` (polygons) | 2,810 | USGS OFR 97-289 / National Atlas `lsoverp020`, Stanford Digital Repository copy | (not catalogued) |
+| `usgs_seismic_hazard_2pct50` (polygons) | 461 | USGS 2014 NSHM data release, `uspga250poly` | seismic hazard 2% |
+| `usgs_waterbodies_small_scale` (polygons) | 26,878 | USGS National Map Small-Scale `wtrbdyp010g` (1:1M, 2014) | NHD waterbodies (small scale) |
+| `plate_boundaries` (lines) | 514 | UTIG PLATES boundaries via Esri Living Atlas (ridge / transform / trench layers merged) | (not catalogued) |
+
+What each one needed:
+
+- **Power plants are built, not copied.** EIA's own Energy Atlas services now
+  answer "Token Required", and the third-party copies are derived from EIA
+  anyway, so the layer comes from EIA-860M (Operating + Operating_PR sheets,
+  28,700 generators). One point per EIA plant id; `type` is the energy source
+  with the most nameplate capacity at the plant (energy source codes grouped
+  into Coal, Natural Gas, Other Gas, Nuclear, Solar, Wind, Hydroelectric,
+  Hydroelectric Pumped Storage (prime mover PS), Petroleum, Biomass, Geothermal,
+  Battery Storage, Other); `owner` is the entity of the largest generator.
+  Checks: 1,423 GW total nameplate; Palo Verde 4,209.6 MW, Nuclear, Maricopa AZ.
+  7,481 plants are mainly solar and 194 mainly coal: counting plants is not
+  counting capacity.
+- **POL terminals → BTS pipeline terminals.** The NTAD layer carries `HIFLD_ID`,
+  so it is the same inventory maintained. The Y/N product and mode flags are
+  folded into two text columns (`products`, `modes`); `products` is the label
+  column, so "jet fuel terminals" can filter on it.
+- **Transit stations → IPCD.** `FAC_TYPE` is a bare number with no domain in the
+  service, so the class is derived from the `MODE_*` flags the service does
+  define (most specific first: Airport, Ferry terminal, Rail station, Bus
+  station, Bike share station): 6,373 bus, 5,279 rail, 2,740 bike share, 755
+  airports, 340 ferry. IPCD is wider than HIFLD's transit stations (it includes
+  airports and intercity bus); the description says so.
+- **VHA:** type from `VHA_PRIM_SVC` (VAMC 172, primary-care CBOC 517, Vet
+  Center 315, ...). Only 460 of 1,657 sites have a street address in the
+  service; all have city, state, ZIP and coordinates.
+- **Supplemental colleges are branch campuses, not trade schools.** My first
+  description guessed "career schools"; the names say otherwise ("Central
+  Carolina Community College - West Harnett Center", "Devry University -
+  Glendale Campus"). HIFLD's `TYPE` is the IPEDS control code (1 public, 2
+  private not-for-profit, 3 private for-profit), translated into `control`.
+- **"Solid Waste Landfill Facilities" is mostly transfer stations**: 4,280 of
+  7,376 are `Transfer`, 1,150 Municipal, 1,031 C&D. A count of "landfills"
+  over every row would be wrong by more than half; the `type` description says
+  which values are landfills.
+- **Tunnels** are placed at the NTI portal coordinates (lat 18.0-60.8, lon
+  -157.9 to -65.9: Puerto Rico to Alaska, all west longitudes negative).
+- **Sand and gravel:** only `COMMODITY = 'Sand and Gravel'` of the 6,785 mineral
+  locations, because crushed stone and the others are separate HSIP layers
+  already loaded. Latin-1 file. Every row is a mine (`M`), so `type` is stored
+  but not searchable.
+- **Landslides:** `INC_SUS` codes translated with the definitions in the USGS
+  metadata (high incidence > 15% of area in landslides, moderate 1.5-15%, low
+  < 1.5%, and three susceptibility classes); 3 `no-data` polygons dropped.
+  National 1:4M overview; the description says it is not for site decisions.
+- **Seismic hazard: only 2% in 50 years exists as polygons.** The 2014 data
+  release's GIS zip holds PGA 2%/50yr contours only; 10%/50yr is gridded data,
+  not contoured. Contour levels are the ones the file uses (0-20 by 2, 30, 40,
+  50, 60, 80, 120, 160, 200 %g; there is no 100 or 150). A `VALLEY = 1` polygon
+  is a local minimum inside its contour (USGS domain), so its band is the level
+  below `ACC_VAL`, not above: without that, the 43 valley polygons would read
+  one band too high.
+- **Places of worship:** IRS exempt-organization records geocoded by HIFLD
+  (every record is `MATCH_TYPE` A). 254,742 points, the largest layer here; it is
+  congregations as registered, so one church can appear under several EINs.
+- **RMP:** every RMP REPORTER record is ACTIVE (19 blank), so status is dropped.
+  **TSCA:** 26,482 submission records for 17,747 registry facilities; one record
+  per registry id is kept, or a facility would count once per filing. Status is
+  blank for 22,239 and `***UNCHANGED***` for the rest, so it is dropped.
+- **Transit routes: one line per route, simplified.** The service holds 76,687
+  GTFS shapes (every direction and branch variant) with 44 M vertices; written
+  as-is it was a 1.0 GB GeoJSON. `prep` keeps, per `(feed_id, route_id)`, the
+  longest shape (ties broken by `shape_id`) and simplifies it with
+  Douglas-Peucker at 0.00005 degrees (~5 m): 16,472 routes, 13.9 M -> 2.0 M
+  vertices, 48 MB. A route's reverse direction and branches are not separate
+  lines; the description says so. 15,939 bus, 135 ferry, 118 light rail, 112
+  rail, 79 subway.
+- **Waterbodies:** kept all 8 feature types, including 11,632 swamp / marsh and
+  1,660 glacier polygons; `type` separates them. `area_sq_mi` is as published.
+- **Plate boundaries** are worldwide; most features match no county or state.
+
+**Licences:** federal sources are public domain. The third-party copies are of
+HIFLD Open data, which was public domain; the copy itself has no stated
+licence. Esri Living Atlas coal fields and plate boundaries are USGS / UTIG data
+re-served by Esri.
+
+#### Checks after loading
+- All 22 datasets resolve (`attribute_source` rows = catalog rows for every
+  `ing_*` id above). `validate_catalog.py --new`: no errors.
+- `known_item.yaml`: **91.7% recall@1, MRR 0.958, unchanged**, every item at
+  the same rank as before (`eval/supa/known_before.json`, `known_after.json`).
+  Three known items target the OLD, data-less HSIP rows (`ki-health-agency`
+  Public Health Departments, `ki-tunnel-transport` Road Tunnels,
+  `ki-energy-generation` Power Plants) and those rows still rank first, so the
+  new layers do not displace them in search. What the planner sees is a
+  separate question (below).
+- `queries.yaml`, per suite: identical before and after (single_concept,
+  facilities_via_tags, geographic_level, temporal 100%; multi_concept 87.5 / 75%;
+  paraphrase 80 / 80%; the same three misses). `eval/supa/q_before_*.json`,
+  `q_after_*.json`.
+- One `/api/analyze` question per layer (`eval/supa/analyze_layers.py`,
+  `analyze_run1.json`, `analyze_run2.json`): **23 of 23 plan over the new layer**
+  (22 of 23 on the first wording, 20 with a usable answer). Checked against the table: Kentucky coal power plants
+  8 = 8 (`type = Coal` filter); Texas petroleum ports 15 = 15; Missouri VA
+  medical centers 5 (Columbia, Kansas City, two in St. Louis, Poplar Bluff);
+  Michigan open landfills per county, `status = Open`, 83 counties; Utah
+  uranium 74 of the 75 rows labelled Utah (Blue Cap, San Juan County, at
+  -109.06 on the Utah-Colorado line, falls just outside the generalized
+  `county_geom` polygons, so no state restriction reaches it). The three that needed a second wording:
+  - "satellite college campuses in North Carolina" planned over the older
+    College University Campuses layer; "branch campuses of colleges" uses the
+    new one (108).
+  - "lakes and reservoirs in Minnesota" returned **0 rows**: the planner emitted
+    `type = Lake` AND `type = Reservoir`. "lakes in Minnesota" returns 1,477.
+    Two filters on one column are ANDed; a planner / compiler issue, not data.
+  - "tectonic plate boundaries near Alaska" returned 0 (plate lines are mostly
+    offshore and carry no state); with no place it plans `count_features` per
+    county, a valid but odd shape for a line layer.
+- **Polygon and line answers repeat a feature once per county it crosses.**
+  `select_features` restricted to a state compiles to `JOIN county_geom ON
+  ST_Intersects(...)` with no DISTINCT: "areas of high landslide incidence in
+  Pennsylvania" returned 11 rows that are **one polygon** (the only
+  high-incidence polygon in PA) crossing 11 counties. Pre-existing (any polygon
+  layer: NPL, parks, military), not caused by these loads; points are unaffected
+  unless they sit on a border. Not fixed here.
+
+Both guards were re-run after the last layer (transit routes) and read the same
+(`known_after2.json`, `q_after2_*.json`).
+
+#### Transfer
+`C:\Users\Sam\Documents\geoARK_transfer\geoark_incoming_2026-11-20_suppA_features.zip`
+(52.5 MB, 23 folders, 46 files, `MANIFEST.sha256` + `UNPACK.txt`). Complements
+`geoark_incoming_2026-11-20b.zip`. Verified: every file's sha256 equals the
+ledger entry; extracted and `sha256sum -c` 46 / 46 OK; and every `prep` re-run
+reproduced all 46 files byte for byte. The raw downloads
+(`deploy/incoming/_raw/supa_*`, about 2.1 GB, mostly transit routes and places
+of worship) are not in it and are not needed by `make replay`.
+
+#### Removed: the 548 no-data HSIP rows (2026-11-20, user's decision)
+The user decided that a suite which drops when rows with no data are removed is
+measuring the wrong thing, so all **18 unresolved HSIP groups** in the
+Supplementary File A list were removed from `backend/geoark_attributes.csv` and
+their entries from `etl/facility_table_map.csv`: 548 rows each, the 16 replaced
+above plus Station Transfers, Rail Company and Public Refrigerated Warehouses
+(no geometry or no usable source). (An earlier version of this note listed EPA
+FRS Power Plants among them; that group has data and stays.) Removed by raw
+record, so the diff against the backup is deletions only. Backups:
+`etl/_backups/geoark_attributes.csv.bak-20261120-193815-pre-hsip-cleanup`,
+`etl/_backups/facility_table_map.csv.bak-20261120-193815-pre-hsip-cleanup`.
+Catalog 7,814 -> 7,266 rows; executable rows 5,848 before and after (nothing
+with data was lost).
+
+**Gold changed first.** Three known items pointed at the removed rows and now
+point at the new layers' `name` rows (`ki-health-agency` ->
+`ing_publichealth_01_01`, `ki-tunnel-transport` -> `ing_ntadroadtunn_01_01`,
+`ki-energy-generation` -> `ing_eiapowerplan_01_01`; the old ids are kept in the
+comments). Original gold: `eval/supa/known_item.yaml.orig`.
+
+| known_item | recall@1 | MRR | the three repointed items |
+|---|--:|--:|---|
+| old gold, old rows present | 91.7% | 0.958 | 1, 1, 1 (dead rows) |
+| new gold, old rows present | 66.7% | 0.776 | 2, 4, 15 (dead rows rank above the live ones) |
+| **new gold, old rows removed** | **83.3%** | **0.882** | **1, 1, 12** |
+| old gold, old rows removed | 66.7% | 0.708 | miss, miss, miss |
+
+The remaining loss is real and is the new rows' own text: for "energy
+generation station name" the new Power Plants layer comes 3rd (its
+`technologies` column) and its name column 12th, behind other layers' "Name" /
+"Station name" columns (Natural Gas Compressor Stations first). The HSIP tags
+said "energy generation"; the new tags do not. Not tuned to the query.
+`queries.yaml` per suite: unchanged (same three misses). Analyze probe
+(`analyze_after_removal.json`): 22 of 23 on the new layer; "satellite college
+campuses" now finds Supplemental Colleges (the older College Campuses layer
+won before). The VHA question "how far ... from the nearest **VA medical
+center**" planned 1 of 4 times: the planner tries to restrict
+`nearest_distance` to `type = VA Medical Center`, which that op does not
+accept; "from the nearest VA health care facility" plans
+`nearest_distance -> filter_area` 2 of 2. A planner limit, not data.
+
+#### Still not loaded, and why
+- **Station Transfers, Rail Company:** not feature layers. Both HSIP entries are
+  attribute tables with no geometry (`spatial_rep NONE`): a station-to-system
+  lookup and a railroad reporting-mark list. Nothing can be mapped or planned
+  over them; rail owners are already on the NTAD rail network.
+- **Public Refrigerated Warehouses:** the only current copy
+  (`services2.arcgis.com/PYn6bWCjT6bhw1z3`, 531 points) is a Salesforce export
+  of Global Cold Chain Alliance member accounts (fields `activeacco`,
+  `activeac_1` ...), a private trade association's list with no stated licence.
+  Not loaded.
+- **Seismic hazard 10% in 50 years:** published only as a grid (see above);
+  contouring it here would be a new derived product.
+- **PAD-US:** the PAD-US 4.1 Fee layer alone is 296,456 polygons
+  (`edits.nationalmap.gov/.../PAD_US_4_1/MapServer/0`), and Designation /
+  Easement add more. It needs `make parts` like NWI and a decision on which
+  feature classes and GAP statuses to load. Left for its own load.
+- Not attempted in this pass (no catalog rows, and each is a separate decision):
+  NLCD impervious / change / forest disturbance, CropScape, EMS stations, local
+  EOCs, PSAP boundaries, HGL and gas pipelines, oil / gas interconnects, refinery
+  polygons, DoD site points, FUDS, IRM project boundaries, LandScan USA, TGS
+  mines, FEMA NFHL, trails. FEMA RAPT (`XG15cJAlne2vxtgt`) holds copies of
+  several (`911_Master_PSAP`, `EMSStations_*` regional only).
 
 ---
 

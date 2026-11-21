@@ -26,7 +26,8 @@ WHAT IS DROPPED, AND WHY (detail in docs/DATA_CARPENTRY.md):
         "% change" and "percentage points" variables (derived, and `combine`
         computes a change from the two years); "Socioeconomic Characteristics"
         (poverty, median income, race shares: the same SAIPE/ACS numbers already
-        loaded under USDA ERS and ACS).
+        loaded under USDA ERS and ACS), except PERPOV17_21, the persistent-
+        poverty designation, which nothing else carries.
   rural every variable already loaded from the ERS county files (population
         estimates, labor force / employment / unemployment, SAIPE poverty and
         median income, educational attainment, metro / RUCC / UIC codes): the
@@ -135,14 +136,20 @@ def fea():
             dropped["state-level"] += 1; continue
         if units in ("% change", "Percentage points") or code.startswith(("PCH_", "CH_")):
             dropped["change"] += 1; continue
-        if cat == "Socioeconomic Characteristics":
+        if cat == "Socioeconomic Characteristics" and code != "PERPOV17_21":
+            # Every other socioeconomic variable is a SAIPE / ACS number already
+            # loaded; the persistent-poverty designation is not (it is also the
+            # target of known_item.yaml ki-persistent-poverty).
             dropped["socioeconomic duplicate"] += 1; continue
         label, year = label_year(name)
         if year is None:
             dropped["no year"] += 1; continue
         measure = code
         suf = str(year)[2:]
-        if code.endswith(suf) and len(code) > 2:
+        rng = re.search(r"(\d\d)_(\d\d)$", code)
+        if rng and rng.group(2) == suf:          # PERPOV17_21 -> PERPOV
+            measure = code[: rng.start()].rstrip("_")
+        elif code.endswith(suf) and len(code) > 2:
             measure = code[: -len(suf)].rstrip("_")
         code_map[code] = (measure, year)
         desc = f"{label} ({cat}, USDA ERS Food Environment Atlas)"

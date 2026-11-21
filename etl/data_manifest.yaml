@@ -2681,241 +2681,6 @@ datasets:
     end_year: 2022
     probe: which areas are most socially vulnerable
   dump: null
-- loaded_at: 2026-11-20T23:33Z
-  id: ing_ersfea_01@county
-  dataset_id: ing_ersfea_01
-  name: Food Environment Atlas
-  kind: table
-  level: county
-  files:
-  - path: ers_fea/ers_fea.csv
-    sha256: e5b7193c8ec83f1490475a0ce135e2e40e40b48f0d4cb393893f139d5525ea26
-    bytes: 7224939
-  - path: ers_fea/ers_fea.meta.yaml
-    sha256: 67bfc630c5be5255529ef3ba57a78b58dcae67e91ee9363d4feeb9c19bea0df2
-    bytes: 14847
-  rows: 507471
-  units: 3142
-  unmatched_units: 14
-  codes:
-  - ERS_FEA_AGRITRSM_OPS
-  - ERS_FEA_AGRITRSM_RCT
-  - ERS_FEA_BERRY_ACRES
-  - ERS_FEA_BERRY_ACRESPTH
-  - ERS_FEA_BERRY_FARMS
-  - ERS_FEA_CONVS
-  - ERS_FEA_CONVSPTH
-  - ERS_FEA_CSA
-  - ERS_FEA_DIRSALES
-  - ERS_FEA_DIRSALES_FARMS
-  - ERS_FEA_DS
-  - ERS_FEA_DSPTH
-  - ERS_FEA_FARM_TO_SCHOOL
-  - ERS_FEA_FDPIR
-  - ERS_FEA_FFR
-  - ERS_FEA_FFRPTH
-  - ERS_FEA_FMRKT
-  - ERS_FEA_FMRKTPTH
-  - ERS_FEA_FMRKT_ANMLPROD
-  - ERS_FEA_FMRKT_BAKED
-  - ERS_FEA_FMRKT_CREDIT
-  - ERS_FEA_FMRKT_FRVEG
-  - ERS_FEA_FMRKT_OTHERFOOD
-  - ERS_FEA_FMRKT_SFMNP
-  - ERS_FEA_FMRKT_SNAP
-  - ERS_FEA_FMRKT_WIC
-  - ERS_FEA_FMRKT_WICCASH
-  - ERS_FEA_FOODHUB
-  - ERS_FEA_FOOD_BANKS
-  - ERS_FEA_FRESHVEG_ACRES
-  - ERS_FEA_FRESHVEG_ACRESPTH
-  - ERS_FEA_FRESHVEG_FARMS
-  - ERS_FEA_FSR
-  - ERS_FEA_FSRPTH
-  - ERS_FEA_GHVEG_FARMS
-  - ERS_FEA_GHVEG_SQFT
-  - ERS_FEA_GHVEG_SQFTPTH
-  - ERS_FEA_GROC
-  - ERS_FEA_GROCPTH
-  - ERS_FEA_LACCESS_AIAN
-  - ERS_FEA_LACCESS_ASIAN
-  - ERS_FEA_LACCESS_BLACK
-  - ERS_FEA_LACCESS_CHILD
-  - ERS_FEA_LACCESS_HHNV
-  - ERS_FEA_LACCESS_HISP
-  - ERS_FEA_LACCESS_HOPI
-  - ERS_FEA_LACCESS_LOWI
-  - ERS_FEA_LACCESS_MULTIR
-  - ERS_FEA_LACCESS_POP
-  - ERS_FEA_LACCESS_SENIORS
-  - ERS_FEA_LACCESS_SNAP
-  - ERS_FEA_LACCESS_WHITE
-  - ERS_FEA_ONFARM_MARKET
-  - ERS_FEA_ORCHARD_ACRES
-  - ERS_FEA_ORCHARD_ACRESPTH
-  - ERS_FEA_ORCHARD_FARMS
-  - ERS_FEA_PCT_DIABETES_ADULTS
-  - ERS_FEA_PCT_FMRKT_ANMLPROD
-  - ERS_FEA_PCT_FMRKT_BAKED
-  - ERS_FEA_PCT_FMRKT_CREDIT
-  - ERS_FEA_PCT_FMRKT_FRVEG
-  - ERS_FEA_PCT_FMRKT_OTHERFOOD
-  - ERS_FEA_PCT_FMRKT_SFMNP
-  - ERS_FEA_PCT_FMRKT_SNAP
-  - ERS_FEA_PCT_FMRKT_WIC
-  - ERS_FEA_PCT_FMRKT_WICCASH
-  - ERS_FEA_PCT_FREE_LUNCH
-  - ERS_FEA_PCT_LACCESS_AIAN
-  - ERS_FEA_PCT_LACCESS_ASIAN
-  - ERS_FEA_PCT_LACCESS_BLACK
-  - ERS_FEA_PCT_LACCESS_CHILD
-  - ERS_FEA_PCT_LACCESS_HHNV
-  - ERS_FEA_PCT_LACCESS_HISP
-  - ERS_FEA_PCT_LACCESS_HOPI
-  - ERS_FEA_PCT_LACCESS_LOWI
-  - ERS_FEA_PCT_LACCESS_MULTIR
-  - ERS_FEA_PCT_LACCESS_POP
-  - ERS_FEA_PCT_LACCESS_SENIORS
-  - ERS_FEA_PCT_LACCESS_SNAP
-  - ERS_FEA_PCT_LACCESS_WHITE
-  - ERS_FEA_PCT_LOCLFARM
-  - ERS_FEA_PCT_LOCLSALE
-  - ERS_FEA_PCT_REDUCED_LUNCH
-  - ERS_FEA_PC_DIRSALES
-  - ERS_FEA_PC_SNAPBEN
-  - ERS_FEA_PC_WIC_REDEMP
-  - ERS_FEA_RECFAC
-  - ERS_FEA_RECFACPTH
-  - ERS_FEA_REDEMP_SNAPS
-  - ERS_FEA_REDEMP_WICS
-  - ERS_FEA_SLHOUSE
-  - ERS_FEA_SNAPS
-  - ERS_FEA_SNAPSPTH
-  - ERS_FEA_SPECS
-  - ERS_FEA_SPECSPTH
-  - ERS_FEA_SUPERC
-  - ERS_FEA_SUPERCPTH
-  - ERS_FEA_VEG_ACRES
-  - ERS_FEA_VEG_ACRESPTH
-  - ERS_FEA_VEG_FARMS
-  - ERS_FEA_WICS
-  - ERS_FEA_WICSPTH
-  definitions: []
-  catalog_labels:
-  - ERS_FEA_AGRITRSM_OPS
-  - ERS_FEA_AGRITRSM_RCT
-  - ERS_FEA_BERRY_ACRES
-  - ERS_FEA_BERRY_ACRESPTH
-  - ERS_FEA_BERRY_FARMS
-  - ERS_FEA_CONVS
-  - ERS_FEA_CONVSPTH
-  - ERS_FEA_CSA
-  - ERS_FEA_DIRSALES
-  - ERS_FEA_DIRSALES_FARMS
-  - ERS_FEA_DS
-  - ERS_FEA_DSPTH
-  - ERS_FEA_FARM_TO_SCHOOL
-  - ERS_FEA_FDPIR
-  - ERS_FEA_FFR
-  - ERS_FEA_FFRPTH
-  - ERS_FEA_FMRKT
-  - ERS_FEA_FMRKTPTH
-  - ERS_FEA_FMRKT_ANMLPROD
-  - ERS_FEA_FMRKT_BAKED
-  - ERS_FEA_FMRKT_CREDIT
-  - ERS_FEA_FMRKT_FRVEG
-  - ERS_FEA_FMRKT_OTHERFOOD
-  - ERS_FEA_FMRKT_SFMNP
-  - ERS_FEA_FMRKT_SNAP
-  - ERS_FEA_FMRKT_WIC
-  - ERS_FEA_FMRKT_WICCASH
-  - ERS_FEA_FOODHUB
-  - ERS_FEA_FOOD_BANKS
-  - ERS_FEA_FRESHVEG_ACRES
-  - ERS_FEA_FRESHVEG_ACRESPTH
-  - ERS_FEA_FRESHVEG_FARMS
-  - ERS_FEA_FSR
-  - ERS_FEA_FSRPTH
-  - ERS_FEA_GHVEG_FARMS
-  - ERS_FEA_GHVEG_SQFT
-  - ERS_FEA_GHVEG_SQFTPTH
-  - ERS_FEA_GROC
-  - ERS_FEA_GROCPTH
-  - ERS_FEA_LACCESS_AIAN
-  - ERS_FEA_LACCESS_ASIAN
-  - ERS_FEA_LACCESS_BLACK
-  - ERS_FEA_LACCESS_CHILD
-  - ERS_FEA_LACCESS_HHNV
-  - ERS_FEA_LACCESS_HISP
-  - ERS_FEA_LACCESS_HOPI
-  - ERS_FEA_LACCESS_LOWI
-  - ERS_FEA_LACCESS_MULTIR
-  - ERS_FEA_LACCESS_POP
-  - ERS_FEA_LACCESS_SENIORS
-  - ERS_FEA_LACCESS_SNAP
-  - ERS_FEA_LACCESS_WHITE
-  - ERS_FEA_ONFARM_MARKET
-  - ERS_FEA_ORCHARD_ACRES
-  - ERS_FEA_ORCHARD_ACRESPTH
-  - ERS_FEA_ORCHARD_FARMS
-  - ERS_FEA_PCT_DIABETES_ADULTS
-  - ERS_FEA_PCT_FMRKT_ANMLPROD
-  - ERS_FEA_PCT_FMRKT_BAKED
-  - ERS_FEA_PCT_FMRKT_CREDIT
-  - ERS_FEA_PCT_FMRKT_FRVEG
-  - ERS_FEA_PCT_FMRKT_OTHERFOOD
-  - ERS_FEA_PCT_FMRKT_SFMNP
-  - ERS_FEA_PCT_FMRKT_SNAP
-  - ERS_FEA_PCT_FMRKT_WIC
-  - ERS_FEA_PCT_FMRKT_WICCASH
-  - ERS_FEA_PCT_FREE_LUNCH
-  - ERS_FEA_PCT_LACCESS_AIAN
-  - ERS_FEA_PCT_LACCESS_ASIAN
-  - ERS_FEA_PCT_LACCESS_BLACK
-  - ERS_FEA_PCT_LACCESS_CHILD
-  - ERS_FEA_PCT_LACCESS_HHNV
-  - ERS_FEA_PCT_LACCESS_HISP
-  - ERS_FEA_PCT_LACCESS_HOPI
-  - ERS_FEA_PCT_LACCESS_LOWI
-  - ERS_FEA_PCT_LACCESS_MULTIR
-  - ERS_FEA_PCT_LACCESS_POP
-  - ERS_FEA_PCT_LACCESS_SENIORS
-  - ERS_FEA_PCT_LACCESS_SNAP
-  - ERS_FEA_PCT_LACCESS_WHITE
-  - ERS_FEA_PCT_LOCLFARM
-  - ERS_FEA_PCT_LOCLSALE
-  - ERS_FEA_PCT_REDUCED_LUNCH
-  - ERS_FEA_PC_DIRSALES
-  - ERS_FEA_PC_SNAPBEN
-  - ERS_FEA_PC_WIC_REDEMP
-  - ERS_FEA_RECFAC
-  - ERS_FEA_RECFACPTH
-  - ERS_FEA_REDEMP_SNAPS
-  - ERS_FEA_REDEMP_WICS
-  - ERS_FEA_SLHOUSE
-  - ERS_FEA_SNAPS
-  - ERS_FEA_SNAPSPTH
-  - ERS_FEA_SPECS
-  - ERS_FEA_SPECSPTH
-  - ERS_FEA_SUPERC
-  - ERS_FEA_SUPERCPTH
-  - ERS_FEA_VEG_ACRES
-  - ERS_FEA_VEG_ACRESPTH
-  - ERS_FEA_VEG_FARMS
-  - ERS_FEA_WICS
-  - ERS_FEA_WICSPTH
-  tag_model: gemma3:4b
-  metadata:
-    description: 'County indicators of the food environment from the USDA ERS Food Environment Atlas:
-      access and distance to grocery stores (low-access population by income, age, vehicle access), counts
-      and densities of grocery stores, supercenters, convenience stores, specialized food stores, SNAP-
-      and WIC-authorized stores, fast-food and full-service restaurants, food assistance participation,
-      farmers'' markets and local food sales, and recreation and fitness facilities.'
-    originator: USDA Economic Research Service
-    source_url: https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads
-    license: public domain
-    probe: which counties have the most people with low access to a grocery store
-  dump: null
 - loaded_at: 2026-11-20T23:35Z
   id: ing_ersruralatla_01@county
   dataset_id: ing_ersruralatla_01
@@ -3235,4 +3000,1358 @@ datasets:
     source_url: https://www.cdc.gov/heart-disease-stroke-atlas/
     license: public domain
     probe: which counties have the highest heart disease death rates
+  dump: null
+- loaded_at: 2026-11-21T00:10Z
+  id: ing_ersfea_01@county
+  dataset_id: ing_ersfea_01
+  name: Food Environment Atlas
+  kind: table
+  level: county
+  files:
+  - path: ers_fea/ers_fea.csv
+    sha256: 9f71dd7e809bd8d403cc7548453d8bf4573f3562459beaad5b2fd80f04bba149
+    bytes: 7262629
+  - path: ers_fea/ers_fea.meta.yaml
+    sha256: 5c782dbc9f17193ef9a92b396dd7b526da0ab819bdd679f967a73fcf88028a6a
+    bytes: 14976
+  rows: 510590
+  units: 3142
+  unmatched_units: 14
+  codes:
+  - ERS_FEA_AGRITRSM_OPS
+  - ERS_FEA_AGRITRSM_RCT
+  - ERS_FEA_BERRY_ACRES
+  - ERS_FEA_BERRY_ACRESPTH
+  - ERS_FEA_BERRY_FARMS
+  - ERS_FEA_CONVS
+  - ERS_FEA_CONVSPTH
+  - ERS_FEA_CSA
+  - ERS_FEA_DIRSALES
+  - ERS_FEA_DIRSALES_FARMS
+  - ERS_FEA_DS
+  - ERS_FEA_DSPTH
+  - ERS_FEA_FARM_TO_SCHOOL
+  - ERS_FEA_FDPIR
+  - ERS_FEA_FFR
+  - ERS_FEA_FFRPTH
+  - ERS_FEA_FMRKT
+  - ERS_FEA_FMRKTPTH
+  - ERS_FEA_FMRKT_ANMLPROD
+  - ERS_FEA_FMRKT_BAKED
+  - ERS_FEA_FMRKT_CREDIT
+  - ERS_FEA_FMRKT_FRVEG
+  - ERS_FEA_FMRKT_OTHERFOOD
+  - ERS_FEA_FMRKT_SFMNP
+  - ERS_FEA_FMRKT_SNAP
+  - ERS_FEA_FMRKT_WIC
+  - ERS_FEA_FMRKT_WICCASH
+  - ERS_FEA_FOODHUB
+  - ERS_FEA_FOOD_BANKS
+  - ERS_FEA_FRESHVEG_ACRES
+  - ERS_FEA_FRESHVEG_ACRESPTH
+  - ERS_FEA_FRESHVEG_FARMS
+  - ERS_FEA_FSR
+  - ERS_FEA_FSRPTH
+  - ERS_FEA_GHVEG_FARMS
+  - ERS_FEA_GHVEG_SQFT
+  - ERS_FEA_GHVEG_SQFTPTH
+  - ERS_FEA_GROC
+  - ERS_FEA_GROCPTH
+  - ERS_FEA_LACCESS_AIAN
+  - ERS_FEA_LACCESS_ASIAN
+  - ERS_FEA_LACCESS_BLACK
+  - ERS_FEA_LACCESS_CHILD
+  - ERS_FEA_LACCESS_HHNV
+  - ERS_FEA_LACCESS_HISP
+  - ERS_FEA_LACCESS_HOPI
+  - ERS_FEA_LACCESS_LOWI
+  - ERS_FEA_LACCESS_MULTIR
+  - ERS_FEA_LACCESS_POP
+  - ERS_FEA_LACCESS_SENIORS
+  - ERS_FEA_LACCESS_SNAP
+  - ERS_FEA_LACCESS_WHITE
+  - ERS_FEA_ONFARM_MARKET
+  - ERS_FEA_ORCHARD_ACRES
+  - ERS_FEA_ORCHARD_ACRESPTH
+  - ERS_FEA_ORCHARD_FARMS
+  - ERS_FEA_PCT_DIABETES_ADULTS
+  - ERS_FEA_PCT_FMRKT_ANMLPROD
+  - ERS_FEA_PCT_FMRKT_BAKED
+  - ERS_FEA_PCT_FMRKT_CREDIT
+  - ERS_FEA_PCT_FMRKT_FRVEG
+  - ERS_FEA_PCT_FMRKT_OTHERFOOD
+  - ERS_FEA_PCT_FMRKT_SFMNP
+  - ERS_FEA_PCT_FMRKT_SNAP
+  - ERS_FEA_PCT_FMRKT_WIC
+  - ERS_FEA_PCT_FMRKT_WICCASH
+  - ERS_FEA_PCT_FREE_LUNCH
+  - ERS_FEA_PCT_LACCESS_AIAN
+  - ERS_FEA_PCT_LACCESS_ASIAN
+  - ERS_FEA_PCT_LACCESS_BLACK
+  - ERS_FEA_PCT_LACCESS_CHILD
+  - ERS_FEA_PCT_LACCESS_HHNV
+  - ERS_FEA_PCT_LACCESS_HISP
+  - ERS_FEA_PCT_LACCESS_HOPI
+  - ERS_FEA_PCT_LACCESS_LOWI
+  - ERS_FEA_PCT_LACCESS_MULTIR
+  - ERS_FEA_PCT_LACCESS_POP
+  - ERS_FEA_PCT_LACCESS_SENIORS
+  - ERS_FEA_PCT_LACCESS_SNAP
+  - ERS_FEA_PCT_LACCESS_WHITE
+  - ERS_FEA_PCT_LOCLFARM
+  - ERS_FEA_PCT_LOCLSALE
+  - ERS_FEA_PCT_REDUCED_LUNCH
+  - ERS_FEA_PC_DIRSALES
+  - ERS_FEA_PC_SNAPBEN
+  - ERS_FEA_PC_WIC_REDEMP
+  - ERS_FEA_PERPOV
+  - ERS_FEA_RECFAC
+  - ERS_FEA_RECFACPTH
+  - ERS_FEA_REDEMP_SNAPS
+  - ERS_FEA_REDEMP_WICS
+  - ERS_FEA_SLHOUSE
+  - ERS_FEA_SNAPS
+  - ERS_FEA_SNAPSPTH
+  - ERS_FEA_SPECS
+  - ERS_FEA_SPECSPTH
+  - ERS_FEA_SUPERC
+  - ERS_FEA_SUPERCPTH
+  - ERS_FEA_VEG_ACRES
+  - ERS_FEA_VEG_ACRESPTH
+  - ERS_FEA_VEG_FARMS
+  - ERS_FEA_WICS
+  - ERS_FEA_WICSPTH
+  definitions: []
+  catalog_labels:
+  - ERS_FEA_AGRITRSM_OPS
+  - ERS_FEA_AGRITRSM_RCT
+  - ERS_FEA_BERRY_ACRES
+  - ERS_FEA_BERRY_ACRESPTH
+  - ERS_FEA_BERRY_FARMS
+  - ERS_FEA_CONVS
+  - ERS_FEA_CONVSPTH
+  - ERS_FEA_CSA
+  - ERS_FEA_DIRSALES
+  - ERS_FEA_DIRSALES_FARMS
+  - ERS_FEA_DS
+  - ERS_FEA_DSPTH
+  - ERS_FEA_FARM_TO_SCHOOL
+  - ERS_FEA_FDPIR
+  - ERS_FEA_FFR
+  - ERS_FEA_FFRPTH
+  - ERS_FEA_FMRKT
+  - ERS_FEA_FMRKTPTH
+  - ERS_FEA_FMRKT_ANMLPROD
+  - ERS_FEA_FMRKT_BAKED
+  - ERS_FEA_FMRKT_CREDIT
+  - ERS_FEA_FMRKT_FRVEG
+  - ERS_FEA_FMRKT_OTHERFOOD
+  - ERS_FEA_FMRKT_SFMNP
+  - ERS_FEA_FMRKT_SNAP
+  - ERS_FEA_FMRKT_WIC
+  - ERS_FEA_FMRKT_WICCASH
+  - ERS_FEA_FOODHUB
+  - ERS_FEA_FOOD_BANKS
+  - ERS_FEA_FRESHVEG_ACRES
+  - ERS_FEA_FRESHVEG_ACRESPTH
+  - ERS_FEA_FRESHVEG_FARMS
+  - ERS_FEA_FSR
+  - ERS_FEA_FSRPTH
+  - ERS_FEA_GHVEG_FARMS
+  - ERS_FEA_GHVEG_SQFT
+  - ERS_FEA_GHVEG_SQFTPTH
+  - ERS_FEA_GROC
+  - ERS_FEA_GROCPTH
+  - ERS_FEA_LACCESS_AIAN
+  - ERS_FEA_LACCESS_ASIAN
+  - ERS_FEA_LACCESS_BLACK
+  - ERS_FEA_LACCESS_CHILD
+  - ERS_FEA_LACCESS_HHNV
+  - ERS_FEA_LACCESS_HISP
+  - ERS_FEA_LACCESS_HOPI
+  - ERS_FEA_LACCESS_LOWI
+  - ERS_FEA_LACCESS_MULTIR
+  - ERS_FEA_LACCESS_POP
+  - ERS_FEA_LACCESS_SENIORS
+  - ERS_FEA_LACCESS_SNAP
+  - ERS_FEA_LACCESS_WHITE
+  - ERS_FEA_ONFARM_MARKET
+  - ERS_FEA_ORCHARD_ACRES
+  - ERS_FEA_ORCHARD_ACRESPTH
+  - ERS_FEA_ORCHARD_FARMS
+  - ERS_FEA_PCT_DIABETES_ADULTS
+  - ERS_FEA_PCT_FMRKT_ANMLPROD
+  - ERS_FEA_PCT_FMRKT_BAKED
+  - ERS_FEA_PCT_FMRKT_CREDIT
+  - ERS_FEA_PCT_FMRKT_FRVEG
+  - ERS_FEA_PCT_FMRKT_OTHERFOOD
+  - ERS_FEA_PCT_FMRKT_SFMNP
+  - ERS_FEA_PCT_FMRKT_SNAP
+  - ERS_FEA_PCT_FMRKT_WIC
+  - ERS_FEA_PCT_FMRKT_WICCASH
+  - ERS_FEA_PCT_FREE_LUNCH
+  - ERS_FEA_PCT_LACCESS_AIAN
+  - ERS_FEA_PCT_LACCESS_ASIAN
+  - ERS_FEA_PCT_LACCESS_BLACK
+  - ERS_FEA_PCT_LACCESS_CHILD
+  - ERS_FEA_PCT_LACCESS_HHNV
+  - ERS_FEA_PCT_LACCESS_HISP
+  - ERS_FEA_PCT_LACCESS_HOPI
+  - ERS_FEA_PCT_LACCESS_LOWI
+  - ERS_FEA_PCT_LACCESS_MULTIR
+  - ERS_FEA_PCT_LACCESS_POP
+  - ERS_FEA_PCT_LACCESS_SENIORS
+  - ERS_FEA_PCT_LACCESS_SNAP
+  - ERS_FEA_PCT_LACCESS_WHITE
+  - ERS_FEA_PCT_LOCLFARM
+  - ERS_FEA_PCT_LOCLSALE
+  - ERS_FEA_PCT_REDUCED_LUNCH
+  - ERS_FEA_PC_DIRSALES
+  - ERS_FEA_PC_SNAPBEN
+  - ERS_FEA_PC_WIC_REDEMP
+  - ERS_FEA_PERPOV
+  - ERS_FEA_RECFAC
+  - ERS_FEA_RECFACPTH
+  - ERS_FEA_REDEMP_SNAPS
+  - ERS_FEA_REDEMP_WICS
+  - ERS_FEA_SLHOUSE
+  - ERS_FEA_SNAPS
+  - ERS_FEA_SNAPSPTH
+  - ERS_FEA_SPECS
+  - ERS_FEA_SPECSPTH
+  - ERS_FEA_SUPERC
+  - ERS_FEA_SUPERCPTH
+  - ERS_FEA_VEG_ACRES
+  - ERS_FEA_VEG_ACRESPTH
+  - ERS_FEA_VEG_FARMS
+  - ERS_FEA_WICS
+  - ERS_FEA_WICSPTH
+  tag_model: gemma3:4b
+  metadata:
+    description: 'County indicators of the food environment from the USDA ERS Food Environment Atlas:
+      access and distance to grocery stores (low-access population by income, age, vehicle access), counts
+      and densities of grocery stores, supercenters, convenience stores, specialized food stores, SNAP-
+      and WIC-authorized stores, fast-food and full-service restaurants, food assistance participation,
+      farmers'' markets and local food sales, and recreation and fitness facilities.'
+    originator: USDA Economic Research Service
+    source_url: https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads
+    license: public domain
+    probe: which counties have the most people with low access to a grocery store
+  dump: null
+- loaded_at: 2026-11-21T00:16Z
+  id: ing_eiapowerplan_01
+  name: Power Plants
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: eia_power_plants/eia_power_plants.csv
+    sha256: ff22fb59d518dda5ae475613515029929341ae2c3297d16867226f91aa7daf23
+    bytes: 1977952
+  - path: eia_power_plants/eia_power_plants.meta.yaml
+    sha256: 37457ada80611e89438796b7b0c272558b7f16b838c9e67d3d33d26cf3e728fa
+    bytes: 2025
+  layer: eia_power_plants
+  table: eia_power_plants
+  renames:
+    name: name
+    type: type
+    operator: owner
+    county: county
+    state: state
+  rows: 14864
+  geometry: Point
+  catalog_labels:
+  - ing_eiapowerplan_01_01
+  - ing_eiapowerplan_01_02
+  - ing_eiapowerplan_01_03
+  - ing_eiapowerplan_01_04
+  - ing_eiapowerplan_01_05
+  - ing_eiapowerplan_01_06
+  - ing_eiapowerplan_01_07
+  - ing_eiapowerplan_01_08
+  tag_model: gemma3:4b
+  metadata:
+    description: Operating electric power plants of 1 MW or more, one point per plant, with primary energy
+      source (coal, natural gas, nuclear, solar, wind, hydro ...), operator, sector and total nameplate
+      capacity, from EIA's monthly generator inventory (September 2026).
+    originator: U.S. Energy Information Administration, Form EIA-860M Preliminary Monthly Electric Generator
+      Inventory (successor of the HIFLD and EPA FRS Power Plants layers)
+    source_url: https://www.eia.gov/electricity/data/eia860m/
+    license: public domain
+    keywords:
+    - power plants
+    - power stations
+    - electric generation
+    - coal plants
+    - nuclear plants
+    - solar farms
+    - wind farms
+    - energy infrastructure
+    start_year: 2026
+    end_year: 2026
+    probe: where are the coal power plants in Kentucky
+  dump: null
+- loaded_at: 2026-11-21T00:16Z
+  id: ing_ntadpetroleu_01
+  name: Petroleum Ports
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: ntad_petroleum_ports/ntad_petroleum_ports.csv
+    sha256: 61e4a760d01a1014b3249f622d3b236782158de31e62f3077eaf4e5b2e854d13
+    bytes: 31053
+  - path: ntad_petroleum_ports/ntad_petroleum_ports.meta.yaml
+    sha256: 43aabef4214515de5330bc1c9c1f708ccf4c182bf5f84b867a0ad53f3e6ab2b6
+    bytes: 1392
+  layer: ntad_petroleum_ports
+  table: ntad_petroleum_ports
+  renames:
+    name: name
+    type: type
+    status: status
+    operator: owner
+    county: county
+    state: state
+  rows: 242
+  geometry: Point
+  catalog_labels:
+  - ing_ntadpetroleu_01_01
+  - ing_ntadpetroleu_01_02
+  - ing_ntadpetroleu_01_03
+  - ing_ntadpetroleu_01_04
+  - ing_ntadpetroleu_01_05
+  - ing_ntadpetroleu_01_06
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Ports and port facilities that handle petroleum products (crude oil and refined fuels):
+      marine and inland waterway terminals, with operator and status.'
+    originator: U.S. DOT Bureau of Transportation Statistics, National Transportation Atlas Database (successor
+      host of the HIFLD Petroleum Ports layer)
+    source_url: https://geodata.bts.gov/ (NTAD, service Petroleum_Ports)
+    license: public domain
+    keywords:
+    - petroleum ports
+    - oil ports
+    - fuel ports
+    - petroleum terminals on water
+    - energy infrastructure
+    start_year: 2026
+    end_year: 2026
+    probe: where are the petroleum ports in Texas
+  dump: null
+- loaded_at: 2026-11-21T00:16Z
+  id: ing_ntadpipeline_01
+  name: Petroleum Product Terminals (POL terminals)
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: ntad_pipeline_terminals/ntad_pipeline_terminals.csv
+    sha256: 76f664931301cb3b408fb9a23bc20df44ceff483d5849309be56dbaf1ed29bb9
+    bytes: 227249
+  - path: ntad_pipeline_terminals/ntad_pipeline_terminals.meta.yaml
+    sha256: 27fce38d0d7c8975d08f05841dd9a6afdc7b5420b80244ee4a2b1489d956fd47
+    bytes: 1896
+  layer: ntad_pipeline_terminals
+  table: ntad_pipeline_terminals
+  renames:
+    name: name
+    company: owner
+    address: address
+    city: city
+    state: state
+    county: county
+    products: type
+  rows: 1401
+  geometry: Point
+  catalog_labels:
+  - ing_ntadpipeline_01_01
+  - ing_ntadpipeline_01_02
+  - ing_ntadpipeline_01_03
+  - ing_ntadpipeline_01_04
+  - ing_ntadpipeline_01_05
+  - ing_ntadpipeline_01_06
+  - ing_ntadpipeline_01_07
+  - ing_ntadpipeline_01_08
+  - ing_ntadpipeline_01_09
+  tag_model: gemma3:4b
+  metadata:
+    description: Petroleum, oil and lubricants (POL) bulk terminals where pipelines deliver crude oil,
+      gasoline, diesel, jet fuel, ethanol and other products to truck, rail or water transport, with the
+      products handled and storage capacity.
+    originator: 'U.S. DOT Bureau of Transportation Statistics, NTAD Intermodal Freight Facilities: Pipeline
+      Terminals (successor of the HIFLD POL / Petroleum Terminals layer; carries the HIFLD id)'
+    source_url: https://geodata.bts.gov/ (NTAD, service NTAD_Intermodal_Freight_Facilities_Pipeline_Terminals)
+    license: public domain
+    keywords:
+    - petroleum terminals
+    - POL terminals
+    - fuel terminals
+    - oil terminals
+    - tank farms
+    - bulk fuel storage
+    start_year: 2024
+    end_year: 2024
+    probe: how many petroleum terminals are in each state
+  dump: null
+- loaded_at: 2026-11-21T00:16Z
+  id: ing_polpumpingst_01
+  name: POL Pumping Stations
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: pol_pumping_stations/pol_pumping_stations.csv
+    sha256: 70f548552579698ab91bffa9be36ca6c5aaac1999faec023a25d2ae230e4b92b
+    bytes: 164480
+  - path: pol_pumping_stations/pol_pumping_stations.meta.yaml
+    sha256: aba9cfa0da7df654664e08ecdfb448dd859fef0e8b2469c95c51809b0117e973
+    bytes: 1646
+  layer: pol_pumping_stations
+  table: pol_pumping_stations
+  renames:
+    name: name
+    type: type
+    status: status
+    operator: owner
+    city: city
+    county: county
+    state: state
+  rows: 1270
+  geometry: Point
+  catalog_labels:
+  - ing_polpumpingst_01_01
+  - ing_polpumpingst_01_02
+  - ing_polpumpingst_01_03
+  - ing_polpumpingst_01_04
+  - ing_polpumpingst_01_05
+  - ing_polpumpingst_01_06
+  - ing_polpumpingst_01_07
+  - ing_polpumpingst_01_08
+  tag_model: gemma3:4b
+  metadata:
+    description: Pumping stations on petroleum, oil and lubricants (POL) pipelines that move crude oil
+      and refined products, with commodity and operator. A 2021 snapshot of the retired HIFLD layer.
+    originator: HIFLD Open (DHS), 2021 release, as re-published on ArcGIS Online (owner clibby007, org
+      HDRa0B57OVrv2E1q); HIFLD Open was retired in 2025 and no agency successor publishes this layer
+    source_url: https://services5.arcgis.com/HDRa0B57OVrv2E1q/arcgis/rest/services/POL_Pumping_Stations/FeatureServer/0
+    license: public domain
+    keywords:
+    - pipeline pumping stations
+    - oil pump stations
+    - petroleum pipeline
+    - POL pumping stations
+    start_year: 2021
+    end_year: 2021
+    probe: where are the oil pipeline pumping stations in Oklahoma
+  dump: null
+- loaded_at: 2026-11-21T00:16Z
+  id: ing_prisonbounda_01
+  name: Prison Boundaries
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: prison_boundaries/prison_boundaries.geojson
+    sha256: e5a1be64f1f470bcd7bec1bd0edfc89ad149a1222fd2578e61745c12b24fcef6
+    bytes: 4359537
+  - path: prison_boundaries/prison_boundaries.meta.yaml
+    sha256: fca1737aaee48ec57d02b80c67dc424f9419d00eafbda4e953ef1cc9dbd31c91
+    bytes: 1813
+  layer: prison_boundaries
+  table: prison_boundaries
+  renames:
+    name: name
+    type: type
+    status: status
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+  rows: 6471
+  geometry: Unknown (any)
+  catalog_labels:
+  - ing_prisonbounda_01_01
+  - ing_prisonbounda_01_02
+  - ing_prisonbounda_01_03
+  - ing_prisonbounda_01_04
+  - ing_prisonbounda_01_05
+  - ing_prisonbounda_01_06
+  - ing_prisonbounda_01_07
+  - ing_prisonbounda_01_08
+  - ing_prisonbounda_01_09
+  - ing_prisonbounda_01_10
+  - ing_prisonbounda_01_11
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Outlines of correctional facilities: federal, state and local prisons, jails, juvenile
+      detention and immigration detention centers, with type, security level, inmate population and capacity.'
+    originator: FEMA Resilience Analysis and Planning Tool (RAPT) copy of the HIFLD Prison Boundaries
+      layer (DHS), last edited 2025-12
+    source_url: https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/Prison_Boundaries_RAPT/FeatureServer/1
+    license: public domain
+    keywords:
+    - prisons
+    - jails
+    - correctional facilities
+    - detention centers
+    - penitentiaries
+    - incarceration
+    start_year: 2025
+    end_year: 2025
+    probe: how many prisons are in each county in Georgia
+  dump: null
+- loaded_at: 2026-11-21T00:16Z
+  id: ing_publichealth_01
+  name: Public Health Departments
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: public_health_departments/public_health_departments.csv
+    sha256: f54edb200d56c747e1e8fe5b1d94b67e9a2a4e29e8d68474f69170d1cc876fa9
+    bytes: 409962
+  - path: public_health_departments/public_health_departments.meta.yaml
+    sha256: a73bc3155e8c1b5a89e893eaeb60784989a9cd686ba57e1cafdf08e9cddb0bee
+    bytes: 1447
+  layer: public_health_departments
+  table: public_health_departments
+  renames:
+    name: name
+    govt_level: type
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+  rows: 3699
+  geometry: Point
+  catalog_labels:
+  - ing_publichealth_01_01
+  - ing_publichealth_01_02
+  - ing_publichealth_01_03
+  - ing_publichealth_01_04
+  - ing_publichealth_01_05
+  - ing_publichealth_01_06
+  - ing_publichealth_01_07
+  tag_model: gemma3:4b
+  metadata:
+    description: Offices of state and local public health departments and agencies, with the level of
+      government they serve.
+    originator: FEMA National Integration Center copy of the HIFLD Open Public Health Departments layer
+      (DHS), last edited 2026-01
+    source_url: https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/Public_Health_Departments_HIFLD/FeatureServer/41
+    license: public domain
+    keywords:
+    - public health departments
+    - health departments
+    - county health department
+    - local health agency
+    start_year: 2026
+    end_year: 2026
+    probe: where are the public health departments in Ohio
+  dump: null
+- loaded_at: 2026-11-21T00:17Z
+  id: ing_urgentcarefa_01
+  name: Urgent Care Facilities
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: urgent_care_facilities/urgent_care_facilities.csv
+    sha256: e54c961ce81d91b01d26b7ccf6625385ad9e6982fcedce7862b749b234baef29
+    bytes: 510058
+  - path: urgent_care_facilities/urgent_care_facilities.meta.yaml
+    sha256: 7c9bce0a96c92276d9f061239ee9dbc6eb7b3fbacb1954f04e77172eb989991b
+    bytes: 1356
+  layer: urgent_care_facilities
+  table: urgent_care_facilities
+  renames:
+    name: name
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+  rows: 4810
+  geometry: Point
+  catalog_labels:
+  - ing_urgentcarefa_01_01
+  - ing_urgentcarefa_01_02
+  - ing_urgentcarefa_01_03
+  - ing_urgentcarefa_01_04
+  - ing_urgentcarefa_01_05
+  - ing_urgentcarefa_01_06
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Urgent care centers: walk-in clinics that treat illness and injury needing prompt care
+      but not an emergency department.'
+    originator: FEMA Resilience Analysis and Planning Tool (RAPT) copy of the HIFLD Urgent Care Facilities
+      layer (DHS; Urgent Care Association member list), last edited 2025-09
+    source_url: https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/Urgent_Care_Facilities_RAPT/FeatureServer/11
+    license: public domain
+    keywords:
+    - urgent care
+    - walk-in clinics
+    - urgent care centers
+    - immediate care
+    start_year: 2025
+    end_year: 2025
+    probe: how many urgent care centers are in each county in Florida
+  dump: null
+- loaded_at: 2026-11-21T00:17Z
+  id: ing_vhafacilitie_01
+  name: Veterans Health Administration Medical Facilities
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: vha_facilities/vha_facilities.csv
+    sha256: 59c07f2ba48f05e2a50e9c1092b4ac49d7aacacfdda5560ec5f206742056aead
+    bytes: 189348
+  - path: vha_facilities/vha_facilities.meta.yaml
+    sha256: 37dca511d3642ca48ea94b561f837cb0c0d9d5230f5e80735f6fd3cac57ed486
+    bytes: 1623
+  layer: vha_facilities
+  table: vha_facilities
+  renames:
+    name: name
+    type: type
+    address: address
+    city: city
+    state: state
+    zip: zip
+  rows: 1657
+  geometry: Point
+  catalog_labels:
+  - ing_vhafacilitie_01_01
+  - ing_vhafacilitie_01_02
+  - ing_vhafacilitie_01_03
+  - ing_vhafacilitie_01_04
+  - ing_vhafacilitie_01_05
+  - ing_vhafacilitie_01_06
+  - ing_vhafacilitie_01_07
+  - ing_vhafacilitie_01_08
+  tag_model: gemma3:4b
+  metadata:
+    description: 'VA health care sites: VA medical centers, health care centers, community based outpatient
+      clinics, community living centers, residential rehabilitation programs and Vet Centers.'
+    originator: U.S. Department of Veterans Affairs, as published by HRSA's Health Care Facilities service
+      (data.hrsa.gov)
+    source_url: https://gisportal.hrsa.gov/server/rest/services/HealthCareFacilities/VHAFacilities_FS/MapServer/0
+    license: public domain
+    keywords:
+    - VA hospitals
+    - veterans health
+    - VA clinics
+    - VA medical centers
+    - veterans affairs
+    - CBOC
+    start_year: 2026
+    end_year: 2026
+    probe: how far is each county from the nearest VA medical center
+  dump: null
+- loaded_at: 2026-11-21T00:17Z
+  id: ing_ntadpassenge_01
+  name: Public Transit and Passenger Stations
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: ntad_passenger_stations/ntad_passenger_stations.csv
+    sha256: 36dac513896d8cd4c2c541c57eede53b0af0ad046161d4485551855584c7505e
+    bytes: 1965135
+  - path: ntad_passenger_stations/ntad_passenger_stations.meta.yaml
+    sha256: ad462788b7e4152bc482a8b63b78824336edba2eabc86b928a0f12aef2c0ad14
+    bytes: 1730
+  layer: ntad_passenger_stations
+  table: ntad_passenger_stations
+  renames:
+    name: name
+    type: type
+    address: address
+    city: city
+    state: state
+    zip: zip
+  rows: 15488
+  geometry: Point
+  catalog_labels:
+  - ing_ntadpassenge_01_01
+  - ing_ntadpassenge_01_02
+  - ing_ntadpassenge_01_03
+  - ing_ntadpassenge_01_04
+  - ing_ntadpassenge_01_05
+  - ing_ntadpassenge_01_06
+  - ing_ntadpassenge_01_07
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Passenger transportation stations and terminals: rail transit and commuter rail stations,
+      Amtrak stations, intercity bus and ferry terminals and airports, with the modes each serves (Intermodal
+      Passenger Connectivity Database).'
+    originator: U.S. DOT Bureau of Transportation Statistics, Intermodal Passenger Connectivity Database
+      (successor of the HIFLD Public Transit Stations layer)
+    source_url: https://geodata.bts.gov/ (NTAD, service NTAD_Intermodal_Passenger_Connectivity_Database)
+    license: public domain
+    keywords:
+    - transit stations
+    - train stations
+    - subway stations
+    - bus terminals
+    - ferry terminals
+    - intermodal stations
+    - commuter rail
+    start_year: 2025
+    end_year: 2025
+    probe: where are the train and transit stations in Illinois
+  dump: null
+- loaded_at: 2026-11-21T00:17Z
+  id: ing_ntadroadtunn_01
+  name: Road Tunnels
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: ntad_road_tunnels/ntad_road_tunnels.csv
+    sha256: 46236603acd1b5f367a023be6007ec4563cfa84c4fac3a321067d624cfac2d5b
+    bytes: 53762
+  - path: ntad_road_tunnels/ntad_road_tunnels.meta.yaml
+    sha256: 254bc0b90449055c817b5bf84163994fcdd9b27c805f7a343207e981d3470f7e
+    bytes: 1463
+  layer: ntad_road_tunnels
+  table: ntad_road_tunnels
+  renames:
+    name: name
+  rows: 580
+  geometry: Point
+  catalog_labels:
+  - ing_ntadroadtunn_01_01
+  - ing_ntadroadtunn_01_02
+  - ing_ntadroadtunn_01_03
+  - ing_ntadroadtunn_01_04
+  - ing_ntadroadtunn_01_05
+  - ing_ntadroadtunn_01_06
+  - ing_ntadroadtunn_01_07
+  tag_model: gemma3:4b
+  metadata:
+    description: Highway tunnels in the FHWA National Tunnel Inventory, at the tunnel portal, with the
+      road carried, year built, lanes and average daily traffic.
+    originator: Federal Highway Administration National Tunnel Inventory, via BTS NTAD (successor of the
+      HIFLD Road Tunnels layer)
+    source_url: https://geodata.bts.gov/ (NTAD, service NTAD_National_Tunnel_Inventory)
+    license: public domain
+    keywords:
+    - tunnels
+    - road tunnels
+    - highway tunnels
+    - national tunnel inventory
+    start_year: 2025
+    end_year: 2025
+    probe: where are the road tunnels in Pennsylvania
+  dump: null
+- loaded_at: 2026-11-21T00:17Z
+  id: ing_solidwastela_01
+  name: Solid Waste Landfill Facilities
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: solid_waste_landfills/solid_waste_landfills.csv
+    sha256: ecef76c0dea85a1b61a5680200aff3c43716d854882a48c33a8fbf5ee93b0d18
+    bytes: 1052051
+  - path: solid_waste_landfills/solid_waste_landfills.meta.yaml
+    sha256: 058b2de3ec2db1c6e13e7672a18ce4c6131c805446ccb7fcb29c254d7227d78f
+    bytes: 1916
+  layer: solid_waste_landfills
+  table: solid_waste_landfills
+  renames:
+    name: name
+    type: type
+    status: status
+    owner: owner
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+  rows: 7376
+  geometry: Point
+  catalog_labels:
+  - ing_solidwastela_01_01
+  - ing_solidwastela_01_02
+  - ing_solidwastela_01_03
+  - ing_solidwastela_01_04
+  - ing_solidwastela_01_05
+  - ing_solidwastela_01_06
+  - ing_solidwastela_01_07
+  - ing_solidwastela_01_08
+  - ing_solidwastela_01_09
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Solid waste disposal facilities: municipal solid waste, construction and demolition
+      (C&D) and industrial landfills, and waste transfer stations (more than half of the records), open
+      and closed, with type, owner and status. A 2021 snapshot of the retired HIFLD layer, compiled from
+      state permit lists.'
+    originator: HIFLD Open (DHS), 2021 release, as re-published on ArcGIS Online (owner clibby007, org
+      HDRa0B57OVrv2E1q); HIFLD Open was retired in 2025
+    source_url: https://services5.arcgis.com/HDRa0B57OVrv2E1q/arcgis/rest/services/Solid_Waste_Landfill_Facilities/FeatureServer/0
+    license: public domain
+    keywords:
+    - landfills
+    - dumps
+    - solid waste
+    - garbage disposal sites
+    - waste disposal
+    start_year: 2021
+    end_year: 2021
+    probe: how many open landfills are in each county in Michigan
+  dump: null
+- loaded_at: 2026-11-21T00:17Z
+  id: ing_supplemental_01
+  name: Supplemental Colleges
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: supplemental_colleges/supplemental_colleges.csv
+    sha256: e6b74ce353d27bea57b828208be0ec41d2940f6b753069def86180d7facee312
+    bytes: 418886
+  - path: supplemental_colleges/supplemental_colleges.meta.yaml
+    sha256: b82e693542e297c8e1f4eca91c1cc753f5500f42b99d3388bfda34fb1e930079
+    bytes: 1872
+  layer: supplemental_colleges
+  table: supplemental_colleges
+  renames:
+    name: name
+    control: type
+    status: status
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+  rows: 2767
+  geometry: Point
+  catalog_labels:
+  - ing_supplemental_01_01
+  - ing_supplemental_01_02
+  - ing_supplemental_01_03
+  - ing_supplemental_01_04
+  - ing_supplemental_01_05
+  - ing_supplemental_01_06
+  - ing_supplemental_01_07
+  - ing_supplemental_01_08
+  - ing_supplemental_01_09
+  tag_model: gemma3:4b
+  metadata:
+    description: Branch, satellite, extension and center campuses of colleges and universities that IPEDS
+      does not list as separate institutions (community college centers, university satellite campuses,
+      early-college and correctional-facility sites), public and private. A 2021 snapshot of the retired
+      HIFLD layer.
+    originator: HIFLD Open (DHS), 2021 release, as re-published on ArcGIS Online (owner clibby007, org
+      HDRa0B57OVrv2E1q); HIFLD Open was retired in 2025
+    source_url: https://services5.arcgis.com/HDRa0B57OVrv2E1q/arcgis/rest/services/Supplemental_Colleges/FeatureServer/0
+    license: public domain
+    keywords:
+    - satellite campuses
+    - branch campuses
+    - college centers
+    - extension campuses
+    - community college sites
+    - postsecondary
+    start_year: 2021
+    end_year: 2021
+    probe: where are the satellite college campuses in North Carolina
+  dump: null
+- loaded_at: 2026-11-21T00:17Z
+  id: ing_uraniumvanad_01
+  name: Uranium Vanadium Deposits
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: uranium_vanadium_deposits/uranium_vanadium_deposits.csv
+    sha256: a00181f0a3b3b7d091985c705cee937ff4636864e75c1f5c4aa64b6e0ebb7d8c
+    bytes: 15631
+  - path: uranium_vanadium_deposits/uranium_vanadium_deposits.meta.yaml
+    sha256: 620ad11c7b2b8657308d249836f9b172acc37d2609d2e71173071acc5ae6206b
+    bytes: 1671
+  layer: uranium_vanadium_deposits
+  table: uranium_vanadium_deposits
+  renames:
+    name: name
+    type: type
+    status: status
+    county: county
+    state: state
+  rows: 158
+  geometry: Point
+  catalog_labels:
+  - ing_uraniumvanad_01_01
+  - ing_uraniumvanad_01_02
+  - ing_uraniumvanad_01_03
+  - ing_uraniumvanad_01_04
+  - ing_uraniumvanad_01_05
+  - ing_uraniumvanad_01_06
+  - ing_uraniumvanad_01_07
+  - ing_uraniumvanad_01_08
+  - ing_uraniumvanad_01_09
+  tag_model: gemma3:4b
+  metadata:
+    description: Uranium and vanadium mines, prospects and occurrences from the USGS Mineral Resources
+      Data System, with development status, deposit type and production size.
+    originator: USGS Mineral Resources Data System, via the HIFLD Open 2021 release, as re-published on
+      ArcGIS Online (org HDRa0B57OVrv2E1q)
+    source_url: https://services5.arcgis.com/HDRa0B57OVrv2E1q/arcgis/rest/services/Uranium_and_Vanadium_Deposits/FeatureServer/0
+    license: public domain
+    keywords:
+    - uranium mines
+    - vanadium
+    - uranium deposits
+    - radioactive minerals
+    - mining
+    start_year: 2021
+    end_year: 2021
+    probe: where are the uranium mines in Utah
+  dump: null
+- loaded_at: 2026-11-21T00:17Z
+  id: ing_usgslandslid_01
+  name: Landslide Incidence and Susceptibility
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: usgs_landslide_regions/usgs_landslide_regions.geojson
+    sha256: da98b9ed8d078beea1375beb209711bd80951632f3b4675498352b15b0462df8
+    bytes: 6093938
+  - path: usgs_landslide_regions/usgs_landslide_regions.meta.yaml
+    sha256: 493e160ff705f1806c28ad98bdc1d9ae1925268285d557db52fef3699140ef0c
+    bytes: 1472
+  layer: usgs_landslide_regions
+  table: usgs_landslide_regions
+  renames:
+    type: type
+  rows: 2810
+  geometry: Polygon
+  catalog_labels:
+  - ing_usgslandslid_01_01
+  - ing_usgslandslid_01_02
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Areas of the conterminous United States by landslide incidence (share of the area involved
+      in landsliding) and susceptibility, from the USGS Landslide Overview Map (1:4,000,000; Radbruch-Hall
+      and others 1982, digitized 1997). A national overview: not for site decisions.'
+    originator: U.S. Geological Survey, Open-File Report 97-289 (Godt), National Atlas edition lsoverp020,
+      via the Stanford Digital Repository
+    source_url: https://pubs.usgs.gov/publication/ofr97289B
+    license: public domain
+    keywords:
+    - landslides
+    - landslide hazard
+    - landslide susceptibility
+    - slope failure
+    - mass wasting
+    start_year: 1997
+    end_year: 1997
+    probe: which counties in Pennsylvania overlap areas of high landslide incidence
+  dump: null
+- loaded_at: 2026-11-21T00:18Z
+  id: ing_usgsseismich_01
+  name: Seismic Hazard (2% in 50 years)
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: usgs_seismic_hazard_2pct50/usgs_seismic_hazard_2pct50.geojson
+    sha256: 9fbd5c4bb080d34a3e655cc6927a0db146992e9929954ddb71275dc090c78ef0
+    bytes: 5136385
+  - path: usgs_seismic_hazard_2pct50/usgs_seismic_hazard_2pct50.meta.yaml
+    sha256: 474671992fc0619e7cd6e37da2bd7f434ba53463e2a2b9eab47e82621a2a5b0a
+    bytes: 1592
+  layer: usgs_seismic_hazard_2pct50
+  table: usgs_seismic_hazard_2pct50
+  renames:
+    type: type
+  rows: 461
+  geometry: Polygon
+  catalog_labels:
+  - ing_usgsseismich_01_01
+  - ing_usgsseismich_01_02
+  - ing_usgsseismich_01_03
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Earthquake shaking hazard zones of the conterminous United States: peak horizontal ground
+      acceleration with a 2% probability of being exceeded in 50 years (about once in 2,475 years), as
+      contour bands in percent of gravity, from the 2014 USGS National Seismic Hazard Model.'
+    originator: U.S. Geological Survey, Data Release for the 2014 National Seismic Hazard Model for the
+      Conterminous U.S. (ScienceBase 5db9be62e4b06957974eb5ca)
+    source_url: https://www.sciencebase.gov/catalog/item/5db9be62e4b06957974eb5ca
+    license: public domain
+    keywords:
+    - earthquake hazard
+    - seismic hazard
+    - ground shaking
+    - peak ground acceleration
+    - earthquake risk zones
+    start_year: 2014
+    end_year: 2014
+    probe: which counties have a peak ground acceleration of 40 %g or more in the seismic hazard map
+  dump: null
+- loaded_at: 2026-11-21T00:18Z
+  id: ing_usgscoalfiel_01
+  name: US Coal Fields
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: usgs_coal_fields/usgs_coal_fields.geojson
+    sha256: 61975ce46722abdb7d9ca5e5dfbd54858c8313fa799d1b161d01d5166838e9a1
+    bytes: 7061630
+  - path: usgs_coal_fields/usgs_coal_fields.meta.yaml
+    sha256: 7c045b6ddfa89420d7f2fbd662120db4bf2dca5c5ca48438be027a7f10bf0d12
+    bytes: 1324
+  layer: usgs_coal_fields
+  table: usgs_coal_fields
+  renames:
+    name: name
+    type: type
+  rows: 602
+  geometry: Unknown (any)
+  catalog_labels:
+  - ing_usgscoalfiel_01_01
+  - ing_usgscoalfiel_01_02
+  - ing_usgscoalfiel_01_03
+  - ing_usgscoalfiel_01_04
+  tag_model: gemma3:4b
+  metadata:
+    description: Coal-bearing areas (coal fields) of the conterminous United States, with coal rank (anthracite,
+      bituminous, subbituminous, lignite), geologic age and coal province, from the USGS coal fields map.
+    originator: U.S. Geological Survey coal fields of the conterminous United States (Tully 1996, OFR
+      96-92), as published in Esri Living Atlas
+    source_url: https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Coal_Fields_view/FeatureServer/0
+    license: public domain
+    keywords:
+    - coal fields
+    - coal deposits
+    - coal basins
+    - lignite
+    - bituminous coal
+    - coal resources
+    start_year: 1996
+    end_year: 1996
+    probe: which counties in Wyoming lie over coal fields
+  dump: null
+- loaded_at: 2026-11-21T00:18Z
+  id: ing_plateboundar_01
+  name: Tectonic Plate Boundaries
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: plate_boundaries/plate_boundaries.geojson
+    sha256: f2db4c16a58c19b4b0d59c12e20d4adacabd586f442c960f6cbc149ddf0c4234
+    bytes: 441812
+  - path: plate_boundaries/plate_boundaries.meta.yaml
+    sha256: d774171ca5f728fe3ff95e34c3b80b02f05808ff889446885ef844cbdc3c2004
+    bytes: 1250
+  layer: plate_boundaries
+  table: plate_boundaries
+  renames:
+    type: type
+    name: name
+  rows: 514
+  geometry: Line String
+  catalog_labels:
+  - ing_plateboundar_01_01
+  - ing_plateboundar_01_02
+  - ing_plateboundar_01_03
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Boundaries between the Earth''s tectonic plates: spreading ridges, transform faults
+      and subduction trenches, worldwide.'
+    originator: University of Texas Institute for Geophysics PLATES project boundaries, as published in
+      Esri Living Atlas
+    source_url: https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Plate_Boundaries/FeatureServer
+    license: public domain
+    keywords:
+    - plate boundaries
+    - tectonic plates
+    - subduction zones
+    - fault lines
+    - mid-ocean ridges
+    - transform faults
+    start_year: 2021
+    end_year: 2021
+    probe: which counties are within 50 miles of a tectonic plate boundary
+  dump: null
+- loaded_at: 2026-11-21T00:18Z
+  id: ing_eparmpfacili_01
+  name: EPA Risk Management Plan (RMP) facilities
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: epa_rmp_facilities/epa_rmp_facilities.geojson
+    sha256: 6a887de4e199bf5331770e83cc3eebb38dafa958a498342ab3b9daab3248580a
+    bytes: 6808911
+  - path: epa_rmp_facilities/epa_rmp_facilities.meta.yaml
+    sha256: 617a1ddc0df825809f4c3c67715b8018e5d602df1ce3cf4f43bd018b15103468
+    bytes: 1821
+  layer: epa_rmp_facilities
+  table: epa_rmp_facilities
+  renames:
+    name: name
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+  rows: 21855
+  geometry: Point
+  catalog_labels:
+  - ing_eparmpfacili_01_01
+  - ing_eparmpfacili_01_02
+  - ing_eparmpfacili_01_03
+  - ing_eparmpfacili_01_04
+  - ing_eparmpfacili_01_05
+  - ing_eparmpfacili_01_06
+  - ing_eparmpfacili_01_07
+  - ing_eparmpfacili_01_08
+  - ing_eparmpfacili_01_09
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Facilities that must file a Risk Management Plan under Clean Air Act section 112(r)
+      because they hold more than a threshold quantity of an extremely hazardous or flammable chemical
+      (ammonia, chlorine, propane and others): chemical plants, refineries, water treatment plants, farm
+      suppliers, cold storage. Points are placed from addresses and are approximate.'
+    originator: US EPA Office of Emergency Management, Risk Management Program, via the Facility Registry
+      Service
+    source_url: https://www.epa.gov/frs/frs-data-download-options
+    license: public domain
+    keywords:
+    - chemical facilities
+    - hazardous chemical plants
+    - RMP facilities
+    - risk management plan
+    - ammonia
+    - chlorine
+    - chemical accident risk
+    start_year: 2025
+    end_year: 2025
+    probe: how many RMP chemical facilities are in each county in Texas
+  dump: null
+- loaded_at: 2026-11-21T00:18Z
+  id: ing_epatscafacil_01
+  name: EPA TSCA chemical reporting facilities
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: epa_tsca_facilities/epa_tsca_facilities.geojson
+    sha256: f54cbb0b60651766132db6f752a085c6278065ec49c07bf9a8edc9e5b314522c
+    bytes: 5516599
+  - path: epa_tsca_facilities/epa_tsca_facilities.meta.yaml
+    sha256: 8c938467bd74056946e7c3167c4c766fc846f49b34206a3a91c5f2331859a5c5
+    bytes: 1645
+  layer: epa_tsca_facilities
+  table: epa_tsca_facilities
+  renames:
+    name: name
+    address: address
+    city: city
+    county: county
+    state: state
+    zip: zip
+  rows: 17747
+  geometry: Point
+  catalog_labels:
+  - ing_epatscafacil_01_01
+  - ing_epatscafacil_01_02
+  - ing_epatscafacil_01_03
+  - ing_epatscafacil_01_04
+  - ing_epatscafacil_01_05
+  - ing_epatscafacil_01_06
+  - ing_epatscafacil_01_07
+  - ing_epatscafacil_01_08
+  - ing_epatscafacil_01_09
+  tag_model: gemma3:4b
+  metadata:
+    description: Facilities that have submitted reports under the Toxic Substances Control Act (TSCA),
+      mainly Chemical Data Reporting by sites that manufacture or import chemical substances. One point
+      per facility. Points are placed from addresses and are approximate.
+    originator: US EPA Office of Pollution Prevention and Toxics, via the Facility Registry Service
+    source_url: https://www.epa.gov/frs/frs-data-download-options
+    license: public domain
+    keywords:
+    - chemical manufacturers
+    - chemical importers
+    - TSCA
+    - toxic substances
+    - chemical data reporting
+    start_year: 2025
+    end_year: 2025
+    probe: where are the TSCA chemical manufacturing facilities in New Jersey
+  dump: null
+- loaded_at: 2026-11-21T00:18Z
+  id: ing_usgswaterbod_01
+  name: Lakes, Reservoirs and Waterbodies (small scale)
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: usgs_waterbodies_small_scale/usgs_waterbodies_small_scale.geojson
+    sha256: d21c7e5679cae6bbe2f5bb119eb33939f649e0f8dbea7f193186efe034686da9
+    bytes: 70804354
+  - path: usgs_waterbodies_small_scale/usgs_waterbodies_small_scale.meta.yaml
+    sha256: 67febdc8304d8667ef75f42c045e1ebf0772e8274c351c087684cbbc5ea03aeb
+    bytes: 1368
+  layer: usgs_waterbodies_small_scale
+  table: usgs_waterbodies_small_scale
+  renames:
+    name: name
+    type: type
+    state: state
+  rows: 26878
+  geometry: Polygon
+  catalog_labels:
+  - ing_usgswaterbod_01_01
+  - ing_usgswaterbod_01_02
+  - ing_usgswaterbod_01_03
+  - ing_usgswaterbod_01_04
+  tag_model: gemma3:4b
+  metadata:
+    description: Lakes, reservoirs, swamps and marshes, glaciers and wide rivers of the United States
+      at 1:1,000,000 scale (National Atlas / small-scale NHD waterbodies), with name and type.
+    originator: U.S. Geological Survey, National Map Small-Scale Collection, Waterbodies (wtrbdyp010g,
+      2014)
+    source_url: https://www.usgs.gov/national-map-small-scale-collection
+    license: public domain
+    keywords:
+    - lakes
+    - reservoirs
+    - waterbodies
+    - ponds
+    - swamps
+    - marshes
+    - glaciers
+    - surface water
+    start_year: 2014
+    end_year: 2014
+    probe: where are the largest lakes in Minnesota
+  dump: null
+- loaded_at: 2026-11-21T00:18Z
+  id: ing_placesofwors_01
+  name: Places of Worship
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: places_of_worship/places_of_worship.csv
+    sha256: 0e2732ab646f2549de1226edc8bac3a2e8cd80ca1d39d9d5f2938a58999cbdb8
+    bytes: 22775609
+  - path: places_of_worship/places_of_worship.meta.yaml
+    sha256: 538c339455a88755c058214813a9fea5c8396813b01fa084af636222664e72de
+    bytes: 1310
+  layer: places_of_worship
+  table: places_of_worship
+  renames:
+    name: name
+    address: address
+    city: city
+    state: state
+    zip: zip
+  rows: 254742
+  geometry: Point
+  catalog_labels:
+  - ing_placesofwors_01_01
+  - ing_placesofwors_01_02
+  - ing_placesofwors_01_03
+  - ing_placesofwors_01_04
+  - ing_placesofwors_01_05
+  tag_model: gemma3:4b
+  metadata:
+    description: Churches, synagogues, mosques, temples and other religious congregations registered as
+      tax-exempt organizations, placed by geocoding their addresses.
+    originator: HIFLD Open All Places of Worship (DHS; from IRS exempt-organization records), as copied
+      by FEMA, last edited 2025-09
+    source_url: https://services.arcgis.com/XG15cJAlne2vxtgt/arcgis/rest/services/All_Places_Of_Worship__HiFLD_Open_/FeatureServer/42
+    license: public domain
+    keywords:
+    - churches
+    - places of worship
+    - mosques
+    - synagogues
+    - temples
+    - congregations
+    - religious organizations
+    start_year: 2025
+    end_year: 2025
+    probe: how many churches are in each county in Alabama
+  dump: null
+- loaded_at: 2026-11-21T00:20Z
+  id: ing_usgssandgrav_01
+  name: Sand and Gravel Operations
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: usgs_sand_gravel_operations/usgs_sand_gravel_operations.csv
+    sha256: 32dbba855607d7932361ab4e55bb4e0507450df3a999ead718971180c4cedabd
+    bytes: 233435
+  - path: usgs_sand_gravel_operations/usgs_sand_gravel_operations.meta.yaml
+    sha256: d1e296b67a9272e597a121b132fd74b02ff425dfcd1cf078dcd7fe0dfc22541c
+    bytes: 1316
+  layer: usgs_sand_gravel_operations
+  table: usgs_sand_gravel_operations
+  renames:
+    name: name
+    company: owner
+    type: type
+    county: county
+    state: state
+  rows: 2829
+  geometry: Point
+  catalog_labels:
+  - ing_usgssandgrav_01_01
+  - ing_usgssandgrav_01_02
+  - ing_usgssandgrav_01_03
+  - ing_usgssandgrav_01_04
+  tag_model: gemma3:4b
+  metadata:
+    description: Construction sand and gravel pits and plants in the United States from the USGS Mineral
+      Industry Locations survey (2003 canvass), with operating company.
+    originator: U.S. Geological Survey, Active Mines and Mineral Plants in the US (mineplant), commodity
+      Sand and Gravel; the source of the HIFLD Sand and Gravel Operations layer
+    source_url: https://mrdata.usgs.gov/mineplant/
+    license: public domain
+    keywords:
+    - sand and gravel
+    - gravel pits
+    - sand mines
+    - aggregate mining
+    - quarries
+    start_year: 2003
+    end_year: 2003
+    probe: where are the sand and gravel operations in Minnesota
+  dump: null
+- loaded_at: 2026-11-21T00:30Z
+  id: ing_ntadtransitr_01
+  name: Public Transit Routes
+  kind: features
+  entity_type: COUNTY
+  files:
+  - path: ntad_transit_routes/ntad_transit_routes.geojson
+    sha256: e528a938d3996c7ab8bfd49ee8adfa89d82c9595d08e048bba57fdd85a8b2741
+    bytes: 48233496
+  - path: ntad_transit_routes/ntad_transit_routes.meta.yaml
+    sha256: 7a9b1b9dd246e26da337da8f9e221925be396353ae9314833591c7c9cc5336d5
+    bytes: 1184
+  layer: ntad_transit_routes
+  table: ntad_transit_routes
+  renames:
+    name: name
+    mode: type
+  rows: 16472
+  geometry: Unknown (any)
+  catalog_labels:
+  - ing_ntadtransitr_01_01
+  - ing_ntadtransitr_01_02
+  tag_model: gemma3:4b
+  metadata:
+    description: 'Lines of fixed-route public transit: bus, rail, subway, light rail, streetcar and ferry
+      routes from agency GTFS feeds, one line per route (its longest shape; branches and the reverse direction
+      are not separate lines).'
+    originator: U.S. DOT Bureau of Transportation Statistics, National Transit Map routes (successor of
+      the HIFLD Public Transit Routes layer)
+    source_url: https://geodata.bts.gov/datasets/usdot::national-transit-map-routes
+    license: public domain
+    keywords:
+    - transit routes
+    - bus routes
+    - rail lines
+    - subway lines
+    - public transportation
+    start_year: 2026
+    end_year: 2026
+    probe: where are the bus routes in Missouri
   dump: null

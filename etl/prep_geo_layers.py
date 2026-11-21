@@ -5,6 +5,8 @@
     python etl/prep_geo_layers.py parks      # National Park Service units (shapefile)
     python etl/prep_geo_layers.py acres      # EPA Brownfields properties (FRS interests download)
     python etl/prep_geo_layers.py sems       # EPA Superfund sites NOT on the NPL (FRS interests download)
+    python etl/prep_geo_layers.py rmp        # EPA Risk Management Plan facilities (FRS interests download)
+    python etl/prep_geo_layers.py tsca       # EPA TSCA submitter facilities, one per registry id (FRS)
 
 Each writes deploy/incoming/<id>/<id>.geojson (EPSG:4326, XY) and a sidecar. GDAL
 runs in the etl-geo container, where /incoming is read-only, so GeoJSON is
@@ -317,9 +319,81 @@ source_url: https://www.epa.gov/frs/frs-data-download-options
 license: public domain""", cols, "how many Superfund sites that are not on the NPL are in each state")
 
 
+LEAN_DROP = {"program_id", "epa_region", "coordinate_source", "county_fips"}
+
+
+def _lean(cols, drop):
+    return {k: dict(v) for k, v in cols.items() if k not in drop}
+
+
+def _lean_features(features, drop):
+    # A column left in the data becomes a search entry, described or not: drop it from the rows too.
+    for f in features:
+        for k in drop:
+            f["properties"].pop(k, None)
+
+
+def rmp():
+    # Every RMP REPORTER record is ACTIVE (19 blank), so status carries nothing and is dropped.
+    out = frs_features("RMP")
+    for f in out:
+        f["properties"].pop("status", None)
+    _lean_features(out, LEAN_DROP)
+    write("epa_rmp_facilities", out)
+    cols = _lean(FRS_COLUMNS, LEAN_DROP)
+    sidecar("epa_rmp_facilities", """# EPA Risk Management Program (RMP) facilities, from the Facility Registry Service interests
+# geodatabase (layer RMP, interest type RMP REPORTER). Prepared by etl/prep_geo_layers.py rmp.
+# One point per RMP facility record (21,855; 21,569 distinct registry ids, all kept).
+id: epa_rmp_facilities
+name: "EPA Risk Management Plan (RMP) facilities"
+kind: features
+entity_type: COUNTY
+vintage: 2025
+description: "Facilities that must file a Risk Management Plan under Clean Air Act section 112(r) because they hold more than a threshold quantity of an extremely hazardous or flammable chemical (ammonia, chlorine, propane and others): chemical plants, refineries, water treatment plants, farm suppliers, cold storage. Points are placed from addresses and are approximate."
+originator: US EPA Office of Emergency Management, Risk Management Program, via the Facility Registry Service
+source_url: https://www.epa.gov/frs/frs-data-download-options
+license: public domain
+keywords: [chemical facilities, hazardous chemical plants, RMP facilities, risk management plan, ammonia, chlorine, chemical accident risk]""", cols, "how many RMP chemical facilities are in each county in Texas")
+
+
+def tsca():
+    # 26,482 TSCA SUBMITTER records for 17,747 registry facilities: one facility files many
+    # submissions. Counting records would count a facility up to dozens of times, so one record
+    # per REGISTRY_ID is kept (the first by program id). Status is blank for 22,239 and
+    # "***UNCHANGED***" for the rest, so it is dropped.
+    out = frs_features("TSCA")
+    out.sort(key=lambda f: (f["properties"]["registry_id"], f["properties"]["program_id"]))
+    seen, keep = set(), []
+    for f in out:
+        rid = f["properties"]["registry_id"]
+        if rid in seen:
+            continue
+        seen.add(rid)
+        f["properties"].pop("status", None)
+        keep.append(f)
+    print(f"   {len(out):,} records -> {len(keep):,} facilities (one per registry id)")
+    _lean_features(keep, LEAN_DROP)
+    write("epa_tsca_facilities", keep)
+    cols = _lean(FRS_COLUMNS, LEAN_DROP)
+    sidecar("epa_tsca_facilities", """# EPA Toxic Substances Control Act (TSCA) submitter facilities, from the Facility Registry Service
+# interests geodatabase (layer TSCA). Prepared by etl/prep_geo_layers.py tsca: one point per registry
+# facility (17,747 of 26,482 submission records).
+id: epa_tsca_facilities
+name: "EPA TSCA chemical reporting facilities"
+kind: features
+entity_type: COUNTY
+vintage: 2025
+description: "Facilities that have submitted reports under the Toxic Substances Control Act (TSCA), mainly Chemical Data Reporting by sites that manufacture or import chemical substances. One point per facility. Points are placed from addresses and are approximate."
+originator: US EPA Office of Pollution Prevention and Toxics, via the Facility Registry Service
+source_url: https://www.epa.gov/frs/frs-data-download-options
+license: public domain
+keywords: [chemical manufacturers, chemical importers, TSCA, toxic substances, chemical data reporting]""", cols, "where are the TSCA chemical manufacturing facilities in New Jersey")
+
+
 if __name__ == "__main__":
     which = [a for a in sys.argv[1:] if not a.startswith("--")]
     if not which:
         sys.exit(__doc__)
     for w in which:
-        {"npl": npl, "military": military, "parks": parks, "acres": acres, "sems": sems}[w]()
+        {"npl": npl, "military": military, "parks": parks, "acres": acres, "sems": sems,
+         "rmp": rmp, "tsca": tsca}[w]()

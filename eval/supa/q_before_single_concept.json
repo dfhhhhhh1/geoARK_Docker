@@ -1,0 +1,153 @@
+{
+  "endpoint": "search",
+  "llm_filter": false,
+  "rerank": null,
+  "top_k": 20,
+  "queries": 10,
+  "errors": [],
+  "concept_recall": 1.0,
+  "query_success": 1.0,
+  "mrr": 0.95,
+  "latency_p50": 0.03,
+  "latency_p95": 0.046,
+  "per_suite": {
+    "single_concept": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    }
+  },
+  "detail": {
+    "single_concept": [
+      {
+        "id": "poverty-rate",
+        "query": "poverty rate",
+        "n_results": 20,
+        "concepts": {
+          "poverty": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.053
+      },
+      {
+        "id": "unemployment",
+        "query": "unemployment rate",
+        "n_results": 20,
+        "concepts": {
+          "unemployment": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.022
+      },
+      {
+        "id": "median-income",
+        "query": "median household income",
+        "n_results": 20,
+        "concepts": {
+          "income": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.046
+      },
+      {
+        "id": "health-insurance",
+        "query": "people without health insurance",
+        "n_results": 20,
+        "concepts": {
+          "insurance": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.016
+      },
+      {
+        "id": "snap-benefits",
+        "query": "food stamps and SNAP benefits",
+        "n_results": 20,
+        "concepts": {
+          "snap": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.039
+      },
+      {
+        "id": "veterans",
+        "query": "veteran population characteristics",
+        "n_results": 20,
+        "concepts": {
+          "veterans": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.016
+      },
+      {
+        "id": "hospital-beds",
+        "query": "hospital bed capacity",
+        "n_results": 12,
+        "concepts": {
+          "hospital": 2
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.5,
+        "seconds": 0.029
+      },
+      {
+        "id": "housing-units",
+        "query": "total housing units",
+        "n_results": 20,
+        "concepts": {
+          "housing": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.032
+      },
+      {
+        "id": "educational-attainment",
+        "query": "educational attainment bachelors degree",
+        "n_results": 20,
+        "concepts": {
+          "education": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.018
+      },
+      {
+        "id": "commuting",
+        "query": "commute time to work",
+        "n_results": 20,
+        "concepts": {
+          "commute": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.031
+      }
+    ]
+  }
+}

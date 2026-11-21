@@ -58,17 +58,17 @@ suites:
 
       - id: ki-health-agency
         query: "health agency department name"
-        expect_attr_id: 29a5673e_01_01_03      # Public Health Departments / Name
+        expect_attr_id: ing_publichealth_01_01   # Public Health Departments / name (FEMA copy of HIFLD, 2026-11-20; was 29a5673e_01_01_03, HSIP rows with no data)
         note: "'health agencies' appears only in tags"
 
       - id: ki-tunnel-transport
         query: "transportation tunnel infrastructure name"
-        expect_attr_id: 5ee3690a_01_01_03      # Road Tunnels / Name
+        expect_attr_id: ing_ntadroadtunn_01_01   # Road Tunnels / name (FHWA NTI, 2026-11-20; was 5ee3690a_01_01_03, HSIP rows with no data)
         note: "'transportation', 'infrastructure' appear only in tags"
 
       - id: ki-energy-generation
         query: "energy generation station name"
-        expect_attr_id: 454f652e_01_01_03      # Power Plants / Name
+        expect_attr_id: ing_eiapowerplan_01_01   # Power Plants / name (EIA-860M, 2026-11-20; was 454f652e_01_01_03, HSIP rows with no data)
         note: "'energy generation' appears only in tags"
 
   # ---------------------------------------------------------------------

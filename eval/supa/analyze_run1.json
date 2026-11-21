@@ -1,0 +1,429 @@
+[
+ {
+  "dataset": "ing_eiapowerplan",
+  "q": "where are the coal power plants in Kentucky",
+  "secs": 18.2,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_eiapowerplan_01"
+  ],
+  "filters": [
+   [
+    {
+     "column": "type",
+     "value": "Coal"
+    }
+   ]
+  ],
+  "row_count": 8,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_ntadpetroleu",
+  "q": "where are the petroleum ports in Texas",
+  "secs": 11.8,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_ntadpetroleu_01"
+  ],
+  "filters": [],
+  "row_count": 15,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_ntadpipeline",
+  "q": "how many petroleum terminals are in each state",
+  "secs": 14.1,
+  "error": null,
+  "ops": [
+   "count_features",
+   "output"
+  ],
+  "used": [
+   "ing_ntadpipeline_01"
+  ],
+  "filters": [],
+  "row_count": 3233,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_polpumpingst",
+  "q": "where are the oil pipeline pumping stations in Oklahoma",
+  "secs": 11.6,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_polpumpingst_01"
+  ],
+  "filters": [],
+  "row_count": 88,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_prisonbounda",
+  "q": "how many prisons are in each county in Georgia",
+  "secs": 17.8,
+  "error": null,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ],
+  "used": [
+   "ing_prisonbounda_01"
+  ],
+  "filters": [],
+  "row_count": 159,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_publichealth",
+  "q": "where are the public health departments in Ohio",
+  "secs": 11.2,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_publichealth_01"
+  ],
+  "filters": [],
+  "row_count": 129,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_urgentcarefa",
+  "q": "how many urgent care centers are in each county in Florida",
+  "secs": 12.2,
+  "error": null,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ],
+  "used": [
+   "ing_urgentcarefa_01"
+  ],
+  "filters": [],
+  "row_count": 67,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_vhafacilitie",
+  "q": "how far is each county in Missouri from the nearest VA medical center",
+  "secs": 19.2,
+  "error": null,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "nearest_distance",
+   "join",
+   "output"
+  ],
+  "used": [
+   "ing_vhafacilitie_01"
+  ],
+  "filters": [],
+  "row_count": 115,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_ntadpassenge",
+  "q": "where are the train and transit stations in Illinois",
+  "secs": 16.5,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_ntadpassenge_01"
+  ],
+  "filters": [],
+  "row_count": 1152,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_ntadroadtunn",
+  "q": "where are the road tunnels in Pennsylvania",
+  "secs": 15.7,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_ntadroadtunn_01"
+  ],
+  "filters": [],
+  "row_count": 29,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_solidwastela",
+  "q": "how many open landfills are in each county in Michigan",
+  "secs": 16.8,
+  "error": null,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ],
+  "used": [
+   "ing_solidwastela_01"
+  ],
+  "filters": [
+   [
+    {
+     "column": "status",
+     "value": "Open"
+    }
+   ]
+  ],
+  "row_count": 83,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_supplemental",
+  "q": "where are the satellite college campuses in North Carolina",
+  "secs": 15.5,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "68bf7456_01_01"
+  ],
+  "filters": [],
+  "row_count": 173,
+  "features": null,
+  "uses_new": false
+ },
+ {
+  "dataset": "ing_uraniumvanad",
+  "q": "where are the uranium mines in Utah",
+  "secs": 56.0,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_uraniumvanad_01"
+  ],
+  "filters": [],
+  "row_count": 74,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_usgssandgrav",
+  "q": "where are the sand and gravel operations in Minnesota",
+  "secs": 14.3,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_usgssandgrav_01"
+  ],
+  "filters": [],
+  "row_count": 86,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_placesofwors",
+  "q": "how many churches are in each county in Alabama",
+  "secs": 15.8,
+  "error": null,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ],
+  "used": [
+   "ing_placesofwors_01"
+  ],
+  "filters": [],
+  "row_count": 67,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_usgslandslid",
+  "q": "where are the areas of high landslide incidence in Pennsylvania",
+  "secs": 18.0,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_usgslandslid_01"
+  ],
+  "filters": [
+   [
+    {
+     "column": "type",
+     "value": "High incidence"
+    }
+   ]
+  ],
+  "row_count": 11,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_usgsseismich",
+  "q": "show the earthquake hazard zones in California",
+  "secs": 12.7,
+  "error": null,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ],
+  "used": [
+   "ing_usgsseismich_01"
+  ],
+  "filters": [],
+  "row_count": 58,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_usgswaterbod",
+  "q": "where are the lakes and reservoirs in Minnesota",
+  "secs": 12.7,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_usgswaterbod_01"
+  ],
+  "filters": [
+   [
+    {
+     "column": "type",
+     "value": "Lake"
+    },
+    {
+     "column": "type",
+     "value": "Reservoir"
+    }
+   ]
+  ],
+  "row_count": 0,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_usgscoalfiel",
+  "q": "where are the coal fields in Wyoming",
+  "secs": 13.4,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_usgscoalfiel_01"
+  ],
+  "filters": [],
+  "row_count": 82,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_plateboundar",
+  "q": "show the tectonic plate boundaries near Alaska",
+  "secs": 72.4,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_plateboundar_01"
+  ],
+  "filters": [],
+  "row_count": 0,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_eparmpfacili",
+  "q": "how many RMP chemical facilities are in each county in Texas",
+  "secs": 13.4,
+  "error": null,
+  "ops": [
+   "count_features",
+   "filter_area",
+   "output"
+  ],
+  "used": [
+   "ing_eparmpfacili_01"
+  ],
+  "filters": [],
+  "row_count": 254,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_epatscafacil",
+  "q": "where are the TSCA chemical reporting facilities in New Jersey",
+  "secs": 11.1,
+  "error": null,
+  "ops": [
+   "select_features",
+   "output"
+  ],
+  "used": [
+   "ing_epatscafacil_01"
+  ],
+  "filters": [],
+  "row_count": 795,
+  "features": null,
+  "uses_new": true
+ },
+ {
+  "dataset": "ing_ntadtransitr",
+  "q": "where are the bus routes in Missouri",
+  "secs": 24.5,
+  "error": "the loaded data does not include \"bus routes\"",
+  "ops": [],
+  "used": [],
+  "filters": [],
+  "row_count": null,
+  "features": null,
+  "uses_new": false
+ }
+]

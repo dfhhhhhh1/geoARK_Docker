@@ -1,0 +1,88 @@
+{
+  "endpoint": "search",
+  "llm_filter": false,
+  "rerank": null,
+  "top_k": 20,
+  "queries": 5,
+  "errors": [],
+  "concept_recall": 0.8,
+  "query_success": 0.8,
+  "mrr": 0.6166666666666667,
+  "latency_p50": 0.014,
+  "latency_p95": 0.015,
+  "per_suite": {
+    "paraphrase": {
+      "concept_recall": 0.8,
+      "query_success": 0.8
+    }
+  },
+  "detail": {
+    "paraphrase": [
+      {
+        "id": "poor-people",
+        "query": "areas where lots of people are poor",
+        "n_results": 20,
+        "concepts": {
+          "poverty": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.031
+      },
+      {
+        "id": "jobless",
+        "query": "places with many people out of work",
+        "n_results": 20,
+        "concepts": {
+          "unemployment": null
+        },
+        "n_concepts": 1,
+        "n_found": 0,
+        "all_found": false,
+        "mrr": 0.0,
+        "seconds": 0.015
+      },
+      {
+        "id": "no-doctor-coverage",
+        "query": "people who cannot afford medical coverage",
+        "n_results": 20,
+        "concepts": {
+          "insurance": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.014
+      },
+      {
+        "id": "old-people",
+        "query": "where do seniors live",
+        "n_results": 20,
+        "concepts": {
+          "elderly": 12
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.08333333333333333,
+        "seconds": 0.013
+      },
+      {
+        "id": "rent-burden",
+        "query": "households struggling to pay rent",
+        "n_results": 20,
+        "concepts": {
+          "rent": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.013
+      }
+    ]
+  }
+}
