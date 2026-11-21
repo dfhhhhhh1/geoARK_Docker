@@ -1,0 +1,296 @@
+{
+ "esda": "2.10.0",
+ "permutations": 9999,
+ "cases": {
+  "poverty_national": {
+   "n": 3132,
+   "islands": 8,
+   "ok": true,
+   "global": {
+    "ours": {
+     "I": 0.5832433943893278,
+     "expected": -0.00031938677738741617,
+     "variance": 0.00011618415964634879,
+     "z": 54.139485573658526,
+     "p_value": 0,
+     "p_sim": 0.0001,
+     "permutations": 9999,
+     "n": 3132,
+     "n_islands": 8
+    },
+    "pysal": {
+     "I": 0.5832433943893284,
+     "EI": -0.00031938677738741617,
+     "VI_rand": 0.00011618415964635142,
+     "z_rand": 54.139485573657964,
+     "p_rand": 0,
+     "p_sim": 0.0001
+    },
+    "diff": {
+     "I": 9.5176647974521e-16,
+     "EI": 0,
+     "VI_rand": 2.26295071228319e-14,
+     "z_rand": 1.0368195325513003e-14,
+     "p_rand": 0,
+     "p_sim": 0
+    }
+   },
+   "local": {
+    "max_abs_Is_diff": 8.171241461241152e-14,
+    "quadrant_mismatches": 0,
+    "units_with_p": 3124,
+    "mean_abs_p_diff": 0.0034008962868117853,
+    "max_abs_p_diff": 0.021699999999999997,
+    "p_beyond_4sd": 0,
+    "p_tie_explained": 0,
+    "class_agreement": 0.9907170294494239,
+    "class_disagreements": 29,
+    "disagreements_all_near_alpha": true,
+    "counts": {
+     "High-High": 465,
+     "Low-Low": 595,
+     "High-Low": 54,
+     "Low-High": 37,
+     "Not significant": 1973,
+     "No neighbours": 8
+    }
+   },
+   "ms": {
+    "global": 509,
+    "local": 1141
+   }
+  },
+  "obesity_national": {
+   "n": 2945,
+   "islands": 7,
+   "ok": true,
+   "global": {
+    "ours": {
+     "I": 0.5790491989721246,
+     "expected": -0.00033967391304347825,
+     "variance": 0.00012607992879554454,
+     "z": 51.59969955673615,
+     "p_value": 0,
+     "p_sim": 0.0001,
+     "permutations": 9999,
+     "n": 2945,
+     "n_islands": 7
+    },
+    "pysal": {
+     "I": 0.5790491989721213,
+     "EI": -0.00033967391304347825,
+     "VI_rand": 0.00012607992879554625,
+     "z_rand": 51.599699556735494,
+     "p_rand": 0,
+     "p_sim": 0.0001
+    },
+    "diff": {
+     "I": 5.751962147236866e-15,
+     "EI": 0,
+     "VI_rand": 1.3543935485828025e-14,
+     "z_rand": 1.2668665176635945e-14,
+     "p_rand": 0,
+     "p_sim": 0
+    }
+   },
+   "local": {
+    "max_abs_Is_diff": 1.8918200339612667e-13,
+    "quadrant_mismatches": 0,
+    "units_with_p": 2938,
+    "mean_abs_p_diff": 0.0037409121851599784,
+    "max_abs_p_diff": 0.02799999999999997,
+    "p_beyond_4sd": 0,
+    "p_tie_explained": 0,
+    "class_agreement": 0.995575221238938,
+    "class_disagreements": 13,
+    "disagreements_all_near_alpha": true,
+    "counts": {
+     "High-High": 443,
+     "Low-Low": 413,
+     "High-Low": 26,
+     "Low-High": 48,
+     "Not significant": 2008,
+     "No neighbours": 7
+    }
+   },
+   "ms": {
+    "global": 506,
+    "local": 1145
+   }
+  },
+  "unemployment_national": {
+   "n": 3218,
+   "islands": 10,
+   "ok": true,
+   "global": {
+    "ours": {
+     "I": 0.6602059481688032,
+     "expected": -0.00031084861672365556,
+     "variance": 0.00011326325749406903,
+     "z": 62.06393996009183,
+     "p_value": 0,
+     "p_sim": 0.0001,
+     "permutations": 9999,
+     "n": 3218,
+     "n_islands": 10
+    },
+    "pysal": {
+     "I": 0.6602059481688005,
+     "EI": -0.00031084861672365556,
+     "VI_rand": 0.00011326325749407155,
+     "z_rand": 62.063939960090885,
+     "p_rand": 0,
+     "p_sim": 0.0001
+    },
+    "diff": {
+     "I": 4.03591525718746e-15,
+     "EI": 0,
+     "VI_rand": 2.2255849838688778e-14,
+     "z_rand": 1.5226584699079896e-14,
+     "p_rand": 0,
+     "p_sim": 0
+    }
+   },
+   "local": {
+    "max_abs_Is_diff": 1.1723955140041653e-13,
+    "quadrant_mismatches": 0,
+    "units_with_p": 3208,
+    "mean_abs_p_diff": 0.0032895573566084795,
+    "max_abs_p_diff": 0.03949999999999998,
+    "p_beyond_4sd": 0,
+    "p_tie_explained": 5,
+    "class_agreement": 0.9959476309226932,
+    "class_disagreements": 13,
+    "disagreements_all_near_alpha": true,
+    "counts": {
+     "High-High": 360,
+     "Low-Low": 649,
+     "High-Low": 21,
+     "Low-High": 19,
+     "Not significant": 2159,
+     "No neighbours": 10
+    }
+   },
+   "ms": {
+    "global": 573,
+    "local": 1251
+   }
+  },
+  "poverty_texas": {
+   "n": 254,
+   "islands": 0,
+   "ok": true,
+   "global": {
+    "ours": {
+     "I": 0.5023116782708162,
+     "expected": -0.003952569169960474,
+     "variance": 0.0014153821761545107,
+     "z": 13.456756605115785,
+     "p_value": 2.9216839253647214e-41,
+     "p_sim": 0.0001,
+     "permutations": 9999,
+     "n": 254,
+     "n_islands": 0
+    },
+    "pysal": {
+     "I": 0.5023116782708167,
+     "EI": -0.003952569169960474,
+     "VI_rand": 0.001415382176154493,
+     "z_rand": 13.456756605115883,
+     "p_rand": 2.809815762069019e-41,
+     "p_sim": 0.0001
+    },
+    "diff": {
+     "I": 8.840909520137337e-16,
+     "EI": 0,
+     "VI_rand": 1.2409422338485066e-14,
+     "z_rand": 7.260265533068429e-15,
+     "p_rand": 1.1186816329570244e-42,
+     "p_sim": 0
+    }
+   },
+   "local": {
+    "max_abs_Is_diff": 7.105427357601002e-15,
+    "quadrant_mismatches": 0,
+    "units_with_p": 254,
+    "mean_abs_p_diff": 0.003251574803149607,
+    "max_abs_p_diff": 0.016100000000000003,
+    "p_beyond_4sd": 0,
+    "p_tie_explained": 0,
+    "class_agreement": 1,
+    "class_disagreements": 0,
+    "disagreements_all_near_alpha": true,
+    "counts": {
+     "High-High": 23,
+     "Low-Low": 41,
+     "High-Low": 3,
+     "Low-High": 6,
+     "Not significant": 181,
+     "No neighbours": 0
+    }
+   },
+   "ms": {
+    "global": 38,
+    "local": 95
+   }
+  },
+  "obesity_missouri": {
+   "n": 115,
+   "islands": 0,
+   "ok": true,
+   "global": {
+    "ours": {
+     "I": 0.2077540820051819,
+     "expected": -0.008771929824561403,
+     "variance": 0.0034489286789863263,
+     "z": 3.686956128674777,
+     "p_value": 0.00022701497888073753,
+     "p_sim": 0.0002,
+     "permutations": 9999,
+     "n": 115,
+     "n_islands": 0
+    },
+    "pysal": {
+     "I": 0.20775408200518222,
+     "EI": -0.008771929824561403,
+     "VI_rand": 0.0034489286789863246,
+     "z_rand": 3.686956128674783,
+     "p_rand": 0.00022695246475385163,
+     "p_sim": 0.0008
+    },
+    "diff": {
+     "I": 1.6031786435813037e-15,
+     "EI": 0,
+     "VI_rand": 5.029745864407553e-16,
+     "z_rand": 1.6862823209495488e-15,
+     "p_rand": 6.251412688589443e-8,
+     "p_sim": 0.0006000000000000001
+    }
+   },
+   "local": {
+    "max_abs_Is_diff": 2.6645352591003757e-14,
+    "quadrant_mismatches": 0,
+    "units_with_p": 115,
+    "mean_abs_p_diff": 0.0038017391304347842,
+    "max_abs_p_diff": 0.013700000000000045,
+    "p_beyond_4sd": 0,
+    "p_tie_explained": 0,
+    "class_agreement": 1,
+    "class_disagreements": 0,
+    "disagreements_all_near_alpha": true,
+    "counts": {
+     "High-High": 6,
+     "Low-Low": 9,
+     "High-Low": 3,
+     "Low-High": 1,
+     "Not significant": 96,
+     "No neighbours": 0
+    }
+   },
+   "ms": {
+    "global": 16,
+    "local": 44
+   }
+  }
+ }
+}

@@ -19,6 +19,7 @@ import {
 } from './ChoroplethMap';
 import { useIsDark } from '../hooks/useIsDark';
 import { OP_LABEL } from '../lib/ops';
+import { classScale } from '../lib/lisa';
 
 /**
  * Several result layers on ONE map, stacked, each with its own opacity.
@@ -96,6 +97,9 @@ function useLayerScale(layer: AnalysisLayer, ramp: Ramp, isDark: boolean) {
       .map(r => r.value)
       .filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
     const steps = isDark ? ramp.dark : ramp.light;
+    // LISA classes: fixed bins between the class codes (lib/lisa.ts).
+    const lisa = classScale(layer.moran?.kind === 'local' ? layer.moran.classes : null, steps, isDark);
+    if (lisa) return { byFips, breaks: lisa.breaks, colors: lisa.colors };
     const breaks = layer.diverging
       ? divergingBreaks(values, steps.length)
       : quantileBreaks(values, steps.length);

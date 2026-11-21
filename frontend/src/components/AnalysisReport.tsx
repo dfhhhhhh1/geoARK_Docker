@@ -132,6 +132,10 @@ const AnalysisReport: React.FC<Props> = ({ result }) => {
         return `spatial clustering of ${from}, as a Gi* z-score per county`;
       case 'outlier':
         return `only the counties whose value in ${from} is unusual`;
+      case 'moran':
+        return step.local
+          ? `LISA clusters and spatial outliers of ${from} (pseudo p < ${step.alpha ?? 0.05}, ${step.permutations ?? 999} permutations)`
+          : `global Moran's I of ${from} (${step.permutations ?? 999} permutations)`;
       case 'output':
         return `result of ${from}`;
       default:

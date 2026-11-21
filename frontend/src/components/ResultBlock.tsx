@@ -8,10 +8,12 @@ import ErrorBoundary from './ErrorBoundary';
 import AnalysisReport from './AnalysisReport';
 import AmbiguityNotice from './AmbiguityNotice';
 import CorrelationCard from './CorrelationCard';
+import MoranCard from './MoranCard';
 import ComparisonCard from './ComparisonCard';
 import FactorTable from './FactorTable';
 import CountyTable from './CountyTable';
 import type { AnalysisResponse, FollowUpEdit, MappedFeature } from '../types';
+import { isMoranStats } from '../types';
 import {
   download, slug, toCsv, toGeoJson, toMarkdownReport, toBundle,
 } from '../lib/exports';
@@ -57,8 +59,11 @@ const ResultBlock: React.FC<Props> = ({
   const rows = React.useMemo(() => result.rows ?? [], [result]);
   const features = React.useMemo(() => result.features ?? [], [result]);
   const isFeatures = result.output_mode === 'features';
+  // Global Moran's I is a statistic about ONE measure: its card sits above
+  // that measure's map instead of replacing it.
+  const isMoranGlobal = isMoranStats(result.stats);
   // One statistic (correlate): no county to map, so it replaces the map.
-  const isStatistic = !!result.stats;
+  const isStatistic = !!result.stats && !isMoranGlobal;
   // A ranked factor table (explain): also no county layer to map.
   const isFactors = !!result.explain;
   // Attributes the relevance check judged to be stand-ins for what was asked.
@@ -213,6 +218,7 @@ const ResultBlock: React.FC<Props> = ({
               ))}
             </div>
           )}
+          {isMoranGlobal && <div className="mb-4"><MoranCard result={result} /></div>}
           {isStatistic ? (
             <CorrelationCard result={result} />
           ) : isFactors ? (

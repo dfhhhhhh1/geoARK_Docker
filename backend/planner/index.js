@@ -34,6 +34,7 @@ const { preferUserLayer } = require("../user_layers");
 const { applyCatchment } = require("./catchment");
 const { applyNearest } = require("./nearest");
 const { applyComposite, asksComposite } = require("./composite");
+const { applyMoran, asksMoran } = require("./moran");
 const { applyNetwork, applyNetworkPopulation, networkUnitErrors } = require("./network");
 const { repairPrecision } = require("./uncertainty");
 const { seriesUnit } = require("./units");
@@ -459,6 +460,7 @@ RULES:
       case "composite": return '  composite(in1, in2, ...) - one score from 2 to 6 measures';
       case "hotspot": return '  hotspot([in1]) - find spatial clusters (high/low)';
       case "outlier": return '  outlier([in1]) - find spatial anomalies';
+      case "moran": return "  moran([in1]) - Moran's I: spatial clustering, or LISA clusters";
       case "correlate": return '  correlate(in1, in2) - Pearson correlation between two measures';
       case "explain": return '  explain([in1]) - rank potential explanatory factors';
       case "intersect": return '  intersect(in1, in2, exclude=bool) - counties meeting both conditions';
@@ -1988,6 +1990,37 @@ async function generatePlan({
       }
     }
 
+    // Moran's I / LISA (planner/moran.js): the model chose the measure; global
+    // or local, alpha, permutations and the area it is computed over are read
+    // from the question here. Also swaps a hotspot / outlier the question did
+    // not ask for when it names Moran's I, LISA or spatial outliers.
+    if (check.ok && ((plan.steps || []).some(s => ["moran", "hotspot", "outlier"].includes(s.op)) || asksMoran(query))) {
+      try {
+        const before = JSON.stringify(plan.steps);
+        const mr = applyMoran(plan, query, { stepTypes: opsRegistry.stepTypes });
+        if (mr?.fixes.length) {
+          const recheck = await validatePlan(plan, resolve);
+          if (recheck.ok) {
+            resolvedFinal = recheck.resolved;
+            for (const f of mr.fixes) {
+              log(`   Moran: ${f}`);
+              emit({ stage: "plan_adjusted", detail: `Moran: ${f}.` });
+              adjustments.push(`Moran: ${f}.`);
+            }
+            for (const n of mr.notes) {
+              log(`   Moran note: ${n}`);
+              adjustments.push(`Moran: ${n}.`);
+            }
+          } else {
+            plan.steps = JSON.parse(before);
+            log(`   Moran reverted, it did not validate: ${recheck.errors.join("; ")}`);
+          }
+        }
+      } catch (err) {
+        log(`   Moran skipped: ${err.message}`);
+      }
+    }
+
     // Composite index (planner/composite.js): the model chose the measures;
     // weights, directions, method and standardization are read from the
     // question here, on the accepted plan, and echoed so the user can change
@@ -2273,6 +2306,21 @@ async function executePlan(plan, resolved, pool, { timeoutMs = 30000 } = {}) {
           row_count: computed.factors.length, ms: Date.now() - t0,
           rows: outcomeRows, ...computed,
         });
+        continue;
+      }
+      if (out.post) {
+        // Computed from the fetched rows (moran's permutation tests), then
+        // shaped like any other per-county layer.
+        const neighbors = await countyNeighbors(client);
+        const c = opsRegistry.byName(out.post.op).compute(res.rows, { step: out.post.step, neighbors });
+        const layer = shapeLayer({ ...out, rowColumns: c.rowColumns },
+                                 { rows: c.rows, rowCount: c.rows.length }, Date.now() - t0);
+        layer.stats = c.stats;
+        layer.moran = c.moran;
+        // The global statistic maps the measure itself, on its own ramp.
+        if (out.post.step.local !== true) { layer.diverging = false; layer.valueLabel = null; }
+        else layer.valueLabel = "LISA cluster";
+        layers.push(layer);
         continue;
       }
       layers.push(shapeLayer(out, res, Date.now() - t0));

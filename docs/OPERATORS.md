@@ -173,6 +173,7 @@ an empty result.
 | `composite` | 2 to 6 | | *(set by code: `weights`, `directions`, `method`, `standardize`)* | one score from several measures: percentile ranks (or z / min-max), combined by weighted sum, geometric mean or minimum; the only op with a `[min, max]` arity (planner/composite.js, GIS_OPS_PLAN.md H6 item 4) |
 | `hotspot` | 1 | | | Gi\* z-score per county **(signed)** |
 | `outlier` | 1 | | | only the unusual counties, in IQRs **(signed)** |
+| `moran` | 1 | | *(set by code: `local`, `alpha`, `permutations`, `weights`)* | `local: false` -> **one row**: global Moran's I, z, p, pseudo p; `local: true` -> LISA class per county **(signed: HH 2, HL 1, n.s. 0, LH -1, LL -2)**. Terminal; computed in Node after the SQL (planner/moran.js, GIS_OPS_PLAN.md H6 item 6) |
 | `correlate` | 2 | | | **one row**: Spearman rho, CI, p on effective n (see [CORRELATE.md](CORRELATE.md)) |
 | `explain` | 1 | | *(factors attached by code)* | **ranked factor table**, partial rho after controls ([EXPLAIN.md](EXPLAIN.md)) |
 | `within` | 2 *(features)* | | `miles`, `exclude` | the first layer's features within N miles of the second (or farther); value = miles to the nearest |

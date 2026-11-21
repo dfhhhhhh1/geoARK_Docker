@@ -22,6 +22,7 @@ import { layersOf, type StackLayer } from '../lib/layers';
 import { reviseAnalysis } from '../lib/followup';
 import type { LayerSource } from './AddLayerMenu';
 import type { AnalysisResponse } from '../types';
+import { isMoranStats } from '../types';
 import type { FitPadding } from './MapControls';
 import type { ViewKind } from './ResultViews';
 import { unitPlural } from '../lib/units';
@@ -686,6 +687,11 @@ function summarize(r: NonNullable<Turn['result']>): string {
     return `${n}-step analysis, ${(r.row_count ?? 0).toLocaleString()} counties`;
   }
   if (r.comparison) return `comparison, ${r.comparison.labels?.a ?? 'A'} vs ${r.comparison.labels?.b ?? 'B'}`;
+  if (isMoranStats(r.stats)) {
+    const i = r.stats.value;
+    return i === null || i === undefined ? "Moran's I" : `Moran's I = ${i.toFixed(2)}`;
+  }
+  if (r.moran?.kind === 'local') return `LISA clusters, ${(r.row_count ?? 0).toLocaleString()} ${unitPlural(r.level)}`;
   if (r.stats) {
     const rho = r.stats.value;
     return rho === null || rho === undefined ? 'correlation' : `correlation ρ = ${rho.toFixed(2)}`;

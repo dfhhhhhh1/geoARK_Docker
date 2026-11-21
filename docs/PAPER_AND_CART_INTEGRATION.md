@@ -6,7 +6,7 @@ AutoML run, or all three. This builds on `docs/DATA_CART_PLAN.md` (cart
 Phases 1-6 and paper steps U1-U5) and does not repeat them. It adds the joins
 between the pages and the order to build them in.
 
-Status: plan. Nothing here is built.
+Status: plan. P5 (`moran`) built 2026-11-21; P1-P4 not started.
 
 ---
 
@@ -216,6 +216,47 @@ Spatial-epidemiology papers almost always report **global Moran's I** and often
 
 Do this before P4 if the dev papers show it is the most common unsupported
 method, which is likely.
+
+**Built 2026-11-21** (GIS_OPS_PLAN.md "H6 tier 1, item 6", evidence
+`eval/gis_ops/moran/`). Equal to esda 2.10.0 on five live cases for every
+deterministic quantity (1e-13); LISA classes agree on 99.07-100% of counties.
+One correction to the plan above: it is **not** pure SQL. The permutation
+tests (999 draws per county for LISA) run in Node after the SQL, seeded; SQL
+would have meant ~19M random draws in a query. Not yet run through the
+planner (plan_probe / answer_probe), which needs an API rebuild.
+
+What paper upload changed in how it was built, and what P3 / P4 should rely on:
+
+- **Templates set the method; the free planner never sees it.** `local`,
+  `alpha`, `permutations`, `weights` and `seed` are step fields outside the
+  decoding schema. `applyMoran` fills only the fields a step lacks, so a U4
+  template that writes `{op: "moran", local: true, alpha: 0.01,
+  permutations: 9999}` from the paper's quoted methods runs exactly that.
+  The fields are validated like any browser-sent plan.
+- **The extraction enum** (U2's `geoark_op`) should carry `moran_global`,
+  `moran_local` (LISA) and `hotspot` (Gi*) as three values, mapped to
+  `moran` with `local` false / true and to `hotspot`. Papers say "LISA",
+  "local Moran's I", "cluster and outlier analysis" (ArcGIS's name for it),
+  "Anselin Local Moran's I" for the second; "hot spot analysis" is Gi*.
+  Quote the paper's alpha, permutations and weights into the template.
+- **Global and local in one plan.** Papers report I and then the cluster map;
+  one template yields both layers from one transaction (two moran steps over
+  one input), so the reproduction turn reads as one analysis.
+- **The response carries what papers quote**: I, E[I], z, normal-approximation
+  p, pseudo p and its permutations, n and islands; for LISA the class counts
+  and how many units clear alpha by chance. That is what "the paper's quote
+  beside GeoARK's number" in P4's method summary needs, without parsing text.
+- **Approximated, not silently different.** Only queen contiguity is built.
+  The validator refuses any other `weights`, so a template cannot claim a
+  paper's k-nearest or distance-band weights; the template must say
+  *approximated (queen contiguity instead of k = 8 nearest neighbours)*. The
+  free-planner path writes the same note when a question names other weights.
+- **Gaps the dev papers will hit next**, in likely order: tract-level studies
+  (no tract adjacency yet), k-nearest / distance-band weights (k-nearest from
+  centroids is the cheapest: `<->` plus the geodesic check nearest_distance
+  already uses), FDR / Bonferroni-corrected LISA, bivariate LISA, and
+  spatial regression (lag / error). Count them on the dev papers before
+  building any.
 
 ### P6. Later
 

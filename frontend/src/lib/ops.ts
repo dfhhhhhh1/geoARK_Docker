@@ -31,6 +31,7 @@ export const OP_LABEL: Record<PlanOp, string> = {
   intersect: 'Keep matching counties',
   compare_groups: 'Compare two groups',
   composite: 'Composite index',
+  moran: "Moran's I / LISA",
 };
 
 /**
@@ -57,6 +58,14 @@ export const OP_READING: Partial<Record<PlanOp, string>> = {
     'all high; strongly negative means they are all low. Around ±2 is the ' +
     'conventional threshold, though with 3,233 counties that ignores multiple ' +
     'comparisons, so read it as a strength ordering rather than a significance test.',
+  moran:
+    "Moran's I: whether neighbouring counties resemble each other more than a random " +
+    'arrangement would (near 0 random, toward 1 clustered, negative dispersed), with ' +
+    'a pseudo p-value from random permutations. As LISA it labels each county: ' +
+    'High-High and Low-Low are clusters, High-Low and Low-High are spatial outliers ' +
+    '(a value unlike its neighbours). At p < 0.05 about 1 county in 20 clears the bar ' +
+    'by chance alone, so read isolated classes with care. Neighbours share a border or ' +
+    'a corner (queen contiguity), row-standardized.',
   outlier:
     'Distance from the median in interquartile ranges. Only counties beyond ' +
     '1.5 IQRs from the quartiles are kept, which is the rule a boxplot uses ' +

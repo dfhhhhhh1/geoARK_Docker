@@ -380,6 +380,10 @@ function compilePlan(plan, resolved) {
       valueLabel: near ? nearestValueLabel(near)
         : comp ? compMod.valueLabel(comp) : (srcMod?.valueLabel ?? null),
       composite: comp ? true : undefined,
+      // An op whose answer is computed from these rows after execution
+      // (moran: permutation tests). The executor hands them to its compute().
+      post: typeof srcMod?.compute === "function" && srcMod.kind === "compute"
+        ? { op: srcStep.op, step: srcStep } : undefined,
     };
   });
 

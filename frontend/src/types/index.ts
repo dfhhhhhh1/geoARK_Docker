@@ -159,7 +159,7 @@ export type PlanOp =
   | 'filter_attr' | 'filter_area' | 'filter_place' | 'per_area'
   | 'normalize' | 'aggregate' | 'rank' | 'join' | 'combine'
   | 'hotspot' | 'outlier' | 'correlate' | 'explain' | 'output'
-  | 'intersect' | 'compare_groups' | 'composite';
+  | 'intersect' | 'compare_groups' | 'composite' | 'moran';
 
 /**
  * One returned result. A plan with several `output` steps produces several.
@@ -182,10 +182,48 @@ export interface AnalysisLayer {
   series?: number;
   diverging?: boolean;
   value_label?: string | null;
+  /** moran: what was computed; LISA layers carry their class legend. */
+  moran?: MoranInfo | null;
+  stats?: CorrelationStats | MoranStats | null;
   row_count: number;
   rows?: AnalysisRow[];
   features?: MappedFeature[];
 }
+
+/** One LISA class and the code its rows carry as `value`. */
+export interface MoranClass { value: number; label: string }
+
+/** What a moran step computed (backend planner/moran.js). */
+export interface MoranInfo {
+  kind: 'global' | 'local';
+  /** "LISA (local Moran's I), queen contiguity, row-standardized; ..." */
+  method: string;
+  classes?: MoranClass[];
+  n?: number;
+  n_islands?: number;
+  counts?: Record<string, number>;
+  alpha?: number;
+  permutations?: number;
+  /** About alpha x n units clear the bar by chance alone. */
+  expected_false?: number;
+}
+
+/** Global Moran's I, in `stats` with kind "moran". `value` is I. */
+export interface MoranStats {
+  kind: 'moran';
+  value: number | null;
+  expected: number | null;
+  variance: number | null;
+  z: number | null;
+  p_value: number | null;
+  p_sim: number | null;
+  permutations: number | null;
+  n: number | null;
+  n_islands: number | null;
+}
+
+export const isMoranStats = (s: unknown): s is MoranStats =>
+  !!s && typeof s === 'object' && (s as { kind?: string }).kind === 'moran';
 
 /**
  * A single mapped location. Properties vary by layer -- only about half carry
@@ -236,6 +274,10 @@ export interface PlanStep {
   directions?: Array<'high' | 'low'>;
   method?: 'sum' | 'geometric' | 'minimum';
   standardize?: 'percentile' | 'zscore' | 'minmax';
+  /** moran: set by the server from the question (planner/moran.js). */
+  local?: boolean;
+  alpha?: number;
+  permutations?: number;
 }
 
 /**
@@ -426,8 +468,13 @@ export interface AnalysisResponse {
   layer_count?: number;
   features?: MappedFeature[];
   ambiguity?: CityAmbiguity;
-  /** Present when the result is one statistic (correlate), not a county layer. */
-  stats?: CorrelationStats | null;
+  /**
+   * Present when the result is one statistic (correlate), not a county layer.
+   * Global Moran's I also arrives here (kind "moran"), and keeps its map.
+   */
+  stats?: CorrelationStats | MoranStats | null;
+  /** moran: what was computed; LISA results carry their class legend. */
+  moran?: MoranInfo | null;
   /** How each attribute the plan uses relates to the question. */
   relevance?: RelevanceVerdict[] | null;
   /** Present when the result is a ranked factor table (explain). */

@@ -268,6 +268,7 @@ bottlenecks are still measure choice, catalog text and coverage.
    the default; see "H6 tier 1, item 4".)
 5. `zonal` over features (H4 remainder).
 6. Global Moran's I as a scalar answer, LISA classes as a diverging series.
+   (Built 2026-11-21, checked against PySAL; see "H6 tier 1, item 6".)
 
 **Tier 2**: network nearest cost per unit; `route`; isochrone and dissolved
 buffer as geometry; allocation (Voronoi or network nearest) x WorldPop;
@@ -1178,3 +1179,91 @@ any planner run. Evidence `eval/gis_ops/composite/`.
   demographic product); the components' standardized values in the table
   (part layers carry raw values); composites at tract level were not run
   live (the op is in `levels.LEVEL_OPS`).
+
+### H6 tier 1, item 6: Moran's I and LISA, built 2026-11-21
+
+`backend/planner/moran.js` (statistics, gate, mode, the plan repairs), op
+`ops/moran.js`, tests `planner/test_moran.js` (18). Eval family `moran` in
+`eval/gis_ops.yaml` (4 dev, 2 held out), written before any planner run.
+Evidence and the PySAL comparison: `eval/gis_ops/moran/`.
+
+- **One op, two result types, and code picks which.** The model chooses the
+  measure and emits `moran`; `local` (global I or LISA), `alpha` (0.05 unless
+  stated: "p < 0.01", "99% confidence"), `permutations` (999 unless stated,
+  capped at 9,999) and `weights` are read from the question and echoed
+  ("LISA (local Moran's I), queen contiguity, row-standardized; a class needs
+  pseudo p < 0.05 over 999 conditional permutations"). A question naming both
+  ("global Moran's I and the LISA map") gets two moran steps over one input and
+  two outputs, in one transaction. A field already on the step is kept, so a
+  paper template's choices win (see "Paper upload" below). None of these
+  fields is in the decoding schema.
+- **Computed in Node, not SQL** (`kind: "compute"`, a `post` hook on the
+  compiled output that the executor hands to the op's `compute()`, then shapes
+  like any per-county layer). The global statistic is a join and two
+  aggregates, but a pseudo p needs 999 permutations, and LISA's conditional
+  permutation draws k_i neighbours per unit 999 times (~19M draws nationally):
+  ~0.1 s in a typed array at 999, and not reasonable as SQL. Seeded, so the
+  same question gets the same p-values. The SQL is a pass-through CTE, so
+  filters before it compose normally.
+- **The numbers are esda's.** Moran(y, w, "r") and Moran_Local(y, w, "r"),
+  queen contiguity (county_neighbors), row-standardized, weights over the
+  units present (Moran's I "in Texas" uses Texas counties and Texas
+  neighbours; a place filter the model put after the step moves before it,
+  and a single named state with no filter is added, as for composite).
+  On five live cases (three national measures, Texas, Missouri) I, E[I],
+  Var_rand, z, p_rand and every local Is and quadrant equal esda 2.10.0 to
+  1e-13; LISA classes agree on 99.07-100% of counties, every disagreement
+  within 4 sd of alpha. The one systematic difference: an exact tie with the
+  observed statistic (one neighbour, values rounded to 0.1) counts as "at
+  least as extreme" here and is lost to floating-point order in esda, so p is
+  higher by P(tie) on 5 unemployment counties. The first version counted ties
+  in both tails; esda's directed form (>= high, strict < low) fixed 3 of 8.
+- **LISA is a diverging series of classes**: HH +2, HL +1, not significant 0,
+  LH -1, LL -2, with `lisa_class`, `local_i`, `lag`, `p_sim` and `quadrant` on
+  every row, and the class legend, counts and the number expected by chance
+  (alpha x n) in `moran`. The frontend draws class layers with fixed bins and
+  the conventional colours from the chosen diverging ramp, grey for not
+  significant (`lib/lisa.ts`), in all three map components. Global Moran's I
+  comes back in `stats` with `kind: "moran"`, shown as `MoranCard` ABOVE the
+  measure's own map (a correlation replaces the map; this is about one
+  measure, so the map stays).
+- **Terminal by type**: global yields `statistic`, LISA a new type `classes`,
+  so neither can feed rank or a filter (the validator refuses with the usual
+  "feed it straight into an output"). County only (`county_neighbors`);
+  `levels.LEVEL_OPS` does not list it.
+- **Gate**: Moran / LISA / "spatial(ly) autocorrelated" / "high-high clusters" /
+  "spatial outliers" / "clustered or random(ly distributed)". "Where are the
+  clusters" stays hotspot's. Reaches **0 of 332** existing eval questions (every
+  suite plus the held-out CSV) and all 6 family questions with the right mode.
+  Snapshot byte-identical across 48 contexts. Two narrow repairs: hotspot
+  becomes moran when the question names Moran / LISA and not Gi* / hot spots;
+  outlier becomes LISA for "spatial outliers".
+- **Gold**: global, closed-form SQL (equals esda); LISA, a new `kind: lisa`
+  comparison, because SQL cannot hold a permutation test. Its gold uses the
+  analytic conditional-randomization p (Sokal 1998), which agrees with
+  permutation classes on 93.5-100% of counties, so `lisa` asks for the
+  quadrant of every significant unit (>= 99%), class agreement >= 90%, the
+  area covered, nothing significant outside it. `--check-gold` 0,
+  `--self-test` 22/22 (binary weights, national-for-state, national LISA shown
+  for Georgia, the raw measure). CDC PLACES has no Kentucky rows; that
+  question's measure key excludes it (an empty answer, not a measure).
+- **End to end on the live database** (executor + compute, outside the
+  running API): obesity national I 0.5791, p_sim 0.001, 434 ms; Texas poverty
+  LISA 254 counties, 22 HH / 41 LL / 2 HL / 5 LH, 40 ms; Missouri
+  unemployment I 0.470, 194 ms; global + LISA together 603 ms.
+- **Not done**: planner runs of the family (dev x3, held out once) and the
+  guards, which need the API rebuilt from this tree (shared with other
+  sessions); a browser check of the card and the class legend (`npm run build`
+  passes); rook, k-nearest, distance-band and kernel weights (a question that
+  names one is answered with queen and the response says so); FDR /
+  Bonferroni for LISA; bivariate Moran / LISA; tract adjacency.
+
+**Paper upload** (docs/PAPER_AND_CART_INTEGRATION.md P4 / P5). The build was
+shaped by it in four places: every method parameter is a step field a
+template can set, and code only fills fields that are absent; "both" in one
+plan, since papers report the global I and then the LISA map; the response
+carries exactly what a paper quotes (I, E[I], z, p, pseudo p, permutations,
+n, islands; class counts and the number expected by chance), so the method
+summary can set the paper's number beside GeoARK's; and the weights field
+refuses anything but queen, so a template cannot silently claim a paper's
+k-nearest weights. A method it cannot match is reported as approximated.

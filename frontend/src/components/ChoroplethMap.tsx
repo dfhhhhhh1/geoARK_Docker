@@ -13,6 +13,7 @@ import {
   rampsFor, loadRampId, saveRampId,
 } from '../lib/basemaps';
 import { deriveSeries } from '../lib/series';
+import { classScale } from '../lib/lisa';
 import { useIsDark } from '../hooks/useIsDark';
 import { Palette, BarChart3 } from 'lucide-react';
 import {
@@ -242,7 +243,7 @@ const ChoroplethMap: React.FC<Props> = ({
   const active = series[Math.min(seriesIdx, series.length - 1)];
   useEffect(() => { setSeriesIdx(0); }, [rows]);
 
-  const { byFips, breaks, binColours } = useMemo(() => {
+  const { byFips, breaks, binColours, classLabels } = useMemo(() => {
     const map = new Map<string, AnalysisRow>();
     // County FIPS lose leading zeros in some paths, so they are padded. Any
     // other unit (a tract, a ZIP area, a user's ward "1") is keyed as sent:
@@ -254,6 +255,9 @@ const ChoroplethMap: React.FC<Props> = ({
     const values = rows
       .map(r => r[active.key])
       .filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
+    // LISA classes: fixed bins between the class codes (lib/lisa.ts).
+    const lisa = classScale(result?.moran?.kind === 'local' ? result.moran.classes : null, ramp, isDark);
+    if (lisa) return { byFips: map, breaks: lisa.breaks, binColours: lisa.colors, classLabels: lisa.labels };
     const b = diverging
       ? divergingBreaks(values, ramp.length)
       : classBreaks(values, ramp.length, method);
@@ -269,8 +273,8 @@ const ChoroplethMap: React.FC<Props> = ({
       : Array.from({ length: binCount }, (_, i) =>
           ramp[Math.round((i / Math.max(binCount - 1, 1)) * (ramp.length - 1))]);
 
-    return { byFips: map, breaks: b, binColours: colors };
-  }, [rows, ramp, active.key, diverging, method]);
+    return { byFips: map, breaks: b, binColours: colors, classLabels: null as string[] | null };
+  }, [rows, ramp, active.key, diverging, method, result, isDark]);
 
   const colourFor = useCallback((value: number | null | undefined): string => {
     if (value === null || value === undefined || !Number.isFinite(value)) return noData;
@@ -441,6 +445,7 @@ const ChoroplethMap: React.FC<Props> = ({
       onSeries={setSeriesIdx}
       breaks={breaks}
       binColours={binColours}
+      classLabels={classLabels}
       noData={noData}
       intent={intent}
       style={style}
@@ -486,6 +491,8 @@ interface BodyProps {
   onSeries: (i: number) => void;
   breaks: number[];
   binColours: string[];
+  /** LISA class names, one per bin, instead of value ranges. */
+  classLabels: string[] | null;
   noData: string;
   intent: string;
   style: (f?: Feature<Geometry>) => PathOptions;
@@ -515,7 +522,7 @@ interface BodyProps {
 }
 
 const ChoroplethBody: React.FC<BodyProps> = ({
-  counties, byFips, rows, series, active, seriesIdx, onSeries, breaks, binColours,
+  counties, byFips, rows, series, active, seriesIdx, onSeries, breaks, binColours, classLabels,
   noData, intent, style, geoRef, mapRef, basemapId, onBasemap, opacity, onOpacity,
   hovered, onMouseOver, clearHover, isDark, valueLabel, visible,
   rampId, rampChoices, onRamp, method, onMethod, diverging, toolbarExtra, stage, fitPadding, refit, onRefit,
@@ -542,8 +549,8 @@ const ChoroplethBody: React.FC<BodyProps> = ({
     const hi = i < breaks.length ? breaks[i] : undefined;
     // Bounds must match colourFor, which advances while `value > breaks[i]`.
     // Each bin is therefore (lo, hi] -- inclusive at the top, not the bottom.
-    const label =
-      lo === undefined && hi === undefined ? 'all values'
+    const label = classLabels ? classLabels[i]
+      : lo === undefined && hi === undefined ? 'all values'
       : lo === undefined ? `≤ ${fmt(hi as number)}`
       : hi === undefined ? `> ${fmt(lo)}`
       : `${fmt(lo)}, ${fmt(hi)}`;

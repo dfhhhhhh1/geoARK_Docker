@@ -297,6 +297,40 @@ def compare(cmp: dict, gold: list[dict], ans: dict) -> tuple[str, dict]:
         return ("CORRECT" if _close(float(ans["scalar"]), g, cmp) else "WRONG_VALUE",
                 {"gold": round(g, 4), "got": round(float(ans["scalar"]), 4)})
 
+    if kind == "lisa":
+        # LISA classes (GIS_OPS_PLAN.md H6 item 6): the answer's value is a
+        # class code (HH 2, HL 1, not significant 0, LH -1, LL -2). Gold rows
+        # are (fips, analytic class code, quadrant code). The quadrant of a
+        # significant unit is deterministic and must match; the significance
+        # call is a permutation test gold cannot reproduce, so agreement on
+        # the class only has to clear a floor (measured 93.5-100%).
+        if not ans["layers"]:
+            return "WRONG_SHAPE", {"why": "no per-unit classes returned"}
+        layer = ans["layers"][0]
+        want = {r["fips"]: r["value"] for r in gold if r["value"] is not None}
+        quad = {r["fips"]: _num(r.get("grp")) for r in gold}
+        shared = [k for k in want if k in layer]
+        extra = [k for k in layer if k not in want and layer[k] not in (0, None)]
+        base = {"units": len(layer), "gold_units": len(want)}
+        if not want:
+            return "EMPTY", base
+        cover = len(shared) / len(want)
+        base.update(coverage=round(cover, 3), extra=len(extra))
+        if cover < cmp.get("min_coverage", 0.95):
+            return "INCOMPLETE", base
+        if len(extra) > cmp.get("max_extra", 0.05) * len(want):
+            return "WRONG_VALUE", {**base, "why": "significant units outside the area asked about"}
+        if any(_num(layer[k]) not in (-2.0, -1.0, 0.0, 1.0, 2.0) for k in shared if layer[k] is not None):
+            return "WRONG_VALUE", {**base, "why": "values are not LISA class codes"}
+        sig = [k for k in shared if _num(layer[k]) not in (0.0, None)]
+        if not sig:
+            return "WRONG_VALUE", {**base, "why": "no significant units"}
+        quad_ok = sum(_num(layer[k]) == quad.get(k) for k in sig) / len(sig)
+        agree = sum((_num(layer[k]) or 0.0) == want[k] for k in shared) / len(shared)
+        base.update(significant=len(sig), quadrant_ok=round(quad_ok, 3), agreement=round(agree, 3))
+        ok = quad_ok >= cmp.get("min_quadrant", 0.99) and agree >= cmp.get("min_agree", 0.9)
+        return ("CORRECT" if ok else "WRONG_VALUE"), base
+
     if cmp.get("features"):
         # The answer is the features themselves (GIS_OPS_PLAN.md H1), keyed
         # by position. A per-county map is the wrong shape for "which ones".
@@ -595,7 +629,7 @@ def self_test(suite: dict) -> int:
         # One row (a single named county) cannot be shuffled into a different
         # answer; its `wrong:` entries below are its check.
         rows = gold_rows(expand(golds[0], bind, regions)) \
-            if q["compare"]["kind"] in ("values", "top_k") else []
+            if q["compare"]["kind"] in ("values", "top_k", "lisa") else []
         if len({r["value"] for r in rows}) >= 2:
             vals = [r["value"] for r in rows]
             rng.shuffle(vals)

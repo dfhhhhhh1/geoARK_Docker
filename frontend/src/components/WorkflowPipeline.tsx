@@ -4,6 +4,7 @@ import {
   Layers, Loader2, PencilLine, Replace, X, XCircle, MapPinned, Info,
 } from 'lucide-react';
 import type { AnalysisResponse, FollowUpEdit, PlanOp, WorkflowStep } from '../types';
+import { isMoranStats } from '../types';
 import { OP_LABEL } from '../lib/ops';
 import { fmtValue, isResultAttr, stepDataLabel } from '../lib/workflow';
 import ComparisonCard from './ComparisonCard';
@@ -49,6 +50,7 @@ function opsLine(ops: PlanOp[]): string {
 function resultLine(s: WorkflowStep): string {
   const c = s.result?.comparison;
   if (c) return `${fmtValue(c.median_a)} vs ${fmtValue(c.median_b)} (median)`;
+  if (isMoranStats(s.result?.stats)) return `Moran's I = ${s.result!.stats!.value?.toFixed(2) ?? '–'}`;
   if (s.result?.stats) return `ρ = ${s.result.stats.value?.toFixed(2) ?? '–'}`;
   if (!s.summary) return s.error ? 'no result' : '–';
   const { counties, min, max } = s.summary;

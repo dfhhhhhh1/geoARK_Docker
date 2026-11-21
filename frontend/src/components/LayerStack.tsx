@@ -17,6 +17,7 @@ import {
 } from '../lib/classify';
 import type { StackLayer } from '../lib/layers';
 import { useIsDark } from '../hooks/useIsDark';
+import { classScale } from '../lib/lisa';
 
 /**
  * Several geospatial layers stacked on the stage map, each styled on its own.
@@ -79,6 +80,9 @@ function scaleFor(layer: StackLayer, style: LayerStyle, ramp: Ramp, isDark: bool
     if (v !== null && v !== undefined && Number.isFinite(v)) values.push(v);
   }
   const steps = isDark ? ramp.dark : ramp.light;
+  // LISA classes: fixed bins between the class codes (lib/lisa.ts).
+  const lisa = classScale(layer.classes, steps, isDark);
+  if (lisa) return { byFips, breaks: lisa.breaks, colors: lisa.colors, labels: lisa.labels };
   const breaks = layer.diverging
     ? divergingBreaks(values, steps.length)
     : classBreaks(values, steps.length, style.method);
@@ -87,7 +91,7 @@ function scaleFor(layer: StackLayer, style: LayerStyle, ramp: Ramp, isDark: bool
   const n = breaks.length + 1;
   const colors = n >= steps.length ? steps
     : Array.from({ length: n }, (_, i) => steps[Math.round((i / Math.max(n - 1, 1)) * (steps.length - 1))]);
-  return { byFips, breaks, colors };
+  return { byFips, breaks, colors, labels: null as string[] | null };
 }
 
 const colourOf = (v: number, breaks: number[], colors: string[]) => {
@@ -565,14 +569,14 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
 /** The class legend for one fill layer, in its own breaks and colours. */
 const Legend: React.FC<{ layer: StackLayer; style: LayerStyle; ramp: Ramp; isDark: boolean }> =
   ({ layer, style, ramp, isDark }) => {
-    const { breaks, colors } = useMemo(() => scaleFor(layer, style, ramp, isDark),
+    const { breaks, colors, labels } = useMemo(() => scaleFor(layer, style, ramp, isDark),
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [layer, style.method, ramp, isDark]);
     const bins = colors.map((c, i) => {
       const lo = breaks[i - 1], hi = breaks[i];
       return {
         c,
-        label: lo === undefined && hi === undefined ? 'all values'
+        label: labels ? labels[i] : lo === undefined && hi === undefined ? 'all values'
           : lo === undefined ? `≤ ${fmt(hi as number)}` : hi === undefined ? `> ${fmt(lo)}` : `${fmt(lo)} – ${fmt(hi)}`,
       };
     });

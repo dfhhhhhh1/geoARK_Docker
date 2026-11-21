@@ -4,6 +4,7 @@ import { MapContainer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnalysisResponse } from '../types';
+import { isMoranStats } from '../types';
 import ChoroplethMap from './ChoroplethMap';
 import LayerStack from './LayerStack';
 import AddLayerMenu, { type LayerSource } from './AddLayerMenu';
@@ -143,7 +144,7 @@ const MapStage: React.FC<Props> = ({
     );
   }
 
-  if (!result || result.execution_error || result.stats) return idle;
+  if (!result || result.execution_error || (result.stats && !isMoranStats(result.stats))) return idle;
 
   // A single layer: the full map, with the button that starts a stack.
   const addButton = onAddLayers ? (

@@ -3336,6 +3336,10 @@ async function finishAnalysis({ query, started, planning, executable, candidates
       // and would hide the map these rows draw. Was computed by the executor
       // and dropped here until 2026-11-09, so the verdict never reached anyone.
       if (result.comparison) body.comparison = result.comparison;
+      // moran (planner/moran.js): what was computed (global or LISA, the
+      // weights, alpha, permutations) and, for LISA, the class legend and
+      // counts. The global statistic itself rides in `stats` with kind "moran".
+      if (result.moran) body.moran = result.moran;
       // explain: the ranked factor table, the controls it used, and how many
       // counties had the outcome at all.
       if (result.mode === "factors") {
@@ -3362,6 +3366,7 @@ async function finishAnalysis({ query, started, planning, executable, candidates
           value_label: l.valueLabel ?? null,
           stats: l.stats ?? null,
           comparison: l.comparison ?? null,
+          moran: l.moran ?? null,
           row_count: l.row_count,
           ...(l.mode === "features" ? { features: l.features } : { rows: l.rows }),
         }));

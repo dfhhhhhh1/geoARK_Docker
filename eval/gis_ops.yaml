@@ -64,6 +64,9 @@ measures:
   # run against them.
   unemployment_rate: '^(UNEMPLOYMENT_RATE|DP03_0009PE|SVI_EP_UNEMP)\b'
   uninsured_adults: '^(PLACES_ACCESS2_(CrdPrv|AgeAdjPrv)|DP03_0099PE|CHR_V085_RAWVALUE|SVI_EP_UNINSUR)\b'
+  # CDC PLACES (2023 here) has no Kentucky rows at all: for a Kentucky question
+  # it is an empty answer, not an acceptable measure (moran_heldout).
+  uninsured_adults_ky: '^(DP03_0099PE|CHR_V085_RAWVALUE|SVI_EP_UNINSUR)\b'
   med_income: '^(MEDHHINC|MEDIAN_HOUSEHOLD_INCOME|CHR_V063_RAWVALUE|DP03_0062E)\b'
   child_poverty: '^(PCTPOV017|DP03_0129PE)\b'
   # Widened after dev r1 (2026-11-21): the plan loaded County Health Rankings'
@@ -1369,3 +1372,202 @@ queries:
                         + (SELECT count(*) FROM b x WHERE x.v2 < b.v2) / n.d
                         + (SELECT count(*) FROM b x WHERE x.v3 < b.v3) / n.d) / 3
           FROM b, n
+
+  # ============================================================ moran_dev
+  # H6 tier 1, item 6: global Moran's I (scalar) and LISA classes. Weights:
+  # queen contiguity (county_neighbors), row-standardized, over the units of
+  # the area the question names. Global gold is the closed form; it equals
+  # esda.Moran to 1e-13 (eval/gis_ops/moran/). LISA gold cannot hold a
+  # permutation test, so it uses the analytic conditional-randomization
+  # variance (Sokal 1998, esda's EIc / VIc), one-sided at 0.05, which agrees
+  # with 999-permutation classes on 93.5-100% of counties (measured on five
+  # cases). The `lisa` comparison therefore asks for: every unit the answer
+  # calls significant in the right quadrant (>= 99%, deterministic), class
+  # agreement >= 90%, coverage of the area, and nothing outside it.
+  - id: m-us-obesity-global
+    tier: moran_dev
+    query: "Is adult obesity spatially clustered across US counties? Report the global Moran's I."
+    note: "global, national"
+    measures: {m1: obesity}
+    gold: |
+      WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE value IS NOT NULL),
+      s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+      z AS (SELECT fips, y - mu AS z FROM v, s),
+      l AS (SELECT a.fips, a.z, avg(b.z) AS lag FROM z a
+            JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+            GROUP BY a.fips, a.z)
+      SELECT NULL::text AS fips,
+        (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)
+    compare: {kind: scalar, rel_tol: 0.01}
+    wrong:
+      - expect: WRONG_VALUE          # binary (unstandardized) weights, correlate's moran_a
+        sql: |
+          WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE value IS NOT NULL),
+          s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+          z AS (SELECT fips, y - mu AS z FROM v, s),
+          p AS (SELECT a.z * b.z AS zz FROM z a JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips)
+          SELECT NULL::text, (SELECT n FROM s) / (SELECT count(*) FROM p) * (SELECT sum(zz) FROM p) / (SELECT sum(z * z) FROM z)
+
+  - id: m-tx-poverty-lisa
+    tier: moran_dev
+    query: "Show a LISA cluster map of the poverty rate for Texas counties."
+    note: "local, within Texas"
+    measures: {m1: poverty_rate}
+    gold: |
+      WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE left(fips, 2) = '48' AND value IS NOT NULL),
+      s AS (SELECT avg(y) AS mu, stddev_pop(y) AS sd, count(*)::float8 AS n FROM v),
+      z AS (SELECT fips, (y - mu) / sd AS z FROM v, s),
+      m AS (SELECT sum(z * z) / count(*) AS m2 FROM z),
+      l AS (SELECT a.fips, a.z, avg(b.z) AS lag, count(*)::float8 AS k FROM z a
+            JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+            GROUP BY a.fips, a.z),
+      t AS (SELECT l.*, (s.n - 1) * l.z * l.lag / (m.m2 * s.n) AS ii,
+              -(l.z * l.z) / ((s.n - 1) * m.m2) AS e,
+              (l.z / m.m2) ^ 2 * (s.n / (s.n - 2)) * (1 / l.k - 1 / (s.n - 1)) * (m.m2 - l.z * l.z / (s.n - 1)) AS var,
+              CASE WHEN l.z > 0 AND l.lag > 0 THEN 2 WHEN l.z > 0 THEN 1 WHEN l.lag > 0 THEN -1 ELSE -2 END AS quad
+            FROM l, s, m)
+      SELECT fips, CASE WHEN var > 0 AND abs(ii - e) / sqrt(var) > 1.6449 THEN quad ELSE 0 END, quad::text
+      FROM t
+    compare: {kind: lisa, alpha: 0.05, min_coverage: 0.95, max_extra: 0.05, min_quadrant: 0.99, min_agree: 0.9}
+    wrong:
+      - expect: WRONG_VALUE          # national LISA, not restricted
+        sql: |
+          WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE value IS NOT NULL),
+          s AS (SELECT avg(y) AS mu, stddev_pop(y) AS sd, count(*)::float8 AS n FROM v),
+          z AS (SELECT fips, (y - mu) / sd AS z FROM v, s),
+          m AS (SELECT sum(z * z) / count(*) AS m2 FROM z),
+          l AS (SELECT a.fips, a.z, avg(b.z) AS lag, count(*)::float8 AS k FROM z a
+                JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+                GROUP BY a.fips, a.z),
+          t AS (SELECT l.*, (s.n - 1) * l.z * l.lag / (m.m2 * s.n) AS ii,
+                  -(l.z * l.z) / ((s.n - 1) * m.m2) AS e,
+                  (l.z / m.m2) ^ 2 * (s.n / (s.n - 2)) * (1 / l.k - 1 / (s.n - 1)) * (m.m2 - l.z * l.z / (s.n - 1)) AS var,
+                  CASE WHEN l.z > 0 AND l.lag > 0 THEN 2 WHEN l.z > 0 THEN 1 WHEN l.lag > 0 THEN -1 ELSE -2 END AS quad
+                FROM l, s, m)
+          SELECT fips, CASE WHEN var > 0 AND abs(ii - e) / sqrt(var) > 1.6449 THEN quad ELSE 0 END, quad::text
+          FROM t
+      - expect: WRONG_VALUE          # the poverty rate itself mapped
+        sql: |
+          SELECT fips, value, '2' FROM {latest:m1} WHERE left(fips, 2) = '48'
+
+  - id: m-mo-unemployment-global
+    tier: moran_dev
+    query: "Are unemployment rates in Missouri counties clustered or randomly distributed?"
+    note: "global, Missouri weights only; no Moran or LISA word"
+    measures: {m1: unemployment_rate}
+    gold: |
+      WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE left(fips, 2) = '29' AND value IS NOT NULL),
+      s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+      z AS (SELECT fips, y - mu AS z FROM v, s),
+      l AS (SELECT a.fips, a.z, avg(b.z) AS lag FROM z a
+            JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+            GROUP BY a.fips, a.z)
+      SELECT NULL::text AS fips,
+        (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)
+    compare: {kind: scalar, rel_tol: 0.02}
+    wrong:
+      - expect: WRONG_VALUE          # national I
+        sql: |
+          WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE value IS NOT NULL),
+          s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+          z AS (SELECT fips, y - mu AS z FROM v, s),
+          l AS (SELECT a.fips, a.z, avg(b.z) AS lag FROM z a
+                JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+                GROUP BY a.fips, a.z)
+          SELECT NULL::text AS fips,
+            (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)
+
+  - id: m-us-diabetes-hh
+    tier: moran_dev
+    query: "Which counties form high-high and low-low clusters of diagnosed diabetes?"
+    note: "local, national, named by its classes"
+    measures: {m1: diabetes}
+    gold: |
+      WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE value IS NOT NULL),
+      s AS (SELECT avg(y) AS mu, stddev_pop(y) AS sd, count(*)::float8 AS n FROM v),
+      z AS (SELECT fips, (y - mu) / sd AS z FROM v, s),
+      m AS (SELECT sum(z * z) / count(*) AS m2 FROM z),
+      l AS (SELECT a.fips, a.z, avg(b.z) AS lag, count(*)::float8 AS k FROM z a
+            JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+            GROUP BY a.fips, a.z),
+      t AS (SELECT l.*, (s.n - 1) * l.z * l.lag / (m.m2 * s.n) AS ii,
+              -(l.z * l.z) / ((s.n - 1) * m.m2) AS e,
+              (l.z / m.m2) ^ 2 * (s.n / (s.n - 2)) * (1 / l.k - 1 / (s.n - 1)) * (m.m2 - l.z * l.z / (s.n - 1)) AS var,
+              CASE WHEN l.z > 0 AND l.lag > 0 THEN 2 WHEN l.z > 0 THEN 1 WHEN l.lag > 0 THEN -1 ELSE -2 END AS quad
+            FROM l, s, m)
+      SELECT fips, CASE WHEN var > 0 AND abs(ii - e) / sqrt(var) > 1.6449 THEN quad ELSE 0 END, quad::text
+      FROM t
+    compare: {kind: lisa, alpha: 0.05, min_coverage: 0.95, max_extra: 0.05, min_quadrant: 0.99, min_agree: 0.9}
+    wrong:
+      - expect: WRONG_VALUE          # the prevalence itself mapped
+        sql: |
+          SELECT fips, value, '2' FROM {latest:m1} 
+
+
+  # ======================================================== moran_heldout
+  - id: m-ga-income-outliers
+    tier: moran_heldout
+    query: "Compute local Moran's I for median household income across Georgia counties and map the spatial outliers."
+    note: "local, Georgia"
+    measures: {m1: med_income}
+    gold: |
+      WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE left(fips, 2) = '13' AND value IS NOT NULL),
+      s AS (SELECT avg(y) AS mu, stddev_pop(y) AS sd, count(*)::float8 AS n FROM v),
+      z AS (SELECT fips, (y - mu) / sd AS z FROM v, s),
+      m AS (SELECT sum(z * z) / count(*) AS m2 FROM z),
+      l AS (SELECT a.fips, a.z, avg(b.z) AS lag, count(*)::float8 AS k FROM z a
+            JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+            GROUP BY a.fips, a.z),
+      t AS (SELECT l.*, (s.n - 1) * l.z * l.lag / (m.m2 * s.n) AS ii,
+              -(l.z * l.z) / ((s.n - 1) * m.m2) AS e,
+              (l.z / m.m2) ^ 2 * (s.n / (s.n - 2)) * (1 / l.k - 1 / (s.n - 1)) * (m.m2 - l.z * l.z / (s.n - 1)) AS var,
+              CASE WHEN l.z > 0 AND l.lag > 0 THEN 2 WHEN l.z > 0 THEN 1 WHEN l.lag > 0 THEN -1 ELSE -2 END AS quad
+            FROM l, s, m)
+      SELECT fips, CASE WHEN var > 0 AND abs(ii - e) / sqrt(var) > 1.6449 THEN quad ELSE 0 END, quad::text
+      FROM t
+    compare: {kind: lisa, alpha: 0.05, min_coverage: 0.95, max_extra: 0.05, min_quadrant: 0.99, min_agree: 0.9}
+    wrong:
+      - expect: WRONG_VALUE          # national LISA shown for Georgia
+        sql: |
+          WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE value IS NOT NULL),
+          s AS (SELECT avg(y) AS mu, stddev_pop(y) AS sd, count(*)::float8 AS n FROM v),
+          z AS (SELECT fips, (y - mu) / sd AS z FROM v, s),
+          m AS (SELECT sum(z * z) / count(*) AS m2 FROM z),
+          l AS (SELECT a.fips, a.z, avg(b.z) AS lag, count(*)::float8 AS k FROM z a
+                JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+                GROUP BY a.fips, a.z),
+          t AS (SELECT l.*, (s.n - 1) * l.z * l.lag / (m.m2 * s.n) AS ii,
+                  -(l.z * l.z) / ((s.n - 1) * m.m2) AS e,
+                  (l.z / m.m2) ^ 2 * (s.n / (s.n - 2)) * (1 / l.k - 1 / (s.n - 1)) * (m.m2 - l.z * l.z / (s.n - 1)) AS var,
+                  CASE WHEN l.z > 0 AND l.lag > 0 THEN 2 WHEN l.z > 0 THEN 1 WHEN l.lag > 0 THEN -1 ELSE -2 END AS quad
+                FROM l, s, m)
+          SELECT fips, CASE WHEN var > 0 AND abs(ii - e) / sqrt(var) > 1.6449 THEN quad ELSE 0 END, quad::text
+          FROM t
+          WHERE left(fips, 2) = '13'
+
+  - id: m-ky-uninsured-strength
+    tier: moran_heldout
+    query: "How strong is the spatial autocorrelation in the share of adults without health insurance across Kentucky counties?"
+    note: "global, Kentucky"
+    measures: {m1: uninsured_adults_ky}
+    gold: |
+      WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE left(fips, 2) = '21' AND value IS NOT NULL),
+      s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+      z AS (SELECT fips, y - mu AS z FROM v, s),
+      l AS (SELECT a.fips, a.z, avg(b.z) AS lag FROM z a
+            JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+            GROUP BY a.fips, a.z)
+      SELECT NULL::text AS fips,
+        (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)
+    compare: {kind: scalar, rel_tol: 0.02}
+    wrong:
+      - expect: WRONG_VALUE          # national I
+        sql: |
+          WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE value IS NOT NULL),
+          s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+          z AS (SELECT fips, y - mu AS z FROM v, s),
+          l AS (SELECT a.fips, a.z, avg(b.z) AS lag FROM z a
+                JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+                GROUP BY a.fips, a.z)
+          SELECT NULL::text AS fips,
+            (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)

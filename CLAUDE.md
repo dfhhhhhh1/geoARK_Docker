@@ -1591,6 +1591,28 @@ gold on 743 counties (2e-16); dev 4/4 x3, held-out 2/2; gate reaches 0 of
   insurance" is the uninsured rate, not "low insurance". Direction cues must
   skip words of the measure's own label.
 
+### Moran's I and LISA (H6 item 6, 2026-11-21)
+
+docs/GIS_OPS_PLAN.md "H6 tier 1, item 6"; evidence `eval/gis_ops/moran/`.
+`planner/moran.js`, `ops/moran.js`: the model emits `moran`; global vs LISA,
+alpha, permutations and the area are code's. Snapshot byte-identical; the gate
+reaches 0 of 332 other eval questions.
+
+- **Computed in Node after the SQL** (a `post` hook on the compiled output):
+  LISA's conditional permutation is ~19M draws nationally. Seeded. Terminal by
+  type (`statistic` / `classes`).
+- **Equal to esda 2.10.0** (row-standardized queen) on five live cases to
+  1e-13 for every deterministic quantity. A tie with the observed statistic
+  counts as at least as extreme here; esda's float order drops it (5 counties
+  with one neighbour and rounded values). Count esda's way otherwise:
+  ">= high tail, strict < low tail", not ties in both.
+- **SQL gold cannot hold a permutation test**: `answer_probe.py` has a `lisa`
+  comparison (exact quadrant of significant units, >= 90% class agreement with
+  the analytic p).
+- **The response body whitelists layer fields** (`unified_search_server.js`):
+  a new field on a layer (here `moran`) is dropped unless added there.
+- CDC PLACES has no Kentucky rows at all.
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence

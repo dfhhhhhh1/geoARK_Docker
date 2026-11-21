@@ -1,4 +1,5 @@
-import type { AnalysisResponse, AnalysisRow, MappedFeature } from '../types';
+import type { AnalysisResponse, AnalysisRow, MappedFeature, MoranClass } from '../types';
+import { isMoranStats } from '../types';
 import { attrOfStep, describeAttr, deriveSeries, stripCoverage } from './series';
 
 /**
@@ -23,6 +24,8 @@ export interface StackLayer {
   features?: MappedFeature[];
   diverging?: boolean;
   valueLabel?: string | null;
+  /** LISA classes: fixed class bins and labels instead of value bins (lib/lisa.ts). */
+  classes?: MoranClass[] | null;
   /** Added by the user, so it can be removed. The answer's own layers cannot. */
   removable: boolean;
 }
@@ -43,7 +46,8 @@ function nameOfStep(result: AnalysisResponse, stepId: string): string | null {
  */
 export function layersOf(result: AnalysisResponse | null | undefined, keyPrefix: string,
                          source: string, removable = false): StackLayer[] {
-  if (!result || result.execution_error || result.stats || result.explain) return [];
+  // Global Moran's I keeps its map (the measure it summarises).
+  if (!result || result.execution_error || (result.stats && !isMoranStats(result.stats)) || result.explain) return [];
   const base = { source, removable };
 
   if (result.layers && result.layers.length > 1) {
@@ -63,6 +67,7 @@ export function layersOf(result: AnalysisResponse | null | undefined, keyPrefix:
         ...base, key: `${keyPrefix}:${l.id}`, label: l.part ? `${name} (component)` : name,
         mode: 'values', rows: l.rows, valueKey: 'value', diverging: l.diverging,
         valueLabel: l.value_label ?? null,
+        classes: l.moran?.kind === 'local' ? l.moran.classes ?? null : null,
       }];
     });
   }
@@ -89,5 +94,6 @@ export function layersOf(result: AnalysisResponse | null | undefined, keyPrefix:
     label: (result.comparison || !output ? null : nameOfStep(result, output.inputs[0])) ?? result.plan.intent,
     mode: 'values', rows, valueKey: 'value', diverging: result.diverging,
     valueLabel: result.value_label ?? null,
+    classes: result.moran?.kind === 'local' ? result.moran.classes ?? null : null,
   }];
 }
