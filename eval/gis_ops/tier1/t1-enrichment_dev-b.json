@@ -1,0 +1,382 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.25,
+  "by_tier": {
+    "enrichment_dev": {
+      "pass": 1,
+      "n": 4,
+      "rate": 0.25
+    }
+  },
+  "classes": {
+    "CORRECT": 1,
+    "WRONG_SHAPE": 2,
+    "EMPTY": 1
+  },
+  "latency_mean": 22.6,
+  "api_container_created": "2026-11-21T22:39:36.952043606Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "e-oh-hospitals-county-poverty",
+      "tier": "enrichment_dev",
+      "query": "Which hospitals in Ohio are in counties where the poverty rate is above 15 percent?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 141,
+        "gold_features": 141,
+        "jaccard": 1.0,
+        "extra": 0,
+        "missed": 0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "PCTPOVALL"
+        }
+      },
+      "ops": "select_features->load->filter_attr->enrich->output",
+      "intent": "Hospitals in Ohio located in counties where the poverty rate is above 15 percent",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "443ff20b_01_01_13",
+          "inputs": [],
+          "states": [
+            "Ohio"
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "load",
+          "attr_id": "PCTPOVALL",
+          "inputs": []
+        },
+        {
+          "id": "s3",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "operator": ">",
+          "value": 15
+        },
+        {
+          "id": "s4",
+          "op": "enrich",
+          "attr_id": "",
+          "inputs": [
+            "s1",
+            "s3"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [],
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals",
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS"
+      ],
+      "row_count": 141,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which hospitals in Ohio are in counties where the poverty rate is above 15 percent?",
+            "uses": [],
+            "ops": "select_features->load->filter_attr->enrich->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 18.1
+    },
+    {
+      "id": "e-mo-hospitals-tract-pov150",
+      "tier": "enrichment_dev",
+      "query": "Which hospitals in Missouri are in census tracts where more than 40 percent of people live below 150 percent of the poverty line?",
+      "class": "WRONG_SHAPE",
+      "pass": false,
+      "detail": {
+        "why": "no features returned",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "SVI_EP_POV150"
+        }
+      },
+      "ops": "load->filter_attr->count_features->filter_area->intersect->output",
+      "intent": "Hospitals in Missouri located in census tracts where more than 40 percent of people live below 150 percent of the poverty line",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "SVI_EP_POV150",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "operator": ">",
+          "value": 40
+        },
+        {
+          "id": "s3",
+          "op": "count_features",
+          "attr_id": "443ff20b_01_01_13",
+          "inputs": []
+        },
+        {
+          "id": "s4",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "intersect",
+          "attr_id": "",
+          "inputs": [
+            "s2",
+            "s4"
+          ]
+        },
+        {
+          "id": "s6",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s5"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Unit: answered by census tract (the question asked for census tracts)."
+      ],
+      "loaded": [
+        "SVI_EP_POV150 | Percent of persons below 150% of the poverty level | CDC Social Vulnerability Index",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 204,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which hospitals in Missouri are in census tracts where more than 40 percent of people live below 150 percent of the poverty line?",
+            "uses": [],
+            "ops": "load->filter_attr->count_features->filter_area->intersect->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 26.0
+    },
+    {
+      "id": "e-ga-nursing-tract-uninsured-count",
+      "tier": "enrichment_dev",
+      "query": "How many nursing homes in Georgia are in census tracts where more than 20 percent of residents have no health insurance?",
+      "class": "WRONG_SHAPE",
+      "pass": false,
+      "detail": {
+        "why": "no single statistic returned",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "f2628a3f051b4e8aa02a6217207b8b86_nursinghomes",
+          "m2": "SVI_EP_UNINSUR"
+        }
+      },
+      "ops": "load->filter_attr->count_features->filter_area->intersect->output",
+      "intent": "Number of nursing homes in Georgia located in census tracts where more than 20 percent of residents have no health insurance",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "SVI_EP_UNINSUR",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "operator": ">",
+          "value": 20
+        },
+        {
+          "id": "s3",
+          "op": "count_features",
+          "attr_id": "5c91101d_01_01_14",
+          "inputs": []
+        },
+        {
+          "id": "s4",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "states": [
+            "Georgia"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "intersect",
+          "attr_id": "",
+          "inputs": [
+            "s4",
+            "s2"
+          ]
+        },
+        {
+          "id": "s6",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s5"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Unit: answered by census tract (the question asked for census tracts)."
+      ],
+      "loaded": [
+        "SVI_EP_UNINSUR | Percent of persons without health insurance | CDC Social Vulnerability Index",
+        "f2628a3f051b4e8aa02a6217207b8b86_nursinghomes | Nursing Homes (mapped locations) | Nursing Homes"
+      ],
+      "row_count": 471,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many nursing homes in Georgia are in census tracts where more than 20 percent of residents have no health insurance?",
+            "uses": [],
+            "ops": "load->filter_attr->count_features->filter_area->intersect->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 27.1
+    },
+    {
+      "id": "e-tx-hospitals-top-county-poverty",
+      "tier": "enrichment_dev",
+      "query": "Which 10 hospitals in Texas are in the counties with the highest poverty rates?",
+      "class": "EMPTY",
+      "pass": false,
+      "detail": {},
+      "ops": "load->rank->select_features->enrich->output",
+      "intent": "The ten hospitals in Texas located in counties with the highest poverty rates",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "PCTPOVALL",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "rank",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "direction": "desc",
+          "limit": 10
+        },
+        {
+          "id": "s3",
+          "op": "select_features",
+          "attr_id": "443ff20b_01_01_25",
+          "inputs": [],
+          "states": [
+            "Texas"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "enrich",
+          "attr_id": "",
+          "inputs": [
+            "s3",
+            "s2"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [],
+      "loaded": [
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 0,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 10 hospitals in Texas are in the counties with the highest poverty rates?",
+            "uses": [],
+            "ops": "load->rank->select_features->enrich->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 19.1
+    }
+  ]
+}

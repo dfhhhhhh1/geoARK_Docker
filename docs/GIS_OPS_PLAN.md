@@ -190,7 +190,8 @@ total, as Phase 4 required.
 units, NLCD 2001/2021 for Missouri + Illinois, 3DEP DEM and slope for the two
 fixture metros. CDL was not downloaded; `zonal` over FEATURES (slope per
 parcel), `raster_calc` / `threshold` -> features and user raster uploads are
-the remaining part of H4.)
+the remaining part of H4.) `zonal` over features was built 2026-11-21 (H6
+tier 1, item 5); `raster_calc` / `threshold`, uploads and CDL remain.
 
 ### H5. Network (G4)
 
@@ -266,7 +267,9 @@ bottlenecks are still measure choice, catalog text and coverage.
 4. Composite index: z-score or min-max N series, weighted sum. (Built
    2026-11-21, with geometric and minimum aggregation and percentile ranks as
    the default; see "H6 tier 1, item 4".)
-5. `zonal` over features (H4 remainder).
+5. `zonal` over features (H4 remainder). (Built 2026-11-21, see "H6 tier 1,
+   item 5". This was the last tier 1 item; "H6 tier 1, evaluated" measures
+   all six on one build.)
 6. Global Moran's I as a scalar answer, LISA classes as a diverging series.
    (Built 2026-11-21, checked against PySAL; see "H6 tier 1, item 6".)
 
@@ -1267,3 +1270,307 @@ n, islands; class counts and the number expected by chance), so the method
 summary can set the paper's number beside GeoARK's; and the weights field
 refuses anything but queen, so a template cannot silently claim a paper's
 k-nearest weights. A method it cannot match is reported as approximated.
+
+### H6 tier 1, item 5: zonal over features, built 2026-11-21
+
+`ops/zonal.js` (`compileOverFeatures`), gate and repair in
+`planner/features.js` (`zonalFeatureAlgebra`, `namedPolygonLayers`,
+`zonalOverFeatures`, `zonePhrase`), retrieval in `unified_search_server.js`
+(`addZoneLayer`, the zone layer's facility slot), tests
+`planner/test_zonal.js` (28, 10 new). Eval family `zonal_features` in
+`eval/gis_ops.yaml` (4 dev, 2 held out), written before any planner run.
+Evidence `eval/gis_ops/zonal_features/`. This finishes H4's `zonal` and was
+the last tier 1 item.
+
+- **What it does.** `zonal` takes an optional input (arity 0 to 1). With a
+  `select_features` step of a polygon layer, the zones are the features
+  themselves: "what share of each college campus is forest", "the mean
+  slope of each Superfund site". Result type follows the input, so the
+  answer is features again, each carrying `zonal_value`, and rank,
+  filter_attr and summarize compose. Same `ST_Clip` pixel-centre path as
+  units; the county histogram cache is never used for features. Native
+  equal-area rasters only (an area needs a pixel area); points and lines get
+  no row (a value AT a point is tier 2).
+- **Sub-pixel polygons** read the one pixel under their interior point
+  (`ST_PointOnSurface`): a share is all or nothing, an area is the polygon's
+  own area in the equal-area CRS when that pixel qualifies, a mean is the
+  pixel's value. 10% of Missouri and Illinois campuses are under 4 NLCD
+  pixels; 3 Missouri campuses hold no pixel centre at all.
+- **Equal to GDAL gold** (`raster_gold.py` from the source GeoTIFFs; the op's
+  compiled SQL run on the live DB by `zonal_features/live_check.js`): six
+  cases, 139 / 71 / 10 / 10 / 229 / 50 features, **0 missing, 0 extra, max
+  |diff| 2e-16 to 1.3e-5** (the last a float32 DEM mean), 34-385 ms.
+  `--check-gold` 0 problems, `--self-test` 27/27 on the family.
+- **Prompt and schema byte-identical across 48 contexts.** The only prompt
+  change is one worked example (`when: zonalFeatureAlgebra`), shown when a
+  raster AND a polygon layer the question enumerates ("each / every / which
+  ... campus") are both candidates, and the question is not about units or
+  people. Gate reach, worst case (every polygon dataset and a raster on the
+  list): **7 of 433** eval questions, the 6 family questions plus
+  `vf-il-campuses-enroll-20k`, which would also need a raster retrieved for
+  an enrollment question and has no zonal step to repair.
+- **Defects found on dev, each fixed generally:**
+  1. *The scorer, not the op*: gold keys features in Postgres
+     (`round(numeric)`, half away from zero) and the answer in Python
+     (`f"{x:.5f}"`, the binary float), so a stored -88.866745 got two keys:
+     9 of 71 Illinois sites unmatched. **Pre-existing, every features family
+     is affected** whenever a coordinate ends in 5 at the sixth decimal;
+     `feature_key` now rounds the decimal text the Postgres way. The H6 item
+     2 held-out "power plants: 2 extra, 2 missed, jaccard 0.909" is the shape
+     this produces and was never re-scored.
+  2. **A point layer as the zones returned EMPTY, silently** (r1): "Superfund
+     site" retrieved the point layer of non-NPL sites and the model chose it.
+     `zonalOverFeatures` swaps to the polygon layer the question names.
+  3. **The polygon layer never reached the planner** (r2, r3): every
+     "Superfund site ..." sub-query ranked the non-NPL points first, and the
+     round-robin facility cap (6) filled before the NPL boundaries got a
+     slot. `addZoneLayer` searches the enumerated phrase as a primary
+     sub-query and the polygon dataset it names takes the first facility
+     slot. It fires only when the question shares a word with a loaded
+     raster's dataset name or class GROUPS and the phrase shares a word with
+     a polygon dataset's name: **6 of 433** eval questions, exactly the
+     family. The first version used every class label and full descriptions
+     and fired on 15 ("year", "three", "st. louis": "High", "Open", "above").
+  4. **`dropUnaskedFilters` kept `type = "1"` because "2021" contains a 1**:
+     63 of 139 Missouri campuses (r1, r3c). A numeric value now counts only as
+     a whole number in the question. Pre-existing; any numeric code filter on
+     a question with a year was exposed to it.
+  5. Stemming: "campus" stemmed to "campu" and "sites" to "sit", so the
+     plural never matched the singular. `stemWord` now follows English
+     plural rules (-uses, -sses, -ches, -ies, -s; not -us / -ss / -is).
+  6. `answer_probe.py` now saves each plan's steps and adjustments: `ops`
+     alone could not say why r1 kept 63 campuses.
+- **Dev, qwen3:14b, `off/2048`, `--endpoint research`**:
+
+  | run | MO campus forest % | IL NPL developed acres | STL steepest 5 | CHI NPL elevation | total |
+  |---|---|---|---|---|--:|
+  | r1 | INCOMPLETE (type = 1) | EMPTY (points) | CORRECT | CORRECT | 2/4 |
+  | r2 a / b (+ swap) | CORRECT x2 | EMPTY x2 (not retrieved) | CORRECT x2 | CORRECT x2 | 3, 3 /4 |
+  | r3 a / b* / c (+ zone sub-query) | CORRECT, INCOMPLETE, INCOMPLETE | EMPTY, EMPTY, CORRECT | CORRECT, EMPTY*, CORRECT | CORRECT x3 | 3, 2*, 3 /4 |
+  | r4 a / b / c (+ slot, whole numbers) | CORRECT x3 | CORRECT x3 | CORRECT x3 | CORRECT x3 | **4, 4, 4 /4** |
+
+  \* r3b overlapped a manual `/api/analyze` call (contaminated); its St.
+  Louis EMPTY was a supplemental point layer as zones, the case (2) swaps
+  when the polygon layer is a candidate. Mean 18-40 s per question.
+- **Not done**: zonal over a line buffer ("slope within 100 m of each
+  road"); value at points (tier 2); per-feature class histograms cached at
+  load (live clips were fast enough here, but NWI's 142k wetlands are not
+  tested); feature-level `zonal` over uploaded layers was not run live
+  (it goes through `featureFrom` like every feature op).
+
+### H6 tier 1, evaluated (2026-11-21)
+
+All six tier 1 items on ONE build (the item 5 build above), through
+`eval/gis_ops/tier1/sweep.sh`: every tier 1 family dev and held out, the H1-H5
+dev families, and the guards. qwen3:14b, `off/2048`, `--endpoint research`.
+Evidence `eval/gis_ops/tier1/` (`t1-*` the sweep, `t1-*-r2` repeats, `head-*`
+the same questions on an API built from HEAD without the item 5 diff).
+
+**Tier 1 is complete**: items 1-6 are all built. Two of them (1, enrichment;
+6, Moran) had never been run through the planner before this sweep.
+
+| item | family | dev, this build | dev, recorded | held out, this build | held out, recorded |
+|---|---|---|---|---|---|
+| 1 enrichment | `enrichment` | **1, 1, 1 /4** | never run | 1/2 | never run |
+| 2 numeric / date filters | `value_filters` | 2/4 | 2, 2, 1 /4 | 1/3 | 0/3 |
+| 3 nearest, identity, k | `nearest` | 4/4 | 4, 4, 4 | 1/2 | 1/2 |
+| 4 composite | `composite` | 3/4, then 4/4 | 4, 4, 4 | 1/2 | 2/2 |
+| 5 zonal over features | `zonal_features` | 4/4 (+ r4 4, 4, 4) | (built here) | 1/2 | (built here) |
+| 6 Moran / LISA | `moran` | **4, 4, 4 /4** | never run | 0/2 | never run |
+| | **all six** | **18/24 (75%)** first run each | | **5/13 (38%)** | |
+
+**What the numbers say.** Items 3, 4, 5 and 6 work on their dev questions;
+item 2 is at its recorded level and limited by pre-existing count_features
+semantics (lines counted once per county) and retrieval of the fire
+perimeter archive. **Item 1 does not work yet**: the one question it passes
+is the county-level one it was designed around. Held out, the set is at 38%,
+and every held-out miss is a planner or check habit the dev questions did not
+exercise, which is the generality the held-out split exists to measure:
+
+- **enrichment, tract questions (dev, 3 of 3 each)**: "hospitals in census
+  tracts where ..." planned `count_features -> filter_area -> intersect`
+  against the tract series instead of `select_features -> enrich`: units
+  out where features were asked for (WRONG_SHAPE). `enrich` was on the menu
+  (gate fires); the model reaches for intersect, the conditions op.
+  **Corrected below ("item 1 fixed"): the gate did NOT fire**; "of people"
+  and "of residents" in the tracts' condition closed it.
+- **enrichment, Texas (dev, 3 of 3)**: `rank` (top 10 poverty) ran
+  NATIONALLY before enrich, so no Texas hospital is in a top-10 county:
+  EMPTY. The same "a ranking is within the area asked about" rule composite
+  needed (`restrictToNamedArea`) is missing here.
+- **zonal held out, "more than 75 percent developed"**: read as a threshold,
+  not a share (`SHARE` treats a number before "percent" as a threshold), so
+  the step reported square miles and `> 75` removed every campus: EMPTY.
+- **Moran held out**: Georgia LISA class agreement 0.899 against a 0.90 floor
+  (permutation noise at the boundary); Kentucky refused by the named-data
+  check, which treated "spatial autocorrelation" as data: method words are
+  not exempt the way "average" and "second-closest" are.
+- **composite held out, Colorado**: the model put `states` on the composite
+  step itself and nothing moved it; 3,132 counties scored.
+- **value_filters held out**: 345 kV transmission lines 157 for 68 (lines
+  counted once per county they cross, the pre-existing count_features
+  defect); "enroll more than 20,000 students" refused by the named-data
+  check.
+
+None of these is fixed here: the held-out ones by the plan's rule, the dev
+ones because they are item 1's own work (next).
+
+**Earlier families (H1-H5 dev), same build:** proximity 4/4, aggregation
+4/4, density 4/4, raster 4/4 (zonal over units unaffected by the features
+path), overlay **2/4 x2**, network **3/4 x2**. Overlay read 3/4 at H5 final
+and network 4/4 x3. **Both are identical on an API built from HEAD without
+this diff** (`head-*`), so they predate item 5: they arrived with the
+commits since H5. Overlay's misses: the ward-wetland question takes the NLCD
+wetland class through zonal over units instead of NWI (WRONG_MEASURE by the
+suite; defensible data, the suite does not accept it), and the roads-in-
+wetlands miles question returns features where a total is asked.
+
+**Guards, same build:**
+
+| suite | recorded (latest) | this build |
+|---|--:|--:|
+| `research.yaml` | 77.8% (items 2-4) | **77.8%** (14/18) |
+| answerability | 9/10, 0/20 | **9/10, 0/20** (rainfall again) |
+| `plan_correctness.yaml` | 96.2 / 100 / 0% (H4) | 92.3 / 96.2 / 0% (+ `place-city` no plan, one run) |
+| `research_advanced.yaml` | 70.8%, n=24 (H4) | 58.6%, n=29; **13/24 on the shared 24** |
+| `known_item.yaml` | 91.7% / 0.944 (12) | 90.9% / 0.917 (11) |
+| `queries.yaml` | 97.8 / 97.3% (37) | 34/36 queries (94.4%) |
+| held-out 16 | 0-2 answered, all wrong | **1 answered** (Q16, count of mobile home parks, wrong), 15 refused |
+
+- `research_advanced` on the shared 24: rainfall is answered (precipitation
+  data loaded since its gold), and three questions fail on both runs on this
+  build **and on HEAD** (`d-smallest50`, `e-mo-tract-poverty-spread`,
+  `f-co-share-within-5mi`): planner wiring (orphaned steps, normalize into
+  join), not item 5's paths. Pre-existing since H5.
+- `known_item` lost one item and `ki-energy-generation` reads rank 12 since
+  another session re-targeted it to EIA power plants (2026-11-20); the plain
+  search path is untouched by item 5. `queries.yaml`'s two misses are the
+  unemployment concept, same path. The catalog went 7,148 -> 6,725 rows in
+  between.
+- **A harness trap found here**: the API now rate-limits search (burst 30,
+  60/min) and `run.py` sends cached searches at 10 ms, so `known_item` read
+  MRR 0.000 straight after `queries.yaml` (every request HTTP 429), and
+  `queries.yaml` alone loses 6. Run them a minute apart, `queries.yaml` one
+  sub-suite at a time, and count 429s before reading a number.
+
+**Next, in order of what the evaluation says:** item 1's two dev defects
+(enrich at tract level never chosen; a rank before enrich not restricted to
+the features' area); the three pre-existing advanced and overlay
+regressions since H5, which need a bisect over the commits since H5 rather
+than a guess; the share-threshold reading ("more than 75 percent developed")
+and method words in the named-data check, both seen only held out, so they
+need dev questions of their own first. Then tier 2.
+
+### H6 tier 1, item 1 fixed: enrichment's two dev defects (2026-11-21)
+
+Evidence `eval/gis_ops/enrich_fix/`; tests `planner/test_enrich.js` (14, 5
+new). Prompt and schema byte-identical across 48 contexts.
+
+- **Tract questions: the gate, not the model.** The sweep's note above says
+  enrich was on the menu; it was not. `enrichAlgebra` refused any question
+  matching `ABOUT_PEOPLE` ("people in such units are a population sum"), and
+  both tract questions name people inside the units' CONDITION: "where more
+  than 40 percent of *people* live below ...", "20 percent of *residents*
+  have no health insurance". With no enrich in the enum, intersect was the
+  only way to express it. People now close the gate only when they appear
+  BEFORE the unit qualifier ("how many people live in tracts where ..." is
+  still refused). Reach: 6 of 305 eval questions, all in the enrichment
+  family (was 3); 0 of the held-out 16. The held-out Pennsylvania question
+  ("15 percent of households") is one of the three it newly reaches: a
+  general fix for a defect found on dev, not a fit to its wording.
+- **A rank before enrich** (`features.repairEnrichRank`). When the series
+  chain feeding enrich has a rank and no area restriction while the features
+  are restricted to states, what the number counts decides:
+  "which 10 hospitals ... highest poverty counties" (number before a feature
+  noun) -> the rank moves after enrich and orders the features by their
+  unit's value; "hospitals in the 10 poorest counties" (number before a unit
+  word, or no number) -> a filter_area with the features' states goes before
+  the rank. Logged as a `Units:` adjustment.
+
+| | dev | held out |
+|---|---|---|
+| sweep (before) | 1, 1, 1 /4 | 1/2 |
+| **this build** | **4, 4, 4 /4** | **2/2** (PA jaccard 0.979, MS 69 = gold) |
+
+Tier 1 totals become **22/24 dev and 6/13 held out**, the other families as
+in the sweep. Guards, same build, no 429s, not contaminated: answerability
+9/10 caught, 0/20 false refusals (unchanged); `plan_correctness` 96.2% op
+appropriateness / 100% validity / 0% forbidden (92.3 / 96.2 in the sweep);
+`research.yaml` 72.2% (77.8 in the sweep): the one flip is `r-access-gap`
+refused by the named-data check ("more than 30 miles from the nearest
+hospital" as data), a question the enrich gate is false for, and no
+research.yaml plan contains enrich or a `Units:` adjustment.
+
+### Bisect of the overlay / network "regressions since H5" (2026-11-22)
+
+Each commit's `backend/` ran in a throwaway container beside the shared API
+(same DB, embedder and ollama, today's `geoark_attributes.csv` because the
+embedder holds vectors for that catalog only), so only the code varied.
+`overlay_dev` and `network_dev`, then single questions, `--endpoint research`.
+
+**There is no code regression to find.** Three different causes:
+
+| question | finding |
+|---|---|
+| `n-chi-pop-snap-walk10` | **Decomposition, not a commit.** Fails 3/3 at 5aaab28 (the first commit with network code) and at HEAD. With `decomp: {prompt: v1, model: gemma3:4b}` per request it is CORRECT 2/2 (`select_features->network_population->output`); with v3 it fails 2/2. v3 asks for no population sub-query ("how many people ... live" does not trip `needsPopulation`), so WorldPop is never a candidate, `featureAlgebra` needs two feature tables, and `select_features` / `within` are not offered. H5's 4/4 ran on 11-19 22:05, before v3 was live in `deploy/.env` (untracked). |
+| `ov-mo-roads-wetland-miles` | **A flake of about 1 in 3 at every commit.** WRONG_SHAPE (the plan ends `overlay->output`, no `summarize`) in 2 of 6 at 5aaab28, 2 of 6 at 5434403, 2 of 5 at 9f26016. H5's "3/4" was a good draw. |
+| `ov-stl-ward-wetland-acres` | **Not a regression.** Fails at 0f817db (NO_ANSWER), 5aaab28 (WRONG_MEASURE, NLCD wetlands through zonal) and HEAD, and with v1 decomposition (NO_ANSWER, 2/2). NWI is not reaching the planner for this question on today's catalog or data. |
+
+Open, in order: add a population sub-query for "how many people ... live ...
+walk / drive / from X" (the `needsPopulation` gate) or decide v3 needs it
+generally; make `applyMeasures` add the `summarize` when a length / area is
+asked after an overlay (the 1-in-3 habit); find why NWI is not a candidate
+for "wetlands in each ward". Not run: 4ea7ba5 and the uncommitted diff for the
+roads question (the rate is flat across the three commits that were).
+
+### People questions: two rebuild gaps, not a missing sub-query (2026-11-22)
+
+Evidence `eval/gis_ops/people/`; tests `planner/test_features.js` (+2),
+`planner/test_zones.js` (+1). Prompt and schema byte-identical across 48
+contexts. **This corrects the bisect note above**: walk10 did not need a
+population sub-query. `applyNetworkPopulation` resolves WorldPop itself and
+did rebuild the plan; the plan then failed validation on a filter it copied.
+
+Every eval question that counts people at a distance or network cost (405
+scanned) was checked. Two of the four failed, each for its own reason:
+
+- **A filter that shortens the layer's own name** (`filterValueAsLayer`,
+  index.js). qwen3 put `type = "SNAP retailer"` on SNAP Authorized Food
+  Retailers; the own-name repair matched only the full name, so the network
+  rebuild carried the filter and every attempt failed. A value whose content
+  words are all words of the layer's name, by stem, and which the layer does
+  not hold, is now a restatement and is dropped. "Food Store" (shares "food",
+  not "store") is kept. Fired on walk10 and on two repair attempts of the
+  roads-wetland question ("Primary Roads", "Wetlands"), nothing else in the
+  sweep.
+- **A people-at-a-distance plan the model shapes wrong was never rebuilt**
+  (`catchment.applyDistancePopulation`). `applyCatchment` only re-units a plan
+  already shaped `load(pop) -> filter_area -> nearest_distance -> filter_attr
+  -> intersect -> sum`; the model writes that for Missouri, and for Colorado
+  loaded Hospitals as a series and ran count_near over a population, 3 of 3.
+  Now rebuilt in code before validation, as the network form is: reference
+  layer and states from the plan, distance, unit and side from the question.
+  Only a total or a share of people (`countsPeople`) at ONE straight-line
+  distance with a side word; per-unit answers, networks, city restrictions,
+  two distances and "20 miles from" (no side) are left alone. Reach: 2 of 405
+  eval questions (both research_advanced, 0 of the held-out 16); on six
+  paraphrases written for the check it fires on all six and on none of seven
+  near misses. "at least" reads as `>` and "less than" as `<=`, which differ
+  only at exactly that distance.
+
+| question | before | this build |
+|---|---|---|
+| `n-chi-pop-snap-walk10` | 0/3 | **3/3** |
+| `f-co-share-within-5mi` | 0/3 (sweep, HEAD) | **3/3** |
+| `f-mo-pop-far-hospital` | correct | 3/3 |
+| `n-stl-ward-pop-hospital-drive5` | correct | 3/3 |
+
+Guards, same build: proximity, network (**4/4**, was 3/4), enrichment,
+nearest, zonal_features, composite all 4/4; overlay 2/4 then roads-wetland
+3/3 on re-run (its NO_ANSWER was the relevance check calling NWI "unrelated"
+on attempt 1); value_filters 1/4 (recorded 2, 2, 1; the Arizona miss loaded a
+series, a path neither change reaches). research_advanced 58.6% (n=29, as in
+the sweep): Colorado and `e-mo-tract-poverty-spread` up, `d-uninsured100-diabetes`
+and `e-mi-noveh-rollup` down, both 2/2 on re-run with neither change firing.
+research.yaml 72.2%; answerability 9/10, 0/20; plan_correctness 92.3% /
+96.2%; held-out 16: 15 refused, Q16 answered (unchanged, wrong as before).

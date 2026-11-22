@@ -1,0 +1,238 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 2,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "phase_d": {
+      "pass": 1,
+      "n": 1,
+      "rate": 1.0
+    },
+    "phase_e": {
+      "pass": 1,
+      "n": 1,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 2
+  },
+  "latency_mean": 21.6,
+  "api_container_created": "2026-11-22T01:39:28.041847911Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "d-uninsured100-diabetes",
+      "tier": "phase_d",
+      "query": "Find the 100 counties with the highest uninsured rates. Is diabetes more common in those counties than in all other counties?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "groups": {
+          "rest": {
+            "gold_median": 13.2,
+            "got_median": 13.2,
+            "jaccard": 1.0,
+            "ok": true
+          },
+          "top100": {
+            "gold_median": 16.0,
+            "got_median": 16.0,
+            "jaccard": 1.0,
+            "ok": true
+          }
+        },
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_UNINSUR",
+          "m2": "PLACES_DIABETES_CrdPrv"
+        }
+      },
+      "ops": "load->load->intersect->load->intersect->compare_groups->output",
+      "intent": "Diabetes prevalence in counties from q1 compared with all other counties",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "result:q1",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "load",
+          "attr_id": "PLACES_DIABETES_CrdPrv",
+          "inputs": []
+        },
+        {
+          "id": "s3",
+          "op": "intersect",
+          "attr_id": "",
+          "inputs": [
+            "s2",
+            "s1"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "load",
+          "attr_id": "PLACES_DIABETES_CrdPrv",
+          "inputs": []
+        },
+        {
+          "id": "s5",
+          "op": "intersect",
+          "attr_id": "",
+          "inputs": [
+            "s4",
+            "s1"
+          ],
+          "exclude": true
+        },
+        {
+          "id": "s6",
+          "op": "compare_groups",
+          "attr_id": "",
+          "inputs": [
+            "s3",
+            "s5"
+          ]
+        },
+        {
+          "id": "s7",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s6"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: restricted s1, s3 to the counties from q1, which the plan did not use.",
+        "Plan corrected: put the measure first in s3 (intersect keeps its first input's values; the earlier result is the set of counties).",
+        "Coverage: \"Diagnosed diabetes among adults (crude prevalence) (covers 2,957 counties)\" has values for 2945 of 3233 counties in the area."
+      ],
+      "loaded": [
+        "SVI_EP_UNINSUR | Percent of persons without health insurance | CDC Social Vulnerability Index",
+        "PLACES_DIABETES_CrdPrv | Diagnosed diabetes among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 2945,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 100 counties have the highest uninsured rates?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "Is diabetes more common in the counties from q1 than in all other counties?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->intersect->load->intersect->compare_groups->output"
+          }
+        ],
+        "planned_steps": 2,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 29.5
+    },
+    {
+      "id": "e-mi-noveh-rollup",
+      "tier": "phase_e",
+      "query": "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 83,
+        "gold_rows": 83,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_NOVEH"
+        }
+      },
+      "ops": "load->aggregate_to->filter_area->output",
+      "intent": "Share of people in each Michigan county who live in households without a vehicle, weighted by tract population",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "SVI_EP_NOVEH",
+          "inputs": [],
+          "level": "tract"
+        },
+        {
+          "id": "s1_by_county",
+          "op": "aggregate_to",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "from_level": "tract",
+          "method": "wmean",
+          "weight_code": "SVI_E_TOTPOP"
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1_by_county"
+          ],
+          "states": [
+            "Michigan"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Built from finer data: each county is the population-weighted mean of its census tracts (SVI_E_TOTPOP)."
+      ],
+      "loaded": [
+        "SVI_EP_NOVEH | Percent of households with no vehicle available | CDC Social Vulnerability Index"
+      ],
+      "row_count": 83,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Using census tract data, what share of people in each Michigan county live in households without a vehicle, weighting each tract by its population?",
+            "uses": [],
+            "ops": "load->aggregate_to->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 13.7
+    }
+  ]
+}

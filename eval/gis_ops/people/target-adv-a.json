@@ -1,0 +1,262 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 2,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "phase_f": {
+      "pass": 2,
+      "n": 2,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 2
+  },
+  "latency_mean": 29.1,
+  "api_container_created": "2026-11-22T01:39:28.041847911Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "f-mo-pop-far-hospital",
+      "tier": "phase_f",
+      "query": "How many people in Missouri live more than 20 miles from the nearest hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 185976.0,
+        "got": 185976.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "SVI_E_TOTPOP"
+        }
+      },
+      "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->output",
+      "intent": "Number of people in Missouri living more than 20 miles from the nearest hospital",
+      "steps": [
+        {
+          "id": "p",
+          "op": "load",
+          "attr_id": "SVI_E_TOTPOP",
+          "inputs": [],
+          "level": "tract"
+        },
+        {
+          "id": "pa",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "p"
+          ],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "nd",
+          "op": "nearest_distance",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": [],
+          "level": "tract"
+        },
+        {
+          "id": "nf",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "nd"
+          ],
+          "operator": ">",
+          "value": 20
+        },
+        {
+          "id": "ix",
+          "op": "intersect",
+          "attr_id": "",
+          "inputs": [
+            "pa",
+            "nf"
+          ]
+        },
+        {
+          "id": "tot",
+          "op": "aggregate",
+          "attr_id": "",
+          "inputs": [
+            "ix"
+          ],
+          "function": "sum"
+        },
+        {
+          "id": "out",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "tot"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Coverage: \"Estimate|Total|Total population\" has values for only 41 of 115 counties in the area; used \"Population\" instead, which covers 115 and agrees with it where both have values.",
+        "Catchment: people counted by census tract: each tract's population (\"Total population estimate (persons)\") is in or out by the distance from the tract itself, not from the county's centre."
+      ],
+      "loaded": [
+        "SVI_E_TOTPOP | Total population estimate (persons) | ",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many people in Missouri live more than 20 miles from the nearest hospital?",
+            "uses": [],
+            "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 27.3
+    },
+    {
+      "id": "f-co-share-within-5mi",
+      "tier": "phase_f",
+      "query": "What share of Colorado's population lives within 5 miles of a hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 76.4334,
+        "got": 76.4334,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "SVI_E_TOTPOP"
+        }
+      },
+      "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->aggregate->combine->output",
+      "intent": "Share of Colorado's population living within five miles of a hospital",
+      "steps": [
+        {
+          "id": "p",
+          "op": "load",
+          "attr_id": "SVI_E_TOTPOP",
+          "inputs": [],
+          "level": "tract"
+        },
+        {
+          "id": "pa",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "p"
+          ],
+          "states": [
+            "Colorado"
+          ]
+        },
+        {
+          "id": "nd",
+          "op": "nearest_distance",
+          "attr_id": "443ff20b_01_01_12",
+          "inputs": [],
+          "level": "tract"
+        },
+        {
+          "id": "nf",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "nd"
+          ],
+          "operator": "<=",
+          "value": 5
+        },
+        {
+          "id": "ix",
+          "op": "intersect",
+          "attr_id": "",
+          "inputs": [
+            "pa",
+            "nf"
+          ]
+        },
+        {
+          "id": "tot",
+          "op": "aggregate",
+          "attr_id": "",
+          "inputs": [
+            "ix"
+          ],
+          "function": "sum"
+        },
+        {
+          "id": "tot_all",
+          "op": "aggregate",
+          "attr_id": "",
+          "inputs": [
+            "pa"
+          ],
+          "function": "sum"
+        },
+        {
+          "id": "tot_share",
+          "op": "combine",
+          "attr_id": "",
+          "inputs": [
+            "tot",
+            "tot_all"
+          ],
+          "operation": "ratio",
+          "scale": 100
+        },
+        {
+          "id": "out",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "tot_share"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: ran count_near (s4) on its own and kept only the counties it was given.",
+        "Plan rebuilt: people within 5 miles (straight line) of the nearest feature of 443ff20b_01_01_12 in Colorado.",
+        "Catchment: people counted by census tract: each tract's population (\"Total population estimate (persons)\") is in or out by the distance from the tract itself, not from the county's centre; the share is those people over everyone in the area, as a percentage."
+      ],
+      "loaded": [
+        "SVI_E_TOTPOP | Total population estimate (persons) | ",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What share of Colorado's population lives within 5 miles of a hospital?",
+            "uses": [],
+            "ops": "load->filter_area->nearest_distance->filter_attr->intersect->aggregate->aggregate->combine->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 30.9
+    }
+  ]
+}

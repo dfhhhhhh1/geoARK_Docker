@@ -45,6 +45,8 @@ measures:
   nlcd: '^NLCD_LANDCOVER\b'
   dem: '^DEM_ELEVATION\b'
   slope: '^TERRAIN_SLOPE\b'
+  # H4 remainder (zonal over features), added 2026-11-21 before any planner run.
+  npl_sites: '^epa_npl_sites\b'
   # H6 tier 1 (enrichment, units -> features), added 2026-11-20 before any
   # planner run against them. County poverty as research.yaml accepts it;
   # the tract ones exist only below the county (geo_measure).
@@ -644,6 +646,91 @@ queries:
     wrong:
       - expect: WRONG_VALUE          # the share STEEPER than 5 percent
         sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'stl-ward-steep-share'"
+
+  # ======================================================= zonal_features_dev
+  # H4 remainder / H6 tier 1 item 5, written 2026-11-21 BEFORE zonal over
+  # features was run through the planner. The zones are the FEATURES of a
+  # polygon layer (college campuses, Superfund NPL site boundaries), not
+  # units: the answer is the features, each with its own value. Rasters vary
+  # (NLCD categorical, two years; DEM; slope), as do the place (a state, a
+  # city by its TIGER boundary), what is asked (share, acres, mean, top 5, a
+  # threshold set) and selection (level-I group, pixel threshold).
+  # Gold from the source GeoTIFFs with GDAL (raster_gold.py, pixel-centre
+  # rule); a polygon holding no pixel centre reads the pixel under its
+  # interior point, the op's stated rule (3 Missouri campuses). Features
+  # keyed by first vertex, as answer_probe keys returned GeoJSON.
+  - id: zf-mo-campus-forest-2021
+    tier: zonal_features_dev
+    query: "What percentage of each college campus in Missouri is forest, based on 2021 land cover?"
+    note: "NLCD level-I Forest (41-43), share of each campus's pixels, campuses touching Missouri"
+    measures: {m1: nlcd, m2: campuses}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-mo-campus-forest-2021'"
+    compare: {kind: values, features: true, rel_tol: 0.005, abs_tol: 0.1, min_coverage: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # developed, not forest
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-mo-campus-developed-2021'"
+      - expect: WRONG_VALUE          # 2001
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-mo-campus-forest-2001'"
+
+  - id: zf-il-npl-developed-acres
+    tier: zonal_features_dev
+    query: "How many acres of developed land does each Superfund site in Illinois have, according to 2021 land cover?"
+    note: "NLCD Developed (21-24), acres inside each NPL site boundary touching Illinois"
+    measures: {m1: nlcd, m2: npl_sites}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-il-npl-developed-acres'"
+    compare: {kind: values, features: true, rel_tol: 0.01, abs_tol: 0.5, min_coverage: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # percent of the site
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-il-npl-developed-share'"
+      - expect: WRONG_VALUE          # square miles
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-il-npl-developed-sqmi'"
+
+  - id: zf-stl-campus-steepest5
+    tier: zonal_features_dev
+    query: "Which five college campuses in St. Louis have the steepest average slope?"
+    note: "mean percent slope over each campus touching the city of St. Louis, top 5 of 10"
+    measures: {m1: slope, m2: campuses}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-stl-campus-slope-mean'"
+    compare: {kind: top_k, features: true, k: 5, direction: desc, min_overlap: 0.8, value_rel_tol: 0.02}
+    wrong:
+      - expect: WRONG_VALUE          # highest, not steepest
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-stl-campus-elev-mean'"
+
+  - id: zf-chi-npl-elev-mean
+    tier: zonal_features_dev
+    query: "What is the average elevation of each Superfund site in Chicago?"
+    note: "mean of the 10 m DEM over each NPL site touching the city of Chicago, metres"
+    measures: {m1: dem, m2: npl_sites}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-chi-npl-elev-mean'"
+    compare: {kind: values, features: true, rel_tol: 0.005, min_coverage: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # feet
+        sql: "SELECT geoid, value * 3.28084 FROM eval_raster_gold WHERE qid = 'zf-chi-npl-elev-mean'"
+      - expect: WRONG_VALUE          # slope, not elevation
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-chi-npl-slope-mean'"
+
+  # =================================================== zonal_features_heldout
+  - id: zf-il-campus-mostly-developed-2001
+    tier: zonal_features_heldout
+    query: "Which college campuses in Illinois were more than 75 percent developed land in 2001?"
+    measures: {m1: nlcd, m2: campuses}
+    gold: "SELECT geoid, 1 FROM eval_raster_gold WHERE qid = 'zf-il-campus-dev-share-2001' AND value > 75"
+    compare: {kind: set, features: true, min_jaccard: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # 2021
+        sql: "SELECT geoid, 1 FROM eval_raster_gold WHERE qid = 'zf-il-campus-dev-share-2021' AND value > 75"
+      - expect: WRONG_VALUE          # every Illinois campus
+        sql: "SELECT geoid, 1 FROM eval_raster_gold WHERE qid = 'zf-il-campus-dev-share-2001'"
+
+  - id: zf-chi-campus-flat-share
+    tier: zonal_features_heldout
+    query: "For each college campus in Chicago, what share of its land has a slope under 2 percent?"
+    measures: {m1: slope, m2: campuses}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-chi-campus-flat-share'"
+    compare: {kind: values, features: true, rel_tol: 0.005, abs_tol: 0.1, min_coverage: 0.95}
+    wrong:
+      - expect: WRONG_VALUE          # the share steeper than 2 percent
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'zf-chi-campus-steep-share'"
 
   # ============================================================ network_dev
   # H5, written 2026-11-19 BEFORE the road graph was loaded or any network op

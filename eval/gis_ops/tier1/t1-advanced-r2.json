@@ -1,0 +1,200 @@
+{
+  "suite": "research_advanced.yaml",
+  "queries": 3,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "phase_d": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    },
+    "phase_e": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    },
+    "phase_f": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "WRONG_GEOGRAPHY": 1,
+    "NO_ANSWER": 2
+  },
+  "latency_mean": 28.1,
+  "api_container_created": "2026-11-21T22:39:36.952043606Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "d-smallest50-diabetes10-distance",
+      "tier": "phase_d",
+      "query": "Take the 50 least populous counties in the country. Of those, which 10 have the highest diabetes prevalence? How far is each of those 10 from the nearest hospital, in miles?",
+      "class": "WRONG_GEOGRAPHY",
+      "pass": false,
+      "detail": {
+        "rows": 10,
+        "gold_rows": 10,
+        "outside": 1,
+        "outside_sample": [
+          "31165"
+        ],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V051_RAWVALUE",
+          "m2": "CHR_V060_RAWVALUE",
+          "m3": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "load->nearest_distance->intersect->output",
+      "intent": "Distance in miles from each county in q2 to the nearest hospital",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "result:q2",
+          "inputs": []
+        },
+        {
+          "id": "s2_nearest_distance",
+          "op": "nearest_distance",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "intersect",
+          "attr_id": "",
+          "inputs": [
+            "s2_nearest_distance",
+            "s1"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: ran nearest_distance (s2) on its own and kept only the counties it was given."
+      ],
+      "loaded": [
+        "CHR_V051_RAWVALUE | Population | County Health Rankings",
+        "CHR_V060_RAWVALUE | Diabetes prevalence | County Health Rankings",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which are the 50 least populous counties in the country?",
+            "uses": [],
+            "ops": "load->rank->output"
+          },
+          {
+            "id": "q2",
+            "question": "Of the counties from q1, which 10 have the highest diabetes prevalence?",
+            "uses": [
+              "q1"
+            ],
+            "ops": "load->load->intersect->rank->output"
+          },
+          {
+            "id": "q3",
+            "question": "How far is each of the counties from q2 from the nearest hospital, in miles?",
+            "uses": [
+              "q2"
+            ],
+            "ops": "load->nearest_distance->intersect->output"
+          }
+        ],
+        "planned_steps": 3,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 40.9
+    },
+    {
+      "id": "e-mo-tract-poverty-spread",
+      "tier": "phase_e",
+      "query": "In which Missouri counties does poverty vary the most from one census tract to another?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": "In which Missouri counties does poverty vary the most from one census tract to another?",
+      "steps": [],
+      "adjustments": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "In which Missouri counties does poverty vary the most from one census tract to another?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 25.9
+    },
+    {
+      "id": "f-co-share-within-5mi",
+      "tier": "phase_f",
+      "query": "What share of Colorado's population lives within 5 miles of a hospital?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": "What share of Colorado's population lives within 5 miles of a hospital?",
+      "steps": [],
+      "adjustments": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What share of Colorado's population lives within 5 miles of a hospital?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 17.5
+    }
+  ]
+}

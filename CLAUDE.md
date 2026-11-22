@@ -79,6 +79,8 @@ metric *can* move. See the correction in [eval/README.md](eval/README.md).
 | **A layer's column rows crowd other layers out of retrieval** (fixed 2026-11-13) | "public schools within 2 miles of Superfund sites" -> `the loaded data does not include "public schools"`, with Public School Locations loaded | Each layer column is a catalog row (HSIP 30-70, `make ingest` 2-14, raster 1) and the planner's budget of 60 is split across sub-queries, so the never-loaded HSIP "Public Schools" took ranks 1-17 and the loaded layer came 18th, past the cut, before the planner's one-per-layer collapse. `SIBLING_CAP=3` caps non-value-series rows per dataset per sub-query; `sibling_cap: 0` per request turns it off. known_item unmoved, queries.yaml 100/100. Evidence and caveats: `eval/siblingcap/README.md` |
 | **Several sessions share this working tree and stack** (2026-10-30) | The api image picks up another session's half-written files; an eval round dies mid-run | `api` is built from the working tree, so any rebuild ships whatever is on disk. Coordinate before `--force-recreate api` (ListAgents / SendMessage) |
 | **VRAM stall on Windows: no error, just a crawl** (2026-10-15) | Planner calls time out at 90s; `ollama ps` still says `100% GPU`, `OOMKilled=false`, DeviceRequests fine. Ollama log shows `tg_3s` falling from ~22 t/s to 0.05 t/s | qwen3:14b (9.8 GB) + gemma3:4b (2.8 GB) resident + ~2.9 GB of desktop (launchers, browsers, Spotify, iCUE all draw on the GPU) is ~15.5 GB of 16. WDDM pages VRAM to system RAM instead of failing. `nvidia-smi` reads ~15.9 GB at ~100% util with nothing running. `docker restart geoark-ollama-1` clears it and keeps the GPU. The 2026-10-15 measurements ran at `OLLAMA_MAX_LOADED_MODELS=1` for this reason: zero stalls, at the cost of a model swap per step |
+| **Search is rate-limited; `run.py` trips it** (2026-11-21) | `known_item.yaml` reads recall 0 / MRR 0.000; `queries.yaml` temporal 0%, p50 0.01 s | The API limits search per identity (`RATE_SEARCH_BURST` 30, `RATE_SEARCH_PER_MIN` 60) and cached searches return in 10 ms, so back-to-back suites get HTTP 429 on every request, logged as `ERROR ... 429` and scored as misses. Run them a minute apart, `queries.yaml` one `--suite` at a time, and `grep -c 429` the log before reading a number |
+| **Feature keys disagreed on a rounding tie** (fixed 2026-11-21) | A features answer scores INCOMPLETE / low jaccard with every value right | Gold's `{fkey:...}` rounds in Postgres (`round(numeric)`, half away from zero), the answer was keyed with Python `:.5f` (binary float): a stored -88.866745 got two keys, 9 of 71 Illinois Superfund sites. `answer_probe.feature_key` now rounds the decimal text. Any features score before this date may be low by the tied rows |
 
 ## Measured facts (do not re-derive)
 
@@ -1612,6 +1614,42 @@ reaches 0 of 332 other eval questions.
 - **The response body whitelists layer fields** (`unified_search_server.js`):
   a new field on a layer (here `moran`) is dropped unless added there.
 - CDC PLACES has no Kentucky rows at all.
+
+### Zonal over features; tier 1 evaluated (H6 item 5, 2026-11-21)
+
+docs/GIS_OPS_PLAN.md "H6 tier 1, item 5" and "H6 tier 1, evaluated";
+evidence `eval/gis_ops/zonal_features/`, `eval/gis_ops/tier1/`.
+
+- **`zonal` takes an optional features input**: the zones are a polygon
+  layer's own features ("share of each campus that is forest"), features
+  out with `zonal_value`. A polygon holding no pixel centre reads the pixel
+  under its interior point. Equal to GDAL gold on 6 cases (509 features,
+  0 missing / extra). Dev 4/4 x3 (+ 4/4 in the sweep); held out 1/2.
+- **The zone layer has to reach the planner**: every "Superfund site ..."
+  sub-query ranked the POINT layer first and the round-robin facility cap
+  filled before the NPL boundaries got a slot. The phrase the question
+  enumerates is now its own primary sub-query and the polygon layer it names
+  takes the first slot (`addZoneLayer`, fires on 6 of 433 eval questions).
+  A point layer chosen as zones is swapped; it returned 0 rows, no error.
+- **`dropUnaskedFilters` matched "1" inside "2021"** and kept a campus type
+  code; numbers now match only as whole numbers. Pre-existing.
+- **Tier 1 is complete; measured together it is 18/24 dev, 5/13 held out.**
+  Enrichment (item 1) is 1/4 x3 on its first planner run: tract questions
+  plan intersect instead of enrich, and a rank before enrich is national.
+  Moran (item 6) 4/4 x3 on its first run. Overlay 2/4 and network 3/4 dev,
+  and three research_advanced questions, are identical on HEAD without this
+  diff: regressions since H5 that need a bisect, not item 5's.
+- **Attribute a dip before calling it**: stash the diff, rebuild from HEAD,
+  re-run only the questions that moved. Here it took 10 minutes and turned
+  three "regressions" into pre-existing ones.
+- **Enrichment fixed the same day: dev 4/4 x3, held out 2/2** (tier 1 now
+  22/24 dev, 6/13 held out). The tract failure was the GATE, not the model:
+  `ABOUT_PEOPLE` matched "percent of people" in the tracts' condition, so
+  enrich was never offered. People now count only before the unit
+  qualifier. A rank before enrich is moved after it or restricted to the
+  features' states, by what the question's number counts
+  (`repairEnrichRank`). **"The op was on the menu" is a claim to check
+  (`ops offered:` in the log), not to infer from the gate's intent.**
 
 ## Two things generated and then thrown away
 

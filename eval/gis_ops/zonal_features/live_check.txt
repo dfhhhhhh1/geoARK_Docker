@@ -1,0 +1,6 @@
+EQUAL zf-mo-campus-forest-2021: 139 features vs 139 gold, missing 0, extra 0, max |diff| 2.22e-16, 204 ms
+EQUAL zf-il-npl-developed-acres: 71 features vs 71 gold, missing 0, extra 0, max |diff| 9.09e-13, 385 ms
+EQUAL zf-stl-campus-slope-mean: 10 features vs 10 gold, missing 0, extra 0, max |diff| 5.62e-7, 37 ms
+EQUAL zf-chi-npl-elev-mean: 10 features vs 10 gold, missing 0, extra 0, max |diff| 1.26e-5, 35 ms
+EQUAL zf-il-campus-dev-share-2001: 229 features vs 229 gold, missing 0, extra 0, max |diff| 0.00e+0, 92 ms
+EQUAL zf-chi-campus-flat-share: 50 features vs 50 gold, missing 0, extra 0, max |diff| 0.00e+0, 34 ms

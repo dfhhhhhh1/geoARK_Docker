@@ -261,6 +261,124 @@ function sane(o) {
     assert.ok(!ops.offeredFor({ query: "share of cropland" }).includes("zonal"));
   });
 
+  // ------------------------------------------------ zonal over features (H4 remainder)
+  SRC.set("CAMPUS", { source_kind: "feature_table", table_name: "campus_tbl", geom_column: "geom",
+                      label_columns: ["name", "city", "state"], filter_values: {}, value_columns: [] });
+  const { zonalFeatureAlgebra, zonalOverFeatures, namedPolygonLayers } = require("./features");
+  const sel = (id, extra = {}) => ({ id, op: "select_features", attr_id: "CAMPUS", inputs: [], ...extra });
+  const cands = [
+    { attr_id: "CAMPUS", is_feature_table: true, spatial_rep: "POLYGON", dataset_clean: "College University Campuses" },
+    { attr_id: "HOSP", is_feature_table: true, spatial_rep: "POINT", dataset_clean: "Hospitals" },
+    { attr_id: "LC", is_raster: true },
+  ];
+
+  for (const [stat, q, filt] of [
+    ["share", "What percentage of each college campus in Missouri is forest?", { attribute_filters: [{ column: "type", value: "Forest" }] }],
+    ["area", "How many acres of developed land are on each college campus in Missouri?", { attribute_filters: [{ column: "type", value: "Developed" }] }],
+  ]) {
+    await test(`over features: ${stat} compiles, features out, every bind used`, async () => {
+      const p = plan(sel("s1", { states: ["Missouri"] }), zonal("s2", "LC", { inputs: ["s1"], ...filt }), out("s3", "s2"));
+      applyRasterMeasures(p, q, srcOf);
+      assert.strictEqual(p.steps[1].stat, stat);
+      const v = await validatePlan(p, resolve);
+      assert.ok(v.ok, v.errors.join("; "));
+      const c = compilePlan(p, v.resolved);
+      const o = c.outputs[0];
+      sane(o);
+      assert.strictEqual(o.mode, "features");
+      assert.ok(o.labels.includes("zonal_value"), o.labels.join(","));
+      assert.match(o.sql, /ST_Clip\(r\.rast, 1, gg\.g, true\)/);
+      assert.match(o.sql, /ST_PointOnSurface/, "a sub-pixel polygon reads its interior pixel");
+      assert.match(o.sql, /pt\.pv = ANY/, "the fallback applies the same classes");
+      assert.doesNotMatch(o.sql, /raster_unit_count/, "the county cache never stands in for features");
+      assert.match(o.valueLabel, stat === "share" ? /percent of its area/ : /acres/);
+    });
+  }
+
+  await test("over features: a continuous mean, ranked; the rank reads features", async () => {
+    const p = plan(sel("s1", { city: "St. Louis", states: ["Missouri"] }), zonal("s2", "SLOPE", { inputs: ["s1"] }),
+                   { id: "s3", op: "rank", attr_id: "", inputs: ["s2"], direction: "desc", limit: 5 }, out("s4", "s3"));
+    applyRasterMeasures(p, "Which five college campuses in St. Louis have the steepest average slope?", srcOf);
+    const v = await validatePlan(p, resolve);
+    assert.ok(v.ok, v.errors.join("; "));
+    const o = compilePlan(p, v.resolved).outputs[0];
+    sane(o);
+    assert.strictEqual(o.mode, "features");
+    assert.match(o.sql, /ORDER BY r\.value DESC/);
+  });
+
+  await test("a series cannot feed zonal; a features zonal cannot feed filter_area", async () => {
+    const p1 = plan({ id: "s1", op: "load", attr_id: "POP", inputs: [] }, zonal("s2", "SLOPE", { inputs: ["s1"] }), out("s3", "s2"));
+    assert.ok(!(await validatePlan(p1, resolve)).ok);
+    const p2 = plan(sel("s1"), zonal("s2", "SLOPE", { inputs: ["s1"] }),
+                    { id: "s3", op: "filter_area", attr_id: "", inputs: ["s2"], states: ["Missouri"] }, out("s4", "s3"));
+    assert.ok(!(await validatePlan(p2, resolve)).ok);
+  });
+
+  await test("a raster without a pixel area refuses features", async () => {
+    SRC.set("WP", { source_kind: "raster", aggregate: "sum", layers: [layer(2025)], classes: [], label_columns: [], filter_values: {} });
+    const p = plan(sel("s1"), zonal("s2", "WP", { inputs: ["s1"] }), out("s3", "s2"));
+    const v = await validatePlan(p, resolve);
+    assert.throws(() => compilePlan(p, v.resolved), /equal-area raster/);
+  });
+
+  await test("gate: a named polygon layer beside a raster, not units, not people", () => {
+    const ctx = (q) => ({ query: q, hasRaster: true, hasFeatureTables: true, featureTableCount: 2,
+                          ...(namedPolygonLayers(q, cands).length ? { namesPolygonLayer: true } : {}) });
+    assert.deepStrictEqual(namedPolygonLayers("What percentage of each college campus in Missouri is forest?", cands), ["CAMPUS"]);
+    assert.ok(zonalFeatureAlgebra(ctx("What percentage of each college campus in Missouri is forest?")));
+    assert.ok(!zonalFeatureAlgebra(ctx("What percentage of each Missouri county is forest?")), "no layer named");
+    assert.ok(!zonalFeatureAlgebra(ctx("What share of each county's college campus land is forest?")), "per county");
+    assert.ok(!zonalFeatureAlgebra(ctx("How many people live on college campuses in forest?")), "people");
+    assert.ok(!zonalFeatureAlgebra({ query: "each college campus forest share", namesPolygonLayer: true }), "no raster");
+    // Hospitals are points: not a zone.
+    assert.deepStrictEqual(namedPolygonLayers("average elevation of each hospital", cands), []);
+    const offered = ops.offeredFor(ctx("What percentage of each college campus in Missouri is forest?"));
+    assert.ok(offered.includes("select_features") && offered.includes("zonal"));
+  });
+
+  await test("repair: zonal -> filter_area becomes select_features(states) -> zonal", () => {
+    const p = plan(zonal("s1", "LC", { attribute_filters: [{ column: "type", value: "Forest" }] }),
+                   { id: "s2", op: "filter_area", attr_id: "", inputs: ["s1"], states: ["Missouri"] }, out("s3", "s2"));
+    const fix = zonalOverFeatures(p, { asks: true, layers: ["CAMPUS"] });
+    assert.ok(fix, "repaired");
+    const s = p.steps.find(x => x.op === "select_features");
+    assert.deepStrictEqual(s.states, ["Missouri"]);
+    assert.deepStrictEqual(p.steps.find(x => x.op === "zonal").inputs, [s.id]);
+    assert.ok(!p.steps.some(x => x.op === "filter_area"));
+    assert.strictEqual(p.steps.find(x => x.op === "output").inputs[0], p.steps.find(x => x.op === "zonal").id);
+  });
+
+  await test("repair: a city filter moves on, a bare features output is dropped, rank stays", () => {
+    const p = plan(sel("s1"), out("s2", "s1"), zonal("s3", "SLOPE"),
+                   { id: "s4", op: "filter_place", attr_id: "", inputs: ["s3"], place_kind: "place", place_name: "St. Louis", states: ["Missouri"] },
+                   { id: "s5", op: "rank", attr_id: "", inputs: ["s4"], direction: "desc", limit: 5 }, out("s6", "s5"));
+    zonalOverFeatures(p, { asks: true, layers: ["CAMPUS"] });
+    assert.strictEqual(p.steps[0].city, "St. Louis");
+    assert.deepStrictEqual(p.steps[0].states, ["Missouri"]);
+    assert.deepStrictEqual(p.steps.map(x => x.op), ["select_features", "zonal", "rank", "output"]);
+    assert.deepStrictEqual(p.steps.find(x => x.op === "rank").inputs, ["s3"]);
+  });
+
+  await test("repair: zones on a point layer swap to the named polygon layer", () => {
+    const p = plan({ id: "s1", op: "select_features", attr_id: "PTS", inputs: [], states: ["Illinois"],
+                     attribute_filters: [{ column: "status", value: "Not on the NPL" }] },
+                   zonal("s2", "LC", { inputs: ["s1"] }), out("s3", "s2"));
+    const fix = zonalOverFeatures(p, { asks: true, layers: ["CAMPUS"], isNotPolygon: (id) => id === "PTS" });
+    assert.match(fix, /polygon layer/);
+    assert.strictEqual(p.steps[0].attr_id, "CAMPUS");
+    assert.deepStrictEqual(p.steps[0].states, ["Illinois"], "the place stays");
+    assert.strictEqual(p.steps[0].attribute_filters, undefined, "the point layer's filter goes with it");
+  });
+
+  await test("repair: inert without the gate, and on units zonal", () => {
+    const p = plan(zonal("s1", "LC", { attribute_filters: [{ column: "type", value: "Forest" }] }),
+                   { id: "s2", op: "filter_area", attr_id: "", inputs: ["s1"], states: ["Missouri"] }, out("s3", "s2"));
+    const before = JSON.stringify(p);
+    assert.strictEqual(zonalOverFeatures(p, { asks: false, layers: ["CAMPUS"] }), null);
+    assert.strictEqual(JSON.stringify(p), before);
+  });
+
   console.log(`\n${pass}/${pass + fail} passed`);
   process.exit(fail ? 1 : 0);
 })();

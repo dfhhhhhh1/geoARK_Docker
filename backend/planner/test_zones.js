@@ -120,6 +120,22 @@ const out = (from) => ({ id: "s9", op: "output", attr_id: "", inputs: [from] });
     assert.strictEqual(q.steps[0].attribute_filters.length, 1);
   });
 
+  await test("a shortened form of the layer's own name is dropped too, a value sharing one word kept", async () => {
+    const cands = [{ attr_id: "SNAP", is_feature_table: true, dataset_clean: "SNAP Authorized Food Retailers" }];
+    const resolve = async (ids) => new Map(ids.map(i => [i, SRC.get(i)]));
+    const mk = (value) => plan({ id: "nr", op: "select_features", attr_id: "SNAP", inputs: [],
+                                 attribute_filters: [{ column: "type", value }] }, out("nr"));
+    for (const v of ["SNAP retailer", "food retailers", "snap"]) {
+      const p = mk(v);
+      assert.ok(await filterValueAsLayer(p, resolve, cands), v);
+      assert.strictEqual(p.steps[0].attribute_filters, undefined, v);
+    }
+    // "Food Store" shares "food" but "store" is not in the name: not a restatement
+    const keep = mk("Food Store");
+    assert.strictEqual(await filterValueAsLayer(keep, resolve, cands), null);
+    assert.strictEqual(keep.steps[0].attribute_filters.length, 1);
+  });
+
   console.log(`\n${pass}/${pass + fail} passed`);
   process.exit(fail ? 1 : 0);
 })();

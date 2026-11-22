@@ -14,7 +14,7 @@ const {
   featureAlgebra, repairDistanceUnits, distanceMentions, repairWithinDirection,
   widenReferenceLayer, referencePhrase,
 } = require("./features");
-const { applyCatchment } = require("./catchment");
+const { applyCatchment, applyDistancePopulation } = require("./catchment");
 const { totalTheDenominator, bridgeFromLoadedLayer } = require("./rewire");
 const { planSchemaFor } = require("../schemas");
 
@@ -297,6 +297,52 @@ function paramsMatch(o) {
     assert.strictEqual(ratio.operation, "ratio"); assert.strictEqual(ratio.scale, 100);
     assert.strictEqual(ops.stepTypes(p.steps).get(ratio.id), "scalar");
     paramsMatch(compilePlan(p, CSRC).outputs[0]);
+  });
+
+  await test("distance catchment: a malformed people-at-a-distance plan is rebuilt, then re-united by tract", async () => {
+    const isFeature = (id) => id === "HOSP";
+    // The Colorado plan qwen3 wrote (2026-11-22): the layer loaded as a series,
+    // count_near over a population, an orphan step.
+    const bad = plan(
+      { id: "s1", op: "load", attr_id: "POP", inputs: [] },
+      { id: "s2", op: "filter_area", attr_id: "", inputs: ["s1"], states: ["Colorado"] },
+      { id: "s3", op: "load", attr_id: "HOSP", inputs: [] },
+      { id: "s4", op: "count_near", attr_id: "POP", inputs: ["s2"], miles: 5 },
+      out("s5", "s4"));
+    const q = "What share of Colorado's population lives within 5 miles of a hospital?";
+    const note = applyDistancePopulation(bad, q, { popAttr: "POP", isFeature });
+    assert.match(note, /within 5 miles .*HOSP in Colorado/);
+    assert.deepStrictEqual(bad.steps.map(s => s.op),
+      ["load", "filter_area", "nearest_distance", "filter_attr", "intersect", "aggregate", "output"]);
+    assert.deepStrictEqual(bad.steps[3], { id: "nf", op: "filter_attr", attr_id: "", inputs: ["nd"], operator: "<=", value: 5 });
+    const c = await applyCatchment(bad, q, CSRC, cdeps);
+    assert.match(c.note, /share/);
+    assert.strictEqual(bad.steps[0].level, "tract");
+    paramsMatch(compilePlan(bad, CSRC).outputs[0]);
+    // The Missouri plan the model already writes right is rebuilt to itself: no note.
+    assert.strictEqual(applyDistancePopulation(far(), "How many people in Missouri live more than 20 miles from the nearest hospital?",
+      { popAttr: "POP", isFeature }), null);
+    // km is converted, "more than" is the far side
+    const k = far();
+    assert.ok(applyDistancePopulation(k, "How many people in Missouri live more than 8 km from a hospital?", { popAttr: "POP", isFeature }));
+    assert.strictEqual(k.steps.find(s => s.op === "filter_attr").operator, ">");
+    assert.ok(Math.abs(k.steps.find(s => s.op === "filter_attr").value - 4.970970) < 1e-5);
+  });
+
+  await test("distance catchment leaves alone what it cannot rebuild exactly", () => {
+    const isFeature = (id) => id === "HOSP";
+    const untouched = (q, p = far()) => {
+      const before = JSON.stringify(p);
+      assert.strictEqual(applyDistancePopulation(p, q, { popAttr: "POP", isFeature }), null, q);
+      assert.strictEqual(JSON.stringify(p), before, q);
+    };
+    untouched("How many people in each Missouri county live more than 20 miles from a hospital?");  // per unit
+    untouched("Which Missouri counties are more than 20 miles from a hospital?");                   // not about people
+    untouched("How many people in Missouri live 20 miles from a hospital?");                        // no side
+    untouched("How many people in Chicago live more than a 10-minute walk from a SNAP retailer?");  // network
+    untouched("How many people in Missouri live within 5 miles of a hospital but more than 20 miles from a fire station?"); // two distances
+    const city = far(); city.steps[2].city = "Springfield";
+    untouched("How many people in Springfield live more than 2 miles from a hospital?", city);      // city
   });
 
   await test("a total over a per-county series totals the denominator; a loaded layer moves onto its bridge", () => {

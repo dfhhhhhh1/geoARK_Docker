@@ -1,4 +1,4 @@
-const { CompileError, SAFE_DB_IDENT, OPERATORS } = require("./_sql");
+const { CompileError, SAFE_DB_IDENT, OPERATORS, FEATURE_LABELS } = require("./_sql");
 
 /**
  * Zonal statistics of a raster over the plan's units (docs/GIS_OPS_PLAN.md H4):
@@ -26,9 +26,11 @@ const { CompileError, SAFE_DB_IDENT, OPERATORS } = require("./_sql");
  */
 module.exports = {
   name: "zonal",
-  inputs: 0,
+  inputs: [0, 1],
   needs: ["attr_id"],
   produces: "series",
+  accepts: [["features"]],
+  resultType: (step, inTypes) => (inTypes && inTypes[0] === "features" ? "features" : "series"),
   kind: "sql",
 
   grounds: [{ field: "attr_id", sourceKind: "raster",
@@ -66,6 +68,18 @@ PLAN: {"intent":"Area of each Utah county with slope over 30 percent",
  "steps":[{"id":"s1","op":"zonal","attr_id":"a5","inputs":[],"operator":">","value":30},
           {"id":"s2","op":"filter_area","attr_id":"","inputs":["s1"],"states":["Utah"]},
           {"id":"s3","op":"output","attr_id":"","inputs":["s2"]}]}` },
+    // Only when the question is about the features of a polygon layer
+    // (features.zonalFeatureAlgebra), so every other prompt is unchanged.
+    { when: (ctx) => require("../features").zonalFeatureAlgebra(ctx), text:
+`QUESTION: what is the average slope of each state park in Colorado
+  (a5 = a terrain slope raster in percent, a8 = a state parks dataset of park boundaries)
+PLAN: {"intent":"Mean slope of each Colorado state park",
+ "output_type":"map","entity_type":"COUNTY",
+ "steps":[{"id":"s1","op":"select_features","attr_id":"a8","inputs":[],"states":["Colorado"]},
+          {"id":"s2","op":"zonal","attr_id":"a5","inputs":["s1"]},
+          {"id":"s3","op":"output","attr_id":"","inputs":["s2"]}]}
+  NOTE: zonal with a select_features input summarises the raster over each
+  feature's own boundary. Put the place restriction on select_features.` },
   ],
 
   validate(step) {
@@ -132,6 +146,8 @@ PLAN: {"intent":"Area of each Utah county with slope over 30 percent",
       : stat === "area" ? `${k} * ${ctx.bind((src.pixel_area_m2 || 0) / (step.unit_per_m2 || 2589988.110336))}::float8`
       : stat === "mean" ? `avg(v)` : `sum(v)`;
 
+    if ((ctx.ins || []).length) return compileOverFeatures(step, ctx, { src, layer, srid, pred, stat, liveValue });
+
     const level = ctx.level && ctx.level !== "county" ? ctx.level : null;
     // Counties of a categorical raster: its class histograms, cached at load
     // with this same clip (etl/load_raster.py cache_county_counts), so the
@@ -163,4 +179,47 @@ PLAN: {"intent":"Area of each Utah county with slope over 30 percent",
   },
 
   valueLabel: "raster summarised over each unit (share in percent, area, or mean)",
+  compileOverFeatures: (...a) => compileOverFeatures(...a),
 };
+
+/**
+ * zonal over the polygons of a features step: one row per feature, its
+ * geometry and labels passed through, `value` the raster over its boundary.
+ * Features outside the raster's extent are dropped (no data there), as are
+ * features whose clip and interior pixel are both nodata.
+ */
+function compileOverFeatures(step, ctx, { src, layer, srid, pred, stat, liveValue }) {
+  if (!(Number(src.pixel_area_m2) > 0) || !src.raster_kind) {
+    throw new CompileError(`zonal over features needs an equal-area raster; ${step.attr_id} is not one`);
+  }
+  const [a] = ctx.ins;
+  const keep = FEATURE_LABELS.map(c => `a.${c}`).join(", ");
+  const [x0, y0, x1, y1] = layer.extent.map(Number);
+  const ext = `ST_Transform(ST_MakeEnvelope(${ctx.bind(x0)}, ${ctx.bind(y0)}, ${ctx.bind(x1)}, ${ctx.bind(y1)}, ${srid}), 4326)`;
+  const value = liveValue();
+  // The one pixel under the interior point, for a polygon too small to hold
+  // a pixel centre. What it reports mirrors the clip: a share is all or
+  // nothing, an area is the polygon's own (equal-area CRS) when that pixel
+  // qualifies, a mean is the pixel's value.
+  const pv = `pt.pv`;
+  const ppred = pred ? pred.replace(/\bv\b/g, pv) : null;
+  const unit = step.unit_per_m2 || 2589988.110336;
+  const fallback =
+    stat === "share" ? `CASE WHEN ${ppred} THEN 100.0 ELSE 0.0 END`
+    : stat === "area" ? (ppred
+      ? `CASE WHEN ${ppred} THEN ST_Area(gg.g) / ${ctx.bind(unit)}::float8 ELSE 0.0 END`
+      : `ST_Area(gg.g) / ${ctx.bind(unit)}::float8`)
+    : stat === "mean" ? pv
+    : `${pv} * ST_Area(gg.g) / ${ctx.bind(Number(src.pixel_area_m2))}::float8`;
+  return `${ctx.name} AS (SELECT a.geom, CASE WHEN z.n > 0 THEN z.value ELSE ${fallback} END AS value, ${keep} ` +
+         `FROM ${a} a ` +
+         `CROSS JOIN LATERAL (SELECT ST_Transform(a.geom, ${srid}) AS g) gg ` +
+         `CROSS JOIN LATERAL (SELECT ${value} AS value, count(v) AS n FROM ${layer.table_name} r ` +
+         `CROSS JOIN LATERAL unnest(ST_DumpValues(ST_Clip(r.rast, 1, gg.g, true), 1)) AS v ` +
+         `WHERE ST_ConvexHull(r.rast) && gg.g AND ST_Intersects(r.rast, gg.g)) z ` +
+         `LEFT JOIN LATERAL (SELECT ST_Value(r.rast, 1, ST_PointOnSurface(gg.g)) AS pv FROM ${layer.table_name} r ` +
+         `WHERE z.n = 0 AND ST_ConvexHull(r.rast) && ST_PointOnSurface(gg.g) ` +
+         `AND ST_Intersects(r.rast, ST_PointOnSurface(gg.g)) LIMIT 1) pt ON true ` +
+         `WHERE a.geom && ${ext} AND GeometryType(a.geom) IN ('POLYGON', 'MULTIPOLYGON') ` +
+         `AND (z.n > 0 OR pt.pv IS NOT NULL))`;
+}

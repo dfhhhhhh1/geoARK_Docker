@@ -268,10 +268,22 @@ def feature_key(f: dict) -> tuple[str | None, float | None]:
     props = f.get("properties") or {}
     # overlay's amount inside the second layer comes back as `amount_inside` (H3).
     v = props.get("miles_to_nearest", props.get("amount_inside", props.get("value")))
+    # zonal over features (H4 remainder): the raster over each feature's polygon.
+    if v is None:
+        v = props.get("zonal_value")
     # H5: a network cost is drive_minutes_to_nearest, road_miles_to_nearest, ...
     if v is None:
         v = next((props[k] for k in props if k.endswith("_to_nearest")), None)
-    return f"{c[0]:.5f},{c[1]:.5f}", (1.0 if v is None else _num(v))
+    return f"{_round5(c[0])},{_round5(c[1])}", (1.0 if v is None else _num(v))
+
+
+def _round5(x) -> str:
+    """5 decimals as gold's {fkey:...} rounds them: Postgres round(numeric),
+    half away from zero, on the value's decimal text. `f"{x:.5f}"` rounds the
+    binary float instead, so a stored -88.866745 keyed -88.86674 here and
+    -88.86675 in gold: 9 of 71 Illinois Superfund sites (2026-11-21)."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return str(Decimal(repr(float(x))).quantize(Decimal("0.00001"), rounding=ROUND_HALF_UP))
 
 
 # ------------------------------------------------------------------- comparison
@@ -367,6 +379,25 @@ def compare(cmp: dict, gold: list[dict], ans: dict) -> tuple[str, dict]:
                 if not shared or len(close) / len(shared) < 0.8:
                     return "WRONG_VALUE", base
             return "CORRECT", base
+        if kind == "values":
+            # Each feature's own value (zonal over features, H4 remainder):
+            # gold's features found, and their values within tolerance. Extra
+            # features beyond gold's are the wrong selection.
+            both = [k for k in want if _num(layer.get(k)) is not None]
+            extra = [k for k in layer if k not in want]
+            cov = len(both) / len(want) if want else 0
+            base.update(coverage=round(cov, 3), extra=len(extra))
+            if not want:
+                return "EMPTY", base
+            if len(extra) > cmp.get("max_extra", 0.05) * len(want):
+                return "WRONG_VALUE", {**base, "why": "features outside the selection asked about"}
+            if cov < cmp.get("min_coverage", 0.95):
+                return "INCOMPLETE", base
+            close = [k for k in both if _close(_num(layer[k]), want[k], cmp)]
+            base["within_tol"] = round(len(close) / len(both), 3)
+            base["mismatch_sample"] = [{"key": k, "gold": round(want[k], 4), "got": round(_num(layer[k]), 4)}
+                                       for k in both if k not in close][:3]
+            return ("CORRECT" if len(close) / len(both) >= cmp.get("min_within", 0.95) else "WRONG_VALUE"), base
         raise ValueError(f"compare kind {kind} does not take features")
 
     if not ans["layers"]:
@@ -716,6 +747,10 @@ def run(suite: dict, args) -> dict:
             "pass": cls in PASS, "detail": det,
             "ops": "->".join(s.get("op", "?") for s in steps),
             "intent": (body.get("plan") or {}).get("intent"),
+            # The executed plan itself (2026-11-21): ops alone could not say
+            # why a select_features -> zonal answer kept 63 of 139 campuses.
+            "steps": steps,
+            "adjustments": body.get("adjustments"),
             "loaded": ans["origins"], "row_count": ans["row_count"],
             "error": body.get("error"), "exec_error": body.get("execution_error"),
             # --endpoint research: how the question was split, and whether the

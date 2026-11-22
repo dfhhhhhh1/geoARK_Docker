@@ -1,0 +1,62 @@
+{
+  "endpoint": "search",
+  "llm_filter": false,
+  "rerank": null,
+  "top_k": 20,
+  "queries": 3,
+  "errors": [],
+  "concept_recall": 1.0,
+  "query_success": 1.0,
+  "mrr": 0.8333333333333334,
+  "latency_p50": 0.015,
+  "latency_p95": 0.015,
+  "per_suite": {
+    "geographic_level": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    }
+  },
+  "detail": {
+    "geographic_level": [
+      {
+        "id": "tract-level-snap",
+        "query": "SNAP benefits at the census tract level",
+        "n_results": 20,
+        "concepts": {
+          "snap_tract": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.028
+      },
+      {
+        "id": "county-unemployment",
+        "query": "county level unemployment",
+        "n_results": 20,
+        "concepts": {
+          "unemp_county": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.015
+      },
+      {
+        "id": "state-hospital-capacity",
+        "query": "hospital capacity by state",
+        "n_results": 14,
+        "concepts": {
+          "hosp_state": 2
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.5,
+        "seconds": 0.013
+      }
+    ]
+  }
+}

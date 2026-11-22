@@ -193,6 +193,20 @@ function compilePlan(plan, resolved) {
           label: `${desc ? String(desc).slice(0, 80) : "value"} of the ${unit} it lies in`,
         };
       }
+      if (st.op === "zonal") {
+        // H4 remainder: the raster over each feature's own boundary.
+        const src = resolved.get(st.attr_id) || {};
+        const what = (st.attribute_filters || []).map(f => f.value).join(", ") ||
+          (st.operator !== undefined ? `pixels ${st.operator} ${st.value}${src.units ? ` ${src.units}` : ""}` : "");
+        // "Land cover class of every 30 m pixel from ..." -> "Land cover class".
+        const name = String(src.label || src.description || "raster")
+          .split(/[.(,;]|\s+(?:of|from|in|or|derived)\s+/)[0].trim().slice(0, 60);
+        const yr = st.year ? ` ${st.year}` : "";
+        const label = st.stat === "share" ? `percent of its area that is ${what} (${name.toLowerCase()}${yr})`
+          : st.stat === "area" ? `${st.unit || "square miles"} of ${what || "its area"} (${name}${yr})`
+          : `${st.stat || "mean"} ${name}${src.units ? ` (${src.units})` : ""}${yr}`;
+        return { column: "zonal_value", label };
+      }
       if (st.op === "overlay") {
         return st.exclude === true ? null
           : { column: "amount_inside", label: `${st.unit || "miles or square miles"} inside the second layer (none for points)` };

@@ -9,7 +9,7 @@ const assert = require("node:assert");
 const { validatePlan } = require("./validate");
 const { compilePlan } = require("./compile");
 const ops = require("./ops");
-const { enrichAlgebra, asksEnrichment, repairEnrichPercentile } = require("./features");
+const { enrichAlgebra, asksEnrichment, repairEnrichPercentile, repairEnrichRank, numberCountsUnits } = require("./features");
 const { planSchemaFor } = require("../schemas");
 
 let pass = 0, fail = 0;
@@ -138,6 +138,62 @@ function paramsMatch(o) {
     const q = plan(sel("s1"), load("s2"), enrich("s3", "s1", "s2"),
       { id: "s4", op: "filter_attr", attr_id: "", inputs: ["s3"], operator: ">", value: 30 }, out("s5", "s4"));
     assert.strictEqual(repairEnrichPercentile(q), null);
+  });
+
+  await test("gate: people in the units' condition do not close it", () => {
+    for (const q of [
+      "Which hospitals in Missouri are in census tracts where more than 40 percent of people live below 150 percent of the poverty line?",
+      "How many nursing homes in Georgia are in census tracts where more than 20 percent of residents have no health insurance?",
+      "Which schools are in counties where most households have broadband?",
+    ]) assert.ok(enrichAlgebra(ctx(q, 2)), q);
+    // People as the answer still close it.
+    assert.ok(!enrichAlgebra(ctx("How many people live in census tracts where more than 20 percent of residents are uninsured?", 2)));
+  });
+
+  await test("number counts features or units", () => {
+    assert.strictEqual(numberCountsUnits("Which 10 hospitals in Texas are in the counties with the highest poverty rates?", 10), false);
+    assert.strictEqual(numberCountsUnits("Which hospitals are in the 10 poorest counties in Texas?", 10), true);
+    assert.strictEqual(numberCountsUnits("hospitals in the five poorest census tracts of Ohio", 5), true);
+    assert.strictEqual(numberCountsUnits("hospitals in the poorest counties of Ohio", 10), null);
+  });
+
+  const rankPlan = () => plan(
+    { id: "s1", op: "load", attr_id: "POV", inputs: [] },
+    { id: "s2", op: "rank", attr_id: "", inputs: ["s1"], direction: "desc", limit: 10 },
+    sel("s3", { states: ["Texas"] }), enrich("s4", "s3", "s2"), out("s5", "s4"));
+
+  await test("repair: 'which 10 hospitals' ranks the features after enrich", async () => {
+    const p = rankPlan();
+    assert.ok(repairEnrichRank(p, "Which 10 hospitals in Texas are in the counties with the highest poverty rates?"));
+    const by = Object.fromEntries(p.steps.map(s => [s.id, s]));
+    assert.deepStrictEqual(by.s4.inputs, ["s3", "s1"]);
+    assert.deepStrictEqual(by.s2.inputs, ["s4"]);
+    assert.deepStrictEqual(by.s5.inputs, ["s2"]);
+    assert.ok(p.steps.indexOf(by.s2) > p.steps.indexOf(by.s4));
+    const v = await validatePlan(p, resolve);
+    assert.ok(v.ok, v.errors.join("; "));
+    paramsMatch(compilePlan(p, v.resolved).outputs[0]);
+  });
+
+  await test("repair: 'the 10 poorest counties' ranks the units within the state", async () => {
+    const p = rankPlan();
+    assert.ok(repairEnrichRank(p, "Which hospitals are in the 10 poorest counties in Texas?"));
+    const fa = p.steps.find(s => s.op === "filter_area");
+    assert.ok(fa && fa.states[0] === "Texas");
+    assert.deepStrictEqual(fa.inputs, ["s1"]);
+    assert.deepStrictEqual(p.steps.find(s => s.id === "s2").inputs, [fa.id]);
+    const v = await validatePlan(p, resolve);
+    assert.ok(v.ok, v.errors.join("; "));
+  });
+
+  await test("repair: inert when the units are restricted, or the features are not", () => {
+    const a = rankPlan();
+    a.steps.splice(1, 0, { id: "s9", op: "filter_area", attr_id: "", inputs: ["s1"], states: ["Texas"] });
+    a.steps.find(s => s.id === "s2").inputs = ["s9"];
+    assert.strictEqual(repairEnrichRank(a, "Which 10 hospitals in Texas are in the poorest counties?"), null);
+    const b = rankPlan();
+    delete b.steps.find(s => s.id === "s3").states;
+    assert.strictEqual(repairEnrichRank(b, "Which 10 hospitals are in the poorest counties?"), null);
   });
 
   await test("phrase helper is the server's retrieval keep rule", () => {

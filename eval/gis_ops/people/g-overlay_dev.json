@@ -1,0 +1,296 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "overlay_dev": {
+      "pass": 2,
+      "n": 4,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 1,
+    "CORRECT": 2,
+    "WRONG_MEASURE": 1
+  },
+  "latency_mean": 46.6,
+  "api_container_created": "2026-11-22T01:39:28.041847911Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ov-mo-roads-wetland-miles",
+      "tier": "overlay_dev",
+      "query": "How many miles of primary roads in Missouri pass through wetlands?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan"
+      },
+      "ops": "",
+      "intent": "How many miles of primary roads in Missouri pass through wetlands?",
+      "steps": [],
+      "adjustments": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: could not produce a valid plan",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many miles of primary roads in Missouri pass through wetlands?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: could not produce a valid plan"
+      },
+      "seconds": 39.0
+    },
+    {
+      "id": "ov-ca-fire-in-perimeter",
+      "tier": "overlay_dev",
+      "query": "Which fire stations in California are inside a wildfire perimeter?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 22,
+        "gold_features": 22,
+        "jaccard": 1.0,
+        "extra": 0,
+        "missed": 0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations",
+          "m2": "table_48f1211b6a3b41619cd4d72dc1c99b1e_public_nifs_perimeters"
+        }
+      },
+      "ops": "select_features->select_features->overlay->output",
+      "intent": "Fire stations in California that are inside a wildfire perimeter",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "964c8e3d_01_01_19",
+          "inputs": [],
+          "states": [
+            "California"
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "select_features",
+          "attr_id": "55b3233d_01_01_25",
+          "inputs": [],
+          "geometry_only": true
+        },
+        {
+          "id": "s3",
+          "op": "overlay",
+          "attr_id": "",
+          "inputs": [
+            "s1",
+            "s2"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [],
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations",
+        "table_48f1211b6a3b41619cd4d72dc1c99b1e_public_nifs_perimeters | Wildfire Perimeters (mapped locations) | Wildfire Perimeters"
+      ],
+      "row_count": 22,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which fire stations in California are inside a wildfire perimeter?",
+            "uses": [],
+            "ops": "select_features->select_features->overlay->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.9
+    },
+    {
+      "id": "ov-stl-ward-wetland-acres",
+      "tier": "overlay_dev",
+      "query": "How many acres of wetlands are in each St. Louis ward?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "wetlands"
+        ],
+        "loaded": [
+          "NLCD_LANDCOVER | Land cover class of every 30 m pixel from the National Land Cover Database (USGS MRLC), for land area, share and change of cover types such as cropland, forest, developed land, wetlands, water and pasture. Classes: Barren, Developed, Forest, Herbaceous, Planted/Cultivated, Shrubland, Water, Wetlands. | NLCD land cover (National Land Cover Database)"
+        ]
+      },
+      "ops": "zonal->output",
+      "intent": "Acres of wetlands in each St. Louis ward",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "zonal",
+          "attr_id": "NLCD_LANDCOVER",
+          "inputs": [],
+          "attribute_filters": [
+            {
+              "column": "type",
+              "value": "Wetlands"
+            }
+          ],
+          "stat": "area",
+          "unit": "acres",
+          "unit_per_m2": 4046.8564224
+        },
+        {
+          "id": "s2",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Raster: step s1 reports area in acres.",
+        "Unit: answered by ward (the question asked for wards)."
+      ],
+      "loaded": [
+        "NLCD_LANDCOVER | Land cover class of every 30 m pixel from the National Land Cover Database (USGS MRLC), for land area, share and change of cover types such as cropland, forest, developed land, wetlands, water and pasture. Classes: Barren, Developed, Forest, Herbaceous, Planted/Cultivated, Shrubland, Water, Wetlands. | NLCD land cover (National Land Cover Database)"
+      ],
+      "row_count": 14,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many acres of wetlands are in each St. Louis ward?",
+            "uses": [],
+            "ops": "zonal->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 116.8
+    },
+    {
+      "id": "ov-mo-campus-wetland",
+      "tier": "overlay_dev",
+      "query": "How many college campuses in Missouri overlap a wetland?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 49.0,
+        "got": 49.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse",
+          "m2": "nwi_wetlands"
+        }
+      },
+      "ops": "select_features->select_features->overlay->summarize->output",
+      "intent": "Number of college campuses in Missouri that overlap a wetland",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "68bf7456_01_01_03",
+          "inputs": [],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "select_features",
+          "attr_id": "ing_nwiwetlands_01_02",
+          "inputs": [],
+          "geometry_only": true
+        },
+        {
+          "id": "s3",
+          "op": "overlay",
+          "attr_id": "",
+          "inputs": [
+            "s1",
+            "s2"
+          ],
+          "unit": "square miles"
+        },
+        {
+          "id": "s4",
+          "op": "summarize",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "group_by": "none"
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Measure: step s3 measures the part inside in square miles."
+      ],
+      "loaded": [
+        "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse | College University Campuses (mapped locations) | College University Campuses",
+        "nwi_wetlands | National Wetlands Inventory wetlands (mapped locations) | National Wetlands Inventory wetlands"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many college campuses in Missouri overlap a wetland?",
+            "uses": [],
+            "ops": "select_features->select_features->overlay->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 15.9
+    }
+  ]
+}

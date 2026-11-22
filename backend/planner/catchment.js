@@ -165,4 +165,74 @@ async function applyCatchment(plan, query, resolved, { resolve, levelsOf, stepTy
   };
 }
 
-module.exports = { applyCatchment, asksPeopleAtDistance };
+/**
+ * "How many people in Missouri live more than 20 miles from the nearest
+ * hospital?", "What share of Colorado's population lives within 5 miles of a
+ * hospital?": a head count (or share) of people at ONE stated straight-line
+ * distance from a feature layer. Rebuilt in code BEFORE validation, the way
+ * network.js applyNetworkPopulation rebuilds the network form, because
+ * applyCatchment above only re-units a plan the model already shaped right.
+ * qwen3 shaped the Missouri question right; for the Colorado one it loaded
+ * Hospitals as a series and ran count_near over a population series, and the
+ * repairs never recovered, 3 of 3 (2026-11-22). Only two facts come from the
+ * model's plan, the reference layer and the states; the distance and its side
+ * come from the question. The canonical plan is the Missouri one,
+ *   load(pop) -> filter_area -> nearest_distance(ref) -> filter_attr -> intersect -> sum,
+ * which applyCatchment then moves to tracts (and turns into a share).
+ *
+ * Left alone: a per-unit answer ("in each county", "by ward"), a network cost,
+ * a question naming a unit, more than one distance, no side word ("20 miles
+ * from" says neither nearer nor farther), and a city restriction (filter_place
+ * reads the plan's level, so a tract catchment cannot carry it).
+ *
+ * @param popAttr   a county total-population attr_id to load
+ * @param isFeature (attr_id) => whether it is a feature layer
+ * @returns a description, or null with the plan untouched
+ */
+const PER_UNIT_ANSWER = /\b(?:each|every|per|by)\s+(?:[a-z.'-]+\s+){0,3}?(?:count(?:y|ies)|states?|tracts?|wards?|neighbou?rhoods?|zip|zcta|districts?|units?|cit(?:y|ies)|areas?|regions?)\b/i;
+
+function applyDistancePopulation(plan, query, { popAttr, isFeature }) {
+  const q = String(query || "");
+  const { countsPeople } = require("../population");
+  const { distanceMentions, BEYOND, NEARER } = require("./features");
+  if (!popAttr || !asksPeopleAtDistance(q) || !countsPeople(q)) return null;
+  if (require("./network").asksNetwork(q) || PER_UNIT_ANSWER.test(q) || plan.level) return null;
+  const mentions = distanceMentions(q);
+  if (mentions.length !== 1) return null;
+  const m = mentions[0];
+  const before = q.slice(Math.max(0, m.index - 30), m.index);
+  const beyond = BEYOND.test(before) ? true : NEARER.test(before) ? false : null;
+  if (beyond === null) return null;
+
+  const steps = plan.steps || [];
+  if (steps.some(s => s.op === "filter_place" || s.city)) return null;
+  const refs = [...new Set(steps.filter(s => s.attr_id && isFeature(s.attr_id)).map(s => s.attr_id))];
+  if (refs.length !== 1) return null;
+  const states = [...new Set(steps.flatMap(s => (s.op === "filter_area" || isFeature(s.attr_id)) ? (s.states || []) : []))];
+
+  const rebuilt = [{ id: "p", op: "load", attr_id: popAttr, inputs: [] }];
+  let whole = "p";
+  if (states.length) {
+    rebuilt.push({ id: "pa", op: "filter_area", attr_id: "", inputs: ["p"], states });
+    whole = "pa";
+  }
+  const miles = Math.round(m.miles * 1e6) / 1e6;
+  rebuilt.push(
+    { id: "nd", op: "nearest_distance", attr_id: refs[0], inputs: [] },
+    { id: "nf", op: "filter_attr", attr_id: "", inputs: ["nd"], operator: beyond ? ">" : "<=", value: miles },
+    { id: "ix", op: "intersect", attr_id: "", inputs: [whole, "nf"] },
+    { id: "tot", op: "aggregate", attr_id: "", inputs: ["ix"], function: "sum" },
+    { id: "out", op: "output", attr_id: "", inputs: ["tot"] },
+  );
+  // Step ids differ between the model's plan and this one, so compare what
+  // each step does, in order.
+  const sig = (ss) => JSON.stringify(ss.map(s => [s.op, s.attr_id || "", (s.states || []).join("|"),
+    s.operator || "", s.value ?? "", s.function || "", (s.inputs || []).length]));
+  const same = sig(steps) === sig(rebuilt);
+  plan.steps = rebuilt;
+  if (same) return null;
+  return `people ${beyond ? "farther than" : "within"} ${m.value} ${m.unit} (straight line) of the nearest feature of ${refs[0]}` +
+         (states.length ? ` in ${states.join(", ")}` : "");
+}
+
+module.exports = { applyCatchment, asksPeopleAtDistance, applyDistancePopulation, PER_UNIT_ANSWER };

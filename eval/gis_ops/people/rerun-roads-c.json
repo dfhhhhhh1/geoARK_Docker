@@ -1,0 +1,119 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 1,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "overlay_dev": {
+      "pass": 1,
+      "n": 1,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 1
+  },
+  "latency_mean": 25.7,
+  "api_container_created": "2026-11-22T01:39:28.041847911Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ov-mo-roads-wetland-miles",
+      "tier": "overlay_dev",
+      "query": "How many miles of primary roads in Missouri pass through wetlands?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 57.2433,
+        "got": 57.2433,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "tiger_primary_roads",
+          "m2": "nwi_wetlands"
+        }
+      },
+      "ops": "select_features->select_features->overlay->summarize->output",
+      "intent": "Total miles of primary roads in Missouri that pass through wetlands",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "ing_tigerprimary_01_01",
+          "inputs": [],
+          "states": [
+            "Missouri"
+          ],
+          "geometry_only": true
+        },
+        {
+          "id": "s2",
+          "op": "select_features",
+          "attr_id": "ing_nwiwetlands_01_03",
+          "inputs": [],
+          "geometry_only": true
+        },
+        {
+          "id": "s3",
+          "op": "overlay",
+          "attr_id": "",
+          "inputs": [
+            "s1",
+            "s2"
+          ],
+          "clip": true,
+          "unit": "miles"
+        },
+        {
+          "id": "s4",
+          "op": "summarize",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "group_by": "none",
+          "measure": "length",
+          "unit": "miles"
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Measure: step s4 totals length in miles; step s3 measures the part inside in miles."
+      ],
+      "loaded": [
+        "tiger_primary_roads | Primary Roads and Interstates (mapped locations) | Primary Roads and Interstates",
+        "nwi_wetlands | National Wetlands Inventory wetlands (mapped locations) | National Wetlands Inventory wetlands"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many miles of primary roads in Missouri pass through wetlands?",
+            "uses": [],
+            "ops": "select_features->select_features->overlay->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 25.7
+    }
+  ]
+}

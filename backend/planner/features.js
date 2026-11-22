@@ -324,13 +324,24 @@ const OWN_UNIT = new RegExp(
 
 const asksEnrichment = (q) => IN_UNITS_WHERE.test(q) || IN_QUALIFIED_UNITS.test(q) || OWN_UNIT.test(q);
 
+/** Where the unit qualifier starts ("in census tracts where ..."), or -1. */
+function enrichmentClauseAt(q) {
+  const at = [IN_UNITS_WHERE, IN_QUALIFIED_UNITS, OWN_UNIT]
+    .map(re => { const m = re.exec(q); return m ? m.index : -1; })
+    .filter(i => i >= 0);
+  return at.length ? Math.min(...at) : -1;
+}
+
 /** Whether `enrich` (and the select_features / summarize it needs) is on offer. */
 function enrichAlgebra(ctx = {}) {
   const q = String(ctx.query || "");
   if (!q || !ctx.hasFeatureTables || !(ctx.featureTableCount >= 1)) return false;
-  // People in such units are a population sum, not features.
-  if (ABOUT_PEOPLE.test(q) || !ABOUT_FEATURES.test(q)) return false;
-  return asksEnrichment(q);
+  const at = enrichmentClauseAt(q);
+  if (at < 0 || !ABOUT_FEATURES.test(q)) return false;
+  // People in such units are a population sum, not features. Only the part
+  // BEFORE the unit qualifier names the answer: "where 40 percent of people
+  // live below ..." describes the tracts' measure, not what is counted.
+  return !ABOUT_PEOPLE.test(q.slice(0, at));
 }
 
 /**
@@ -364,6 +375,84 @@ function repairEnrichPercentile(plan) {
   return moved.length
     ? `the "high / low" condition (${moved.join(", ")}) is applied to the units before matching features to them`
     : null;
+}
+
+/*
+ * A rank on the units' side of enrich, with the features restricted to an
+ * area the units are not: "which 10 hospitals in Texas are in the counties
+ * with the highest poverty rates" planned rank(poverty, 10) nationally, then
+ * enrich, and no top-10 county is in Texas, so the answer was empty. Which
+ * repair depends on what the number counts:
+ *   "10 hospitals ... highest poverty counties" -> the features are ranked:
+ *     the rank moves after enrich and orders the features by their unit's value.
+ *   "hospitals in the 10 poorest counties" (or no number) -> the units are
+ *     ranked, within the features' states: a filter_area goes before the rank.
+ * A series chain that already restricts the area is left alone.
+ */
+const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+  ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, "twenty-five": 25, fifty: 50, hundred: 100 };
+const UNIT_WORD = new RegExp(String.raw`^${UNIT_ONE}\b`, "i");
+
+/** Whether the number `n` in the question counts units (counties, tracts) rather than features. */
+function numberCountsUnits(q, n) {
+  const re = /\b(\d+|[a-z]+(?:-[a-z]+)?)\b/gi;
+  for (let m; (m = re.exec(q));) {
+    const v = /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
+    if (v !== n) continue;
+    const after = q.slice(m.index + m[1].length).trimStart();
+    // The unit word within the next few words, before any feature noun.
+    const words = after.split(/\s+/).slice(0, 4);
+    for (const w of words) {
+      if (UNIT_WORD.test(w) || /^census$/i.test(w)) return true;
+      if (/^(?:in|of|with|that|where|whose|near|within)$/i.test(w)) return false;
+    }
+    return false;
+  }
+  return null; // the number is not in the question
+}
+
+function repairEnrichRank(plan, query) {
+  const steps = plan?.steps || [];
+  const byId = new Map(steps.map(s => [s.id, s]));
+  const q = String(query || "");
+  const notes = [];
+  for (const e of [...steps]) {
+    if (e.op !== "enrich" || (e.inputs || []).length !== 2) continue;
+    // The features' area.
+    let f = byId.get(e.inputs[0]);
+    while (f && f.op !== "select_features" && (f.inputs || []).length >= 1) f = byId.get(f.inputs[0]);
+    const states = f?.op === "select_features" && Array.isArray(f.states) ? f.states.filter(Boolean) : [];
+    if (!states.length) continue;
+    // The series chain: a rank on it, and no area restriction.
+    let r = null, restricted = false;
+    for (let s = byId.get(e.inputs[1]); s; s = (s.inputs || []).length === 1 ? byId.get(s.inputs[0]) : null) {
+      if (s.op === "filter_area" || s.op === "filter_place") restricted = true;
+      if (s.op === "rank" && !r) r = s;
+    }
+    if (!r || restricted) continue;
+    // The rank must be read only by this chain (one reader).
+    if (steps.filter(s => (s.inputs || []).includes(r.id)).length !== 1) continue;
+    const counts = numberCountsUnits(q, r.limit);
+    if (counts === false) {
+      // The features are ranked: unlink r from the series chain, rank enrich.
+      for (const s of steps) if (s !== r) s.inputs = (s.inputs || []).map(i => (i === r.id ? r.inputs[0] : i));
+      for (const s of steps) if (s !== r) s.inputs = (s.inputs || []).map(i => (i === e.id ? r.id : i));
+      r.inputs = [e.id];
+      steps.splice(steps.indexOf(r), 1);
+      steps.splice(steps.indexOf(e) + 1, 0, r);
+      notes.push(`the top ${r.limit} are the features ranked by their unit's value (${r.id} moved after ${e.id})`);
+    } else {
+      // The units are ranked, within the features' states.
+      const used = new Set(steps.map(s => s.id));
+      let n = steps.length + 1, id;
+      do id = `s${n++}`; while (used.has(id));
+      const fa = { id, op: "filter_area", attr_id: "", inputs: [r.inputs[0]], states: [...states] };
+      r.inputs = [id];
+      steps.splice(steps.indexOf(r), 0, fa);
+      notes.push(`the units are ranked within ${states.join(", ")}, where the features are (${id} before ${r.id})`);
+    }
+  }
+  return notes.length ? notes.join("; ") : null;
 }
 
 /** Whether summarize may total the length or area of a line / polygon layer. */
@@ -605,15 +694,207 @@ function fillRasterClasses(plan, query, srcOf) {
   return fixes.length ? fixes.join("; ") : null;
 }
 
+/*
+ * ZONAL OVER FEATURES (H4 remainder, H6 tier 1 item 5): a raster summarised
+ * over each feature of a polygon layer, "what share of each college campus is
+ * forest", "the mean slope of each Superfund site". The zones are the
+ * features, so the answer is the features, each with its value.
+ *
+ * Offered when a raster AND a polygon layer the question names are both on
+ * the candidate list, and the question is not about units (a named unit is
+ * zonal over that unit, levels.js) or people. "Names" is data, not a word
+ * list: a content word of the layer's own dataset name, by stem, occurs in
+ * the question. Words that name no particular layer do not count.
+ */
+const GENERIC_LAYER_WORDS = new Set([
+  "site", "area", "boundary", "boundarie", "data", "dataset", "layer", "location", "national", "public",
+  "united", "state", "county", "countie", "program", "facility", "facilitie", "feature", "land", "map",
+  "region", "zone", "polygon", "point", "line", "small", "scale", "interim", "project", "estimate",
+  // Units of analysis are never the features (levels.js reads them).
+  "neighborhood", "neighbourhood", "ward", "community", "communitie", "tract", "characteristic", "planning",
+]);
+// "campuses" and "campus" are one stem; "-us", "-ss", "-is" are not plurals.
+const stemWord = (w) => {
+  const s = w.toLowerCase();
+  if (/(?:us|ss|is)$/.test(s)) return s;
+  if (/(?:uses|sses|xes|ches|shes)$/.test(s)) return s.slice(0, -2);
+  if (/ies$/.test(s)) return s.slice(0, -3) + "y";
+  return s.replace(/s$/, "");
+};
+const contentStems = (text) => new Set((String(text || "").match(/[A-Za-z]{4,}/g) || [])
+  .map(stemWord).filter(w => w.length >= 4 && !GENERIC_LAYER_WORDS.has(w)));
+
+/**
+ * The polygon candidates the question names, best first (most shared stems),
+ * as attr_ids. `candidates` are retrieval rows (is_feature_table, spatial_rep,
+ * dataset_clean). One per dataset.
+ */
+// The words a question enumerates features with: the stems of the (up to
+// three) words after "each / every / per / which / all", or "the five" /
+// "the 10". "What share of Cook County was forest" names a land class, not a
+// layer, and is left to zonal over units even when a forest layer is listed.
+const ENUMERATED = /\b(?:each|every|per|which|all(?:\s+the)?|the\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten|twenty))\s+((?:[A-Za-z][\w.'-]*\s+){0,2}[A-Za-z][\w'-]*)/gi;
+/**
+ * The thing a question enumerates, as a search phrase ("Superfund site",
+ * "college campuses"), when it is about features of a raster-summarisable
+ * kind: the words after each / every / which ..., cut at the first
+ * preposition or verb, and not a unit of analysis (levels.js reads those).
+ * `rasterText` is the loaded rasters' own descriptions; the question must
+ * share a content word with them ("forest", "slope", "elevation"), so the
+ * phrase is searched only for questions a raster can answer. null otherwise.
+ * unified_search_server.js addZoneLayer searches it as a primary sub-query:
+ * decomposition did not always ask for the layer ("Superfund site acreage"
+ * found only the point layer of non-NPL sites, zonal_features dev r2a).
+ */
+const CUT = /^(?:in|on|of|at|with|within|near|by|for|to|from|that|which|whose|where|have|has|had|is|are|was|were|be|does|do|did|according|based|across|inside|located)$/i;
+const UNIT_WORDS = /\b(?:count(?:y|ies)|states?|tracts?|zip|zctas?|wards?|neighbou?rhoods?|blocks?|communit(?:y|ies)|areas?|regions?|cit(?:y|ies)|places?|parish(?:es)?|boroughs?|grid|cells?|units?|people|residents?|households?)\b/i;
+const RASTER_STOP = new Set(["percent", "share", "change", "type", "class", "every", "pixel", "model",
+  "program", "derived", "ground", "meter", "estimate", "gridded", "cover", "such", "digital"]);
+function zonePhrase(query, rasterText = "", polygonNames = []) {
+  const q = String(query || "");
+  const rs = [...contentStems(rasterText)].filter(w => !RASTER_STOP.has(w));
+  if (!rs.length || ABOUT_PEOPLE.test(q)) return null;
+  const qs = contentStems(q);
+  if (!rs.some(w => qs.has(w))) return null;
+  // The phrase must name a polygon layer the catalog has: a zone to clip to.
+  const layerStems = new Set(polygonNames.flatMap(n => [...contentStems(n)]));
+  for (const m of q.matchAll(ENUMERATED)) {
+    const words = [];
+    for (const w of m[1].split(/\s+/)) { if (CUT.test(w)) break; words.push(w); }
+    const phrase = words.join(" ").replace(/[^A-Za-z0-9 .'-]/g, "").trim()
+      .replace(/^(?:\d+|two|three|four|five|six|seven|eight|nine|ten|twenty|the|of|all)\s+/i, "");
+    if (!phrase || UNIT_WORDS.test(phrase) || /^\d/.test(phrase)) continue;
+    if (![...contentStems(phrase)].some(w => layerStems.has(w))) continue;
+    return phrase.toLowerCase();
+  }
+  return null;
+}
+
+function enumeratedStems(query) {
+  const out = new Set();
+  for (const m of String(query || "").matchAll(ENUMERATED)) for (const w of contentStems(m[1])) out.add(w);
+  return out;
+}
+
+function namedPolygonLayers(query, candidates = []) {
+  const q = enumeratedStems(query);
+  const seen = new Set();
+  const out = [];
+  for (const c of candidates) {
+    if (!c.is_feature_table || !/POLYGON/i.test(c.spatial_rep || "")) continue;
+    const key = c.dataset_clean || c.attr_id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const shared = [...contentStems(c.dataset_clean || c.attr_desc)].filter(w => q.has(w)).length;
+    if (shared > 0) out.push({ id: c.attr_id, shared });
+  }
+  return out.sort((a, b) => b.shared - a.shared).map(o => o.id);
+}
+
+function zonalFeatureAlgebra(ctx = {}) {
+  const q = String(ctx.query || "");
+  if (!q || ctx.hasRaster !== true || ctx.namesPolygonLayer !== true) return false;
+  if (ABOUT_PEOPLE.test(q) || PER_UNIT.test(q) || ABOUT_UNITS.test(q)) return false;
+  return !require("./levels").levelOf(q);
+}
+
+/**
+ * Wires a zonal step onto the features it summarises, when the question asks
+ * about a named polygon layer's features (zonalFeatureAlgebra's test, given
+ * here as `asks`):
+ *   - a zonal step with no input reads the plan's select_features of that
+ *     layer, or one added for it (the model, shown units-zonal examples, often
+ *     planned zonal -> filter_area and never selected the layer);
+ *   - place filters after it (filter_area's states, filter_place of a city)
+ *     move onto that select_features, since the features carry no county key;
+ *   - an output of the bare features beside it is dropped: the valued layer is
+ *     the answer.
+ * Returns a description, or null. Deterministic, logged, narrow.
+ */
+function zonalOverFeatures(plan, { asks, layers, isNotPolygon }) {
+  const steps = plan.steps || [];
+  const zs = steps.filter(s => s.op === "zonal");
+  if (!zs.length) return null;
+  const byId = new Map(steps.map(s => [s.id, s]));
+  const isPoly = new Set(layers || []);
+  const fixes = [];
+  let n = steps.length;
+  const freshId = () => { let id; do { id = `s${++n}`; } while (byId.has(id)); return id; };
+  const readers = (id) => (plan.steps || []).filter(o => (o.inputs || []).includes(id));
+  const bypass = (st) => {
+    for (const o of plan.steps) o.inputs = (o.inputs || []).map(i => (i === st.id ? st.inputs[0] : i));
+    plan.steps = plan.steps.filter(x => x !== st);
+    byId.delete(st.id);
+  };
+  for (const z of zs) {
+    let sel = (z.inputs || []).length ? byId.get(z.inputs[0]) : null;
+    if (sel && sel.op !== "select_features") continue;
+    if (!sel) {
+      if (!asks || !layers?.length) continue;
+      sel = plan.steps.find(s => s.op === "select_features" && isPoly.has(s.attr_id));
+      if (!sel) {
+        sel = { id: freshId(), op: "select_features", attr_id: layers[0], inputs: [] };
+        plan.steps.splice(plan.steps.indexOf(z), 0, sel);
+        byId.set(sel.id, sel);
+        fixes.push(`added step ${sel.id} selecting the features the question names`);
+      }
+      z.inputs = [sel.id];
+      fixes.push(`step ${z.id} summarises the raster over each feature of step ${sel.id}`);
+    }
+    // Zones must be polygons. "Superfund site" retrieved both the NPL site
+    // boundaries and "Superfund sites not on the NPL" (points); the model chose
+    // the points and zonal had nothing to clip: 0 rows, no error (dev r1).
+    // Swap to the polygon layer the question names; its own filters go with
+    // the layer they were written for.
+    if (asks && isNotPolygon && isNotPolygon(sel.attr_id) && layers?.length) {
+      const was = sel.attr_id;
+      sel.attr_id = layers[0];
+      delete sel.attribute_filters; delete sel.value_filters;
+      fixes.push(`step ${sel.id} reads the polygon layer the question names (${was} has no areas to summarise over)`);
+    }
+    // Place filters downstream of z, along its single-reader chain.
+    for (let cur = z; ;) {
+      const rs = readers(cur.id);
+      if (rs.length !== 1) break;
+      const r = rs[0];
+      if (r.op === "filter_area" && r.states?.length) {
+        sel.states = [...new Set([...(sel.states || []), ...r.states])];
+        fixes.push(`the ${r.states.join(", ")} restriction (step ${r.id}) moved onto step ${sel.id}`);
+        bypass(r);
+        continue;
+      }
+      if (r.op === "filter_place" && (r.place_kind === "place" || !r.place_kind) && r.place_name && !sel.city) {
+        const [city, st] = String(r.place_name).split(/,\s*/);
+        sel.city = city;
+        const states = [...(r.states || []), ...(st ? [st] : [])];
+        if (states.length) sel.states = [...new Set([...(sel.states || []), ...states])];
+        fixes.push(`the ${city} restriction (step ${r.id}) moved onto step ${sel.id}`);
+        bypass(r);
+        continue;
+      }
+      if (["rank", "filter_attr"].includes(r.op)) { cur = r; continue; }
+      break;
+    }
+    // A bare output of the selected features, when the valued one exists.
+    for (const o of readers(sel.id).filter(o => o.op === "output")) {
+      if (plan.steps.filter(s => s.op === "output").length < 2) break;
+      plan.steps = plan.steps.filter(x => x !== o);
+      fixes.push(`dropped output ${o.id} of the unvalued features`);
+    }
+  }
+  return fixes.length ? fixes.join("; ") : null;
+}
+
 const UNIT_PER_M = Object.fromEntries([...AREA_UNITS, ...LENGTH_UNITS].map(([, u, f]) => [u, f]));
 
 module.exports = {
-  enrichAlgebra, asksEnrichment, repairEnrichPercentile,
+  enrichAlgebra, asksEnrichment, repairEnrichPercentile, repairEnrichRank, numberCountsUnits,
   overlayAlgebra, measureAlgebra, applyMeasures, measureFor, UNIT_PER_M, AMOUNT, OVERLAY,
   applyRasterMeasures, SHARE, fillRasterClasses, yearAsVintage,
+  zonalFeatureAlgebra, zonalOverFeatures, namedPolygonLayers, zonePhrase,
   applyAreaUnit, PER_KM2,
   referencePhrase,
   widenReferenceLayer, repairWithinDirection,
   featureAlgebra, asksCount, asksNegation, distanceMentions, repairDistanceUnits,
-  PER_UNIT, ABOUT_PEOPLE,
+  PER_UNIT, ABOUT_PEOPLE, BEYOND, NEARER,
 };

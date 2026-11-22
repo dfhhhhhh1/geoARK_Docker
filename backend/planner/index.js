@@ -29,9 +29,10 @@ const { derefDefinitions, checkThresholds, LAYER_PHRASES, GROUP_COMPARISON,
 const { anchorYears, spans } = require("./vintages");
 const { applyLevel, applyRollup, levelOf } = require("./levels");
 const { applyValueFilters, loadedColumnAsCount, FEATURE_FILTER_OPS } = require("./feature_filters");
-const { repairDistanceUnits, repairWithinDirection, widenReferenceLayer, repairEnrichPercentile, applyAreaUnit, applyMeasures, applyRasterMeasures, fillRasterClasses, yearAsVintage } = require("./features");
+const { repairDistanceUnits, repairWithinDirection, widenReferenceLayer, repairEnrichPercentile, repairEnrichRank, applyAreaUnit, applyMeasures, applyRasterMeasures, fillRasterClasses, yearAsVintage, zonalFeatureAlgebra, zonalOverFeatures, namedPolygonLayers } = require("./features");
 const { preferUserLayer } = require("../user_layers");
-const { applyCatchment } = require("./catchment");
+const { applyCatchment, applyDistancePopulation } = require("./catchment");
+const { isPopulationCount } = require("../population");
 const { applyNearest } = require("./nearest");
 const { applyComposite, asksComposite } = require("./composite");
 const { applyMoran, asksMoran } = require("./moran");
@@ -994,12 +995,28 @@ async function filterValueAsLayer(plan, resolve, candidates) {
   const steps = (plan.steps || []).filter(s => Array.isArray(s.attribute_filters) && s.attribute_filters.length && s.attr_id);
   if (!steps.length || !layers.size) return null;
   const resolved = await resolve(steps.map(s => s.attr_id));
+  // A SHORTENED form of the layer's own name restates it just as the full
+  // name does: "SNAP retailer" on SNAP Authorized Food Retailers, "fire
+  // station" on Fire Stations. Every content word of the value must be a word
+  // of the name, by stem. Seen on "How many people in Chicago live more than
+  // a 10-minute walk from a SNAP retailer?": type="SNAP retailer" survived the
+  // exact-name test, the network rebuild kept it, and the plan failed
+  // validation every attempt (2026-11-22, GIS_OPS_PLAN.md "people questions").
+  const stem = (w) => w.replace(/(?:ies|es|s)$/, "");
+  const words = (s) => norm(s).split(" ").filter(w => w.length > 2).map(stem);
+  const ownName = (st, value) => {
+    const c = (candidates || []).find(x => x.attr_id === st.attr_id && x.is_feature_table);
+    if (!c) return false;
+    const name = new Set(words(c.dataset_clean || String(c.attr_desc || "").replace(/\s*\(mapped locations\)\s*$/i, "")));
+    const v = words(value);
+    return v.length > 0 && v.every(w => name.has(w));
+  };
   const fixes = [];
   for (const st of steps) {
     const values = resolved.get(st.attr_id)?.filter_values || {};
     for (const f of [...st.attribute_filters]) {
       const held = (values[f.column] || []).some(v => String(v).toLowerCase() === String(f.value).toLowerCase());
-      const other = layers.get(norm(f.value));
+      const other = layers.get(norm(f.value)) || (!held && ownName(st, f.value) ? { attr_id: st.attr_id } : null);
       if (held || !other) continue;
       if (other.attr_id === st.attr_id) {
         // The value is the step's OWN layer's name: it restates the layer,
@@ -1075,6 +1092,14 @@ function dropUnaskedFilters(plan, query) {
     const kept = st.attribute_filters.filter(f => {
       const value = String(f?.value ?? "").toLowerCase().trim();
       if (!value) return false;
+      // A number counts only as a whole number: campus type code "1" passed as
+      // asked because "2021" contains a 1, and kept 63 of 139 Missouri
+      // campuses (zonal_features dev r1, r3c).
+      if (/^[\d.]+$/.test(value)) {
+        if (new RegExp(`(?<![\\d.])${value.replace(/\./g, "\\.")}(?![\\d.])`).test(text)) return true;
+        dropped.push(`${f.column}=${f.value}`);
+        return false;
+      }
       if (text.includes(value)) return true;
       // Multi-word values may be phrased loosely ("critical-access"); require
       // every word to appear rather than the exact string.
@@ -1375,6 +1400,10 @@ async function generatePlan({
     ...(reps.has("line") ? { hasLineLayer: true } : {}),
     // A raster to summarise over units (H4, ops/zonal.js). Absent otherwise.
     ...(candidates.some(c => c.is_raster) ? { hasRaster: true } : {}),
+    // A polygon layer the question names, beside a raster: zonal over that
+    // layer's features (H4 remainder, features.zonalFeatureAlgebra).
+    ...(candidates.some(c => c.is_raster) && namedPolygonLayers(query, candidates).length
+      ? { namesPolygonLayer: true } : {}),
     hasFilterableValues, hasPlaceBoundaries, hasNeighbors,
     // A retrieved attribute carries a checked, published definition. Data,
     // not phrasing: the definition field exists only when one is on offer.
@@ -1533,11 +1562,28 @@ async function generatePlan({
       adjustments.push(`Proximity: ${fix}.`);
     }
     // H6: a "high / low" percentile on enriched features belongs to the units.
-    const enrichFix = repairEnrichPercentile(plan);
-    if (enrichFix) {
+    // And a rank on the units' side, with the features in an area the
+    // units are not restricted to.
+    for (const enrichFix of [repairEnrichPercentile(plan), repairEnrichRank(plan, query)]) {
+      if (!enrichFix) continue;
       log(`   Repaired enrich step: ${enrichFix}`);
       emit({ stage: "plan_adjusted", detail: enrichFix });
       adjustments.push(`Units: ${enrichFix}.`);
+    }
+
+    // H4 remainder: a raster over each feature of a named polygon layer.
+    const zf = zonalOverFeatures(plan, {
+      asks: zonalFeatureAlgebra(narrowing),
+      layers: namedPolygonLayers(query, candidates),
+      isNotPolygon: (id) => {
+        const c = candidates.find(x => x.attr_id === id);
+        return !!c && c.is_feature_table && !/POLYGON/i.test(c.spatial_rep || "");
+      },
+    });
+    if (zf) {
+      log(`   Rewired plan: ${zf}`);
+      emit({ stage: "plan_adjusted", detail: zf });
+      adjustments.push(`Plan corrected: ${zf}.`);
     }
 
     const implied = applyImpliedState(plan, query);
@@ -1670,6 +1716,27 @@ async function generatePlan({
         }
       } catch (err) {
         log(`   Network catchment skipped: ${err.message}`);
+      }
+      // People at a straight-line distance (planner/catchment.js), the same
+      // rebuild for "how many people / what share of the population lives
+      // within N miles of X". The population is the one the plan loaded when
+      // it is a whole-population count, else POP_ESTIMATE; applyCatchment
+      // swaps it for the tract count after acceptance either way.
+      try {
+        const loadIds = (plan.steps || []).filter(s => s.op === "load" && s.attr_id).map(s => s.attr_id);
+        const rows = await resolve([...loadIds, "POP_ESTIMATE"]);
+        const own = loadIds.find(id => isPopulationCount(rows.get(id)?.description));
+        const dp = applyDistancePopulation(plan, query, {
+          popAttr: own || (rows.get("POP_ESTIMATE") ? "POP_ESTIMATE" : null),
+          isFeature: (id) => featureTables.has(id),
+        });
+        if (dp) {
+          log(`   Distance catchment: ${dp}`);
+          emit({ stage: "plan_adjusted", detail: `Distance: ${dp}.` });
+          adjustments.push(`Plan rebuilt: ${dp}.`);
+        }
+      } catch (err) {
+        log(`   Distance catchment skipped: ${err.message}`);
       }
       const unsupported = await dropUnsupportedFilters(plan, resolve);
       if (unsupported) {

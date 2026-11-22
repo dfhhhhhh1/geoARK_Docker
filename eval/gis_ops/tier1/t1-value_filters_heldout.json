@@ -1,0 +1,223 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 3,
+  "answer_correctness": 0.3333333333333333,
+  "by_tier": {
+    "value_filters_heldout": {
+      "pass": 1,
+      "n": 3,
+      "rate": 0.3333333333333333
+    }
+  },
+  "classes": {
+    "CORRECT": 1,
+    "WRONG_VALUE": 1,
+    "NO_ANSWER": 1
+  },
+  "latency_mean": 25.8,
+  "api_container_created": "2026-11-21T22:39:36.952043606Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "vf-ca-power-plants-500mw",
+      "tier": "value_filters_heldout",
+      "query": "Which power plants in California have a capacity of at least 500 MW?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 42,
+        "gold_features": 42,
+        "jaccard": 1.0,
+        "extra": 0,
+        "missed": 0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "eia_power_plants"
+        }
+      },
+      "ops": "select_features->output",
+      "intent": "Power plants in California with a capacity of at least 500 MW",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "ing_eiapowerplan_01_01",
+          "inputs": [],
+          "states": [
+            "California"
+          ],
+          "value_filters": [
+            {
+              "column": "capacity_mw",
+              "operator": ">=",
+              "value": 500,
+              "kind": "number",
+              "said": "at least 500 mw"
+            }
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Filter: Power Plants: capacity_mw >= 500."
+      ],
+      "loaded": [
+        "eia_power_plants | Power Plants (mapped locations) | Power Plants"
+      ],
+      "row_count": 42,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which power plants in California have a capacity of at least 500 MW?",
+            "uses": [],
+            "ops": "select_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.7
+    },
+    {
+      "id": "vf-ks-transmission-345kv",
+      "tier": "value_filters_heldout",
+      "query": "How many transmission lines in Kansas carry 345 kV or more?",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "gold": 68.0,
+        "got": 157.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "dc0313439fd44376a38680c338643613_transmission_lines"
+        }
+      },
+      "ops": "count_features->filter_area->aggregate->output",
+      "intent": "Number of transmission lines in Kansas that carry 345 kV or more",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "count_features",
+          "attr_id": "4247b381_01_01_12",
+          "inputs": [],
+          "value_filters": [
+            {
+              "column": "voltage",
+              "operator": ">=",
+              "value": 345,
+              "kind": "number",
+              "said": "345 kV or more kv"
+            }
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Kansas"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "aggregate",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "function": "sum"
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: step s1 counts Transmission Lines instead of loading its voltage column.",
+        "Filter: Transmission Lines: voltage >= 345 (the -999999 \"not available\" value excluded).",
+        "Filter: step s2 (filter_attr >= 345 on the count) folded into s1.",
+        "Filter: step s4 sums the counts instead of counting units."
+      ],
+      "loaded": [
+        "dc0313439fd44376a38680c338643613_transmission_lines | Transmission Lines (mapped locations) | Transmission Lines"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many transmission lines in Kansas carry 345 kV or more?",
+            "uses": [],
+            "ops": "count_features->filter_area->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 30.6
+    },
+    {
+      "id": "vf-il-campuses-enroll-20k",
+      "tier": "value_filters_heldout",
+      "query": "Which college and university campuses in Illinois enroll more than 20,000 students?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"enroll more than 20,000 students\""
+      },
+      "ops": "",
+      "intent": "Which college and university campuses in Illinois enroll more than 20,000 students?",
+      "steps": [],
+      "adjustments": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"enroll more than 20,000 students\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which college and university campuses in Illinois enroll more than 20,000 students?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"enroll more than 20,000 students\""
+      },
+      "seconds": 32.0
+    }
+  ]
+}

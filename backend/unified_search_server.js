@@ -35,7 +35,7 @@ const LOCATION_COLUMN = new RegExp("^(?:" + [
   "latitude\\s*\\d*", "longitude\\s*\\d*", "countyfips", "fips(?:\\s*code)?",
 ].join("|") + ")$", "i");
 const { levelOf, rollupOf, asksDistance, registerZoneSets, isZoneLevel, zoneSet } = require("./planner/levels");
-const { referencePhrase, asksEnrichment } = require("./planner/features");
+const { referencePhrase, asksEnrichment, zonePhrase, namedPolygonLayers } = require("./planner/features");
 const cart = require("./cart");
 const curator = require("./curator");
 const { boundsQueries } = require("./planner/uncertainty");
@@ -1452,6 +1452,51 @@ function addReferenceLayer(query, decomposition) {
 }
 
 /**
+ * The features a question summarises a raster over ("each Superfund site",
+ * "which college campuses"), as their own primary sub-query
+ * (planner/features.js zonePhrase, which says why). Only when the question
+ * shares a word with a loaded raster's name or classes, so every other
+ * question sees the decomposition it saw before.
+ */
+let rasterVocabCache = null;
+async function rasterVocabulary() {
+  if (rasterVocabCache && Date.now() - rasterVocabCache.at < 600000) return rasterVocabCache;
+  let text = "", polygons = [];
+  try {
+    const { rows } = await pool.query(
+      // Groups where the publisher gives them (NLCD level I): "Developed",
+      // "Forest". Labels' sub-words ("High", "Open", "Snow") reached 15 of
+      // 433 eval questions.
+      `SELECT string_agg(DISTINCT COALESCE(c.grp, c.label), ' ') AS t FROM raster_class c`);
+    const { rows: codes } = await pool.query(
+      `SELECT DISTINCT census_code FROM attribute_source WHERE source_kind = 'raster'`);
+    const want = new Set(codes.map(r => r.census_code));
+    const names = [...new Set(variables.filter(v => want.has(v.attr_id) || want.has(v.attr_label)).map(v => v.dataset_clean))];
+    text = `${names.map(n => String(n).replace(/\(.*?\)/g, " ")).join(" ")} ${rows[0]?.t || ""}`;
+    polygons = [...new Set(variables.filter(v => /POLYGON/i.test(v.spatial_rep || "") &&
+      !want.has(v.attr_id) && !want.has(v.attr_label)).map(v => v.dataset_clean).filter(Boolean))];
+  } catch (err) {
+    console.warn(`   raster vocabulary unavailable: ${err.message}`);
+  }
+  rasterVocabCache = { at: Date.now(), text, polygons };
+  return rasterVocabCache;
+}
+async function addZoneLayer(query, decomposition) {
+  const { text, polygons } = await rasterVocabulary();
+  const phrase = zonePhrase(query, text, polygons);
+  if (!phrase) return false;
+  const queries = decomposition.search_queries || [];
+  const same = queries.find(q => String(q.query || "").toLowerCase().trim() === phrase);
+  if (same?.purpose === "primary") return false;
+  if (same) same.purpose = "primary";
+  else queries.push({ query: phrase, purpose: "primary" });
+  decomposition.search_queries = queries;
+  decomposition.zone_layer_added = phrase;
+  console.log(`   Added "${phrase}" (primary): the features the question summarises a raster over`);
+  return true;
+}
+
+/**
  * The published confidence bounds of the measure a precision question names
  * ("the least precise poverty rate estimates"), as their own sub-query
  * (planner/uncertainty.js, which says why). Only for precision phrasing.
@@ -1510,6 +1555,7 @@ async function unifiedSearch(query, options = {}) {
   const decomposition = await decomposeQuery(query, decomp);
   if (populationDenominator) addPopulationDenominator(query, decomposition);
   addReferenceLayer(query, decomposition);
+  await addZoneLayer(query, decomposition);
   addPrecisionBounds(query, decomposition);
   const queryCount = decomposition.search_queries.length; //# of queries
 
@@ -2565,6 +2611,26 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       return src && src.source_kind === "feature_table"
           && c.search_purpose !== "normalization" && c.search_purpose !== "expanded";
     })];
+
+    // The polygon layer a raster is summarised over (zonePhrase, H4 remainder)
+    // takes the first slot when any sub-query returned it. Round-robin alone
+    // lost it: every "Superfund site ..." sub-query ranked the POINT layer of
+    // non-NPL sites first, six slots went to other layers, and the NPL site
+    // boundaries never reached the planner (zonal_features dev r2-r3).
+    const zonePhraseAdded = search.decomposition?.zone_layer_added;
+    if (zonePhraseAdded) {
+      const polys = groups.flat().filter(c => /POLYGON/i.test(c.spatial_rep || ""))
+        .map(c => ({ ...c, is_feature_table: true }));
+      const [id] = namedPolygonLayers(`each ${zonePhraseAdded}`, polys);
+      const c = id && polys.find(x => x.attr_id === id);
+      const src = c && resolved.get(c.attr_id);
+      if (src && !seenTable.has(src.table_name)) {
+        seenTable.add(src.table_name);
+        featureRows.push({ ...c, attr_desc: `${c.dataset_clean || src.table_name} (mapped locations)`,
+                           is_feature_table: true, filter_values: src.filter_values || {} });
+        console.log(`   "${zonePhraseAdded}": ${c.dataset_clean} holds the first facility slot (polygons to summarise over)`);
+      }
+    }
 
     const cursors = groups.map(() => 0);
     let addedThisRound = true;

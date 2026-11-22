@@ -79,6 +79,19 @@ def values_in(path: str, wkt: str) -> np.ndarray:
     return a[ok]
 
 
+def pixel_at(path: str, x: float, y: float) -> np.ndarray:
+    """The one valid pixel holding (x, y) in the raster's CRS, or empty."""
+    ds = gdal.Open(path)
+    band = ds.GetRasterBand(1)
+    gt = ds.GetGeoTransform()
+    c, r = int((x - gt[0]) / gt[1]), int((y - gt[3]) / gt[5])
+    if not (0 <= c < ds.RasterXSize and 0 <= r < ds.RasterYSize):
+        return np.array([])
+    a = band.ReadAsArray(c, r, 1, 1).ravel()
+    nd = band.GetNoDataValue()
+    return a[a != nd] if nd is not None else a
+
+
 def main() -> int:
     conn = psycopg2.connect(ingest.pg_dsn())
     conn.autocommit = True
@@ -126,6 +139,73 @@ def main() -> int:
         for yr in (2001, 2021):
             v = values_in(NLCD[yr], wkt)
             put(f"cook-forest-share-{yr}", gid, 100.0 * np.isin(v, [41, 42, 43]).sum() / v.size)
+
+    # ---- zonal over FEATURES (H4 remainder, family zonal_features). Each
+    # feature is keyed as answer_probe keys a returned feature (first vertex,
+    # 5 decimals). A polygon holding no pixel centre reads the pixel under
+    # its interior point (the op's stated rule), looked up here with GDAL.
+    campus = "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse"
+    fk = ("round(ST_X(ST_GeometryN(ST_Points(f.geom), 1))::numeric, 5) || ',' || "
+          "round(ST_Y(ST_GeometryN(ST_Points(f.geom), 1))::numeric, 5)")
+    pos = "ST_X(ST_PointOnSurface(ST_Transform(f.geom, 5070))), ST_Y(ST_PointOnSurface(ST_Transform(f.geom, 5070)))"
+
+    def feats(table, where):
+        cur.execute(f"SELECT {fk}, ST_AsText(f.geom), {pos}, ST_Area(ST_Transform(f.geom, 5070)) "
+                    f"FROM {table} f WHERE {where}")
+        return cur.fetchall()
+
+    in_state = lambda st: (f"EXISTS (SELECT 1 FROM county_geom c WHERE c.geom && f.geom "
+                           f"AND ST_Intersects(c.geom, f.geom) AND c.state_fp = '{st}')")
+    in_city = lambda name, st: (f"EXISTS (SELECT 1 FROM place_geom p WHERE p.kind = 'place' AND p.state_fp = '{st}' "
+                                f"AND lower(p.name) = '{name}' AND p.geom && f.geom AND ST_Intersects(p.geom, f.geom))")
+
+    def fvals(path, wkt, x, y):
+        v = values_in(path, wkt)
+        return (v, False) if v.size else (pixel_at(path, x, y), True)
+
+    small = 0
+    for key, wkt, x, y, _a in feats(campus, in_state("29")):
+        for yr in (2001, 2021):
+            v, s = fvals(NLCD[yr], wkt, x, y)
+            if v.size:
+                put(f"zf-mo-campus-forest-{yr}", key, 100.0 * np.isin(v, [41, 42, 43]).sum() / v.size)
+                if yr == 2021:
+                    put("zf-mo-campus-developed-2021", key, 100.0 * np.isin(v, [21, 22, 23, 24]).sum() / v.size)
+                    small += s
+    for key, wkt, x, y, area in feats("epa_npl_sites", in_state("17")):
+        v, s = fvals(NLCD[2021], wkt, x, y)
+        if not v.size:
+            continue
+        dev = np.isin(v, [21, 22, 23, 24])
+        acres = (dev.sum() * 900 if not s else (area if dev.all() else 0.0)) / ACRE
+        put("zf-il-npl-developed-acres", key, acres)
+        put("zf-il-npl-developed-sqmi", key, acres * ACRE / 2589988.110336)
+        put("zf-il-npl-developed-share", key, 100.0 * dev.sum() / v.size)
+    for key, wkt, x, y, _a in feats(campus, in_city("st. louis", "29")):
+        v, _ = fvals(SLOPE, wkt, x, y)
+        if v.size:
+            put("zf-stl-campus-slope-mean", key, v.mean())
+        e, _ = fvals(DEM, wkt, x, y)
+        if e.size:
+            put("zf-stl-campus-elev-mean", key, e.mean())
+    for key, wkt, x, y, _a in feats("epa_npl_sites", in_city("chicago", "17")):
+        e, _ = fvals(DEM, wkt, x, y)
+        if e.size:
+            put("zf-chi-npl-elev-mean", key, e.mean())
+        s, _ = fvals(SLOPE, wkt, x, y)
+        if s.size:
+            put("zf-chi-npl-slope-mean", key, s.mean())
+    for key, wkt, x, y, _a in feats(campus, in_state("17")):
+        for yr in (2001, 2021):
+            v, _ = fvals(NLCD[yr], wkt, x, y)
+            if v.size:
+                put(f"zf-il-campus-dev-share-{yr}", key, 100.0 * np.isin(v, [21, 22, 23, 24]).sum() / v.size)
+    for key, wkt, x, y, _a in feats(campus, in_city("chicago", "17")):
+        s, _ = fvals(SLOPE, wkt, x, y)
+        if s.size:
+            put("zf-chi-campus-flat-share", key, 100.0 * (s < 2).sum() / s.size)
+            put("zf-chi-campus-steep-share", key, 100.0 * (s >= 2).sum() / s.size)
+    print(f"  Missouri campuses read from one interior pixel (2021): {small}")
 
     cur.execute("DELETE FROM eval_raster_gold")
     for qid, rows in out.items():
