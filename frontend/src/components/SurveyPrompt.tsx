@@ -40,8 +40,7 @@ const SurveyPrompt: React.FC = () => {
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-slate-800">How useful was this answer?</p>
         <p className="text-xs text-slate-600 mt-0.5">
-          A short survey (12 questions, under 5 minutes) about whether the data layers
-          were relevant to your research.
+          A short survey (19 questions, 5-8 minutes) about whether this application and its functionalities were relevant to your research.
         </p>
         <a
           href={SURVEY_URL}
