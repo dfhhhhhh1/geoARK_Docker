@@ -74,3 +74,4 @@ logs/*
 
 # Report drafts, figures and notebook (local only)
 paper/
+summarized_*.csv

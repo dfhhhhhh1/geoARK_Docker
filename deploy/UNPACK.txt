@@ -1,0 +1,2 @@
+GeoARK batch 2026-11-20 (b: ers_fea re-prepared with PERPOV). Supersedes geoark_incoming_2026-11-20.zip.
+On the server after git pull:  cd deploy && unzip -o <zip> && sha256sum -c MANIFEST.sha256 && make replay-dry && make replay && make health

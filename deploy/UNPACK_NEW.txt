@@ -1,0 +1,16 @@
+geoARK data batch 2 (the 16 older ledger entries), built 2026-11-13.
+Folders: places_zcta worldpop stl_wards stl_neighborhoods chi_community_areas chi_wards public_schools
+private_schools tiger_primary_roads snap_retailers transit_stops nwi_mo nlcd2021 nlcd2001 dem3dep slope3dep.
+
+On the server, from the geoARK_Docker repo root:
+
+    unzip geoark_incoming_older_2026-11-13.zip -d deploy/          # or: python3 -m zipfile -e geoark_incoming_older_2026-11-13.zip deploy/
+    cd deploy
+    sha256sum -c incoming/MANIFEST.sha256 | grep -v ': OK$'    # prints nothing if every file is intact
+    make replay-dry        # read it before running it
+    make replay
+
+Folders land in deploy/incoming/<name>/. Do not edit, re-save or re-zip files inside: replay checks each
+against the ledger (etl/data_manifest.yaml) by sha256 and refuses any that differ.
+dem3dep/raw (2.2 GB of source elevation tiles) is NOT included: replay reads only the two prepared files.
+Two entries also have a database dump in deploy/dumps (places_zcta 6 MB, worldpop 56 MB); not needed here.
