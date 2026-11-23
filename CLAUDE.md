@@ -1677,7 +1677,8 @@ docs/GIS_OPS_PLAN.md "Checks: method words, thresholds, shares"; evidence
 ### Fine sample points on the map and in plans (2026-11-22)
 
 docs/POINTS_INTEGRATION_PLAN.md Steps 3-4. `fine_pt` (block centroids + hexagon
-points, partitioned by state; Missouri only so far, 2.75M) is drawn on /explore
+points, partitioned by state; all L48 + DC since 2026-11-22, 118.2M, 39 GB;
+**24 of the 30 distances are missing for 1.64M points in ME/VT/MN/NH/MA/NY/MI**, see the plan) is drawn on /explore
 by `backend/fine_points.js` (canvas GridLayer tiles: 4 px cell means when over
 6,000 points, else points, or Thiessen cells rebuilt per tile from z13) and
 read by the internal op `point_distance`, swapped in by code
@@ -1691,6 +1692,13 @@ equal to point-in-polygon gold within border points.
   cos(lat) for hospitals and parks.
 - **A KNN ORDER BY over a CTE's point is not index-ordered** (1.3 s vs 21 ms);
   **`block20` (char(15)) compared as text skips its btree** (577 vs 10 ms).
+- **Zoomed-out tiles come from `fine_pt_grid`** (z3-z9 cell means, exact, 2 GB;
+  `etl/build_fine_point_grid.sh` after any points load). Live, a z5 tile read 15M points in
+  18 s and starved the API's shared pool; tiles now have their own pool + timeout.
+- **JIT on a partitioned table can cost more than the query.** Over 49 partitions the
+  estimate for a small envelope is ~118k rows, past `jit_above_cost`: each Thiessen-cell
+  tile spent 4.7 s compiling for 30-90 ms of work. The points pool sets `jit = off`.
+  Check `EXPLAIN ANALYZE`'s JIT line before blaming the query.
 - **`pkill -f <pattern>` kills the calling shell** when the pattern is on its
   own command line (exit 144). Use `pgrep -x` / a PID.
 

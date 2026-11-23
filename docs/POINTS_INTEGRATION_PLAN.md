@@ -140,7 +140,50 @@ single unfiltered scan into one staging table, then `INSERT ... SELECT` per
 state, reads the gdb once. At 331 bytes per point the table is **~39 GB**
 (not the 15-25 GB estimated below); dropping `zip`/`huc12` (both derivable by
 spatial join) or storing distances as smallint tenths of a mile would cut it.
-Nothing reads `fine_pt` yet; Steps 3-4 are what make it visible in the app.
+
+**National, done 2026-11-22** (`etl/load_fine_points.sh ALL --skip 29`, log and
+checks in `eval/fine_points/`). 42 min end to end; every L48 state and DC is a
+partition of `fine_pt`, **39 GB**.
+
+- **One scan was the wrong plan.** ogr2ogr is single-threaded: it parses ~110k
+  rows/s but writes only ~14k rows/s, so one national extract is >2 h. And
+  PGDump writes one `INSERT` per row unless `--config PG_USE_COPY YES` (the
+  Missouri pilot ran on INSERTs). The loader instead runs 12 extracts at once,
+  each `State20 IN (...)` over a disjoint group of states balanced by land
+  area. Each pays the full parse (the page cache serves the repeated reads) but
+  writes only its share: all 12 staged in 28-31 min. Partitions were then
+  built 8 at a time from the group staging tables in 11 min, ordered by
+  `ST_GeoHash` on insert instead of `CLUSTER`.
+- **Counts:** 118,157,378 points. The gdb layer has 118,158,718; the other
+  1,340 have no L48 state code, the same points `summarized_blocks.csv` holds
+  as its one row with an empty `Block20` (`eval/fine_points/unassigned_points.txt`).
+  Blocks per state equal `summarized_blocks.csv` for all 49.
+- **County EMS rebuilt from the points equals the Step 1 values** for all 3,096
+  counties that have one, max difference 5e-5 mi (rounding).
+- **The source has no facility distances for 1.64M points (1.39%)**, in one
+  contiguous northern area: Maine 93.6% of its points, Vermont 15.8%,
+  Minnesota 9.2%, New Hampshire 7.8%, Massachusetts 3.3%, New York 2.9%,
+  Michigan 0.4% (`eval/fine_points/null_rates.txt`). 39 counties are touched
+  (`eval/fine_points/gap_counties.txt`): 12 in Maine with none, and 27 partly
+  covered, from 0.0x% to 97% missing (NE Minnesota's arrowhead, Cape Cod,
+  Keweenaw, northern NY and VT, coastal NH). Two null classes,
+  exact across all 118M points: 23 of the 27 `D_*` plus `DIST_VHA` are null
+  together; `D_ChldCare`, `D_Biodsl`, `D_CnsMinOp` and `D_FeMines` are present
+  in the gap, as are `HospEDist` and `ParksEdist` (the rasters), which are
+  complete everywhere. (First written 2026-11-22 as "all 27 `D_*` null";
+  `etl/build_fine_point_grid.sh` checks the two classes cell by cell.) In New
+  York and Vermont the missing points are exactly those north of 44.763 N
+  (54034 y > 4,471,157 m); Maine and New Hampshire are missing east of ~70.6 W
+  too, and Minnesota's gap is its northeast, so it is not one rectangle. That looks like processing chunks that never got the Near step; the
+  `L48_FV.csv/combine/partx.csv` files may hold them and were not checked.
+- **What that does downstream:**
+  - Step 1 county, tract and bg values in the gap are means over only the
+    covered blocks: the 12 Maine counties have no value, and the 27 partly
+    covered counties carry an average of part of the county.
+  - `point_distance` (Step 4) filters `IS NOT NULL`, so a share or percentile
+    there is over the covered part of the unit and says nothing. The API reads
+    the partitions every 5 min, so it now offers the op in these states.
+    **Open.**
 
 The original sketch follows.
 
@@ -246,6 +289,46 @@ Checks: the click's rebuilt cell is 0.069 km² where the gdb's `ThiessenArea` sa
 0.028 vs 0.031 (Springfield, a cell on the edge of the 60 neighbours used). One data oddity to know:
 `D_PubTrans` reads 134 mi in Columbia, which has buses, so it measures something sparser (rail or
 intercity stations); it is on the map but not used by the planner.
+
+**Zoomed out after the national load: a precomputed pyramid (2026-11-23).** With 118M
+points the live per-tile aggregate fell over: a z9 tile 0.11 s, z7 1.3 s, **z5 18.5 s**
+(15.3M points). A screen is ~35 tiles, and the tile route shared the API's one 10-connection
+pool, so a zoom-out held every connection for minutes; aborted fetches kept running in
+Postgres, the page stalled, and tiles failed blank. Below z5 nothing was drawn at all.
+
+- `fine_pt_grid` (`etl/build_fine_point_grid.sh`, 3 min, 2.0 GB): the 4 px cell means of
+  every tile from z9 down to z3 (8.9M cells at z9, 2,392 at z3), each level built from
+  the one below weighted by its count. Every level sums to 118,157,378 points. The build
+  checks the two null classes (`n` / `n_b`) cell by cell and fails if one breaks.
+- **Equal to the live aggregate**, not an approximation: same cells and counts, values
+  within float rounding (max relative 1e-7) on z5-z9 tiles, `hosp_mi`, `ems_mi`,
+  `child_care_mi`, `tornado_track_mi`, including a tile across the northern gap's edge
+  (`eval/fine_points/grid_vs_live.sh`, `.log`).
+- Tiles z3-z9 read it (one indexed read, <= 4,096 rows) unless the tile has <= 6,000
+  points, which still draws points live. The map now starts at z3.
+- Tiles have their own pool (`POINT_TILE_POOL`, 8) with a 20 s `statement_timeout`
+  (`POINT_TILE_TIMEOUT_MS`), and skip their next query when the browser has dropped the
+  tile. The browser retries a failed tile once instead of leaving it blank.
+- View-scaled breaks over > 200k points read the grid (count-weighted quantiles of cell
+  means at the finest level with <= 250k cells in view) instead of a 2% `TABLESAMPLE`,
+  which read 2% of all 39 GB on every pan. Cell means are a little smoother than
+  points, so the extremes are slightly narrower.
+- Measured through the API, cold, ~35 tiles per view: z3-z5 50-110 ms, z6-z9 235-300
+  ms, z10-z11 (live) 205-300 ms, 0 errors; zoomed-out view breaks 0.4 s.
+- **Thiessen-cell tiles went from fast to ~20 s a view after the national load, and it
+  was JIT** (2026-11-23). Over 49 partitions the planner estimates ~118k points in a tile
+  envelope (real: hundreds), the cell query's cost passes `jit_above_cost` (100k), and
+  Postgres spent **4.7 s compiling 471 functions** per tile for a query that runs in
+  30-90 ms. With Missouri alone the estimate stayed under the threshold. The points pool
+  now runs `SET jit = off` on connect. Whole cell views (35 tiles, cold, through the
+  API): Columbia MO z13-15 0.07-0.46 s, St. Louis z13 1.3 s / z14 0.24 s, downtown
+  Chicago z13 2.9 s / z14 0.34 s / z16 0.07 s. The remaining cost in dense z13 tiles is
+  matching each Voronoi cell back to its point (a nested loop over ~1,200 x ~5,000);
+  materializing the CTEs and a bbox prefilter did not change it. The planner's
+  `point_distance` queries (main pool) were checked: one state prunes the partitions and
+  JIT costs them 24 ms, so the main pool keeps JIT.
+- **Rebuild the grid after any `load_fine_points.sh` run**; the API puts its row count in
+  the tile cache key, so a rebuild never mixes with cached tiles of the old one.
 
 ### Step 4: Analysis on the fine points
 

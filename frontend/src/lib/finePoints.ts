@@ -155,24 +155,38 @@ export const PointsGridLayer = L.GridLayer.extend({
     canvas.style.height = `${size.y}px`;
     const key = `${coords.z}/${coords.x}/${coords.y}`;
     canvas.dataset.key = key;
-    const ac = new AbortController();
-    this._aborts.set(key, ac);
     const t0 = performance.now();
     const url = `/api/points/tile/${key}?m=${encodeURIComponent(o.measure)}&mode=${o.mode}`;
-    fetch(url, { signal: ac.signal, credentials: 'same-origin' })
-      .then(async r => {
-        const text = await r.text();
-        if (!r.ok) throw new Error(`tile ${key}: HTTP ${r.status}`);
-        const msg = JSON.parse(text) as TileMsg;
-        (canvas as TileCanvas)._msg = msg;
-        (canvas as TileCanvas)._z = coords.z;
-        draw(canvas, msg, coords.z, dpr, o);
-        o.onTile?.({ z: coords.z, mode: msg.mode, n: msg.n, serverMs: msg.cached ? 0 : (msg.sql_ms ?? msg.ms ?? 0),
-          totalMs: performance.now() - t0, cached: Boolean(msg.cached), bytes: text.length });
-        done(undefined, canvas);
-      })
-      .catch(err => { if (err.name !== 'AbortError') done(err, canvas); })
-      .finally(() => this._aborts.delete(key));
+    // One retry for a tile that failed (rate limit, a timed-out query while
+    // the server was busy): without it the tile stays blank until the view
+    // moves. Not for an abort: that is Leaflet dropping a tile it no longer needs.
+    const attempt = (n: number) => {
+      const ac = new AbortController();
+      this._aborts.set(key, ac);
+      fetch(url, { signal: ac.signal, credentials: 'same-origin' })
+        .then(async r => {
+          const text = await r.text();
+          if (!r.ok) throw new Error(`tile ${key}: HTTP ${r.status}`);
+          const msg = JSON.parse(text) as TileMsg;
+          (canvas as TileCanvas)._msg = msg;
+          (canvas as TileCanvas)._z = coords.z;
+          draw(canvas, msg, coords.z, dpr, o);
+          o.onTile?.({ z: coords.z, mode: msg.mode, n: msg.n, serverMs: msg.cached ? 0 : (msg.sql_ms ?? msg.ms ?? 0),
+            totalMs: performance.now() - t0, cached: Boolean(msg.cached), bytes: text.length });
+          this._aborts.delete(key);
+          done(undefined, canvas);
+        })
+        .catch(err => {
+          if (err.name === 'AbortError' || this._aborts.get(key) !== ac) return;
+          if (n > 0) {
+            setTimeout(() => { if (this._aborts.get(key) === ac) attempt(n - 1); }, 600);
+          } else {
+            this._aborts.delete(key);
+            done(err, canvas);
+          }
+        });
+    };
+    attempt(1);
     return canvas;
   },
 

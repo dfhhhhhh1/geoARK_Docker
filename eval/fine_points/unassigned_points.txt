@@ -1,0 +1,4 @@
+# Points in the gdb layer with no state code, 2026-11-22
+# ogrinfo -sql "SELECT COUNT(*) FROM L48_All_Pt_Blk1020ZipHUC_TH_Area WHERE State20 IS NULL OR State20 = ''"
+COUNT_* = 1340
+# layer total 118,158,718 - fine_pt 118,157,378 = 1,340: every point with a state code is loaded.

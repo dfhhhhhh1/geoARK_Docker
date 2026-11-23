@@ -18,6 +18,10 @@
  *     points in each 4x4-pixel cell (64x64 cells), so a zoomed-out view still
  *     shows the fine pattern without shipping millions of points;
  *   - otherwise `points`: every point, at its pixel;
+ *     Zoomed out (z <= the pyramid's top, 9) those cell means are read from
+ *     fine_pt_grid (etl/build_fine_point_grid.sh), not computed: a live z5
+ *     tile read ~15M points in 18 s, and a few of them held the database
+ *     pool long enough that the map broke while zooming;
  *   - `cells` (asked for, z >= CELL_MIN_Z, few enough points): the Thiessen
  *     (Voronoi) cell of every point, rebuilt on the fly. Verified against the
  *     gdb's ThiessenArea for Boone County MO (interior median ratio 1.000).
@@ -78,7 +82,12 @@ const POINT_BUDGET = 6000;     // points drawn individually in one 256 px tile
 const AGG_CELL = 4;            // px per aggregate cell when over budget
 const CELL_MIN_Z = 13;         // Thiessen cells only this close in
 const CELL_BUDGET = 2500;      // and only this many in a tile
-const MIN_Z = 5;               // below this a tile spans several states
+const MIN_Z = 5;               // without fine_pt_grid: below this a tile is too many points
+// Columns never null (fine_pt_grid weights them by n; the rest by n_b, the
+// points that have the facility distances; see etl/build_fine_point_grid.sh).
+const ALWAYS = new Set(["hosp_mi", "parks_mi", "child_care_mi", "biodiesel_mi",
+  "construction_minerals_mi", "ferrous_mine_mi"]);
+const BREAK_CELLS = 250_000;  // grid cells one zoomed-out view-breaks request may read
 const STATS_MAX = 4_000_000;   // points one stats request may read
 const THRESHOLDS = [1, 2, 5, 10, 20, 30];
 const QUANTS = [1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6];
@@ -141,7 +150,28 @@ class Lru {
   }
 }
 
-function register(app, { pool, auth }) {
+/** Global grid-cell index (4 px cells) of a lon / lat at tile zoom z. */
+function gridXY(lon, lat, z) {
+  const n = 2 ** z * 64, r = (lat * Math.PI) / 180;
+  return [Math.floor(((lon + 180) / 360) * n),
+          Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n)];
+}
+
+function register(app, { pool: mainPool, auth }) {
+  // Map tiles get their own small pool with a statement timeout: a burst of
+  // slow tiles must not hold the connections every other API route shares,
+  // which is how fast zooming used to stall the whole page.
+  const { Pool } = require("pg");
+  const pool = new Pool({ ...mainPool.options, max: Number(process.env.POINT_TILE_POOL ?? 8),
+                          statement_timeout: Number(process.env.POINT_TILE_TIMEOUT_MS ?? 20000) });
+  pool.on("error", (err) => console.error("fine points pool:", err.message));
+  // No JIT on these connections. Over 49 state partitions the planner guesses
+  // ~118k points per tile envelope (its real count is hundreds), so a
+  // Thiessen-cell tile's cost passes jit_above_cost and Postgres spent 4.7 s
+  // compiling 471 functions for a query that runs in 30-90 ms. With Missouri
+  // alone the estimate stayed under the threshold. These are all small
+  // index-driven queries; JIT never pays for itself here.
+  pool.on("connect", (client) => { client.query("SET jit = off").catch(() => {}); });
   // A map view asks for ~12-30 tiles at once; its own bucket, like the explore map.
   const limitTiles = rateLimit(
     createLimiter({ capacity: Number(process.env.RATE_TILE_BURST ?? 400),
@@ -151,7 +181,7 @@ function register(app, { pool, auth }) {
     createLimiter({ capacity: 30, perMinute: 120, name: "point-stats" }), auth.identify);
 
   const tileCache = new Lru(Number(process.env.POINT_TILE_CACHE ?? 4000));
-  let statesCache = null;          // { at, states: [{state_fp, name, bbox, points}] }
+  let statesCache = null;          // { at, states: [{state_fp, name, bbox, points}], grid }
   const breaksCache = new Map();
 
   /** Loaded state partitions, re-read at most every 5 minutes. */
@@ -170,7 +200,19 @@ function register(app, { pool, auth }) {
       state_fp: r.state_fp, name: r.name, points: Number(r.points),
       bbox: r.w === null ? null : [r.w, r.s, r.e, r.n].map(Number),
     }));
-    statesCache = { at: Date.now(), states, key: states.map((s) => s.state_fp).join("") };
+    // The precomputed zoomed-out cells, if built. Its row count is in the
+    // tile cache key, so a rebuild is never mixed with tiles of the old one.
+    const { rows: [g] } = await pool.query(`
+      SELECT to_regclass('fine_pt_grid') IS NOT NULL AS ok,
+             (SELECT reltuples::bigint FROM pg_class WHERE oid = to_regclass('fine_pt_grid')) AS rows`);
+    let grid = null;
+    if (g.ok) {
+      const { rows: [r] } = await pool.query(
+        "SELECT (SELECT min(z) FROM fine_pt_grid) AS lo, (SELECT max(z) FROM fine_pt_grid) AS hi");
+      if (r.lo !== null) grid = { minZ: Number(r.lo), maxZ: Number(r.hi), rows: Number(g.rows) };
+    }
+    statesCache = { at: Date.now(), states, grid,
+      key: states.map((s) => s.state_fp).join("") + (grid ? `|g${grid.rows}` : "") };
     // The planner swaps in point distances only where points exist.
     require("./planner/point_distance").setLoadedStates(states.map((s) => s.state_fp));
     return statesCache;
@@ -199,7 +241,7 @@ function register(app, { pool, auth }) {
       res.json({
         columns: COLUMNS, states: st.states,
         total_points: st.states.reduce((a, s) => a + s.points, 0),
-        min_zoom: MIN_Z, cell_min_zoom: CELL_MIN_Z, point_budget: POINT_BUDGET,
+        min_zoom: st.grid ? st.grid.minZ : MIN_Z, cell_min_zoom: CELL_MIN_Z, point_budget: POINT_BUDGET,
         thresholds: THRESHOLDS,
         note: "Straight-line distances to the nearest facility (not driving distance), "
             + "from the 2020 block centroids and hexagon sample points of the L48 GeoARK geodatabase.",
@@ -222,6 +264,35 @@ function register(app, { pool, auth }) {
         const { rows: [{ k }] } = await pool.query(
           `SELECT count(*)::int AS k FROM (SELECT 1 FROM fine_pt
             WHERE geom && ST_MakeEnvelope($1, $2, $3, $4, 4326) LIMIT 200001) s`, b);
+        const st = await loadedStates();
+        if (k > 200000 && st.grid) {
+          // Zoomed out: quantiles of the grid's cell means, weighted by their
+          // point counts, at the finest level that keeps the view under
+          // BREAK_CELLS cells. (A 2% TABLESAMPLE reads 2% of all 39 GB on
+          // every pan, whatever the view.) Cell means are slightly smoother
+          // than points, so the extremes are a little narrower.
+          let z = st.grid.maxZ;
+          for (; z > st.grid.minZ; z--) {
+            const [x0, y1] = gridXY(b[0], b[1], z), [x1, y0] = gridXY(b[2], b[3], z);
+            if ((x1 - x0 + 1) * (y1 - y0 + 1) <= BREAK_CELLS) break;
+          }
+          const [x0, y1] = gridXY(b[0], b[1], z), [x1, y0] = gridXY(b[2], b[3], z);
+          const w = ALWAYS.has(col) ? "n" : "n_b";
+          const { rows: [r] } = await pool.query(`
+            WITH c AS (SELECT ${col} AS v, ${w}::float8 AS w FROM fine_pt_grid
+                        WHERE z = $2 AND tx BETWEEN $3 >> 6 AND $4 >> 6 AND ty BETWEEN $5 >> 6 AND $6 >> 6
+                          AND tx * 64 + cx BETWEEN $3 AND $4 AND ty * 64 + cy BETWEEN $5 AND $6
+                          AND ${col} IS NOT NULL AND ${w} > 0),
+                 o AS (SELECT v, sum(w) OVER (ORDER BY v ROWS UNBOUNDED PRECEDING) AS cw,
+                              sum(w) OVER () AS tw FROM c)
+            SELECT (SELECT array_agg((SELECT min(v) FROM o WHERE cw >= q * tw) ORDER BY q)
+                      FROM unnest($1::float8[]) q) AS q,
+                   (SELECT min(v) FROM c) AS lo, (SELECT max(v) FROM c) AS hi`,
+            [QUANTS, z, x0, x1, y0, y1]);
+          const breaks = roundBreaks((r.q || []).map(Number), Number(r.lo), Number(r.hi));
+          return res.json({ column: col, breaks, min: Number(r.lo), max: Number(r.hi), quantiles: QUANTS,
+            scope: "view", points: null, sampled: true, from: `grid z${z}` });
+        }
         const from = k > 200000 ? "fine_pt TABLESAMPLE SYSTEM (2) REPEATABLE (7)" : "fine_pt";
         const { rows: [r] } = await pool.query(
           `SELECT percentile_cont($1::float8[]) WITHIN GROUP (ORDER BY ${col}) AS q, min(${col}) lo, max(${col}) hi
@@ -246,18 +317,53 @@ function register(app, { pool, auth }) {
     if (!col) return res.status(400).json({ error: "unknown measure" });
     const want = req.query.mode === "cells" ? "cells" : req.query.mode === "points" ? "points" : "auto";
     res.set("Cache-Control", "private, max-age=3600");
-    if (t.z < MIN_Z) return res.json({ mode: "empty", reason: "zoom", n: 0, d: [] });
+    // The browser drops a tile it no longer needs (zoomed or panned past):
+    // stop before the next query instead of computing it for nobody.
+    let gone = false;
+    res.on("close", () => { if (!res.writableEnded) gone = true; });
     try {
       const st = await loadedStates();
+      const minZ = st.grid ? st.grid.minZ : MIN_Z;
+      if (t.z < minZ) return res.json({ mode: "empty", reason: "zoom", n: 0, d: [] });
       const key = `${st.key}|${col}|${want}|${t.z}/${t.x}/${t.y}`;
       const hit = tileCache.get(key);
       if (hit) return res.json({ ...hit, ms: Date.now() - t0, cached: true });
+
+      if (st.grid && t.z <= st.grid.maxZ && want !== "points") {
+        // Precomputed cell means (fine_pt_grid): one indexed read, <= 4,096
+        // rows. Equal to the live aggregate below; a tile with few enough
+        // points falls through to drawing them.
+        const w = ALWAYS.has(col) ? "n" : "n_b";
+        const { rows } = await pool.query(
+          `SELECT cx, cy, ${col} AS v, ${w} AS k, n FROM fine_pt_grid WHERE z = $1 AND tx = $2 AND ty = $3`,
+          [t.z, t.x, t.y]);
+        let all = 0;
+        for (const r of rows) all += r.n;
+        if (all > POINT_BUDGET || (all > 0 && t.z < MIN_Z)) {
+          const d = [];
+          let total = 0;
+          for (const r of rows) {
+            if (r.v === null || !(r.k > 0)) continue;
+            d.push(r.cx, r.cy, Math.round(r.v * 100) / 100, r.k); total += r.k;
+          }
+          const out = { mode: "agg", cell: AGG_CELL, n: total, d, z: t.z, sql_ms: Date.now() - t0, grid: true };
+          tileCache.set(key, out);
+          return res.json({ ...out, ms: Date.now() - t0, cached: false });
+        }
+        if (all === 0) {
+          const out = { mode: "empty", n: 0, d: [], z: t.z, sql_ms: Date.now() - t0, grid: true };
+          tileCache.set(key, out);
+          return res.json({ ...out, ms: Date.now() - t0, cached: false });
+        }
+      }
+      if (gone) return undefined;
 
       // The tile plus a 6 px margin, so a dot on the edge is drawn in both tiles.
       const env = `ST_Transform(ST_TileEnvelope(${t.z}, ${t.x}, ${t.y}, margin => ${6 / 256}), 4326)`;
       const { rows: [{ n }] } = await pool.query(
         `SELECT count(*)::int AS n FROM (SELECT 1 FROM fine_pt WHERE geom && ${env} LIMIT ${POINT_BUDGET + 1}) s`);
       const { px, py } = pixelSql(t.z, t.x, t.y);
+      if (gone) return undefined;
       let out;
       // Thiessen cells cover the ground, not just where points are: zoomed in,
       // a tile can hold no point at all and still lie inside cells, so it is
@@ -324,6 +430,7 @@ function register(app, { pool, auth }) {
       tileCache.set(key, out);
       res.json({ ...out, ms: Date.now() - t0, cached: false });
     } catch (err) {
+      if (gone) return undefined;
       console.error("points tile:", err.message);
       res.status(500).json({ error: "tile failed", details: err.message });
     }

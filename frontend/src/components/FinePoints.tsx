@@ -25,13 +25,15 @@ export const emptyTileStats = (): TileStats => ({ tiles: 0, cached: 0, points: 0
 export const FinePointsLayer: React.FC<{
   measure: string;
   mode: PointsMode;
+  /** From the catalog: 3 with the precomputed zoomed-out cells, else 5. */
+  minZoom: number;
   breaks: PointBreaks | null;
   colors: string[];
   opacity: number;
   pick: PointAt | null;
   onTile: (t: TileTiming) => void;
   onPick: (lat: number, lon: number, z: number) => void;
-}> = ({ measure, mode, breaks, colors, opacity, pick, onTile, onPick }) => {
+}> = ({ measure, mode, minZoom, breaks, colors, opacity, pick, onTile, onPick }) => {
   const map = useMap();
   const onTileRef = useRef(onTile);
   onTileRef.current = onTile;
@@ -54,13 +56,13 @@ export const FinePointsLayer: React.FC<{
     const s = styleRef.current;
     const layer = new PointsGridLayer({
       measure, mode, colors: s.colors, breaks: s.breaks!.breaks, pane: 'finepoints',
-      opacity: s.opacity, updateWhenZooming: false, keepBuffer: 1, minZoom: 5, maxZoom: 20,
+      opacity: s.opacity, updateWhenZooming: false, keepBuffer: 1, minZoom, maxZoom: 20,
       onTile: (t: TileTiming) => onTileRef.current(t),
     });
     layer.addTo(map);
     layerRef.current = layer;
     return () => { layer.remove(); layerRef.current = null; };
-  }, [map, measure, mode, ready]);
+  }, [map, measure, mode, minZoom, ready]);
 
   // Colours and breaks redraw the loaded tiles in place.
   useEffect(() => {

@@ -350,7 +350,7 @@ const ExplorePage: React.FC = () => {
           <ViewWatcher onView={onView} />
           {showAreas && <UnitLayer data={data} colors={colors} noData={noData} opacity={opacity}
                      onHover={setHover} />}
-          {pts && <FinePointsLayer measure={pts} mode={ptMode} breaks={ptBreaks} colors={ptColors}
+          {pts && <FinePointsLayer measure={pts} mode={ptMode} minZoom={ptsCatalog?.min_zoom ?? 5} breaks={ptBreaks} colors={ptColors}
                                    opacity={ptStyle.opacity} pick={pick} onTile={onTile} onPick={onPick} />}
         </MapContainer>
       </div>
