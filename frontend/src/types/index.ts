@@ -188,6 +188,17 @@ export interface AnalysisLayer {
   row_count: number;
   rows?: AnalysisRow[];
   features?: MappedFeature[];
+  /** The whole point layer, as map tiles, when it was over the feature cap. */
+  tiles?: FeatureTiles | null;
+}
+
+/** A large point answer kept on the server and drawn as tiles (backend/feature_tiles.js). */
+export interface FeatureTiles {
+  id: string;
+  total: number;
+  truncated: boolean;
+  bbox: [number, number, number, number] | null;
+  ms?: number;
 }
 
 /** One LISA class and the code its rows carry as `value`. */
@@ -467,6 +478,7 @@ export interface AnalysisResponse {
   layers?: AnalysisLayer[];
   layer_count?: number;
   features?: MappedFeature[];
+  feature_tiles?: FeatureTiles | null;
   ambiguity?: CityAmbiguity;
   /**
    * Present when the result is one statistic (correlate), not a county layer.

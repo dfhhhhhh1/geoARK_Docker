@@ -113,6 +113,8 @@ const UnitLayer: React.FC<{
       color: grid ? fill : 'rgba(30,30,30,0.35)', weight: grid ? 0 : 0.4, dashArray: undefined,
     };
   }, [colors, noData, opacity, data]);
+  const styleRef = useRef(styleFor);
+  styleRef.current = styleFor;
 
   useEffect(() => {
     if (!data || data.too_many) {
@@ -131,7 +133,9 @@ const UnitLayer: React.FC<{
           onHover({ props: f.properties as UnitProps, levelLabel: data.level_label });
         });
         l.on('mouseout', () => {
-          (l as L.Path).setStyle(styleFor(f.properties as UnitProps));
+          // The CURRENT style (opacity, colours), not the one this layer was
+          // built with: those handlers outlive every slider change.
+          (l as L.Path).setStyle(styleRef.current(f.properties as UnitProps));
           onHover(null);
         });
       },

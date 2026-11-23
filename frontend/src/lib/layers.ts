@@ -1,4 +1,4 @@
-import type { AnalysisResponse, AnalysisRow, MappedFeature, MoranClass } from '../types';
+import type { AnalysisResponse, AnalysisRow, FeatureTiles, MappedFeature, MoranClass } from '../types';
 import { isMoranStats } from '../types';
 import { attrOfStep, describeAttr, deriveSeries, stripCoverage } from './series';
 
@@ -22,6 +22,8 @@ export interface StackLayer {
   /** Which column of `rows` this layer colours by (a join carries two). */
   valueKey?: 'value' | 'value_b';
   features?: MappedFeature[];
+  /** The whole point layer as server tiles, when it was over the feature cap. */
+  tiles?: FeatureTiles | null;
   diverging?: boolean;
   valueLabel?: string | null;
   /** LISA classes: fixed class bins and labels instead of value bins (lib/lisa.ts). */
@@ -60,7 +62,8 @@ export function layersOf(result: AnalysisResponse | null | undefined, keyPrefix:
       const name = nameOfStep(result, l.step) ?? `${result.plan.intent} (${i + 1})`;
       if (l.mode === 'features') {
         if (!l.features?.length) return [];
-        return [{ ...base, key: `${keyPrefix}:${l.id}`, label: name, mode: 'features', features: l.features }];
+        return [{ ...base, key: `${keyPrefix}:${l.id}`, label: name, mode: 'features', features: l.features,
+                  tiles: l.tiles ?? null }];
       }
       if (!l.rows?.length) return [];
       return [{
@@ -75,7 +78,7 @@ export function layersOf(result: AnalysisResponse | null | undefined, keyPrefix:
   if (result.output_mode === 'features') {
     return result.features?.length
       ? [{ ...base, key: `${keyPrefix}:features`, label: result.plan.intent, mode: 'features',
-           features: result.features }]
+           features: result.features, tiles: result.feature_tiles ?? null }]
       : [];
   }
 

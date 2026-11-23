@@ -1694,6 +1694,28 @@ equal to point-in-polygon gold within border points.
 - **`pkill -f <pattern>` kills the calling shell** when the pattern is on its
   own command line (exit 144). Use `pgrep -x` / a PID.
 
+### Large point answers as tiles; map hover fixes (2026-11-22)
+
+`backend/feature_tiles.js`, `frontend/src/lib/featureTiles.ts`. A point answer
+that hits `MAX_FEATURES` (3,000) is fetched whole once in `executePlan` (same
+SQL, LIMIT 500,000) and kept in API memory (4 h, 40 sets, LRU) with a
+0.25-degree grid index; the map draws it from `/api/featuresets/:id/tile`
+(points, or per-4px counts over 6,000 in a tile) and hover / click ask `/at`.
+"Where are the fire stations in the United States?": 52,184 stored in 345 ms,
+tiles 1-15 ms. The response's `features` stay the first 3,000 (table,
+exports); `feature_tiles` / layer `tiles` carry the rest. Lines and polygons
+keep the cap.
+
+- **HSIP point layers are MultiPoint.** Leaflet draws one as a FeatureGroup,
+  and hover sees the child marker, which has no `.feature`: it fell into the
+  polygon style branch (faint fill, looked white) and the readout was empty.
+  onEachFeature now tags the children.
+- **`GeoJSON.resetStyle` blanked circle markers** (fill and stroke `none`);
+  re-apply the style function instead.
+- **Leaflet handlers bound at layer creation keep stale closures**: the explore
+  map's mouseout restyled with the opacity the layer was built with. Read the
+  current style through a ref.
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence

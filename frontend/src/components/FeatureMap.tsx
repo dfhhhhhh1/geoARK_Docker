@@ -4,7 +4,8 @@ import L from 'leaflet';
 import type { LeafletMouseEvent, PathOptions } from 'leaflet';
 import type { Feature, Geometry } from 'geojson';
 import 'leaflet/dist/leaflet.css';
-import type { MappedFeature } from '../types';
+import type { FeatureTiles, MappedFeature } from '../types';
+import { FeatureTilesLayer, fetchFeatureAt, tilesBounds } from '../lib/featureTiles';
 import {
   BaseLayers, MapToolbar, StageZoom, fitOptions, type FitPadding, type MapVariant,
 } from './MapControls';
@@ -28,6 +29,11 @@ import { useIsDark } from '../hooks/useIsDark';
 
 const ACCENT = '#2a78d6';          // categorical slot 1, light surface
 const ACCENT_DARK = '#3987e5';
+/** The colours a reader can pick; the same set the layer stack offers, after the default blue. */
+export const FEATURE_PICKS = ['#2a78d6', '#c2410c', '#7c3aed', '#0f766e', '#be123c', '#a16207', '#1a1a19'];
+const COLOR_KEY = 'geoark.featureColor';
+const loadColor = () => { try { return window.localStorage.getItem(COLOR_KEY); } catch { return null; } };
+const saveColor = (c: string) => { try { window.localStorage.setItem(COLOR_KEY, c); } catch { /* ignore */ } };
 const SURFACE = '#fcfcfb';
 const SURFACE_DARK = '#1a1a19';
 
@@ -40,7 +46,92 @@ interface Props {
   fitPadding?: FitPadding;
   /** Extra stage toolbar controls, e.g. "Add layer". */
   toolbarExtra?: React.ReactNode;
+  /** Over the feature cap: the whole layer as server tiles; `features` is then a sample. */
+  tiles?: FeatureTiles | null;
 }
+
+/**
+ * A large point answer from tiles (lib/featureTiles.ts). Hover asks the server
+ * for the nearest point (throttled), click opens its details in a popup.
+ */
+export const TiledPoints: React.FC<{
+  tiles: FeatureTiles; color: string; ring: string; opacity: number;
+  onHover: (props: Record<string, string | null> | null) => void;
+  onError: (msg: string) => void;
+  /** A map pane to draw in (the layer stack gives each layer its own). */
+  pane?: string;
+}> = ({ tiles, color, ring, opacity, onHover, onError, pane }) => {
+  const map = useMap();
+  const layerRef = useRef<InstanceType<typeof FeatureTilesLayer> | null>(null);
+  const style = useRef({ color, ring, opacity });
+  style.current = { color, ring, opacity };
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
+
+  useEffect(() => {
+    const s = style.current;
+    const layer = new FeatureTilesLayer({ setId: tiles.id, color: s.color, ringColor: s.ring, opacity: s.opacity,
+      updateWhenZooming: false, keepBuffer: 1, onError, ...(pane ? { pane } : {}) });
+    layer.addTo(map);
+    layerRef.current = layer;
+    return () => { layer.remove(); layerRef.current = null; };
+  }, [map, tiles.id, onError, pane]);
+  useEffect(() => { layerRef.current?.recolor(color, ring); }, [color, ring]);
+  useEffect(() => { layerRef.current?.setOpacity(opacity); }, [opacity]);
+
+  // Hover: the nearest point within a few pixels, asked at most every 120 ms,
+  // newest wins. A ring marks it.
+  useEffect(() => {
+    let timer: number | null = null;
+    let last: L.LeafletMouseEvent | null = null;
+    let ac: AbortController | null = null;
+    const mark = L.circleMarker([0, 0], { radius: 7, color: '#1a1a19', weight: 2.5, fill: false, interactive: false });
+    const lookup = () => {
+      timer = null;
+      if (!last) return;
+      const { lat, lng } = last.latlng;
+      ac?.abort();
+      ac = new AbortController();
+      fetchFeatureAt(tiles, lat, lng, map.getZoom(), ac.signal).then(f => {
+        if (f) { mark.setLatLng([f.lat, f.lon]).addTo(map); onHoverRef.current(f.properties); }
+        else { mark.remove(); onHoverRef.current(null); }
+      }).catch(() => { /* superseded */ });
+    };
+    const move = (e: L.LeafletMouseEvent) => { last = e; if (timer === null) timer = window.setTimeout(lookup, 120); };
+    const out = () => { last = null; ac?.abort(); mark.remove(); onHoverRef.current(null); };
+    const click = (e: L.LeafletMouseEvent) => {
+      fetchFeatureAt(tiles, e.latlng.lat, e.latlng.lng, map.getZoom()).then(f => {
+        if (!f) return;
+        const props = Object.entries(f.properties).filter(([, v]) => v !== null && v !== '');
+        const title = f.properties.name ? `<strong>${escapeHtml(f.properties.name)}</strong>` : '';
+        const rest = props.filter(([k]) => k !== 'name')
+          .map(([k, v]) => `<div><span style="opacity:.6">${escapeHtml(k)}:</span> ${escapeHtml(String(v))}</div>`).join('');
+        L.popup().setLatLng([f.lat, f.lon]).setContent(`<div style="min-width:160px">${title}${rest}</div>`).openOn(map);
+      }).catch(() => { /* nothing there */ });
+    };
+    map.on('mousemove', move);
+    map.on('mouseout', out);
+    map.on('click', click);
+    return () => {
+      map.off('mousemove', move); map.off('mouseout', out); map.off('click', click);
+      if (timer !== null) window.clearTimeout(timer);
+      ac?.abort(); mark.remove();
+    };
+  }, [map, tiles]);
+  return null;
+};
+
+const FitToBounds: React.FC<{ bounds: L.LatLngBounds | null; signature: string; padding?: FitPadding }> =
+  ({ bounds, signature, padding }) => {
+    const map = useMap();
+    const fitted = useRef<string | null>(null);
+    useEffect(() => {
+      if (!bounds || !bounds.isValid() || fitted.current === signature) return;
+      map.fitBounds(bounds.pad(0.05), { maxZoom: 13, ...fitOptions(padding, 0) });
+      fitted.current = signature;
+    }, [bounds, signature, map, padding]);
+    return null;
+  };
 
 /**
  * Frame the map on the features, ONCE per result.
@@ -75,13 +166,17 @@ const escapeHtml = (s: string): string =>
   s.replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
-const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fitPadding, toolbarExtra }) => {
+const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fitPadding, toolbarExtra, tiles = null }) => {
   const stage = variant === 'stage';
   const mapRef = useRef<L.Map | null>(null);
   // Bumped by the stage's reset button; see ChoroplethMap.
   const [refit, setRefit] = useState(0);
   const isDark = useIsDark();
-  const accent = isDark ? ACCENT_DARK : ACCENT;
+  const [picked, setPicked] = useState<string | null>(loadColor);
+  const accent = picked && FEATURE_PICKS.includes(picked) ? picked : (isDark ? ACCENT_DARK : ACCENT);
+  const pickColor = (c: string) => { setPicked(c); saveColor(c); };
+  const [tileError, setTileError] = useState<string | null>(null);
+  const onTileError = useCallback((m: string) => setTileError(m), []);
   const surface = isDark ? SURFACE_DARK : SURFACE;
 
   const [basemapId, setBasemapId] = useState(() => loadBasemapId('streets'));
@@ -105,15 +200,32 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
     () => `${features.length}:${JSON.stringify(features[0]?.geometry ?? null).slice(0, 60)}:${refit}`,
     [features, refit]);
 
-  const style = useCallback((): PathOptions => ({
-    color: accent,
-    weight: 2,
-    opacity,
-    fillColor: accent,
-    // Fills stay well below the stroke so overlapping polygons remain readable,
-    // and so imagery underneath a polygon layer is not painted out entirely.
-    fillOpacity: opacity * 0.28,
-  }), [accent, opacity]);
+  // Points and shapes are styled apart. One style for both used to give a
+  // point the polygon's faint fill, and a hover reset to the point's own
+  // marker options then left it white (the surface ring, a near-clear fill).
+  const style = useCallback((f?: Feature<Geometry>): PathOptions => {
+    const t = f?.geometry?.type;
+    if (t === 'Point' || t === 'MultiPoint') {
+      return { color: surface, weight: 1.5, opacity, fillColor: accent, fillOpacity: Math.min(opacity + 0.05, 1) };
+    }
+    return {
+      color: accent,
+      weight: 2,
+      opacity,
+      fillColor: accent,
+      // Fills stay well below the stroke so overlapping polygons remain readable,
+      // and so imagery underneath a polygon layer is not painted out entirely.
+      fillOpacity: opacity * 0.28,
+    };
+  }, [accent, surface, opacity]);
+  const styleRef = useRef(style);
+  styleRef.current = style;
+  /** Back to exactly what the style function gives this feature now. Leaflet's
+   *  resetStyle is NOT used: on these circle markers it dropped fill and stroke. */
+  const restyle = (layer: L.Path) => {
+    const f = (layer as L.Path & { feature?: Feature<Geometry> }).feature;
+    layer.setStyle(styleRef.current(f));
+  };
 
   /** Points get a circle marker: the default Leaflet pin needs image assets
    *  that are not bundled, and a circle scales better at low zoom. */
@@ -128,6 +240,12 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
     }), [surface, accent, opacity]);
 
   const onEachFeature = useCallback((feature: Feature<Geometry>, layer: L.Layer) => {
+    // A MultiPoint is a group of markers, and the marker under the pointer is
+    // what hover sees: without its feature it had no style branch (it got the
+    // polygon one, which read as white) and no readout.
+    if (layer instanceof L.FeatureGroup) {
+      layer.eachLayer(c => { (c as L.Layer & { feature?: Feature<Geometry> }).feature = feature; });
+    }
     const props = (feature.properties ?? {}) as Record<string, string | null>;
     const entries = Object.entries(props).filter(([, v]) => v !== null && v !== '');
     if (!entries.length) return;
@@ -154,14 +272,12 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
   const clearHover = useCallback(() => {
     const layer = hoveredLayerRef.current;
     if (layer) {
-      layer.setStyle(
-        layer instanceof L.CircleMarker
-          ? { weight: 1.5, color: surface }
-          : { weight: 2, color: accent });
+      // Colour and opacity as they are now, not as when the layer was drawn.
+      restyle(layer);
       hoveredLayerRef.current = null;
     }
     setHovered(null);
-  }, [surface, accent]);
+  }, []);
 
   const onMouseOver = useCallback((e: LeafletMouseEvent) => {
     const layer = ((e as unknown as { propagatedFrom?: L.Path; layer?: L.Path })
@@ -169,12 +285,7 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
     if (!layer) return;
 
     const previous = hoveredLayerRef.current;
-    if (previous && previous !== layer) {
-      previous.setStyle(
-        previous instanceof L.CircleMarker
-          ? { weight: 1.5, color: surface }
-          : { weight: 2, color: accent });
-    }
+    if (previous && previous !== layer) restyle(previous);
 
     layer.setStyle({ weight: 3.5, color: isDark ? '#fcfcfb' : '#1a1a19' });
     layer.bringToFront();
@@ -183,7 +294,7 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
     const feature = (layer as L.Path & { feature?: Feature<Geometry> }).feature;
     const props = (feature?.properties ?? {}) as Record<string, string | null>;
     setHovered(props);
-  }, [surface, accent, isDark]);
+  }, [isDark]);
 
   // Restyle in place rather than remounting, so the opacity slider stays smooth
   // with up to 3,000 features on screen.
@@ -191,7 +302,7 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
     geoRef.current?.setStyle(style as never);
   }, [style]);
 
-  if (!features.length) {
+  if (!features.length && !tiles) {
     return (
       <div className={`${stage ? 'absolute inset-0' : 'h-[420px] rounded-lg'} flex items-center
                        justify-center text-sm text-slate-500 bg-slate-50`}>
@@ -213,6 +324,14 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
       opacityLabel="Location marker"
       className={className}
     >
+      <span className="inline-flex items-center gap-1" role="radiogroup" aria-label="Marker colour">
+        {FEATURE_PICKS.map(c => (
+          <button key={c} type="button" role="radio" aria-checked={accent === c} onClick={() => pickColor(c)}
+                  aria-label={`Colour ${c}`} title="Marker colour"
+                  className={`w-4 h-4 rounded-full border-2 ${accent === c ? 'border-ink' : 'border-white shadow-sm'}`}
+                  style={{ backgroundColor: c }} />
+        ))}
+      </span>
       {stage ? toolbarExtra : null}
     </MapToolbar>
   );
@@ -227,16 +346,26 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
       style={{ height: '100%', width: '100%' }}
     >
       <BaseLayers basemap={basemap} />
-      <GeoJSON
-        key={`${features.length}-${isDark}`}
-        ref={geoRef as never}
-        data={collection}
-        style={style}
-        pointToLayer={pointToLayer}
-        onEachFeature={onEachFeature}
-        eventHandlers={{ mouseover: onMouseOver, mouseout: clearHover }}
-      />
-      <FitToFeatures data={collection} signature={fitSignature} padding={fitPadding} />
+      {tiles ? (
+        <>
+          <TiledPoints tiles={tiles} color={accent} ring={surface} opacity={opacity}
+                       onHover={setHovered} onError={onTileError} />
+          <FitToBounds bounds={tilesBounds(tiles)} signature={`${tiles.id}:${refit}`} padding={fitPadding} />
+        </>
+      ) : (
+        <>
+          <GeoJSON
+            key={`${features.length}-${isDark}`}
+            ref={geoRef as never}
+            data={collection}
+            style={style}
+            pointToLayer={pointToLayer}
+            onEachFeature={onEachFeature}
+            eventHandlers={{ mouseover: onMouseOver, mouseout: clearHover }}
+          />
+          <FitToFeatures data={collection} signature={fitSignature} padding={fitPadding} />
+        </>
+      )}
     </MapContainer>
   );
 
@@ -264,9 +393,16 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
       <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
         <span className="inline-block w-3 h-3 rounded-full border border-white shadow-sm"
               style={{ backgroundColor: accent }} />
-        {features.length.toLocaleString()} location{features.length === 1 ? '' : 's'}
+        {(tiles?.total ?? features.length).toLocaleString()} location{(tiles?.total ?? features.length) === 1 ? '' : 's'}
         {kinds.length ? `, ${kinds.join(', ').toLowerCase()}` : ''}
+        {tiles?.truncated ? ' (map capped here)' : ''}
       </span>
+      {tiles && features.length < tiles.total && (
+        <span className="text-[11px] text-slate-500">
+          All {tiles.total.toLocaleString()} on the map; the table and downloads hold the first {features.length.toLocaleString()}.
+        </span>
+      )}
+      {tileError && <span className="text-[11px] text-red-700">{tileError}</span>}
     </>
   );
 

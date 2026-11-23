@@ -42,7 +42,8 @@ const { repairPrecision } = require("./uncertainty");
 const { seriesUnit } = require("./units");
 const { loadLabelInputs, splitOutputs, dropRateOverCount, earlierResultSecond,
         areaAfterAccess, totalTheDenominator, bridgeFromLoadedLayer, bridgeInputsToIntersect, restrictToEarlier, uninvertChains, orderChangeByYear, addMissingOutput, dropSelfRatio } = require("./rewire");
-const { compilePlan, CompileError } = require("./compile");
+const { compilePlan, CompileError, MAX_FEATURES } = require("./compile");
+const featureTiles = require("../feature_tiles");
 const opsRegistry = require("./ops");
 
 const MAX_REPAIRS = Number(process.env.PLAN_MAX_REPAIRS ?? 2);
@@ -2442,7 +2443,23 @@ async function executePlan(plan, resolved, pool, { timeoutMs = 30000 } = {}) {
         layers.push(layer);
         continue;
       }
-      layers.push(shapeLayer(out, res, Date.now() - t0));
+      const layer = shapeLayer(out, res, Date.now() - t0);
+      // A point answer that hit the feature cap: fetch it whole, once, and
+      // serve it as map tiles (backend/feature_tiles.js). The capped rows
+      // stay for the table and exports.
+      if (out.mode === "features" && res.rowCount >= MAX_FEATURES && /\bLIMIT\s+\d+\s*$/.test(out.sql)
+          && /"Point"|"MultiPoint"/.test(res.rows[0]?.geometry || "")) {
+        try {
+          const t1 = Date.now();
+          const all = await client.query(
+            out.sql.replace(/\bLIMIT\s+\d+\s*$/, `LIMIT ${featureTiles.MAX_POINTS + 1}`), out.params);
+          const tiles = featureTiles.store(all.rows, out.labels || []);
+          if (tiles) layer.tiles = { ...tiles, ms: Date.now() - t1 };
+        } catch (err) {
+          console.log(`   feature tiles skipped: ${err.message}`);
+        }
+      }
+      layers.push(layer);
     }
     await client.query("COMMIT");
 

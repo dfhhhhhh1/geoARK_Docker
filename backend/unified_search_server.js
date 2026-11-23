@@ -3434,7 +3434,7 @@ async function finishAnalysis({ query, started, planning, executable, candidates
           comparison: l.comparison ?? null,
           moran: l.moran ?? null,
           row_count: l.row_count,
-          ...(l.mode === "features" ? { features: l.features } : { rows: l.rows }),
+          ...(l.mode === "features" ? { features: l.features, tiles: l.tiles ?? null } : { rows: l.rows }),
         }));
         body.layer_count = result.layer_count;
       }
@@ -3448,6 +3448,9 @@ async function finishAnalysis({ query, started, planning, executable, candidates
         // include_geometry does not apply -- withholding it would leave the
         // caller with nothing. Bounded instead by MAX_FEATURES.
         body.features = result.features;
+        // Over the cap and all points: the whole answer is served as tiles
+        // (backend/feature_tiles.js); `features` is the first MAX_FEATURES.
+        if (result.tiles) body.feature_tiles = result.tiles;
       } else if (includeGeometry || body.level !== "county") {
         // County geometry is ~6.6 MB for a 1,000-row result. Callers that
         // already have county boundaries locally ask for it to be left out.
@@ -4437,6 +4440,8 @@ app.post("/api/cart/model", auth.requireAuth, limitSearch, async (req, res) => {
 require("./geo_layers").register(app, { pool, auth });
 // Fine sample points (block centroids + hexagons): backend/fine_points.js.
 require("./fine_points").register(app, { pool, auth });
+// Large point answers as tiles: backend/feature_tiles.js.
+require("./feature_tiles").register(app, { auth });
 
 // Recent queries that did not answer, newest first (backend/failure_log.js).
 // ?kind=planner_failed  ?class=failure|refusal|empty|workflow  ?q=<substring>  ?limit=50

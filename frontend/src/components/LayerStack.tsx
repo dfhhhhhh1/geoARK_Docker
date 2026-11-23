@@ -16,6 +16,8 @@ import {
   CLASSIFICATIONS, classBreaks, loadClassification, type Classification,
 } from '../lib/classify';
 import type { StackLayer } from '../lib/layers';
+import { TiledPoints } from './FeatureMap';
+import { tilesBounds } from '../lib/featureTiles';
 import { useIsDark } from '../hooks/useIsDark';
 import { classScale } from '../lib/lisa';
 
@@ -180,6 +182,10 @@ const FeatureLayer: React.FC<{
       data={data as never}
       pane={pane}
       style={pathStyle}
+      // A MultiPoint is a group of markers; hover sees the marker, so it needs the feature.
+      onEachFeature={(f, l) => {
+        if (l instanceof L.FeatureGroup) l.eachLayer(c => { (c as L.Layer & { feature?: Feature }).feature = f; });
+      }}
       pointToLayer={(_f, latlng) => L.circleMarker(latlng, {
         pane, radius: 4.5, weight: 1.2, color: '#ffffff',
         fillColor: style.color, fillOpacity: style.opacity, opacity: style.opacity,
@@ -303,6 +309,9 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
     for (const l of layers.filter(x => !x.removable)) {
       if (l.mode === 'values') {
         for (const r of l.rows ?? []) if (r.fips) seen.add(pad(r.fips));
+      } else if (l.tiles) {
+        const tb = tilesBounds(l.tiles);
+        if (tb) b.extend(tb);
       } else {
         for (const f of l.features ?? []) {
           const fb = L.geoJSON(f.geometry as never).getBounds();
@@ -389,6 +398,11 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
           const st = styles[l.key];
           if (!st?.visible) return null;
           if (l.mode === 'features') {
+            // Over the feature cap: the whole layer from server tiles.
+            if (l.tiles) {
+              return <TiledPoints key={l.key} tiles={l.tiles} color={st.color} ring="#ffffff" opacity={st.opacity}
+                                  pane={paneName(l.key)} onHover={setHoverFeature} onError={() => { /* shown as gaps */ }} />;
+            }
             return <FeatureLayer key={l.key} layer={l} style={st} onFeature={setHoverFeature} />;
           }
           const ramps = rampsFor(l.diverging === true);
@@ -474,7 +488,7 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
                               title={l.label}>{l.label}</span>
                         <span className="block text-[10px] text-slate-500 truncate">
                           {l.source}, {l.mode === 'features'
-                            ? `${(l.features?.length ?? 0).toLocaleString()} locations`
+                            ? `${(l.tiles?.total ?? l.features?.length ?? 0).toLocaleString()} locations`
                             : `${(l.rows?.length ?? 0).toLocaleString()} counties`}
                         </span>
                       </span>

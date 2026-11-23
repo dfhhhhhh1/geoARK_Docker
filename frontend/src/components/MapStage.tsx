@@ -174,11 +174,12 @@ const MapStage: React.FC<Props> = ({
       map = <ChoroplethMap rows={rows} intent={label} result={result} focus={focus} {...common} />;
     }
   } else if (layers.length === 1 && layers[0].mode === 'features') {
-    map = <FeatureMap features={layers[0].features ?? []} intent={result.plan.intent}
+    map = <FeatureMap features={layers[0].features ?? []} tiles={layers[0].tiles ?? null} intent={result.plan.intent}
                       toolbarExtra={addButton} {...common} />;
   } else if (result.output_mode === 'features') {
-    if (features.length) {
-      map = <FeatureMap features={features} intent={result.plan.intent} toolbarExtra={addButton} {...common} />;
+    if (features.length || result.feature_tiles) {
+      map = <FeatureMap features={features} tiles={result.feature_tiles ?? null} intent={result.plan.intent}
+                        toolbarExtra={addButton} {...common} />;
     }
   } else if (rows.length) {
     map = (

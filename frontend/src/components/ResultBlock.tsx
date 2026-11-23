@@ -278,13 +278,13 @@ const ResultBlock: React.FC<Props> = ({
                       <p className="text-xs font-medium text-slate-500 mb-1.5">
                         Locations ({l.row_count.toLocaleString()})
                       </p>
-                      <FeatureMap features={l.features ?? []}
+                      <FeatureMap features={l.features ?? []} tiles={l.tiles ?? null}
                                   intent={result.plan.intent} />
                     </div>
                   ))}
                 </>
               ) : isFeatures ? (
-                <FeatureMap features={features} intent={result.plan.intent} />
+                <FeatureMap features={features} tiles={result.feature_tiles ?? null} intent={result.plan.intent} />
               ) : (
                 <div ref={mapBoxRef}>
                   <ChoroplethMap
@@ -358,7 +358,7 @@ const StageExtras: React.FC<{ result: AnalysisResponse }> = ({ result }) => {
               Locations ({l.row_count.toLocaleString()})
             </p>
             <ErrorBoundary label="the map">
-              <FeatureMap features={l.features ?? []} intent={result.plan.intent} />
+              <FeatureMap features={l.features ?? []} tiles={l.tiles ?? null} intent={result.plan.intent} />
             </ErrorBoundary>
           </div>
         ))}
