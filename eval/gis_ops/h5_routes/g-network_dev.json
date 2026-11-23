@@ -1,0 +1,390 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "network_dev": {
+      "pass": 4,
+      "n": 4,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 4
+  },
+  "latency_mean": 30.6,
+  "api_container_created": "2026-11-23T18:35:45.01645819Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "n-stl-schools-fire-drive-2_5min",
+      "tier": "network_dev",
+      "query": "Which public schools in St. Louis are more than a 2.5-minute drive from the nearest fire station?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 35,
+        "gold_features": 35,
+        "jaccard": 0.944,
+        "extra": 1,
+        "missed": 1,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "public_schools_nces",
+          "m2": "d968f276355a41d1bd1451be6ee4dbac_fire_stations"
+        }
+      },
+      "ops": "select_features->select_features->within->output",
+      "intent": "Public schools in St. Louis that are more than a 2.5-minute drive from the nearest fire station",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "ing_publicschool_01_01",
+          "inputs": [],
+          "place_name": "St. Louis",
+          "city": "St. Louis",
+          "attribute_filters": []
+        },
+        {
+          "id": "s2",
+          "op": "select_features",
+          "attr_id": "964c8e3d_01_01_17",
+          "inputs": [],
+          "attribute_filters": []
+        },
+        {
+          "id": "s3",
+          "op": "within",
+          "attr_id": "",
+          "inputs": [
+            "s1",
+            "s2"
+          ],
+          "attribute_filters": [],
+          "network": {
+            "mode": "drive",
+            "cost": "time",
+            "limit": 150,
+            "unit": "minutes"
+          },
+          "exclude": true
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Proximity: step s3 measures travel time within 2.5 minutes, driving the road network at free-flow speeds (posted limit, else the road class default; no signals or traffic) (keeping those beyond it); step s4 (< 0.046) restated the network limit, which step s3 applies; road networks are loaded for some areas only; features outside the loaded area that holds most of them are left out."
+      ],
+      "loaded": [
+        "public_schools_nces | Public School Locations (mapped locations) | Public School Locations",
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations"
+      ],
+      "row_count": 38,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which public schools in St. Louis are more than a 2.5-minute drive from the nearest fire station?",
+            "uses": [],
+            "ops": "select_features->select_features->within->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 21.5
+    },
+    {
+      "id": "n-chi-ca-childcare-walk-snap",
+      "tier": "network_dev",
+      "query": "For each Chicago community area, how many child care centers are within a 3-minute walk of a SNAP retailer?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 77,
+        "gold_rows": 77,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters",
+          "m2": "snap_retailers"
+        }
+      },
+      "ops": "select_features->select_features->within->summarize->output",
+      "intent": "For each Chicago community area, the number of child care centers within a 3-minute walk of a SNAP retailer",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "bfd307c1_01_01_14",
+          "inputs": [],
+          "city": "Chicago"
+        },
+        {
+          "id": "s2",
+          "op": "select_features",
+          "attr_id": "ing_snapretailer_01_02",
+          "inputs": []
+        },
+        {
+          "id": "s3",
+          "op": "within",
+          "attr_id": "",
+          "inputs": [
+            "s1",
+            "s2"
+          ],
+          "network": {
+            "mode": "walk",
+            "cost": "time",
+            "limit": 180,
+            "walk_mps": 1.34112,
+            "unit": "minutes"
+          }
+        },
+        {
+          "id": "s4",
+          "op": "summarize",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Proximity: step s2 measures to every feature, not only those in the same area as step s1.",
+        "Proximity: step s3 measures travel time within 3 minutes, walking along the street and path network at 3.0 mph; road networks are loaded for some areas only; features outside the loaded area that holds most of them are left out.",
+        "Unit: answered by community area (the question asked for community areas), counted per unit."
+      ],
+      "loaded": [
+        "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters | Child Care Centers (mapped locations) | Child Care Centers",
+        "snap_retailers | SNAP Authorized Food Retailers (mapped locations) | SNAP Authorized Food Retailers"
+      ],
+      "row_count": 77,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "For each Chicago community area, how many child care centers are within a 3-minute walk of a SNAP retailer?",
+            "uses": [],
+            "ops": "select_features->select_features->within->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 41.4
+    },
+    {
+      "id": "n-stl-fire-hospital-top5-roadmiles",
+      "tier": "network_dev",
+      "query": "Which 5 fire stations in St. Louis have the longest driving distance to a hospital, in road miles?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 5,
+        "gold_features": 31,
+        "k": 5,
+        "overlap": 1.0,
+        "values_within": "5/5",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations",
+          "m2": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "select_features->select_features->within->rank->output",
+      "intent": "The five fire stations in St. Louis with the longest driving distance to a hospital, in road miles",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "964c8e3d_01_01_19",
+          "inputs": [],
+          "place_name": "St. Louis",
+          "city": "St. Louis",
+          "attribute_filters": []
+        },
+        {
+          "id": "s2",
+          "op": "select_features",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": []
+        },
+        {
+          "id": "s3",
+          "op": "within",
+          "attr_id": "",
+          "inputs": [
+            "s1",
+            "s2"
+          ],
+          "network": {
+            "mode": "drive",
+            "cost": "length",
+            "unit": "miles"
+          }
+        },
+        {
+          "id": "s4",
+          "op": "rank",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "direction": "desc",
+          "limit": 5
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Proximity: step s3 keeps every feature with its distance: the question states no distance.",
+        "Proximity: step s3 measures route length, driving the road network at free-flow speeds (posted limit, else the road class default; no signals or traffic); road networks are loaded for some areas only; features outside the loaded area that holds most of them are left out."
+      ],
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations",
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 5,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which 5 fire stations in St. Louis have the longest driving distance to a hospital, in road miles?",
+            "uses": [],
+            "ops": "select_features->select_features->within->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 32.2
+    },
+    {
+      "id": "n-chi-pop-snap-walk10",
+      "tier": "network_dev",
+      "query": "How many people in Chicago live more than a 10-minute walk from a SNAP retailer?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 184669.5541,
+        "got": 184669.5541,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "snap_retailers",
+          "m2": "WORLDPOP_POP"
+        }
+      },
+      "ops": "select_features->network_population->output",
+      "intent": "Number of people in Chicago who live more than a 10-minute walk from a SNAP retailer",
+      "steps": [
+        {
+          "id": "nr",
+          "op": "select_features",
+          "attr_id": "ing_snapretailer_01_03",
+          "inputs": []
+        },
+        {
+          "id": "np",
+          "op": "network_population",
+          "attr_id": "WORLDPOP_POP",
+          "inputs": [
+            "nr"
+          ],
+          "network": {
+            "mode": "walk",
+            "cost": "time",
+            "limit": 600,
+            "walk_mps": 1.34112,
+            "unit": "minutes"
+          },
+          "exclude": true,
+          "stat": "people",
+          "place_kind": "place",
+          "place_name": "Chicago",
+          "group_by": "none"
+        },
+        {
+          "id": "out",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "np"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: ran nearest_distance (s2) on its own and kept only the counties it was given.",
+        "Plan corrected: step s2_nearest_distance: dropped type=\"SNAP retailer\", the layer's own name.",
+        "Network: people counted by WorldPop pixel centre in Chicago, beyond travel time within 10 minutes, walking along the street and path network at 3.0 mph of the nearest feature of ing_snapretailer_01_03."
+      ],
+      "loaded": [
+        "snap_retailers | SNAP Authorized Food Retailers (mapped locations) | SNAP Authorized Food Retailers",
+        "WORLDPOP_POP | Estimated population from the WorldPop 1 km gridded estimate | "
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many people in Chicago live more than a 10-minute walk from a SNAP retailer?",
+            "uses": [],
+            "ops": "select_features->network_population->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 27.1
+    }
+  ]
+}

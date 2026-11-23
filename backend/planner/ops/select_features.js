@@ -111,6 +111,8 @@ PLAN: {"intent":"Locations of fire stations in Springfield, Missouri",
     // while keeping all of a small one: 551.7 km for 563.8 (H3 held-out).
     // A parts read tests the feature's own states, recorded once by
     // etl/ingest.py build_parts (`geoark_states`).
+    // A named feature (planner/route.js): matched once, its parameters bound once.
+    const named = step.name_like ? nameMatch(step, available, ctx.bind) : null;
     const whereFor = (g, statesColumn = null) => {
       const where = [];
       if (Array.isArray(step.states) && step.states.length) {
@@ -126,6 +128,7 @@ PLAN: {"intent":"Locations of fire stations in Springfield, Missouri",
       if (step.city) where.push(cityPredicate(step, g, available.has("city"), ctx.bind));
       where.push(...attributeFilterSql(step, "f", ctx.bind));
       where.push(...valueFilterSql(step, "f", ctx.bind, src));
+      if (named) where.push(named.where);
       return where;
     };
     const parts = step.geometry_only === true ? partsOf(src) : null;
@@ -143,9 +146,11 @@ PLAN: {"intent":"Locations of fire stations in Springfield, Missouri",
              (large.length ? ` WHERE ${large.join(" AND ")}` : "") + `)`;
     }
     const where = whereFor(`f.${geom}`);
+    // A named feature (planner/route.js): the best-matching one only.
+    const one = named && step.pick_one === true ? ` ORDER BY ${named.order} LIMIT 1` : "";
     return `${ctx.name} AS NOT MATERIALIZED (SELECT f.${geom} AS geom, NULL::double precision AS value, ` +
            `${cols.join(", ")} FROM ${from} f` +
-           (where.length ? ` WHERE ${where.join(" AND ")}` : "") + `)`;
+           (where.length ? ` WHERE ${where.join(" AND ")}` : "") + `${one})`;
   },
 
   /** The label columns this step's layer actually has, for the output. */
@@ -210,6 +215,27 @@ function partsOf(src) {
   if (!SAFE_DB_IDENT.test(p.parts_table || "") || !SAFE_DB_IDENT.test(p.key_column || "") ||
       !Number.isInteger(Number(p.threshold))) return null;
   return { table: p.parts_table, key: p.key_column, threshold: Number(p.threshold) };
+}
+
+/**
+ * A feature named in the question (`name_like`, set by planner/route.js,
+ * never by the model): its own `name` contains the phrase, case-insensitive,
+ * or failing that contains every word of it as a whole word ("Barnes Jewish
+ * Hospital" -> "BARNES-JEWISH HOSPITAL"). `order` ranks an exact name first,
+ * then the shortest. A layer with no name column matches nothing, which the
+ * answer reports as no feature by that name, never as some other feature.
+ */
+function nameMatch(step, available, bind) {
+  if (!available.has("name")) return { where: "false", order: "1" };
+  const phrase = String(step.name_like).trim().slice(0, 120);
+  const ws = (phrase.toLowerCase().match(/[a-z0-9]+/g) || []).slice(0, 8);
+  const p = bind(phrase);
+  const all = ws.length
+    ? `(SELECT bool_and(lower(f.name::text) ~ ('\\m' || w || '\\M')) FROM unnest(${bind(ws)}::text[]) w)` : "false";
+  return {
+    where: `(strpos(lower(f.name::text), lower(${p})) > 0 OR ${all})`,
+    order: `(lower(f.name::text) = lower(${p})) DESC, (strpos(lower(f.name::text), lower(${p})) > 0) DESC, length(f.name::text)`,
+  };
 }
 
 function layerOf(step, ctx) {

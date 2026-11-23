@@ -20,6 +20,8 @@ import { TiledPoints } from './FeatureMap';
 import { tilesBounds } from '../lib/featureTiles';
 import { useIsDark } from '../hooks/useIsDark';
 import { classScale } from '../lib/lisa';
+import { travelScale, bandFacts, type TravelScale } from '../lib/travel';
+import type { MappedFeature } from '../types';
 
 /**
  * Several geospatial layers stacked on the stage map, each styled on its own.
@@ -153,28 +155,51 @@ const FillLayer: React.FC<{
   );
 };
 
+/** The per-feature colours of a travel layer (bands, routes), or null. */
+const useTravel = (layer: StackLayer, isDark: boolean): TravelScale | null =>
+  useMemo(() => (layer.featureStyle ? travelScale(layer.featureStyle, layer.features ?? [], isDark) : null),
+    [layer.featureStyle, layer.features, isDark]);
+
 const FeatureLayer: React.FC<{
-  layer: StackLayer; style: LayerStyle; onFeature: (props: Record<string, string | null> | null) => void;
-}> = ({ layer, style, onFeature }) => {
+  layer: StackLayer; style: LayerStyle; isDark: boolean; onFeature: (props: Record<string, string | null> | null) => void;
+}> = ({ layer, style, isDark, onFeature }) => {
   const data = useMemo(() => ({
     type: 'FeatureCollection' as const,
     features: (layer.features ?? []).map(f => ({ type: 'Feature' as const, geometry: f.geometry, properties: f.properties })),
   }), [layer.features]);
   const ref = useRef<L.GeoJSON | null>(null);
   const pane = paneName(layer.key);
-  const pathStyle = useCallback((): PathOptions => ({
-    color: style.color, weight: layer.reach ? 1 : 2, opacity: style.opacity,
-    fillColor: style.color, fillOpacity: style.opacity * 0.35,
-  }), [style.color, style.opacity, layer.reach]);
+  const travel = useTravel(layer, isDark);
+  const isRoute = layer.featureStyle?.kind === 'ramp';
+  // A route end is a place to find on the map: larger, with a dark ring.
+  const endPoint = layer.featureStyle?.kind === 'point';
+  const pathStyle = useCallback((f?: Feature): PathOptions => {
+    const c = travel && f ? travel.colorOf(f as unknown as MappedFeature) : style.color;
+    if (travel && isRoute) return { color: c, weight: 4.5, opacity: style.opacity, lineCap: 'round', lineJoin: 'round' };
+    if (travel) {
+      // A band: its own colour, filled, with a hairline of the same colour so
+      // adjacent bands meet without a white seam.
+      return { color: c, weight: 0.6, opacity: Math.min(1, style.opacity), fillColor: c, fillOpacity: style.opacity * 0.55 };
+    }
+    // A raster condition (raster_calc): the pixels themselves, filled solid
+    // enough to read as land, with no outline (a staircase edge is noise).
+    if (layer.featureStyle?.kind === 'mask') {
+      return { color: style.color, weight: 0, opacity: 0, fillColor: style.color, fillOpacity: style.opacity * 0.7 };
+    }
+    return {
+      color: style.color, weight: layer.reach ? 1 : 2, opacity: style.opacity,
+      fillColor: style.color, fillOpacity: style.opacity * 0.35,
+    };
+  }, [style.color, style.opacity, layer.reach, travel, isRoute, layer.featureStyle?.kind]);
   useEffect(() => {
     ref.current?.eachLayer(l => {
       if (l instanceof L.CircleMarker) {
-        l.setStyle({ fillColor: style.color, color: '#ffffff', fillOpacity: style.opacity, opacity: style.opacity });
+        l.setStyle({ fillColor: style.color, color: endPoint ? '#1a1a19' : '#ffffff', fillOpacity: style.opacity, opacity: style.opacity });
       } else if (l instanceof L.Path) {
-        l.setStyle(pathStyle());
+        l.setStyle(pathStyle((l as L.Path & { feature?: Feature }).feature));
       }
     });
-  }, [style.color, style.opacity, pathStyle]);
+  }, [style.color, style.opacity, pathStyle, endPoint]);
   return (
     <GeoJSON
       key={layer.key}
@@ -187,7 +212,7 @@ const FeatureLayer: React.FC<{
         if (l instanceof L.FeatureGroup) l.eachLayer(c => { (c as L.Layer & { feature?: Feature }).feature = f; });
       }}
       pointToLayer={(_f, latlng) => L.circleMarker(latlng, {
-        pane, radius: 4.5, weight: 1.2, color: '#ffffff',
+        pane, radius: endPoint ? 6.5 : 4.5, weight: endPoint ? 2 : 1.2, color: endPoint ? '#1a1a19' : '#ffffff',
         fillColor: style.color, fillOpacity: style.opacity, opacity: style.opacity,
       })}
       eventHandlers={{
@@ -404,7 +429,7 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
               return <TiledPoints key={l.key} tiles={l.tiles} color={st.color} ring="#ffffff" opacity={st.opacity}
                                   pane={paneName(l.key)} onHover={setHoverFeature} onError={() => { /* shown as gaps */ }} />;
             }
-            return <FeatureLayer key={l.key} layer={l} style={st} onFeature={setHoverFeature} />;
+            return <FeatureLayer key={l.key} layer={l} style={st} isDark={isDark} onFeature={setHoverFeature} />;
           }
           const ramps = rampsFor(l.diverging === true);
           return (
@@ -476,7 +501,9 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
                               className="text-slate-500 hover:text-ink shrink-0">
                         {st.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
-                      {l.mode === 'features' ? (
+                      {isTravel(l) ? (
+                        <TravelSwatch layer={l} isDark={isDark} />
+                      ) : l.mode === 'features' ? (
                         <span className="w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm shrink-0"
                               style={{ backgroundColor: st.color }} aria-hidden />
                       ) : (
@@ -490,6 +517,10 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
                         <span className="block text-[10px] text-slate-500 truncate">
                           {l.source}, {l.reach
                             ? 'area counted'
+                            : l.featureStyle?.kind === 'bands'
+                            ? `${(l.features?.length ?? 0).toLocaleString()} bands`
+                            : l.featureStyle?.kind === 'ramp'
+                            ? `${(l.features?.length ?? 0).toLocaleString()} routes`
                             : l.mode === 'features'
                             ? `${(l.tiles?.total ?? l.features?.length ?? 0).toLocaleString()} locations`
                             : `${(l.rows?.length ?? 0).toLocaleString()} counties`}
@@ -529,7 +560,9 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
 
                     {open && (
                       <div className="border-t border-slate-200 px-2.5 py-2 space-y-2">
-                        {l.mode === 'features' ? (
+                        {isTravel(l) ? (
+                          <TravelLegend layer={l} isDark={isDark} />
+                        ) : l.mode === 'features' ? (
                           <div className="flex items-center gap-2">
                             <span className="text-[11px] text-slate-500 w-16">Colour</span>
                             {FEATURE_COLORS.map(c => (
@@ -614,5 +647,60 @@ const Legend: React.FC<{ layer: StackLayer; style: LayerStyle; ramp: Ramp; isDar
       </div>
     );
   };
+
+const isTravel = (l: StackLayer) =>
+  l.mode === 'features' && (l.featureStyle?.kind === 'bands' || l.featureStyle?.kind === 'ramp');
+
+/** The travel ramp as a small strip, for the layer row. */
+const TravelSwatch: React.FC<{ layer: StackLayer; isDark: boolean }> = ({ layer, isDark }) => {
+  const scale = useTravel(layer, isDark);
+  if (!scale) return null;
+  return (
+    <span className="flex rounded-sm overflow-hidden border border-slate-300 shrink-0" aria-hidden>
+      {scale.colors.slice(0, 6).map((c, k) => <span key={k} className="w-1.5 h-3.5" style={{ backgroundColor: c }} />)}
+    </span>
+  );
+};
+
+/**
+ * The legend for travel bands or routes: each class, nearest first, and for
+ * bands what each one holds (its area, and its people when WorldPop is
+ * loaded), so the map can be read without hovering every ring.
+ */
+const TravelLegend: React.FC<{ layer: StackLayer; isDark: boolean }> = ({ layer, isDark }) => {
+  const scale = useTravel(layer, isDark);
+  if (!scale) return null;
+  const bands = layer.featureStyle?.kind === 'bands';
+  const facts = bands && layer.featureStyle?.by ? bandFacts(layer.features ?? [], layer.featureStyle.by) : null;
+  return (
+    <div>
+      {layer.valueLabel && <p className="text-[11px] text-slate-500 mb-1">{layer.valueLabel}</p>}
+      <div className="space-y-1">
+        {scale.labels.map((label, i) => {
+          const f = facts?.get(scale.stops[i]);
+          return (
+            <div key={label} className="flex items-center gap-1.5 text-[11px] text-slate-700 tabular-nums">
+              <span className={`${bands ? 'w-3 h-3 rounded-sm' : 'w-4 h-1 rounded-full'} shrink-0 border border-slate-300`}
+                    style={{ backgroundColor: scale.colors[i] }} />
+              <span className="flex-1">{label}</span>
+              {f && (
+                <span className="text-slate-500">
+                  {f.area !== undefined ? `${fmt(f.area)} sq mi` : ''}
+                  {f.people !== undefined ? ` · ${fmt(f.people)} people` : ''}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {bands && (
+        <p className="mt-1.5 text-[10px] leading-snug text-slate-500">
+          Each band is the land near a road reached in that time from the nearest facility.
+          Free-flow speeds, no traffic.
+        </p>
+      )}
+    </div>
+  );
+};
 
 export default LayerStack;

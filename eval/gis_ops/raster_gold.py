@@ -79,6 +79,50 @@ def values_in(path: str, wkt: str) -> np.ndarray:
     return a[ok]
 
 
+def joint_in(paths: list[str], wkt: str) -> list[np.ndarray]:
+    """The same pixels of several rasters ON ONE GRID (NLCD 2001 / 2021; DEM /
+    slope), centre in the polygon and valid in EVERY raster: aligned arrays,
+    for a condition across rasters (ops/raster_calc.js)."""
+    dss = [gdal.Open(x) for x in paths]
+    gt = dss[0].GetGeoTransform()
+    assert all(d.GetGeoTransform() == gt and d.RasterXSize == dss[0].RasterXSize for d in dss), "grids differ"
+    ds = dss[0]
+    dst = osr.SpatialReference(wkt=ds.GetProjection())
+    src = osr.SpatialReference()
+    src.ImportFromEPSG(4326)
+    src.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    dst.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    g = ogr.CreateGeometryFromWkt(wkt)
+    g.Transform(osr.CoordinateTransformation(src, dst))
+    x0, x1, y0, y1 = g.GetEnvelope()
+    c0 = max(0, int((x0 - gt[0]) / gt[1]) - 1)
+    c1 = min(ds.RasterXSize, int((x1 - gt[0]) / gt[1]) + 2)
+    r0 = max(0, int((y1 - gt[3]) / gt[5]) - 1)
+    r1 = min(ds.RasterYSize, int((y0 - gt[3]) / gt[5]) + 2)
+    w, h = c1 - c0, r1 - r0
+    mem = gdal.GetDriverByName("MEM").Create("", w, h, 1, gdal.GDT_Byte)
+    mem.SetGeoTransform((gt[0] + c0 * gt[1], gt[1], 0, gt[3] + r0 * gt[5], 0, gt[5]))
+    mem.SetProjection(ds.GetProjection())
+    vds = ogr.GetDriverByName("Memory").CreateDataSource("")
+    lyr = vds.CreateLayer("u", dst, ogr.wkbMultiPolygon)
+    f = ogr.Feature(lyr.GetLayerDefn())
+    f.SetGeometry(g)
+    lyr.CreateFeature(f)
+    gdal.RasterizeLayer(mem, [1], lyr, burn_values=[1])
+    ok = mem.GetRasterBand(1).ReadAsArray() == 1
+    arrs = []
+    for d in dss:
+        b = d.GetRasterBand(1)
+        a = b.ReadAsArray(c0, r0, w, h)
+        nd = b.GetNoDataValue()
+        if nd is not None:
+            ok &= a != nd
+        if np.issubdtype(a.dtype, np.floating):
+            ok &= np.isfinite(a)
+        arrs.append(a)
+    return [a[ok] for a in arrs]
+
+
 def pixel_at(path: str, x: float, y: float) -> np.ndarray:
     """The one valid pixel holding (x, y) in the raster's CRS, or empty."""
     ds = gdal.Open(path)
@@ -102,6 +146,32 @@ def main() -> int:
 
     def put(qid, geoid, v):
         out.setdefault(qid, {})[geoid] = float(v)
+
+    # ---- raster_calc (H4 remainder: conditions mapped as polygons). The area
+    # (sq mi) of the pixels meeting a condition across one or two rasters on
+    # one grid, inside one area; and the share of the area's valid pixels.
+    # `--only rc` recomputes just these (seconds, not the whole suite).
+    SQMI = 2589988.110336
+    stlco = units(cur, "SELECT fips, ST_AsText(geom) FROM county_geom WHERE fips = '29189'")[0][1]
+    stlcity = units(cur, "SELECT fips, ST_AsText(geom) FROM county_geom WHERE fips = '29510'")[0][1]
+    a01, a21 = joint_in([NLCD[2001], NLCD[2021]], stlco)
+    q = np.isin(a01, [41, 42, 43]) & np.isin(a21, [21, 22, 23, 24])
+    put("rc-stlco-forest-to-developed", "sq_mi", q.sum() * 900 / SQMI)
+    put("rc-stlco-forest-to-developed", "share", 100.0 * q.sum() / q.size)
+    (sl,) = joint_in([SLOPE], stlcity)
+    put("rc-stlcity-slope-gt15", "sq_mi", (sl > 15).sum() * 100 / SQMI)
+    put("rc-stlcity-slope-gt15", "share", 100.0 * (sl > 15).sum() / sl.size)
+    e, sl = joint_in([DEM, SLOPE], stlco)
+    m = (e > 180) & (sl < 5)
+    put("rc-stlco-high-flat", "sq_mi", m.sum() * 100 / SQMI)
+    put("rc-stlco-high-flat", "share", 100.0 * m.sum() / m.size)
+    if "--only" in sys.argv and sys.argv[sys.argv.index("--only") + 1] == "rc":
+        cur.execute("DELETE FROM eval_raster_gold WHERE qid LIKE 'rc-%'")
+        for qid, rows in out.items():
+            for gid, v in rows.items():
+                cur.execute("INSERT INTO eval_raster_gold VALUES (%s, %s, %s)", (qid, gid, v))
+                print(f"  {qid:<30} {gid:<6} {v:.4f}")
+        return 0
 
     chi = units(cur, "SELECT geoid, ST_AsText(geom) FROM geo_unit WHERE level = 'z_chi_community_areas'")
     for gid, wkt in chi:

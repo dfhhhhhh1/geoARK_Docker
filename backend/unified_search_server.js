@@ -36,6 +36,8 @@ const LOCATION_COLUMN = new RegExp("^(?:" + [
 ].join("|") + ")$", "i");
 const { levelOf, rollupOf, asksDistance, registerZoneSets, isZoneLevel, zoneSet } = require("./planner/levels");
 const { referencePhrase, asksEnrichment, zonePhrase, namedPolygonLayers } = require("./planner/features");
+const { serviceAreaPhrase } = require("./planner/service_area");
+const { routePhrases } = require("./planner/route");
 const cart = require("./cart");
 const curator = require("./curator");
 const { boundsQueries } = require("./planner/uncertainty");
@@ -1428,8 +1430,21 @@ function addPopulationDenominator(query, decomposition) {
  * question sees exactly the decomposition it saw before.
  */
 function addReferenceLayer(query, decomposition) {
-  const phrase = referencePhrase(query);
+  // Routes (planner/route.js): BOTH layers, the origins' and the
+  // destinations', each its own primary sub-query.
+  const routes = routePhrases(query);
+  if (routes.length) {
+    let added = false;
+    for (const p of routes) added = addPrimaryPhrase(p, decomposition) || added;
+    return added;
+  }
+  // Service areas (planner/service_area.js): the layer the areas surround.
+  const phrase = referencePhrase(query) || serviceAreaPhrase(query);
   if (!phrase) return false;
+  return addPrimaryPhrase(phrase, decomposition);
+}
+
+function addPrimaryPhrase(phrase, decomposition) {
   const queries = decomposition.search_queries || [];
   const same = queries.find(q => String(q.query || "").toLowerCase().trim() === phrase);
   if (same?.purpose === "primary") return false;
@@ -2141,14 +2156,18 @@ async function rasterLayers(codes) {
   const out = new Map();
   const { rows } = await pool.query(
     `SELECT code, id, table_name, year, srid, kind, aggregate, pixel_area_m2, units, label,
-            origin_x, origin_y, pixel_x, pixel_y, width, height, cached_levels
+            origin_x, origin_y, pixel_x, pixel_y, width, height, tile_size, cached_levels
        FROM raster_layer WHERE code = ANY($1) AND kind IS NOT NULL ORDER BY code, year`, [codes]);
   for (const r of rows) {
     if (!out.has(r.code)) out.set(r.code, { raster_kind: r.kind, aggregate: r.aggregate,
       pixel_area_m2: Number(r.pixel_area_m2), units: r.units, srid: r.srid, layers: [], classes: [] });
     out.get(r.code).layers.push({ id: r.id, year: r.year, table_name: r.table_name, srid: r.srid,
       cached_levels: r.cached_levels || [],
-      extent: [r.origin_x, r.origin_y + r.pixel_y * r.height, r.origin_x + r.pixel_x * r.width, r.origin_y] });
+      extent: [r.origin_x, r.origin_y + r.pixel_y * r.height, r.origin_x + r.pixel_x * r.width, r.origin_y],
+      // The grid, for an op that reads two rasters pixel for pixel
+      // (ops/raster_calc.js): they must share it exactly.
+      origin_x: r.origin_x, origin_y: r.origin_y, pixel_x: r.pixel_x, pixel_y: r.pixel_y,
+      width: r.width, height: r.height, tile_size: r.tile_size });
   }
   const ids = rows.map(r => r.id);
   if (ids.length) {
@@ -3443,7 +3462,9 @@ async function finishAnalysis({ query, started, planning, executable, candidates
           comparison: l.comparison ?? null,
           moran: l.moran ?? null,
           row_count: l.row_count,
-          ...(l.mode === "features" ? { features: l.features, tiles: l.tiles ?? null } : { rows: l.rows }),
+          ...(l.mode === "features"
+            ? { features: l.features, tiles: l.tiles ?? null, style: l.style ?? null, endpoints: l.endpoints ?? null }
+            : { rows: l.rows }),
         }));
         body.layer_count = result.layer_count;
       }
@@ -3457,6 +3478,8 @@ async function finishAnalysis({ query, started, planning, executable, candidates
         // include_geometry does not apply -- withholding it would leave the
         // caller with nothing. Bounded instead by MAX_FEATURES.
         body.features = result.features;
+        if (result.style) body.feature_style = result.style;
+        if (result.endpoints) body.endpoints = result.endpoints;
         // Over the cap and all points: the whole answer is served as tiles
         // (backend/feature_tiles.js); `features` is the first MAX_FEATURES.
         if (result.tiles) body.feature_tiles = result.tiles;

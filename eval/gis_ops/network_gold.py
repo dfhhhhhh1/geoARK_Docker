@@ -191,6 +191,18 @@ class Net:
         d = dijkstra(self.m, directed=True, indices=s, min_only=True)
         return d[self.snap(lon, lat)]
 
+    def cost_to(self, dst_lon, dst_lat, lon, lat):
+        """Cost from each point to its nearest destination (route's "to the
+        nearest"): Dijkstra from the destinations over the REVERSED arcs."""
+        s = np.unique(self.snap(dst_lon, dst_lat))
+        d = dijkstra(self.m.T.tocsr(), directed=True, indices=s, min_only=True)
+        return d[self.snap(lon, lat)]
+
+    def node_costs(self, src_lon, src_lat):
+        """Cost from the nearest source to EVERY node of the graph (service areas)."""
+        s = np.unique(self.snap(src_lon, src_lat))
+        return dijkstra(self.m, directed=True, indices=s, min_only=True)
+
 
 def unit(lon, lat):
     lo, la = np.radians(lon), np.radians(lat)
@@ -315,6 +327,25 @@ def main():
                 ins[z] = ins.get(z, 0) + (v if dt[i] <= 300 else 0)
             put("stl-ward-pop-hospital-drive-le5-pct", [(z, 100 * ins[z] / tot[z]) for z in tot])
             put("stl-ward-pop-hospital-drive-le5-count", [(z, ins[z]) for z in tot])
+
+            # Service areas (ops/service_area.js): drive minutes from the St.
+            # Louis city fire stations to a fixed sample of 4,000 OSM nodes of
+            # the drive graph (every node, not only junctions: no snapping, the
+            # node's own cost). The check tests which band polygon holds each
+            # node. Seeded, so the sample is the same on every run.
+            fx = features_in(cur, T["fire"], STL_CITY)
+            fsx, fsy = np.array([r[1] for r in fx]), np.array([r[2] for r in fx])
+            dn = drive_t.node_costs(fsx, fsy)
+            rng = np.random.default_rng(20261123)
+            near = np.where(np.isfinite(dn) & (dn <= 1500))[0]
+            pick = rng.choice(near, size=min(4000, len(near)), replace=False)
+            put("stl-sa-fire-city-nodes", [(f"{drive_t.lon[i]:.6f},{drive_t.lat[i]:.6f}", dn[i] / 60) for i in pick])
+
+            # Routes (ops/route.js): drive minutes and road miles from each
+            # city fire station to its nearest hospital, on the reversed graph.
+            hx2, hy2 = sources_in(cur, T["hosp"], bbox)
+            rt = drive_t.cost_to(hx2, hy2, fsx, fsy)
+            put("stl-route-fire-hospital-minutes", [(r[0], rt[i] / 60) for i, r in enumerate(fx) if np.isfinite(rt[i])])
         else:
             tx, ty = sources_in(cur, T["snap"], bbox)
             cc = features_in(cur, T["cc"], zones("z_chi_community_areas"))

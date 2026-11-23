@@ -1,4 +1,5 @@
-import type { AnalysisResponse, AnalysisRow, FeatureTiles, MappedFeature, MoranClass } from '../types';
+import type { AnalysisResponse, AnalysisRow, FeatureStyle, FeatureTiles, MappedFeature, MoranClass, RouteEnds } from '../types';
+import { travelLayerName } from './travel';
 import { isMoranStats } from '../types';
 import { attrOfStep, describeAttr, deriveSeries, stripCoverage } from './series';
 
@@ -32,6 +33,23 @@ export interface StackLayer {
   removable: boolean;
   /** The area the answer counted or tested against: drawn faint, at the bottom. */
   reach?: boolean;
+  /** Per-feature colours an op declared: travel bands, a route ramp (lib/travel.ts). */
+  featureStyle?: FeatureStyle | null;
+}
+
+/** A route's two ends as point layers, drawn over the lines. */
+function endLayers(ends: RouteEnds | null | undefined, keyPrefix: string, base: { source: string; removable: boolean }): StackLayer[] {
+  if (!ends) return [];
+  const out: StackLayer[] = [];
+  if (ends.to?.length) {
+    out.push({ ...base, key: `${keyPrefix}:route-to`, label: 'Route destinations', mode: 'features', features: ends.to,
+               featureStyle: { kind: 'point', role: 'destination' } });
+  }
+  if (ends.from?.length) {
+    out.push({ ...base, key: `${keyPrefix}:route-from`, label: 'Route origins', mode: 'features', features: ends.from,
+               featureStyle: { kind: 'point', role: 'origin' } });
+  }
+  return out;
 }
 
 /** The measure a step of a plan reads, as a short name. */
@@ -89,14 +107,21 @@ function answerLayers(result: AnalysisResponse | null | undefined, keyPrefix: st
     // Points and lines above fills, the cartographic default: a county fill
     // drawn over a point layer hides it. Then the planner's own layers before
     // the components the compiler added beside an arithmetic result.
-    const rank = (l: { mode: string; part?: boolean }) => (l.mode === 'features' ? 0 : l.part ? 2 : 1);
+    // Travel bands are areas: under the facilities they surround.
+    const rank = (l: { mode: string; part?: boolean; style?: FeatureStyle | null }) =>
+      (l.mode === 'features' ? (l.style?.kind === 'bands' ? 0.5 : 0) : l.part ? 2 : 1);
     const ordered = [...result.layers].sort((a, b) => rank(a) - rank(b));
     return ordered.flatMap((l, i): StackLayer[] => {
       const name = nameOfStep(result, l.step) ?? `${result.plan.intent} (${i + 1})`;
       if (l.mode === 'features') {
         if (!l.features?.length) return [];
-        return [{ ...base, key: `${keyPrefix}:${l.id}`, label: name, mode: 'features', features: l.features,
-                  tiles: l.tiles ?? null }];
+        // Points from a travel answer (the facilities the bands surround)
+        // stay above the bands; the bands, made by the op, carry their colours.
+        return [...endLayers(l.endpoints, keyPrefix, base), {
+          ...base, key: `${keyPrefix}:${l.id}`, label: travelLayerName(l.style, l.features) ?? name, mode: 'features',
+          features: l.features, tiles: l.tiles ?? null, featureStyle: l.style ?? null,
+          valueLabel: l.value_label ?? null,
+        }];
       }
       if (!l.rows?.length) return [];
       return [{
@@ -110,8 +135,10 @@ function answerLayers(result: AnalysisResponse | null | undefined, keyPrefix: st
 
   if (result.output_mode === 'features') {
     return result.features?.length
-      ? [{ ...base, key: `${keyPrefix}:features`, label: result.plan.intent, mode: 'features',
-           features: result.features, tiles: result.feature_tiles ?? null }]
+      ? [...endLayers(result.endpoints, keyPrefix, base),
+         { ...base, key: `${keyPrefix}:features`, label: travelLayerName(result.feature_style, result.features) ?? result.plan.intent,
+           mode: 'features', features: result.features, tiles: result.feature_tiles ?? null,
+           featureStyle: result.feature_style ?? null, valueLabel: result.value_label ?? null }]
       : [];
   }
 

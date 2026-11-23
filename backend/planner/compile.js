@@ -297,6 +297,27 @@ function compilePlan(plan, resolved) {
     const comp = valStep?.op === "composite" ? valStep : null;
     const compMod = comp ? ops.byName("composite") : null;
 
+    if (types.get(srcId) === "features" && typeof srcMod?.featureOutput === "function") {
+      // Features an op MADE rather than selected (service_area's bands,
+      // route's lines): its own columns, order and map style, declared by the
+      // op, since there is no layer at the root whose labels they could be.
+      const fo = srcMod.featureOutput(srcStep, { resolved });
+      const { sql: prelude, params } = preludeFor(srcId);
+      const sql =
+        prelude +
+        `SELECT ST_AsGeoJSON(r.geom, 5) AS geometry, ${fo.select("r").join(", ")}\n` +
+        `FROM ${cte(srcId)} r\n` +
+        `ORDER BY r.${fo.order || "value ASC"} NULLS LAST\n` +
+        `LIMIT ${MAX_FEATURES}`;
+      return {
+        id: out.id, step: srcStep.id, mode: "features",
+        sql, params, labels: fo.labels, series: 0,
+        valueLabel: fo.valueLabel ?? null,
+        style: fo.style ?? null,
+        endpoints: fo.endpoints === true,
+      };
+    }
+
     if (types.get(srcId) === "features" && srcStep.op !== "select_features") {
       // A features result built by other ops (within, rank, filter_attr on
       // features): the prelude, then the features contract's columns. Labels

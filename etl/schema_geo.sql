@@ -440,3 +440,13 @@ LANGUAGE plpgsql STABLE AS $$
 BEGIN
   RAISE EXCEPTION 'no place named "%" has a boundary, and this dataset has no city column; restrict by state instead', name;
 END $$;
+
+-- raster_calc (backend/planner/ops/raster_calc.js): RAISES when the area a
+-- raster condition is mapped over holds more pixels than one statement can
+-- read in its budget (a state of 30 m NLCD is ~200M). Refused, with the size,
+-- never truncated or silently timed out.
+CREATE OR REPLACE FUNCTION raster_calc_too_large(sq_mi double precision) RETURNS int
+LANGUAGE plpgsql VOLATILE AS $$
+BEGIN
+  RAISE EXCEPTION 'RASTER_AREA_TOO_LARGE: the area is % square miles, too large to map pixel by pixel; ask for a county or city, or for a share per county', round(sq_mi::numeric);
+END $$;

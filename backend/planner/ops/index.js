@@ -120,6 +120,12 @@ const MODULES = [
   require("./aggregate_to"),
   // Internal: inserted by planner/network.js (H5), never offered.
   require("./network_population"),
+  // Internal: travel-time bands as polygons (planner/service_area.js), never offered.
+  require("./service_area"),
+  // Internal: routes along the network (planner/route.js), never offered.
+  require("./route"),
+  // Internal: a raster condition mapped as polygons (planner/raster_calc.js), never offered.
+  require("./raster_calc"),
   // Internal: inserted by planner/point_distance.js, never offered.
   require("./point_distance"),
 ];

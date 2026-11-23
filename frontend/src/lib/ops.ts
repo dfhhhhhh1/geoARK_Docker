@@ -42,6 +42,9 @@ export const OP_LABEL: Record<PlanOp, string> = {
   enrich: 'Attach area values',
   zonal: 'Summarize raster',
   network_population: 'People within travel time',
+  service_area: 'Travel-time bands',
+  route: 'Route',
+  raster_calc: 'Raster condition',
 };
 
 /**
@@ -99,6 +102,24 @@ export const OP_READING: Partial<Record<PlanOp, string>> = {
     'walk time (or road distance) to the nearest facility. Reported as people or as ' +
     'a percent of the area\'s population. The short leg from a cell to its road is ' +
     'not costed, and a cell counts as inside an area when its centre is.',
+  service_area:
+    'Travel-time bands around each facility, along the road network: one search ' +
+    'from every facility at once, so each place takes the time from its NEAREST one. ' +
+    'A band is the land within one grid cell (about 30-250 m, shown in the notes) of ' +
+    'a road reached in that time, so parks or rivers between roads can stay empty. ' +
+    'Free-flow speeds: no traffic, signals or turns. People are WorldPop 1 km cells, ' +
+    'counted by where their centre falls.',
+  route:
+    'The cheapest path along the road network (by time unless distance was asked ' +
+    'for), from each origin to its nearest destination, or from one named place to ' +
+    'every destination. The short legs from each point to its nearest road are not ' +
+    'included or drawn. Free-flow speeds: no traffic, signals or turns.',
+  raster_calc:
+    'Every pixel of the raster (or of two rasters on one grid, such as two years of ' +
+    'land cover) tested against the condition, inside the named area. The area in ' +
+    'square miles is counted from the pixels at full resolution; the map draws them at ' +
+    'a coarser cell, where a cell shows if ANY pixel in it qualifies, so small patches ' +
+    'stay visible and the drawing looks slightly larger than the number.',
   zonal:
     'A raster summarised over each unit or polygon. A share counts the pixels whose ' +
     'centre falls inside, so a polygon smaller than a pixel reads the pixel it sits in.',

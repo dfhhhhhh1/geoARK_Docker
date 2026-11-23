@@ -1,6 +1,6 @@
 # Analyst GIS operations: plan
 
-Status (2026-11-20): **H0-H3 built, H4 built for rasters over units, H5 partly built** (network distance; section 8); the rest of H4 and H5 are a plan. **H6** (primitive gaps, tiered) is planned in section 5; tier 1 items 1-3 are built. Follows
+Status (2026-11-23): **H0-H3 built; H4 built** (rasters over units and features, `raster_calc`; uploads and CDL open); **H5 built except VRP** (network distance, service areas as polygons, `route`; section 8). **H6** (primitive gaps, tiered) is planned in section 5; tier 1 items 1-3 are built. Follows
 RESEARCH_PLAN.md (A-F built, G planned) and DATA_LOADING_PLAN.md (phases 1-7).
 
 Goal: answer the class of question a working GIS analyst asks, buffers,
@@ -1749,3 +1749,109 @@ fixes, `g1-*` guards).
 - **Open**: the equality-year filter that slipped past `dropUnaskedFilters` on
   the Chicago schools question; a per-county count of lines is still the
   touching count, now said in a note.
+
+### H5 and H4 closed: service areas, routes, raster_calc (2026-11-23)
+
+Three internal ops, each built by code from the plan the model already makes
+and the question's words; none is offered, so the prompt and decoding schema
+are byte-identical across all 48 contexts. A scan of 327 eval questions
+(yaml suites + both held-out CSVs): the service-area gate reaches 0, the
+route gate 1, the raster-where gate 1 (both held out, both left unanswered,
+below). Tests: `planner/test_routes.js` (20), `planner/test_raster_calc.js`
+(7). Gold: `eval/gis_ops/network_gold.py` (scipy, own graph from the .pbf)
+and `eval/gis_ops/raster_gold.py --only rc` (GDAL on the source GeoTIFFs).
+
+**`service_area`** (`ops/service_area.js`, `planner/service_area.js`):
+"map the 5, 10 and 15-minute drive times around the fire stations in St.
+Louis". Bands from the question (a list, "N-minute bands up to M", one limit
+split into 2-4 round bands, else 5/10/15), mode and cost from network.js.
+One Dijkstra from every facility at once (the virtual-source trick of
+`_network.js`, now `pgr_dijkstraCost` to every vertex in reach: 2.7 s on St.
+Louis, where `pgr_drivingDistance` with equicost took **179 s**), points
+along each edge one cell apart, a cell takes its cheapest point and a
+one-cell dilation, and the band raster is polygonized (no union: 3.2 s with
+it, 12 s with a smoothing buffer). A band is therefore **the land within one
+grid cell of a road reached in that time**; area is counted from cells,
+people from WorldPop pixel centres. St. Louis city, 31 stations, 3 bands:
+9 s, 94 / 101 / 150 sq mi, 408k / 255k / 313k people.
+
+- **Costs equal the independent gold exactly**: 1,272 sampled junctions,
+  bias 0.000 min, worst 0.16 min.
+- **Band polygons vs gold node bands** (4,000 sampled OSM nodes, 4 bands):
+  80.8% in their own band, 93.7% within one. Every miss is on the FAST
+  side, by the definition: a cell takes the cheapest road in it and its
+  neighbours, so a slow street beside an arterial reads the arterial's band.
+  Misses sit p50 0.66 min / p90 1.85 min from a band edge.
+- Not a service area: "which X are within ..." (features, `within`), people
+  questions (network_population), "beyond" questions.
+
+**`route`** (`ops/route.js`, `planner/route.js`): "the fastest driving route
+from each fire station in St. Louis to the nearest hospital", "directions
+from Barnes-Jewish Hospital to every fire station in St. Louis". Each
+origin to its nearest destination is ONE `pgr_dijkstra` over the reversed
+graph from a virtual vertex joined to every destination; a named origin to
+every destination is one forward Dijkstra. A side is a layer or a named
+feature (`select_features.name_like` / `pick_one`, set in code: name
+contains the phrase, else every word of it).
+
+- **Equal to gold on all 31 St. Louis fire stations** (minutes to the nearest
+  hospital, worst 0.005 min). 3.4 s nearest, 1.0 s named; end to end 15-21 s.
+- Four defects found on the way: the region picked by the most points was
+  Chicago (more hospitals than St. Louis), so origins vanished; it is now
+  the origins' region. **pgRouting 3.8 numbers `path_seq` 1 twice on these
+  paths**, so `path_seq = 2` was the vertex after the destination; `seq` is
+  used instead. Endpoints as separate output statements re-ran the whole
+  Dijkstra per layer (9.7 s -> 3.4 s carried on the rows). A named origin's
+  place ("in St. Louis, Missouri") belongs to the layer side; when the plan
+  carries none, it is read from the question.
+- **A side's head noun must name the layer**: "reported structural fires"
+  shared "fire" with Fire Stations and would have routed Station 4 to fire
+  stations, a confident wrong answer to held-out Q15. Now no layer matches,
+  the plan is left as the model wrote it, and it is refused.
+
+**`raster_calc`** (`ops/raster_calc.js`, `planner/raster_calc.js`): WHERE a
+condition on one or two rasters on one grid holds inside a named county,
+place or zone set, as polygons. Rebuilt from the zonal steps the planner
+already makes (classes, thresholds, years set by code), only when the
+question asks where and names one area; per-unit, state-wide and no-place
+questions keep zonal. A class change reads FROM / TO classes from the
+question ("forest became developed"). Mask per tile by `ST_MapAlgebra`,
+area counted at full resolution, drawn at a 90 m display cell (`Max`).
+Over 40M pixels is refused (`raster_calc_too_large`, etl/schema_geo.sql).
+
+| case | answer | GDAL gold | time |
+|---|--:|--:|--:|
+| St. Louis County forest (2001) -> developed (2021) | 6.525 sq mi, 1.25% | 6.5245, 1.247% | 2.4 s |
+| St. Louis city slope > 15% | 2.544 sq mi | 2.5431 | 1.8 s |
+| St. Louis County elevation > 180 m and slope < 5% | 48.651 sq mi, 9.30% | 48.6515, 9.296% | 13.4 s |
+
+The first live run (model plan, end to end) answered 6.525 in 23 s.
+
+- **county_geom names an independent city like its county**: 29189 St.
+  Louis County and 29510 St. Louis city are both "St. Louis" (also
+  Baltimore, Richmond VA). The first build mapped their union (589.6 sq mi
+  checked for 523). raster_calc now prefers the county (code < 500) and reads
+  "X city" as the city. **`filter_place` place_kind county has the same
+  defect and is NOT fixed here** (pre-existing; every county-filtered answer
+  for these names includes the city).
+- The mask needs an explicit nodata (255): without it ST_Clip filled the
+  outside with 0 and the share read 100%.
+
+**UI.** Travel bands draw in one ordered ramp (blue nearest to red farthest,
+`frontend/src/lib/travel.ts`), facilities on top, a legend with each band's
+area and people; routes are lines coloured by minutes with origins and
+destinations as their own point layers; a raster condition is a filled mask
+named by its condition. Verified in the browser on the St. Louis questions.
+
+**Guards, same build** (`eval/gis_ops/h5_routes/`): network_dev 4/4,
+proximity_dev 4/4, raster_dev 3/4 (the Missouri crop-change miss is the
+retrieval gap recorded 2026-11-22). None of the three rebuilds fired on any
+of those 12 questions. The full guard set (research, answerability,
+plan_correctness, held-out 16) was not re-run: nothing here reaches a
+question without the gated phrasing, and the scan above says which do.
+
+**Open**: allocation (which facility serves each area) needs the source
+label per vertex, which `pgr_dijkstraCost` drops; barriers / one-way-aware
+held-out Q15 needs incident data; VRP; time-of-day traffic; route by name
+when the name is not in the layer's `name` column ("Station 4" is "Engine
+House 4"); raster_calc over two rasters on different grids (refused).

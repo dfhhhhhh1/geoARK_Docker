@@ -161,7 +161,8 @@ export type PlanOp =
   | 'hotspot' | 'outlier' | 'correlate' | 'explain' | 'output'
   | 'intersect' | 'compare_groups' | 'composite' | 'moran'
   | 'access' | 'neighbors' | 'residual' | 'aggregate_to'
-  | 'within' | 'summarize' | 'overlay' | 'enrich' | 'zonal' | 'network_population';
+  | 'within' | 'summarize' | 'overlay' | 'enrich' | 'zonal' | 'network_population'
+  | 'service_area' | 'route' | 'raster_calc';
 
 /**
  * One returned result. A plan with several `output` steps produces several.
@@ -192,6 +193,33 @@ export interface AnalysisLayer {
   features?: MappedFeature[];
   /** The whole point layer, as map tiles, when it was over the feature cap. */
   tiles?: FeatureTiles | null;
+  /** How features an op MADE are coloured (service_area bands, route ramp). */
+  style?: FeatureStyle | null;
+  /** A route answer's two ends, as points (ops/route.js). */
+  endpoints?: RouteEnds | null;
+}
+
+/**
+ * How a features answer colours its features, declared by the op that made
+ * them (backend planner/ops/service_area.js, route.js):
+ *   bands  each feature is one travel band; `by` holds its upper limit, and
+ *          `stops` / `labels` are every band, nearest first;
+ *   ramp   a continuous value (`by`, e.g. minutes along a route) binned on
+ *          the map.
+ */
+export interface FeatureStyle {
+  kind: 'bands' | 'ramp' | 'point' | 'mask';
+  by?: string;
+  unit?: string;
+  stops?: number[];
+  labels?: string[];
+  role?: 'origin' | 'destination';
+}
+
+/** The origins and destinations of a route answer, one point per place. */
+export interface RouteEnds {
+  from: MappedFeature[];
+  to: MappedFeature[];
 }
 
 /** A large point answer kept on the server and drawn as tiles (backend/feature_tiles.js). */
@@ -494,6 +522,10 @@ export interface AnalysisResponse {
   layer_count?: number;
   features?: MappedFeature[];
   feature_tiles?: FeatureTiles | null;
+  /** How the features are coloured, when an op made them (single-layer answers). */
+  feature_style?: FeatureStyle | null;
+  /** A single-layer route answer's two ends. */
+  endpoints?: RouteEnds | null;
   /** What the answer counted or tested against, as map areas. */
   reach?: ReachArea[];
   ambiguity?: CityAmbiguity;

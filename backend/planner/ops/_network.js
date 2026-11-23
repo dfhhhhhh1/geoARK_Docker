@@ -82,7 +82,10 @@ function snap(net, regionExpr, pointExpr) {
  */
 function reachCtes(net, ctx, { pointsSql, sourcesSql }) {
   check(net);
-  const edges = ctx.bind(edgesText(net) +
+  // Bound when cost() is called, not before: a caller that only wants the
+  // region and the sources (ops/route.js) must not leave an unused parameter,
+  // which Postgres refuses ("could not determine data type of parameter").
+  const edgesParam = () => ctx.bind(edgesText(net) +
     " UNION ALL SELECT -row_number() OVER (), 0, n, 0, -1 FROM unnest(%L::bigint[]) n");
   return {
     head: [
@@ -97,7 +100,7 @@ function reachCtes(net, ctx, { pointsSql, sourcesSql }) {
         `FROM (${sourcesSql}) b, net_r, road_region rr ` +
         `WHERE rr.region = net_r.region AND b.geom && rr.bbox)`,
     ],
-    cost: (targetsSql) =>
+    cost: (targetsSql, edges = edgesParam()) =>
       `net_cost AS (SELECT d.end_vid AS node, d.agg_cost FROM net_r CROSS JOIN LATERAL pgr_dijkstraCost(` +
       `format(${edges}::text, net_r.region, ARRAY(SELECT node FROM net_src WHERE node IS NOT NULL)::text), ` +
       `0::bigint, ARRAY(SELECT DISTINCT node FROM (${targetsSql}) t WHERE node IS NOT NULL), ` +

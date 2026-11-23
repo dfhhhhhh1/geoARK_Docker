@@ -200,7 +200,7 @@ function overrules(description, query, dataset = "") {
  * name lacks: "access to care" keeps "care", "wealthiest" is not "income".
  */
 const DISTANCE_PLAN_OPS = new Set(["nearest_distance", "within", "count_near", "access",
-  "network_population", "point_distance"]);
+  "network_population", "point_distance", "service_area", "route"]);
 const COMPARISON_WORDS = new Set(("more less fewer greater than under over above below beyond " +
   "exceed exceeds least most within").split(" "));
 const COMPUTED_BY_DISTANCE = new Set(("live lives living reside resides residing located " +

@@ -1724,6 +1724,33 @@ keep the cap.
   map's mouseout restyled with the opacity the layer was built with. Read the
   current style through a ref.
 
+### Service areas, routes, raster_calc (2026-11-23)
+
+docs/GIS_OPS_PLAN.md "H5 and H4 closed". Three internal ops built in code
+from the model's plan (`planner/service_area.js`, `route.js`,
+`raster_calc.js`); snapshot byte-identical; gates reach 0, 1, 1 of 327 eval
+questions. Each equals independent gold (scipy graph from the .pbf; GDAL on
+the GeoTIFFs). The map colours them: `frontend/src/lib/travel.ts`.
+
+- **`pgr_drivingDistance` is the slow path**: 179 s multi-source on St. Louis;
+  `pgr_dijkstraCost` from a virtual vertex to every vertex is 2.7 s.
+- **pgRouting 3.8 repeats `path_seq` 1** on a path from a virtual start;
+  order and pick by `seq`.
+- **A region chosen by "most points" follows the bigger layer**: route
+  origins in St. Louis routed in Chicago (more hospitals). Choose by the side
+  the question restricts.
+- **A feature op's extra output statements re-run its whole CTE**: carry
+  secondary layers (route ends) on the rows instead.
+- **county_geom: "St. Louis" is two counties** (29189 county, 29510 city);
+  likewise Baltimore, Richmond VA. raster_calc handles it; `filter_place`
+  county does not (open).
+- **Resolved raster rows carried no grid** (only extent); an op comparing
+  two rasters' grids read NaN. `rasterLayers` now passes origin, pixel size,
+  width, height, tile size.
+- Service-area bands vs gold node bands: 80.8% exact, 93.7% within one band,
+  all misses on the fast side, by the band's definition (land within one cell
+  of a reached road). Costs themselves are exact.
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence

@@ -35,6 +35,9 @@ const { applyCatchment, applyDistancePopulation } = require("./catchment");
 const { isPopulationCount } = require("../population");
 const { applyNearest } = require("./nearest");
 const { applyPointDistance } = require("./point_distance");
+const { applyServiceArea } = require("./service_area");
+const { applyRoute } = require("./route");
+const { applyRasterCalc } = require("./raster_calc");
 const { applyComposite, asksComposite } = require("./composite");
 const { applyMoran, asksMoran } = require("./moran");
 const { hasAreaRestriction, liftStrayStates } = require("./area");
@@ -1731,7 +1734,47 @@ async function generatePlan({
       // "how many people live more than a 10-minute walk from X" never
       // validated (a facility loaded as a series, a place filter with no
       // input), and only the layer and the place are needed (H5 dev r2).
+      // Service areas (planner/service_area.js): the AREA a network reaches,
+      // in travel bands, rebuilt from the plan's reference layer. BEFORE the
+      // people rebuild: "how many people live in each 5-minute band" asks for
+      // the bands, with people per band.
+      let serviceArea = null;
+      // Routes (planner/route.js): "from X to the nearest Y" along the road
+      // network, rebuilt from the layers the plan and the candidates name.
       try {
+        const rt = applyRoute(plan, query, {
+          isFeature: (id) => featureTables.has(id),
+          layers: (candidates || []).filter(c => c.is_feature_table).map(c => ({
+            attr_id: c.attr_id,
+            label: c.dataset_clean || String(c.attr_desc || "").replace(/\s*\(mapped locations\)\s*$/i, ""),
+          })),
+        });
+        if (rt) {
+          serviceArea = rt;   // the people rebuilds below must not touch it
+          dropReplacedNotes(adjustments);
+          log(`   Routes: ${rt}`);
+          emit({ stage: "plan_adjusted", detail: `Network: ${rt}.` });
+          adjustments.push(`Network: ${rt}.`);
+        }
+      } catch (err) {
+        log(`   Routes skipped: ${err.message}`);
+      }
+      if (!serviceArea) try {
+        const pop = (await resolve(["WORLDPOP_POP"])).get("WORLDPOP_POP");
+        serviceArea = applyServiceArea(plan, query, {
+          isFeature: (id) => featureTables.has(id),
+          popAttr: pop ? "WORLDPOP_POP" : null,
+        });
+        if (serviceArea) {
+          dropReplacedNotes(adjustments);
+          log(`   Service areas: ${serviceArea}`);
+          emit({ stage: "plan_adjusted", detail: `Network: ${serviceArea}.` });
+          adjustments.push(`Network: ${serviceArea}.`);
+        }
+      } catch (err) {
+        log(`   Service areas skipped: ${err.message}`);
+      }
+      if (!serviceArea) try {
         const pop = (await resolve(["WORLDPOP_POP"])).get("WORLDPOP_POP");
         const np = applyNetworkPopulation(plan, query, {
           popAttr: pop ? "WORLDPOP_POP" : null,
@@ -1751,7 +1794,7 @@ async function generatePlan({
       // within N miles of X". The population is the one the plan loaded when
       // it is a whole-population count, else POP_ESTIMATE; applyCatchment
       // swaps it for the tract count after acceptance either way.
-      try {
+      if (!serviceArea) try {
         const loadIds = (plan.steps || []).filter(s => s.op === "load" && s.attr_id).map(s => s.attr_id);
         const rows = await resolve([...loadIds, "POP_ESTIMATE"]);
         const own = loadIds.find(id => isPopulationCount(rows.get(id)?.description));
@@ -1800,6 +1843,18 @@ async function generatePlan({
           log(`   Raster measure: ${rm}`);
           emit({ stage: "plan_adjusted", detail: `Raster: ${rm}.` });
           adjustments.push(`Raster: ${rm}.`);
+        }
+        // WHERE a raster condition holds inside one named area, as polygons
+        // (planner/raster_calc.js), rebuilt from the zonal steps just set.
+        const rc = applyRasterCalc(plan, query, (id) => zr.get(id));
+        if (rc) {
+          // The zonal steps those notes describe are gone.
+          for (let i = adjustments.length - 1; i >= 0; i--) {
+            if (/^(?:Raster|Plan corrected): step s\w+ (?:reads|reports)/.test(adjustments[i])) adjustments.splice(i, 1);
+          }
+          log(`   Raster calc: ${rc}`);
+          emit({ stage: "plan_adjusted", detail: `Raster: ${rc}.` });
+          adjustments.push(`Raster: ${rc}.`);
         }
       }
     }
@@ -2307,6 +2362,37 @@ async function generatePlan({
  * row contract. Forcing one into the other is what the two shapes exist to
  * avoid.
  */
+/**
+ * A rebuilt plan (routes, service areas) replaces the steps the earlier
+ * repairs described: "step s3 measures travel time within 15 minutes" names
+ * a step that no longer exists. Those notes are dropped; the rebuild's own
+ * note says what was done.
+ */
+function dropReplacedNotes(adjustments) {
+  for (let i = adjustments.length - 1; i >= 0; i--) {
+    if (/^Proximity: /.test(adjustments[i])) adjustments.splice(i, 1);
+  }
+}
+
+function routeEnds(rows) {
+  const ends = (pt, name, role) => {
+    const m = new Map();
+    for (const r of rows) {
+      if (!r[pt]) continue;
+      const e = m.get(r[pt]) || { type: "Feature", geometry: JSON.parse(r[pt]),
+                                  properties: { name: r[name] ?? null, routes: 0, shortest_minutes: null } };
+      e.properties.routes += 1;
+      const mins = r.minutes === null || r.minutes === undefined ? null : Number(r.minutes);
+      if (mins !== null && (e.properties.shortest_minutes === null || mins < e.properties.shortest_minutes)) {
+        e.properties.shortest_minutes = mins;
+      }
+      m.set(r[pt], e);
+    }
+    return [...m.values()];
+  };
+  return { from: ends("from_point", "from", "origin"), to: ends("to_point", "to", "destination") };
+}
+
 function shapeLayer(out, res, ms) {
   if (out.mode === "features") {
     const labels = out.labels || [];
@@ -2316,6 +2402,9 @@ function shapeLayer(out, res, ms) {
       // What a feature's `value` property is, when an op put one there
       // (within: miles to the nearest feature of the second layer).
       valueLabel: out.valueLabel ?? null,
+      // How the map colours these features, declared by the op that made
+      // them (service_area: travel bands; route: minutes along a ramp).
+      style: out.style ?? null,
       row_count: res.rowCount,
       ms,
       rows: [],
@@ -2324,6 +2413,9 @@ function shapeLayer(out, res, ms) {
         geometry: r.geometry ? JSON.parse(r.geometry) : null,
         properties: Object.fromEntries(labels.map(c => [c, r[c] ?? null])),
       })).filter(f => f.geometry),
+      // A route answer's two ends (ops/route.js), one point per place, with
+      // how many routes start or end there.
+      ...(out.endpoints ? { endpoints: routeEnds(res.rows) } : {}),
     };
   }
 
