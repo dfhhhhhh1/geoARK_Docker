@@ -1855,3 +1855,97 @@ label per vertex, which `pgr_dijkstraCost` drops; barriers / one-way-aware
 held-out Q15 needs incident data; VRP; time-of-day traffic; route by name
 when the name is not in the layer's `name` column ("Station 4" is "Engine
 House 4"); raster_calc over two rasters on different grids (refused).
+
+### Status audit: the 24 primitives, before and now (2026-11-23)
+
+Registry read against the primitive table in "H6" above, plus a fresh held-out
+run (`eval/gis_ops/status/s1-heldout16.json`, one run, qwen3:14b `off/2048`,
+`/api/research`, current build including `route`, `service_area`,
+`raster_calc`). The planner offers **31 ops** (was 28); the registry holds 37,
+6 of them internal (`aggregate_to`, `network_population`, `service_area`,
+`route`, `raster_calc`, `point_distance`: inserted by code, never on the menu).
+Primitive counts: **6 covered / 12 partial / 6 missing -> 11 / 9 / 4**.
+
+| # | Primitive | Before | Now | What changed |
+|---|---|---|---|---|
+| 1 | Intersects | ✅ | ✅ | |
+| 2 | Contains / Within | 🟡 | 🟡 | |
+| 3 | Touches / Adjacent | 🟡 | 🟡 | still counties only |
+| 4 | Crosses | ❌ | ❌ | |
+| 5 | Distance within | ✅ | ✅ | |
+| 6 | Buffer | 🟡 | 🟡 | `within` draws the buffer as a map layer (b9a3d8a); still not measurable or dissolvable, no attribute-driven distance |
+| 7 | Centroid | 🟡 | 🟡 | |
+| 8 | Convex / concave hull | ❌ | ❌ | |
+| 9 | Voronoi | ❌ | ❌ | |
+| 10 | Simplify / densify | ✅ | ✅ | |
+| 11 | Intersection / clip | ✅ | ✅ | |
+| 12 | Union | 🟡 | 🟡 | |
+| 13 | Difference / erase | 🟡 | 🟡 | |
+| 14 | Dissolve | ✅ (series) | ✅ (series) | |
+| 15 | Spatial join | 🟡 | ✅ | `enrich`: dev 4/4 x3, held out 2/2 |
+| 16 | k-NN | 🟡 | ✅ units -> features | name and `k`; features -> features has no identity |
+| 17 | Spatial aggregation | ✅ | ✅ | |
+| 18 | Shortest path | ❌ | ✅ | `route` equals gold on 31 St. Louis stations; no barriers or closures; named origin only if in the layer's `name` column |
+| 19 | Isochrone | 🟡 | ✅ approximate | `service_area` polygons; 93.7% of gold nodes within one band, every miss on the fast side |
+| 20 | OD cost matrix | 🟡 | 🟡 | route gives each origin's nearest destination; network nearest cost per unit not built |
+| 21 | Zonal statistics | 🟡 | ✅ | `zonal` over features, equal to GDAL gold on 6 cases; point features not tested separately |
+| 22 | Map algebra | ❌ | 🟡 | `raster_calc`: conditions on one or two same-grid rasters, class change; no band math, different grids refused |
+| 23 | Interpolation / KDE | ❌ | ❌ | |
+| 24 | Terrain | 🟡 | 🟡 | slope thresholds feed `raster_calc`; no aspect, hillshade, viewshed |
+
+Operations beyond the 24: global Moran's I and LISA ❌ -> ✅ (equal to esda on 5
+live cases); composite index ❌ -> ✅ (equal to gold on 743 counties); numeric
+and date filters on features built; raster extraction built for polygon
+features. Still open: local geocoding of a named point, allocation (needs the
+source label per vertex, which `pgr_dijkstraCost` drops), clustering and VRP,
+KDE, classification as an analysis step.
+
+**Held-out 16, this run**
+
+| | 2026-11-11 baseline | now |
+|---|--:|--:|
+| correct | 0 | 0 |
+| confidently wrong | 5 | 1 (Q16) |
+| refused, naming the missing data | 0 | 13 |
+| refused, "could not produce a valid plan" only | n/a | 2 (Q4, Q7) |
+
+The tier 1 held-out families went 5/13 -> about 11/13 on the recorded runs
+(enrichment, zonal features, nearest, composite 2/2 each; Moran 1/2; value
+filters 2/3; single runs on different builds). The 0 correct is about missing
+data, not about ops.
+
+**What is still needed besides data** (only item 1's cause is verified in code;
+the rest are judgement from the refusals and the op code):
+
+1. **Q16 is still confidently wrong.** "Group our mobile field inspection
+   locations ..." plans a Mobile Home Parks count per county. The named-data
+   phrase is "mobile field inspection locations", so "our" is gone before
+   `OWN_DATA` (`named_data.js`) tests it: the rule reads the phrase, never the
+   question text before it. Fix in code; a real answer also needs VRP or
+   balanced clustering.
+2. **Q7 is a capability gap**: tract income + distance to nearest hospital +
+   walk time to transit needs network nearest cost per unit (tier 2 item 7) as
+   an `intersect` condition. Transit stops are not loaded either.
+3. **Q4 and Q7 refuse without naming the missing data.** The other 13 do.
+4. **Eight of 16 depend on context nobody gave the system** ("our", "the
+   county", "downtown", "the state forest", "each council district", "Station
+   4"). A session area of interest or named-feature binding, and local
+   geocoding, would reach more than another op.
+5. **Q12 and Q13 need raster capability**: band math plus percent-change
+   threshold (NDVI), raster subtraction plus volume (cut/fill), and user raster
+   uploads.
+6. **Overlay `exclude` on NWI still times out** (`NOT EXISTS`); Q2 will hit the
+   same pattern at parcel scale.
+7. **Q3 cannot honour "peak traffic"** (no time-of-day speeds); it should say so.
+8. **Q5 asks for 2018-2024; NLCD loaded is 2001-2021**, and "the county" is unnamed.
+
+With data loaded, the ops look able to cover roughly Q1, 2, 4, 5, 6, 8, 9, 10,
+11 and 14. That is untested: no parcels, zoning, 311 or district layers are
+loaded. A fixture city (St. Louis, per section 6) would make those measurable.
+
+**Process gap.** `service_area`, `route` and `raster_calc` have no
+`gis_ops.yaml` family, dev or held out, which this plan requires of every
+addition. They are checked against one-off gold only. The guards run today
+(`network_dev` 4/4, `proximity_dev` 4/4, `raster_dev` 3/4) do not exercise
+them, and research, answerability and plan_correctness were not re-run for
+this audit.

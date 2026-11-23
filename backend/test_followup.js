@@ -532,6 +532,21 @@ test("a discarded rewrite of an operation falls back to the measure and area, no
   assert.strictEqual(own.question, "Texas hospitals");
 });
 
+test("a rewrite that adds a word from nowhere is discarded", async () => {
+  // Regression: "how many people live in this 5 minute band?" came back as
+  // "... 5 minute band State?" and that was what ran.
+  const text = "how many people live in this 5 minute band?";
+  const history = [{ query: "Map the 5, 10 and 15-minute walking times around the fire stations in St. Louis." }];
+  const bad = await rewriteFollowUp({ text, history,
+    callLLM: async () => JSON.stringify({ question: "how many people live in this 5 minute band State?" }) });
+  assert.strictEqual(bad.question, text);
+  assert.match(bad.note, /added "state"/);
+  // Words that come from the conversation are fine.
+  const ok = await rewriteFollowUp({ text: "and 10 minutes?", history,
+    callLLM: async () => JSON.stringify({ question: "walking times of 10 minutes around the fire stations in St. Louis" }) });
+  assert.strictEqual(ok.rewritten, true);
+});
+
 (async () => {
   for (const p of pending) await p();
   console.log(`\n${pass} passed, ${fail} failed`);

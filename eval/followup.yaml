@@ -250,3 +250,29 @@ cases:
     text: "Ohio hospitals near highways"
     kind: question
     must: [[ohio], [hospital], [highway]]
+
+  # --- a result with no measure on screen (2026-11-23) -------------------------
+  # A walking-time map has nothing under "Measures used", so the rewrite has
+  # only the earlier question to carry. gemma once appended "State".
+  - id: band-this
+    history: [{query: "Map the 5, 10 and 15-minute walking times around the fire stations in St. Louis.",
+               intent: "Walking-time service areas around fire stations in St. Louis"}]
+    text: "how many people live in this 5 minute band?"
+    kind: question
+    must: [["people", "population"], ["5"], ["walking", "walk"], ["fire station"], ["St. Louis"]]
+    must_not: ["State"]
+  - id: band-10
+    history: [{query: "Map the 5, 10 and 15-minute walking times around the fire stations in St. Louis.",
+               intent: "Walking-time service areas around fire stations in St. Louis"}]
+    text: "what about the 10 minute band?"
+    kind: question
+    must: [["10"], ["walking", "walk"], ["fire station"], ["St. Louis"]]
+    must_not: ["State"]
+  - id: band-drive
+    history: [{query: "Map the 5, 10 and 15-minute walking times around the fire stations in St. Louis.",
+               intent: "Walking-time service areas around fire stations in St. Louis"}]
+    text: "same but driving"
+    kind: question
+    must: [["driv"], ["fire station"], ["St. Louis"], ["5"]]
+    must_not: ["walk"]
+

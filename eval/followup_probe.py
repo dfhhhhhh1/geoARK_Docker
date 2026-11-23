@@ -39,13 +39,15 @@ AREA = {"intent": "x", "output_type": "map", "entity_type": "COUNTY", "steps": [
     {"id": "s3", "op": "output", "attr_id": "", "inputs": ["s2"]}]}
 
 
-def call(base: str, case: dict, timeout: int) -> tuple[dict, float]:
+def call(base: str, case: dict, timeout: int, rewrite_model: str | None = None) -> tuple[dict, float]:
     body = {
         "text": case["text"],
         "history": [{"query": h.get("query", ""), "intent": h.get("intent"),
                      "measures": h.get("measures", [])} for h in case.get("history", [])],
         "plan": AREA if case.get("plan") == "area" else PLAIN,
     }
+    if rewrite_model:
+        body["rewrite_model"] = rewrite_model
     req = urllib.request.Request(
         f"{base}/api/analyze/followup", data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json"}, method="POST")
@@ -91,12 +93,12 @@ def score(case: dict, out: dict) -> tuple[bool, list[str]]:
     return not problems, problems
 
 
-def run(base: str, cases: list[dict], repeat: int, timeout: int) -> dict:
+def run(base: str, cases: list[dict], repeat: int, timeout: int, rewrite_model: str | None = None) -> dict:
     rows = []
     for case in cases:
         runs = []
         for _ in range(repeat):
-            out, secs = call(base, case, timeout)
+            out, secs = call(base, case, timeout, rewrite_model)
             ok, problems = score(case, out)
             runs.append({"ok": ok, "problems": problems, "secs": round(secs, 2),
                          "kind": out.get("kind"), "edit": out.get("edit"),
@@ -146,13 +148,14 @@ def main() -> int:
     ap.add_argument("--suite-file", type=Path, default=SUITE)
     ap.add_argument("--repeat", type=int, default=3)
     ap.add_argument("--timeout", type=int, default=120)
+    ap.add_argument("--rewrite-model", default=None, help="per-request rewrite model, e.g. qwen3:14b")
     ap.add_argument("--save", type=Path)
     ap.add_argument("--compare", type=Path)
     args = ap.parse_args()
 
     cases = yaml.safe_load(args.suite_file.read_text(encoding="utf-8"))["cases"]
     print(f"{len(cases)} cases x {args.repeat} against {args.base}\n")
-    result = run(args.base, cases, args.repeat, args.timeout)
+    result = run(args.base, cases, args.repeat, args.timeout, args.rewrite_model)
     s = result["summary"]
     print(f"\noverall {s['overall_pct']}%   edits {s['edit_pct']}%   questions {s['question_pct']}%   "
           f"false edits {s['false_edit_pct']}%")

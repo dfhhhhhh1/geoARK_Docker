@@ -793,6 +793,7 @@ const FUNCTION_WORDS = new Set(`
   ones any some can could would should will may might which who where when why
   across per each every all counties county data map rate rates number numbers
   compare compared comparing related relate relationship between okay ok
+  band bands ring rings zone zones
 `.split(/\s+/).filter(Boolean));
 
 const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
@@ -820,6 +821,26 @@ function droppedWords(followUp, rewrite) {
   return [...new Set(normWords(followUp).split(/\s+/).filter(Boolean))]
     .filter(w => (w.length >= 3 || /\d/.test(w)) && !FUNCTION_WORDS.has(w))
     .filter(w => !have.has(stem(w)));
+}
+
+/**
+ * Content words the rewrite ADDED that came from nowhere: not the follow-up, not
+ * the earlier questions, not the measure or area on screen. Measured: "how many
+ * people live in this 5 minute band?" after a walking-time map came back as
+ * "... 5 minute band State?" -- the model tacked on a word from the rewrite
+ * prompt's own vocabulary, and the planner then had to make sense of it.
+ */
+// Connective words a correct rewrite adds when it rephrases ("the 5 minute
+// band" -> "within a 5 minute walk of"). Found by the rewrite lab: the guard
+// was discarding right answers for "within". Content words stay checked.
+const ADDED_OK = new Set(`within around near nearby nearest closest many much live lives
+  living located across inside outside along beyond over under between`.split(/\s+/).filter(Boolean));
+
+function addedWords(rewrite, sources) {
+  const known = new Set(normWords(sources.join(" ")).split(/\s+/).filter(Boolean).map(stem));
+  return [...new Set(normWords(rewrite).split(/\s+/).filter(Boolean))]
+    .filter(w => (w.length >= 3 || /\d/.test(w)) && !FUNCTION_WORDS.has(w) && !ADDED_OK.has(w))
+    .filter(w => !known.has(stem(w)));
 }
 
 /**
@@ -945,6 +966,11 @@ async function rewriteFollowUp({ text, history, callLLM, area = null, measure = 
   // question. That rewrite is discarded, and the thread says why.
   const dropped = droppedWords(original, question);
   if (dropped.length) return fallback(`the rewrite left out "${dropped.join('", "')}"`, question);
+  const added = addedWords(question, [
+    original, measure || "", ...(area || []), where || "",
+    ...history.flatMap(h => [h.query, h.intent, ...(h.measures || [])]).map(x => String(x || "")),
+  ]);
+  if (added.length) return fallback(`the rewrite added "${added.join('", "')}"`, question);
   // "normalize by population" on a South cancer result was rewritten to
   // "normalize Alabama, ... by population", which planned population alone.
   // When the follow-up names no new measure, the one on screen must survive.

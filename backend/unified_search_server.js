@@ -3951,6 +3951,9 @@ app.post("/api/analyze/followup", auth.requireAuth, limitSearch, async (req, res
     }
   }
 
+  const wantedModel = req.body?.rewrite_model;
+  const rewriteModel = typeof wantedModel === "string" && wantedModel
+    && (wantedModel === CONFIG.llm.model || PLANNER_MODELS.has(wantedModel)) ? wantedModel : null;
   const rewrite = await followup.rewriteFollowUp({
     text, history,
     // The exact states the answer on screen is restricted to, read from its
@@ -3964,7 +3967,12 @@ app.post("/api/analyze/followup", auth.requireAuth, limitSearch, async (req, res
       const label = desc ? followup.measureLabel(desc) : null;
       return label ? label.replace(/\s*\(covers [\d,]+ counties\)/i, "").replace(/\s*›\s*/g, " ") : null;
     })(),
-    callLLM: (sys, usr, temp, schema) => callLLM(sys, usr, temp, schema),
+    // `rewrite_model` per request, for A/Bs without recreating the container
+    // (any model the stack already runs). Reasoning is off for a planner model:
+    // this is a one-sentence rewrite, not a plan.
+    callLLM: (sys, usr, temp, schema) => rewriteModel
+      ? callLLM(sys, usr, temp, schema, rewriteModel, { think: false })
+      : callLLM(sys, usr, temp, schema),
   });
   if (rewrite.discarded) console.log(`   follow-up rewrite discarded: "${rewrite.discarded}" (${rewrite.note})`);
   console.log(`   follow-up "${text}" -> question "${rewrite.question}"` +
