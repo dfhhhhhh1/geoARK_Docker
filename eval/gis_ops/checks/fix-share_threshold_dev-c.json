@@ -1,0 +1,349 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.75,
+  "by_tier": {
+    "share_threshold_dev": {
+      "pass": 3,
+      "n": 4,
+      "rate": 0.75
+    }
+  },
+  "classes": {
+    "WRONG_MEASURE": 1,
+    "CORRECT": 3
+  },
+  "latency_mean": 16.4,
+  "api_container_created": "2026-11-22T23:16:39.125503429Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "st-mo-county-crops-gt50",
+      "tier": "share_threshold_dev",
+      "query": "Which Missouri counties were more than 50 percent cultivated crops in 2021?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "nlcd"
+        ],
+        "loaded": [
+          "ERS_FEA_VEG_ACRES | Vegetable acres harvested (Local Foods, USDA ERS Food Environment Atlas) (covers 2,911 counties) | Food Environment Atlas"
+        ]
+      },
+      "ops": "load->filter_attr->filter_area->output",
+      "intent": "Missouri counties where more than 50 percent of land is cultivated crops in 2021",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "ERS_FEA_VEG_ACRES",
+          "inputs": [],
+          "year": 2017
+        },
+        {
+          "id": "s2",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "operator": ">",
+          "value": 50
+        },
+        {
+          "id": "s3",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Time reference resolved: read 2021 rather than the latest year.",
+        "Time period: \"Vegetable acres harvested (Local Foods, USDA ERS Food Environment Atlas) (covers 2,911 counties)\" has no 2021 figures; used 2017 (available 2012-2017).",
+        "Coverage: \"Vegetable acres harvested (Local Foods, USDA ERS Food Environment Atlas) (covers 2,911 ...\" has values for 93 of 115 counties in the area."
+      ],
+      "loaded": [
+        "ERS_FEA_VEG_ACRES | Vegetable acres harvested (Local Foods, USDA ERS Food Environment Atlas) (covers 2,911 counties) | Food Environment Atlas"
+      ],
+      "row_count": 30,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Missouri counties were more than 50 percent cultivated crops in 2021?",
+            "uses": [],
+            "ops": "load->filter_attr->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 11.9
+    },
+    {
+      "id": "st-il-npl-forest-ge20",
+      "tier": "share_threshold_dev",
+      "query": "Which Superfund sites in Illinois are at least 20 percent forest, according to 2021 land cover?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 11,
+        "gold_features": 11,
+        "jaccard": 1.0,
+        "extra": 0,
+        "missed": 0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "NLCD_LANDCOVER",
+          "m2": "epa_npl_sites"
+        }
+      },
+      "ops": "select_features->zonal->filter_attr->output",
+      "intent": "Superfund sites in Illinois that are at least 20 percent forest, according to 2021 land cover",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "ing_epanplsites_01_08",
+          "inputs": [],
+          "states": [
+            "Illinois"
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "zonal",
+          "attr_id": "NLCD_LANDCOVER",
+          "inputs": [
+            "s1"
+          ],
+          "year": 2021,
+          "attribute_filters": [
+            {
+              "column": "type",
+              "value": "Forest"
+            }
+          ],
+          "stat": "share"
+        },
+        {
+          "id": "s3",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "operator": ">=",
+          "value": 20
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: step s2 reads classes \"Forest\" named in the question.",
+        "Raster: step s2 reports the percent of each unit."
+      ],
+      "loaded": [
+        "epa_npl_sites | EPA Superfund NPL site boundaries (mapped locations) | EPA Superfund NPL site boundaries",
+        "NLCD_LANDCOVER | Land cover class of every 30 m pixel from the National Land Cover Database (USGS MRLC), for land area, share and change of cover types such as cropland, forest, developed land, wetlands, water and pasture. Classes: Barren, Developed, Forest, Herbaceous, Planted/Cultivated, Shrubland, Water, Wetlands. | NLCD land cover (National Land Cover Database)"
+      ],
+      "row_count": 11,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Superfund sites in Illinois are at least 20 percent forest, according to 2021 land cover?",
+            "uses": [],
+            "ops": "select_features->zonal->filter_attr->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 23.4
+    },
+    {
+      "id": "st-chi-comm-dev-lt95-2001",
+      "tier": "share_threshold_dev",
+      "query": "Which Chicago community areas were less than 95 percent developed in 2001?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 16,
+        "gold_rows": 16,
+        "outside": 0,
+        "outside_sample": [],
+        "jaccard": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "NLCD_LANDCOVER"
+        }
+      },
+      "ops": "zonal->filter_attr->output",
+      "intent": "Chicago community areas where land cover was less than 95 percent developed in 2001",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "zonal",
+          "attr_id": "NLCD_LANDCOVER",
+          "inputs": [],
+          "year": 2001,
+          "attribute_filters": [
+            {
+              "column": "type",
+              "value": "Developed"
+            }
+          ],
+          "stat": "share"
+        },
+        {
+          "id": "s2",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "operator": "<",
+          "value": 95
+        },
+        {
+          "id": "s3",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: step s1 reads classes \"Developed\" named in the question.",
+        "Raster: step s1 reports the percent of each unit.",
+        "Unit: answered by community area (the question asked for community areas)."
+      ],
+      "loaded": [
+        "NLCD_LANDCOVER | Land cover class of every 30 m pixel from the National Land Cover Database (USGS MRLC), for land area, share and change of cover types such as cropland, forest, developed land, wetlands, water and pasture. Classes: Barren, Developed, Forest, Herbaceous, Planted/Cultivated, Shrubland, Water, Wetlands. | NLCD land cover (National Land Cover Database)"
+      ],
+      "row_count": 16,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Chicago community areas were less than 95 percent developed in 2001?",
+            "uses": [],
+            "ops": "zonal->filter_attr->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 16.2
+    },
+    {
+      "id": "st-chi-comm-steep3-share",
+      "tier": "share_threshold_dev",
+      "query": "What percentage of each Chicago community area has a slope steeper than 3 percent?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 77,
+        "gold_rows": 77,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "TERRAIN_SLOPE"
+        }
+      },
+      "ops": "zonal->output",
+      "intent": "Percentage of each Chicago community area with a slope steeper than 3 percent",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "zonal",
+          "attr_id": "TERRAIN_SLOPE",
+          "inputs": [],
+          "operator": ">",
+          "value": 3,
+          "stat": "share"
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Dropped a filter the question did not ask for: step s2 (value = 2026, which the question does not state); step s3 (value = 17, which the question does not state).",
+        "Plan corrected: step s4 divided s1 by itself (a constant); removed.",
+        "Raster: step s1 reports the percent of each unit.",
+        "Unit: answered by community area (the question asked for community areas)."
+      ],
+      "loaded": [
+        "TERRAIN_SLOPE | Terrain slope or steepness of the ground in percent rise over run, derived from the USGS 3DEP 10 m digital elevation model, St. Louis and Chicago metro counties. | Terrain slope (percent, from the USGS 3DEP elevation model)"
+      ],
+      "row_count": 77,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What percentage of each Chicago community area has a slope steeper than 3 percent?",
+            "uses": [],
+            "ops": "zonal->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.3
+    }
+  ]
+}

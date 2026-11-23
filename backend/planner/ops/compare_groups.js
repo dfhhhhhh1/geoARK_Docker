@@ -50,6 +50,8 @@ const erfc = (u) =>
 
 module.exports = {
   name: "compare_groups",
+  // Words that name this method, never data (planner/named_data.js).
+  methodTerms: /\bmann[-\s]whitney\b|\bwilcoxon\b|\bu[-\s]test\b|\brank[-\s]sum\b|\bdifference\b|\bdifferent\b/gi,
   inputs: 2,
   needs: [],
   produces: "series",

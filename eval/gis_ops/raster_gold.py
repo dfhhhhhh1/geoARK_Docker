@@ -205,6 +205,31 @@ def main() -> int:
         if s.size:
             put("zf-chi-campus-flat-share", key, 100.0 * (s < 2).sum() / s.size)
             put("zf-chi-campus-steep-share", key, 100.0 * (s >= 2).sum() / s.size)
+    # ---- share_threshold family (2026-11-22): a share of a land class with a
+    # threshold on it ("more than 60 percent cultivated crops"), and the
+    # continuous control where a number-percent is a PIXEL value (slope).
+    for gid, wkt in mo:
+        v = values_in(NLCD[2021], wkt)
+        put("st-mo-county-crops-share-2021", gid, 100.0 * (v == 82).sum() / v.size)
+        put("st-mo-county-planted-share-2021", gid, 100.0 * np.isin(v, [81, 82]).sum() / v.size)
+    il = units(cur, "SELECT fips, ST_AsText(geom) FROM county_geom WHERE state_fp = '17'")
+    for gid, wkt in il:
+        for yr in (2001, 2021):
+            v = values_in(NLCD[yr], wkt)
+            put(f"st-il-county-crops-share-{yr}", gid, 100.0 * (v == 82).sum() / v.size)
+    for key, wkt, x, y, _a in feats("epa_npl_sites", in_state("17")):
+        v, _ = fvals(NLCD[2021], wkt, x, y)
+        if v.size:
+            put("st-il-npl-forest-share-2021", key, 100.0 * np.isin(v, [41, 42, 43]).sum() / v.size)
+    for gid, wkt in chi:
+        s = values_in(SLOPE, wkt)
+        if s.size:
+            put("st-chi-comm-steep3-share", gid, 100.0 * (s > 3).sum() / s.size)
+            put("st-chi-comm-flat3-share", gid, 100.0 * (s <= 3).sum() / s.size)
+    for gid, wkt in nb:
+        v = values_in(NLCD[2021], wkt)
+        if v.size:
+            put("st-stl-nbhd-forest-share-2021", gid, 100.0 * np.isin(v, [41, 42, 43]).sum() / v.size)
     print(f"  Missouri campuses read from one interior pixel (2021): {small}")
 
     cur.execute("DELETE FROM eval_raster_gold")

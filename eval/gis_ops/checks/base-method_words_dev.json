@@ -1,0 +1,366 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "method_words_dev": {
+      "pass": 4,
+      "n": 4,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 4
+  },
+  "latency_mean": 17.4,
+  "api_container_created": "2026-11-22T23:01:46.684255744Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "mw-oh-income-autocorr",
+      "tier": "method_words_dev",
+      "query": "Test for spatial autocorrelation in median household income across Ohio counties.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 0.2713,
+        "got": 0.2713,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "MEDIAN_HOUSEHOLD_INCOME"
+        }
+      },
+      "ops": "load->filter_area->moran->output",
+      "intent": "Test for spatial autocorrelation in median household income across Ohio counties",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "MEDIAN_HOUSEHOLD_INCOME",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Ohio"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "moran",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "local": false,
+          "alpha": 0.05,
+          "permutations": 999,
+          "weights": "queen"
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Moran: global Moran's I, queen contiguity, row-standardized; pseudo p over 999 permutations, and the normal approximation under randomization."
+      ],
+      "loaded": [
+        "MEDIAN_HOUSEHOLD_INCOME | Median household income in dollars | USDA ERS"
+      ],
+      "row_count": 88,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Test for spatial autocorrelation in median household income across Ohio counties.",
+            "uses": [],
+            "ops": "load->filter_area->moran->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 16.5
+    },
+    {
+      "id": "mw-tn-diabetes-queen",
+      "tier": "method_words_dev",
+      "query": "Using Moran's I with queen contiguity weights, is diagnosed diabetes significantly clustered among Tennessee counties?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 0.3074,
+        "got": 0.3074,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PLACES_DIABETES_AgeAdjPrv"
+        }
+      },
+      "ops": "load->filter_area->moran->output",
+      "intent": "Using Moran's I with queen contiguity weights, is diagnosed diabetes significantly clustered among Tennessee counties?",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "PLACES_DIABETES_AgeAdjPrv",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Tennessee"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "moran",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "local": false,
+          "alpha": 0.05,
+          "permutations": 999,
+          "weights": "queen"
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Moran: global Moran's I, queen contiguity, row-standardized; pseudo p over 999 permutations, and the normal approximation under randomization."
+      ],
+      "loaded": [
+        "PLACES_DIABETES_AgeAdjPrv | Diagnosed diabetes among adults (age-adjusted prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 95,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Using Moran's I with queen contiguity weights, is diagnosed diabetes significantly clustered among Tennessee counties?",
+            "uses": [],
+            "ops": "load->filter_area->moran->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.5
+    },
+    {
+      "id": "mw-nc-unemp-lisa",
+      "tier": "method_words_dev",
+      "query": "Run a local indicators of spatial association analysis of the unemployment rate across North Carolina counties.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "units": 100,
+        "gold_units": 100,
+        "coverage": 1.0,
+        "extra": 0,
+        "significant": 33,
+        "quadrant_ok": 1.0,
+        "agreement": 0.91,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "UNEMPLOYMENT_RATE"
+        }
+      },
+      "ops": "load->filter_area->moran->output",
+      "intent": "Run a local indicators of spatial association (LISA) analysis of the unemployment rate across North Carolina counties",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "UNEMPLOYMENT_RATE",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "North Carolina"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "moran",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "local": true,
+          "alpha": 0.05,
+          "permutations": 999,
+          "weights": "queen"
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Moran: LISA (local Moran's I), queen contiguity, row-standardized; a class needs pseudo p < 0.05 over 999 conditional permutations."
+      ],
+      "loaded": [
+        "UNEMPLOYMENT_RATE | Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS) | USDA ERS"
+      ],
+      "row_count": 100,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Run a local indicators of spatial association analysis of the unemployment rate across North Carolina counties.",
+            "uses": [],
+            "ops": "load->filter_area->moran->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.4
+    },
+    {
+      "id": "mw-mo-income-obesity-spearman",
+      "tier": "method_words_dev",
+      "query": "What is the Spearman rank correlation coefficient between median household income and adult obesity across Missouri counties?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": -0.4291,
+        "got": -0.4291,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V063_RAWVALUE",
+          "m2": "PLACES_OBESITY_CrdPrv"
+        }
+      },
+      "ops": "load->load->filter_area->filter_area->correlate->output",
+      "intent": "Spearman rank correlation coefficient between median household income and adult obesity across Missouri counties",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "CHR_V063_RAWVALUE",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "load",
+          "attr_id": "PLACES_OBESITY_CrdPrv",
+          "inputs": []
+        },
+        {
+          "id": "s3",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "correlate",
+          "attr_id": "",
+          "inputs": [
+            "s3",
+            "s4"
+          ]
+        },
+        {
+          "id": "s6",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s5"
+          ]
+        }
+      ],
+      "adjustments": [],
+      "loaded": [
+        "CHR_V063_RAWVALUE | Median household income | County Health Rankings",
+        "PLACES_OBESITY_CrdPrv | Obesity among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What is the Spearman rank correlation coefficient between median household income and adult obesity across Missouri counties?",
+            "uses": [],
+            "ops": "load->load->filter_area->filter_area->correlate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.0
+    }
+  ]
+}

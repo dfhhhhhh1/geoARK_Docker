@@ -20,6 +20,8 @@
  */
 module.exports = {
   name: "hotspot",
+  // Words that name this method, never data (planner/named_data.js).
+  methodTerms: /\bgetis(?:[-\s]ord)?\b|\bgi\*?|\bhot\s?spots?\b|\bcold\s?spots?\b|\bz[-\s]?scores?\b|\bclusters?\b|\bclustered\b|\bclustering\b|\bspatial\s+pattern\b|\bcontiguity\b|\bweights?\b|\bmatrix\b/gi,
   inputs: 1,
   needs: [],
   produces: "series",

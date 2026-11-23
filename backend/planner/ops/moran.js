@@ -25,6 +25,10 @@ const M = require("../moran");
  */
 module.exports = {
   name: "moran",
+  // Words that NAME this method, never data (planner/named_data.js exempts
+  // them only for a plan that runs the op): "Test for spatial
+  // autocorrelation", "Moran's I with queen contiguity weights".
+  methodTerms: /\bmoran'?s?(?:\s+i)?\b|\blisa\b|\blocal\s+indicators?\s+of\s+spatial\s+association\b|\b(?:global|local|spatial(?:ly)?)?\s*auto-?correlat\w*|\bspatial(?:ly)?\s+(?:dependence|clustering|clustered|clusters?|random\w*|association)\b|\b(?:queen|rook)'?s?\s+(?:contiguity|weights?)\b|\bcontiguity\b|\bweights?\b|\bmatrix\b|\b(?:high|low)[-\s](?:high|low)\b|\bspatial\s+outliers?\b|\bcluster\s+map\b|\bclustered\b|\bclusters?\b|\brandom(?:ly)?\s+distributed\b|\bpermutations?\b|\bdispersed\b/gi,
   inputs: 1,
   needs: [],
   produces: "statistic",

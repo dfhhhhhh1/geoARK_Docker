@@ -18,6 +18,8 @@
  */
 module.exports = {
   name: "outlier",
+  // Words that name this method, never data (planner/named_data.js).
+  methodTerms: /\boutliers?\b|\biqr\b|\binter-?quartile\s+range\b|\btukey'?s?\b|\bfences?\b|\banomal\w*/gi,
   inputs: 1,
   needs: [],
   produces: "series",

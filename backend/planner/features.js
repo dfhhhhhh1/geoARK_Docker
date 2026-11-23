@@ -594,6 +594,8 @@ function markGeometryOnly(plan) {
 // "what percentage / share / proportion of": a share. A number before
 // "percent" is a threshold ("slope under 5 percent"), not a share.
 const SHARE = /\b(?:percentage|share|proportion|fraction)\b|(?<![\d.]\s*)\bpercent\b|%\s+of\b/i;
+// "50 percent", "50%", "50 per cent": a number stated as a percent.
+const NUMBER_PERCENT = /\d\s*(?:%|percent\b|per\s*cent\b)/i;
 
 /**
  * What a zonal step reports, and in which unit, from the question (units in
@@ -611,8 +613,16 @@ function applyRasterMeasures(plan, query, srcOf) {
     if (st.op !== "zonal") continue;
     const src = srcOf(st.attr_id) || {};
     const selects = (st.attribute_filters?.length > 0) || st.operator !== undefined;
+    // On a CATEGORICAL raster a number-percent is a share: its pixels are
+    // class codes, so "more than 50 percent cultivated crops" cannot be a
+    // pixel value. Read as a threshold it reported square miles and the
+    // plan's "> 50" ran on those (share_threshold_dev, 2026-11-22: 1 of 11
+    // Illinois NPL sites, 77 of 16 Chicago community areas). On a continuous
+    // raster it stays a pixel value ("slope steeper than 3 percent").
+    const categorical = src.raster_kind === "categorical";
     let stat;
-    if (selects && AMOUNT.test(q)) stat = "area";
+    if (selects && categorical && NUMBER_PERCENT.test(q)) stat = "share";
+    else if (selects && AMOUNT.test(q)) stat = "area";
     else if (selects && SHARE.test(q)) stat = "share";
     else if (selects) stat = "area";
     else stat = src.aggregate === "sum" ? "sum" : "mean";
@@ -667,6 +677,39 @@ function yearAsVintage(plan, srcOf) {
       plan.steps = plan.steps.filter(x => x !== f);
       fixes.push(`step ${f.id} was the raster's year ${f.value}, not a filter`);
     }
+  }
+  return fixes.length ? fixes.join("; ") : null;
+}
+
+/**
+ * A pixel threshold on a CATEGORICAL raster that is the question's own
+ * number-percent ("more than 50 percent forest" planned as zonal operator
+ * ">" value 50) compares class CODES: NLCD 52-95 are shrub, grass, crops and
+ * wetlands. It is the threshold on the share, so it moves to a filter_attr
+ * reading the zonal step, and the step then reports the share
+ * (applyRasterMeasures). Runs before fillRasterClasses, which leaves a step
+ * with an operator alone. Returns a description, or null.
+ */
+function categoricalPercentThreshold(plan, query, srcOf) {
+  const said = [...String(query || "").matchAll(/(\d+(?:\.\d+)?)\s*(?:%|percent\b|per\s*cent\b)/gi)]
+    .map(m => Number(m[1]));
+  if (!said.length) return null;
+  const steps = plan.steps || [];
+  const fixes = [];
+  for (const st of [...steps]) {
+    if (st.op !== "zonal" || st.operator === undefined) continue;
+    if (srcOf(st.attr_id)?.raster_kind !== "categorical") continue;
+    const v = Number(st.value);
+    if (!said.includes(v)) continue;
+    const taken = new Set(steps.map(s => s.id));
+    let n = steps.length + 1;
+    while (taken.has(`s${n}`)) n++;
+    const f = { id: `s${n}`, op: "filter_attr", attr_id: "", inputs: [st.id], operator: st.operator, value: v };
+    for (const o of steps) o.inputs = (o.inputs || []).map(i => (i === st.id ? f.id : i));
+    f.inputs = [st.id];
+    steps.splice(steps.indexOf(st) + 1, 0, f);
+    delete st.operator; delete st.value;
+    fixes.push(`step ${st.id}'s "${f.operator} ${v}" is a share of the classes, not a pixel value (step ${f.id})`);
   }
   return fixes.length ? fixes.join("; ") : null;
 }
@@ -890,7 +933,7 @@ const UNIT_PER_M = Object.fromEntries([...AREA_UNITS, ...LENGTH_UNITS].map(([, u
 module.exports = {
   enrichAlgebra, asksEnrichment, repairEnrichPercentile, repairEnrichRank, numberCountsUnits,
   overlayAlgebra, measureAlgebra, applyMeasures, measureFor, UNIT_PER_M, AMOUNT, OVERLAY,
-  applyRasterMeasures, SHARE, fillRasterClasses, yearAsVintage,
+  applyRasterMeasures, SHARE, NUMBER_PERCENT, fillRasterClasses, categoricalPercentThreshold, yearAsVintage,
   zonalFeatureAlgebra, zonalOverFeatures, namedPolygonLayers, zonePhrase,
   applyAreaUnit, PER_KM2,
   referencePhrase,

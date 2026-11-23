@@ -181,6 +181,103 @@ const candidates = [
     assert.deepStrictEqual(place.uncovered, []);
   });
 
+  // ---- method words and thresholds (2026-11-22, eval/gis_ops/checks/)
+  const INC = { attr_id: "MEDHHINC", attr_desc: "Median household income in dollars (Census SAIPE estimate)", dataset_clean: "USDA ERS" };
+  const HOSP = { attr_id: "HOSP", attr_desc: "Objectid", dataset_clean: "Hospitals" };
+  const POV = { attr_id: "PCTPOVALL", attr_desc: "Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate)", dataset_clean: "USDA ERS" };
+  const plan = (...ops) => ({ steps: ops.map((op, i) => ({ id: `s${i + 1}`, op })) });
+  const one = (c) => ({ used: used(c.attr_id), candidates: [c], refs: new Map([["a1", c.attr_id]]) });
+
+  await test("a method's name is exempt only when the plan runs that method", async () => {
+    const q = "Test for spatial autocorrelation in median household income across Ohio counties.";
+    const reply = scripted([n("spatial autocorrelation", ""), n("median household income", "a1")]);
+    const withMoran = await checkNamedData({ query: q, ...one(INC), callLLM: reply, plan: plan("load", "filter_area", "moran") });
+    assert.deepStrictEqual(withMoran.uncovered, []);
+    // A plan that never tests autocorrelation does not get to skip it.
+    const without = await checkNamedData({ query: q, ...one(INC), callLLM: reply, plan: plan("load", "filter_area") });
+    assert.deepStrictEqual(without.uncovered, ["spatial autocorrelation"]);
+  });
+
+  await test("weights, contiguity and significance name no data under moran", async () => {
+    const q = "Using Moran's I with queen contiguity weights, is diagnosed diabetes significantly clustered among Tennessee counties?";
+    const r = await checkNamedData({ query: q, ...one(INC), plan: plan("load", "moran"),
+      callLLM: scripted([n("Moran's I", ""), n("queen contiguity weights", ""), n("significantly clustered", ""), n("diagnosed diabetes", "a1")]) });
+    assert.deepStrictEqual(r.uncovered, []);
+  });
+
+  await test("a method word does not exempt data beside it", async () => {
+    const q = "Test for spatial autocorrelation in average annual snowfall across Ohio counties.";
+    const r = await checkNamedData({ query: q, ...one(INC), plan: plan("load", "moran"),
+      callLLM: scripted([n("spatial autocorrelation in average annual snowfall", ""), n("average annual snowfall", "")]) });
+    assert.ok(r.uncovered.includes("average annual snowfall"), JSON.stringify(r.uncovered));
+  });
+
+  await test("correlate's method words: Spearman, rank, coefficient", async () => {
+    const q = "What is the Spearman rank correlation coefficient between median household income and adult obesity across Missouri counties?";
+    const r = await checkNamedData({ query: q, ...one(INC), plan: plan("load", "load", "correlate"),
+      callLLM: scripted([n("Spearman rank correlation coefficient", ""), n("median household income", "a1")]) });
+    assert.deepStrictEqual(r.uncovered, []);
+  });
+
+  await test("a comparison on a distance to a used layer is covered by that layer (r-access-gap)", async () => {
+    const q = "Which counties with above-median poverty rates are more than 30 miles from the nearest hospital?";
+    const r = await checkNamedData({ query: q, used: used("PCTPOVALL", "HOSP"), candidates: [POV, HOSP],
+      refs: new Map([["a1", "PCTPOVALL"], ["a2", "HOSP"]]), plan: plan("load", "nearest_distance", "intersect"),
+      callLLM: scripted([n("above-median poverty rates", "a1"), n("more than 30 miles from the nearest hospital", "")]) });
+    assert.deepStrictEqual(r.uncovered, []);
+    assert.strictEqual(r.named[1].covered_by, "a2");
+    assert.strictEqual(r.named[1].threshold, true);
+  });
+
+  await test("a comparison on a layer the plan does not use is still refused", async () => {
+    for (const [q, phrase] of [
+      ["Which Kansas counties are more than 15 miles from the nearest airport?", "more than 15 miles from the nearest airport"],
+      ["Which counties are more than 50 miles from a Level I trauma center?", "more than 50 miles from a Level I trauma center"],
+      ["Which Iowa counties have fewer than 4 public libraries?", "fewer than 4 public libraries"],
+    ]) {
+      const r = await checkNamedData({ query: q, ...one(HOSP), plan: plan("nearest_distance", "filter_attr"),
+        callLLM: scripted([n(phrase, "")]) });
+      assert.deepStrictEqual(r.uncovered, [phrase], q);
+    }
+  });
+
+  await test("a bare distance comparison is covered only when the plan computes a distance", async () => {
+    const q = "Which Kansas counties are more than 15 miles from the nearest hospital?";
+    const reply = scripted([n("more than 15 miles", ""), n("the nearest hospital", "a1")]);
+    const dist = await checkNamedData({ query: q, ...one(HOSP), callLLM: reply, plan: plan("count_features", "nearest_distance", "filter_attr") });
+    assert.deepStrictEqual(dist.uncovered, []);
+    const none = await checkNamedData({ query: q, ...one(HOSP), callLLM: reply, plan: plan("count_features", "filter_attr") });
+    assert.deepStrictEqual(none.uncovered, ["more than 15 miles"]);
+    // A threshold on a column, not a distance, is not computed by anything.
+    const acres = await checkNamedData({ query: "fires that burned more than 50,000 acres", ...one(HOSP),
+      callLLM: scripted([n("more than 50,000 acres", "")]), plan: plan("select_features", "nearest_distance") });
+    assert.deepStrictEqual(acres.uncovered, ["more than 50,000 acres"]);
+  });
+
+  await test("people in a comparison are a used population count; the rest is the layer", async () => {
+    const FIRE = { attr_id: "FIRE", attr_desc: "Objectid", dataset_clean: "Fire Stations" };
+    const POP = { attr_id: "POP_ESTIMATE", attr_desc: "Total population (resident population estimate, July 1)", dataset_clean: "USDA ERS" };
+    const q = "Which counties have fewer than 2 fire stations per 10,000 residents?";
+    const phrase = "fewer than 2 fire stations per 10,000 residents";
+    const both = await checkNamedData({ query: q, used: used("FIRE", "POP_ESTIMATE"), candidates: [FIRE, POP],
+      refs: new Map([["a1", "FIRE"], ["a2", "POP_ESTIMATE"]]), plan: plan("count_features", "load", "normalize", "filter_attr"),
+      callLLM: scripted([n(phrase, "")]) });
+    assert.deepStrictEqual(both.uncovered, []);
+    // No population in the plan: the residents are not covered.
+    const noPop = await checkNamedData({ query: q, used: used("FIRE"), candidates: [FIRE],
+      refs: new Map([["a1", "FIRE"]]), plan: plan("count_features", "filter_attr"), callLLM: scripted([n(phrase, "")]) });
+    assert.deepStrictEqual(noPop.uncovered, [phrase]);
+  });
+
+  await test("a shared word without a number never overrules the model", async () => {
+    // "mobile" once covered mobile inspection locations with Mobile Home Parks.
+    const MHP = { attr_id: "MHP", attr_desc: "Objectid", dataset_clean: "Mobile Home Parks" };
+    const q = "Group our mobile field inspection locations into five balanced service clusters.";
+    const r = await checkNamedData({ query: q, ...one(MHP), plan: plan("select_features"),
+      callLLM: scripted([n("mobile field inspection locations", "")]) });
+    assert.deepStrictEqual(r.uncovered, ["mobile field inspection locations"]);
+  });
+
   console.log(`\n  ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

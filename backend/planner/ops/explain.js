@@ -138,6 +138,8 @@ function chooseFactors({ outcomeAttrId, candidates = [], resultsByQuery = [],
 
 module.exports = {
   name: "explain",
+  // Words that name this method, never data (planner/named_data.js).
+  methodTerms: /\bpartial\s+correlat\w*|\bcorrelat\w*|\bdrivers?\b|\bfactors?\b|\bpredictors?\b|\bcontrolling\b/gi,
   inputs: 1,
   needs: [],
   produces: "factors",

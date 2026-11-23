@@ -40,6 +40,8 @@ function asksAccess(query) {
 module.exports = {
   asksAccess,
   name: "access",
+  // Words that name this method, never data (planner/named_data.js).
+  methodTerms: /\b2sfca\b|\btwo[-\s]step\s+floating\s+catchment\b|\bfloating\s+catchment\b|\baccessibility\b|\bspatial\s+access\b|\bsupply[-\s]to[-\s]demand\b/gi,
   inputs: 1,
   needs: ["attr_id", "miles"],
   produces: "series",

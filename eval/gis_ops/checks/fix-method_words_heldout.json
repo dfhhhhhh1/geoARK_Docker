@@ -1,0 +1,189 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "method_words_heldout": {
+      "pass": 0,
+      "n": 2,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "WRONG_SHAPE": 1,
+    "EMPTY": 1
+  },
+  "latency_mean": 18.5,
+  "api_container_created": "2026-11-22T23:16:39.125503429Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "mw-wi-obesity-dependence",
+      "tier": "method_words_heldout",
+      "query": "Quantify the spatial dependence of adult obesity among Wisconsin counties with a global autocorrelation statistic.",
+      "class": "WRONG_SHAPE",
+      "pass": false,
+      "detail": {
+        "why": "no single statistic returned",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V011_RAWVALUE"
+        }
+      },
+      "ops": "load->filter_area->hotspot->output",
+      "intent": "Quantify the spatial dependence of adult obesity among Wisconsin counties with a global autocorrelation statistic.",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "CHR_V011_RAWVALUE",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Wisconsin"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "hotspot",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [],
+      "loaded": [
+        "CHR_V011_RAWVALUE | Adult obesity | County Health Rankings"
+      ],
+      "row_count": 72,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Quantify the spatial dependence of adult obesity among Wisconsin counties with a global autocorrelation statistic.",
+            "uses": [],
+            "ops": "load->filter_area->hotspot->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.2
+    },
+    {
+      "id": "mw-pa-unemp-diabetes-rank",
+      "tier": "method_words_heldout",
+      "query": "Compute a rank-order correlation between the unemployment rate and diagnosed diabetes for Pennsylvania counties.",
+      "class": "EMPTY",
+      "pass": false,
+      "detail": {},
+      "ops": "load->load->filter_area->filter_area->correlate->output",
+      "intent": "Compute a rank-order correlation between the unemployment rate and diagnosed diabetes for Pennsylvania counties.",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "UNEMPLOYMENT_RATE",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "load",
+          "attr_id": "PLACES_DIABETES_AgeAdjPrv",
+          "inputs": []
+        },
+        {
+          "id": "s3",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Pennsylvania"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "states": [
+            "Pennsylvania"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "correlate",
+          "attr_id": "",
+          "inputs": [
+            "s3",
+            "s4"
+          ]
+        },
+        {
+          "id": "s6",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s5"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Coverage: \"Diagnosed diabetes among adults (age-adjusted prevalence) (covers 2,957 counties)\" has values for 0 of 67 counties in the area."
+      ],
+      "loaded": [
+        "UNEMPLOYMENT_RATE | Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS) | USDA ERS",
+        "PLACES_DIABETES_AgeAdjPrv | Diagnosed diabetes among adults (age-adjusted prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 0,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Compute a rank-order correlation between the unemployment rate and diagnosed diabetes for Pennsylvania counties.",
+            "uses": [],
+            "ops": "load->load->filter_area->filter_area->correlate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 22.9
+    }
+  ]
+}

@@ -78,6 +78,8 @@ measures:
   obesity: '^(PLACES_OBESITY_(CrdPrv|AgeAdjPrv)|CHR_V011_RAWVALUE)\b'
   diabetes: '^(PLACES_DIABETES_(CrdPrv|AgeAdjPrv)|CHR_V060_RAWVALUE)\b'
   inactivity: '^(PLACES_LPA_(CrdPrv|AgeAdjPrv)|CHR_V070_RAWVALUE)\b'
+  # CDC PLACES has no Pennsylvania rows either (check-gold, 2026-11-22).
+  diabetes_no_places: '^CHR_V060_RAWVALUE\b'
 
 
 queries:
@@ -1658,3 +1660,336 @@ queries:
                 GROUP BY a.fips, a.z)
           SELECT NULL::text AS fips,
             (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)
+
+  # ===================================================== method_words_dev
+  # 2026-11-22, written BEFORE any fix (docs/GIS_OPS_PLAN.md "Checks:
+  # method words, thresholds, shares"). The named-data check
+  # (planner/named_data.js) must not read the NAME OF A METHOD as data the
+  # question needs: "spatial autocorrelation", "Moran's I", "queen
+  # contiguity", "local indicators of spatial association", "Spearman rank
+  # correlation". The analyses are ones moran_dev and research_advanced
+  # already score; only the wording is new. Golds as moran_dev (queen,
+  # row-standardized) and Spearman as research_advanced
+  # d-poor-quarter-smoking-copd.
+  - id: mw-oh-income-autocorr
+    tier: method_words_dev
+    query: "Test for spatial autocorrelation in median household income across Ohio counties."
+    note: "global Moran's I, Ohio"
+    measures: {m1: med_income}
+    gold: |
+      WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE left(fips, 2) = '39' AND value IS NOT NULL),
+      s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+      z AS (SELECT fips, y - mu AS z FROM v, s),
+      l AS (SELECT a.fips, a.z, avg(b.z) AS lag FROM z a
+            JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+            GROUP BY a.fips, a.z)
+      SELECT NULL::text AS fips,
+        (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)
+    compare: {kind: scalar, rel_tol: 0.02}
+    wrong:
+      - expect: WRONG_VALUE          # national I
+        sql: |
+          WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE value IS NOT NULL),
+          s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+          z AS (SELECT fips, y - mu AS z FROM v, s),
+          l AS (SELECT a.fips, a.z, avg(b.z) AS lag FROM z a
+                JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+                GROUP BY a.fips, a.z)
+          SELECT NULL::text AS fips,
+            (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)
+
+  - id: mw-tn-diabetes-queen
+    tier: method_words_dev
+    query: "Using Moran's I with queen contiguity weights, is diagnosed diabetes significantly clustered among Tennessee counties?"
+    note: "global Moran's I, Tennessee; the weights are named"
+    measures: {m1: diabetes}
+    gold: |
+      WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE left(fips, 2) = '47' AND value IS NOT NULL),
+      s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+      z AS (SELECT fips, y - mu AS z FROM v, s),
+      l AS (SELECT a.fips, a.z, avg(b.z) AS lag FROM z a
+            JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+            GROUP BY a.fips, a.z)
+      SELECT NULL::text AS fips,
+        (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)
+    compare: {kind: scalar, rel_tol: 0.02}
+    wrong:
+      - expect: WRONG_VALUE          # national I
+        sql: |
+          WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE value IS NOT NULL),
+          s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+          z AS (SELECT fips, y - mu AS z FROM v, s),
+          l AS (SELECT a.fips, a.z, avg(b.z) AS lag FROM z a
+                JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+                GROUP BY a.fips, a.z)
+          SELECT NULL::text AS fips,
+            (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)
+
+  - id: mw-nc-unemp-lisa
+    tier: method_words_dev
+    query: "Run a local indicators of spatial association analysis of the unemployment rate across North Carolina counties."
+    note: "LISA, North Carolina, named by the method's full name"
+    measures: {m1: unemployment_rate}
+    gold: |
+      WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE left(fips, 2) = '37' AND value IS NOT NULL),
+      s AS (SELECT avg(y) AS mu, stddev_pop(y) AS sd, count(*)::float8 AS n FROM v),
+      z AS (SELECT fips, (y - mu) / sd AS z FROM v, s),
+      m AS (SELECT sum(z * z) / count(*) AS m2 FROM z),
+      l AS (SELECT a.fips, a.z, avg(b.z) AS lag, count(*)::float8 AS k FROM z a
+            JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+            GROUP BY a.fips, a.z),
+      t AS (SELECT l.*, (s.n - 1) * l.z * l.lag / (m.m2 * s.n) AS ii,
+              -(l.z * l.z) / ((s.n - 1) * m.m2) AS e,
+              (l.z / m.m2) ^ 2 * (s.n / (s.n - 2)) * (1 / l.k - 1 / (s.n - 1)) * (m.m2 - l.z * l.z / (s.n - 1)) AS var,
+              CASE WHEN l.z > 0 AND l.lag > 0 THEN 2 WHEN l.z > 0 THEN 1 WHEN l.lag > 0 THEN -1 ELSE -2 END AS quad
+            FROM l, s, m)
+      SELECT fips, CASE WHEN var > 0 AND abs(ii - e) / sqrt(var) > 1.6449 THEN quad ELSE 0 END, quad::text
+      FROM t
+    compare: {kind: lisa, alpha: 0.05, min_coverage: 0.95, max_extra: 0.05, min_quadrant: 0.99, min_agree: 0.9}
+    wrong:
+      - expect: WRONG_VALUE          # the rate itself mapped
+        sql: |
+          SELECT fips, value, '2' FROM {latest:m1} WHERE left(fips, 2) = '37'
+
+  - id: mw-mo-income-obesity-spearman
+    tier: method_words_dev
+    query: "What is the Spearman rank correlation coefficient between median household income and adult obesity across Missouri counties?"
+    note: "correlate within Missouri; rho is the headline"
+    measures: {m1: med_income, m2: obesity}
+    gold: |
+      WITH j AS (SELECT a.fips, a.value AS av, b.value AS bv
+                 FROM {latest:m1} a JOIN {latest:m2} b USING (fips)
+                 WHERE left(a.fips, 2) = '29' AND a.value IS NOT NULL AND b.value IS NOT NULL),
+      r AS (SELECT rank() OVER (ORDER BY av) + (count(*) OVER (PARTITION BY av) - 1) / 2.0 AS ra,
+                   rank() OVER (ORDER BY bv) + (count(*) OVER (PARTITION BY bv) - 1) / 2.0 AS rb
+            FROM j)
+      SELECT NULL, corr(ra, rb) FROM r
+    compare: {kind: scalar, abs_tol: 0.04}
+    wrong:
+      - expect: WRONG_VALUE          # national correlation, restriction dropped (shifted to stay distinct)
+        sql: |
+          WITH j AS (SELECT a.value AS av, b.value AS bv
+                     FROM {latest:m1} a JOIN {latest:m2} b USING (fips)
+                     WHERE a.value IS NOT NULL AND b.value IS NOT NULL),
+          r AS (SELECT rank() OVER (ORDER BY av) AS ra, rank() OVER (ORDER BY bv) AS rb FROM j)
+          SELECT NULL, corr(ra, rb) + 0.3 FROM r
+
+  # ================================================= method_words_heldout
+  - id: mw-wi-obesity-dependence
+    tier: method_words_heldout
+    query: "Quantify the spatial dependence of adult obesity among Wisconsin counties with a global autocorrelation statistic."
+    measures: {m1: obesity}
+    gold: |
+      WITH v AS (SELECT fips, value::float8 AS y FROM {latest:m1} WHERE left(fips, 2) = '55' AND value IS NOT NULL),
+      s AS (SELECT avg(y) AS mu, count(*)::float8 AS n FROM v),
+      z AS (SELECT fips, y - mu AS z FROM v, s),
+      l AS (SELECT a.fips, a.z, avg(b.z) AS lag FROM z a
+            JOIN county_neighbors cn ON cn.fips = a.fips JOIN z b ON b.fips = cn.neighbor_fips
+            GROUP BY a.fips, a.z)
+      SELECT NULL::text AS fips,
+        (SELECT n FROM s) / (SELECT count(*) FROM l) * (SELECT sum(z * lag) FROM l) / (SELECT sum(z * z) FROM z)
+    compare: {kind: scalar, rel_tol: 0.02}
+    wrong:
+      - expect: WRONG_VALUE          # the obesity rate's mean, not a statistic
+        sql: "SELECT NULL, avg(value) FROM {latest:m1} WHERE left(fips, 2) = '55'"
+
+  - id: mw-pa-unemp-diabetes-rank
+    tier: method_words_heldout
+    query: "Compute a rank-order correlation between the unemployment rate and diagnosed diabetes for Pennsylvania counties."
+    measures: {m1: unemployment_rate, m2: diabetes_no_places}
+    gold: |
+      WITH j AS (SELECT a.fips, a.value AS av, b.value AS bv
+                 FROM {latest:m1} a JOIN {latest:m2} b USING (fips)
+                 WHERE left(a.fips, 2) = '42' AND a.value IS NOT NULL AND b.value IS NOT NULL),
+      r AS (SELECT rank() OVER (ORDER BY av) + (count(*) OVER (PARTITION BY av) - 1) / 2.0 AS ra,
+                   rank() OVER (ORDER BY bv) + (count(*) OVER (PARTITION BY bv) - 1) / 2.0 AS rb
+            FROM j)
+      SELECT NULL, corr(ra, rb) FROM r
+    compare: {kind: scalar, abs_tol: 0.04}
+    wrong:
+      - expect: WRONG_VALUE          # national, shifted to stay distinct
+        sql: |
+          WITH j AS (SELECT a.value AS av, b.value AS bv
+                     FROM {latest:m1} a JOIN {latest:m2} b USING (fips)
+                     WHERE a.value IS NOT NULL AND b.value IS NOT NULL),
+          r AS (SELECT rank() OVER (ORDER BY av) AS ra, rank() OVER (ORDER BY bv) AS rb FROM j)
+          SELECT NULL, corr(ra, rb) + 0.3 FROM r
+
+  # ======================================================= thresholds_dev
+  # 2026-11-22, written BEFORE any fix. A comparison with a number, on a
+  # quantity the plan COMPUTES (a distance, a count) or on a layer's own
+  # column, phrased so the named-data check sees it: research.yaml
+  # r-access-gap was refused as `the loaded data does not include "more than
+  # 30 miles from the nearest hospital"`. Distances are brute force from
+  # ST_Centroid over every HIFLD hospital, as nearest_dev. Counts include
+  # zero (a county with no nursing home has fewer than 4).
+  - id: t-ks-hospital-15mi
+    tier: thresholds_dev
+    query: "Which Kansas counties are more than 15 miles from the nearest hospital?"
+    measures: {m1: hifld_hospitals}
+    gold: |
+      WITH d AS (SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                                 FROM {table:m1} h) / 1609.344 AS mi
+                 FROM county_geom g WHERE g.state_fp = '20')
+      SELECT fips, mi FROM d WHERE mi > 15
+    compare: {kind: set, min_jaccard: 0.9}
+    wrong:
+      - expect: WRONG_GEOGRAPHY          # every Kansas county: the threshold never applied
+        sql: "SELECT fips, 1 FROM county_geom WHERE state_fp = '20'"
+
+  - id: t-tx-hospital-over30
+    tier: thresholds_dev
+    query: "List the Texas counties where the nearest hospital is over 30 miles away."
+    measures: {m1: hifld_hospitals}
+    gold: |
+      WITH d AS (SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                                 FROM {table:m1} h) / 1609.344 AS mi
+                 FROM county_geom g WHERE g.state_fp = '48')
+      SELECT fips, mi FROM d WHERE mi > 30
+    compare: {kind: set, min_jaccard: 0.9}
+    wrong:
+      - expect: WRONG_GEOGRAPHY          # kilometres read as miles
+        sql: |
+          WITH d AS (SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                                     FROM {table:m1} h) / 1000 AS km
+                     FROM county_geom g WHERE g.state_fp = '48')
+          SELECT fips, km FROM d WHERE km > 30
+
+  - id: t-ia-nursing-lt4
+    tier: thresholds_dev
+    query: "Which Iowa counties have fewer than 4 nursing homes?"
+    measures: {m1: nursing_homes}
+    gold: |
+      WITH c AS (SELECT g.fips, (SELECT count(*) FROM {table:m1} n WHERE ST_Intersects(g.geom, n.geom)) AS k
+                 FROM county_geom g WHERE g.state_fp = '19')
+      SELECT fips, k FROM c WHERE k < 4
+    compare: {kind: set, min_jaccard: 0.9}
+    wrong:
+      - expect: INCOMPLETE          # fewer than 3: off by one
+        sql: |
+          WITH c AS (SELECT g.fips, (SELECT count(*) FROM {table:m1} n WHERE ST_Intersects(g.geom, n.geom)) AS k
+                     FROM county_geom g WHERE g.state_fp = '19')
+          SELECT fips, k FROM c WHERE k < 3
+
+  - id: t-al-tornado-killed5
+    tier: thresholds_dev
+    query: "How many tornadoes that killed more than 5 people have crossed Alabama?"
+    note: "the layer's fat column, phrased as a verb"
+    measures: {m1: tornadoes}
+    gold: |
+      SELECT NULL, count(*) FROM {table:m1} t
+      WHERE t.fat > 5
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '01' AND ST_Intersects(c.geom, t.geom))
+    compare: {kind: scalar, rel_tol: 0.02, abs_tol: 0.5}
+    wrong:
+      - expect: WRONG_VALUE          # every Alabama tornado
+        sql: |
+          SELECT NULL, count(*) FROM {table:m1} t
+          WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '01' AND ST_Intersects(c.geom, t.geom))
+
+  # =================================================== thresholds_heldout
+  - id: t-ne-no-hospital-20mi
+    tier: thresholds_heldout
+    query: "Which Nebraska counties have no hospital within 20 miles of their center?"
+    measures: {m1: hifld_hospitals}
+    gold: |
+      WITH d AS (SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                                 FROM {table:m1} h) / 1609.344 AS mi
+                 FROM county_geom g WHERE g.state_fp = '31')
+      SELECT fips, mi FROM d WHERE mi > 20
+    compare: {kind: set, min_jaccard: 0.9}
+    wrong:
+      - expect: WRONG_GEOGRAPHY          # the counties WITH one inside 20 miles
+        sql: |
+          WITH d AS (SELECT g.fips, (SELECT min(ST_Distance(ST_Centroid(g.geom)::geography, h.geom::geography))
+                                     FROM {table:m1} h) / 1609.344 AS mi
+                     FROM county_geom g WHERE g.state_fp = '31')
+          SELECT fips, mi FROM d WHERE mi <= 20
+
+  - id: t-mo-tornado-injuries50
+    tier: thresholds_heldout
+    query: "Count the Missouri tornadoes with over 50 injuries."
+    measures: {m1: tornadoes}
+    gold: |
+      SELECT NULL, count(*) FROM {table:m1} t
+      WHERE t.inj > 50
+        AND EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '29' AND ST_Intersects(c.geom, t.geom))
+    compare: {kind: scalar, rel_tol: 0.02, abs_tol: 0.5}
+    wrong:
+      - expect: WRONG_VALUE          # every Missouri tornado
+        sql: |
+          SELECT NULL, count(*) FROM {table:m1} t
+          WHERE EXISTS (SELECT 1 FROM county_geom c WHERE c.state_fp = '29' AND ST_Intersects(c.geom, t.geom))
+
+  # =================================================== share_threshold_dev
+  # 2026-11-22, written BEFORE any fix. "N percent <land class>" on a
+  # CATEGORICAL raster is a SHARE with a threshold on it, never a pixel
+  # value: NLCD pixels are class codes, and "> 50" on them selects classes
+  # 52-95. On a CONTINUOUS raster a number-percent is a pixel value
+  # ("steeper than 3 percent" is slope), and stays one: the control.
+  # Units, features and zone sets each appear. Gold from the GeoTIFFs
+  # (raster_gold.py, st-* qids; chi-dev-share-2001 is H4's).
+  - id: st-mo-county-crops-gt50
+    tier: share_threshold_dev
+    query: "Which Missouri counties were more than 50 percent cultivated crops in 2021?"
+    note: "NLCD class 82, share of each county's pixels, > 50"
+    measures: {m1: nlcd}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'st-mo-county-crops-share-2021' AND value > 50"
+    compare: {kind: set, min_jaccard: 0.9}
+    wrong:
+      - expect: WRONG_GEOGRAPHY          # planted/cultivated group (81 + 82), not cultivated crops
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'st-mo-county-planted-share-2021' AND value > 50"
+
+  - id: st-il-npl-forest-ge20
+    tier: share_threshold_dev
+    query: "Which Superfund sites in Illinois are at least 20 percent forest, according to 2021 land cover?"
+    note: "NLCD Forest (41-43), share of each NPL site, >= 20"
+    measures: {m1: nlcd, m2: npl_sites}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'st-il-npl-forest-share-2021' AND value >= 20"
+    compare: {kind: set, features: true, min_jaccard: 0.9}
+    wrong:
+      - expect: WRONG_VALUE          # every site with any forest
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'st-il-npl-forest-share-2021' AND value > 0"
+
+  - id: st-chi-comm-dev-lt95-2001
+    tier: share_threshold_dev
+    query: "Which Chicago community areas were less than 95 percent developed in 2001?"
+    note: "NLCD Developed (21-24), share of each community area, < 95"
+    measures: {m1: nlcd}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'chi-dev-share-2001' AND value < 95"
+    compare: {kind: set, min_jaccard: 0.9}
+    wrong:
+      - expect: WRONG_GEOGRAPHY          # the comparison reversed
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'chi-dev-share-2001' AND value >= 95"
+
+  - id: st-chi-comm-steep3-share
+    tier: share_threshold_dev
+    query: "What percentage of each Chicago community area has a slope steeper than 3 percent?"
+    note: "CONTROL: continuous raster, 3 percent is a pixel value; the share of pixels over it"
+    measures: {m1: slope}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'st-chi-comm-steep3-share'"
+    compare: {kind: values, rel_tol: 0.005, abs_tol: 0.1, min_coverage: 1.0}
+    wrong:
+      - expect: WRONG_VALUE          # the share at or under 3 percent
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'st-chi-comm-flat3-share'"
+
+  # =============================================== share_threshold_heldout
+  - id: st-il-county-crops-gt80-2001
+    tier: share_threshold_heldout
+    query: "Which Illinois counties had over 80 percent of their land in cultivated crops in 2001?"
+    measures: {m1: nlcd}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'st-il-county-crops-share-2001' AND value > 80"
+    compare: {kind: set, min_jaccard: 0.9}
+    wrong:
+      - expect: WRONG_GEOGRAPHY          # 2021
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'st-il-county-crops-share-2021' AND value > 80"
+
+  - id: st-mo-county-planted-ge70
+    tier: share_threshold_heldout
+    query: "List the Missouri counties where planted or cultivated land covered at least 70 percent of the county in 2021."
+    measures: {m1: nlcd}
+    gold: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'st-mo-county-planted-share-2021' AND value >= 70"
+    compare: {kind: set, min_jaccard: 0.9}
+    wrong:
+      - expect: INCOMPLETE          # cultivated crops alone
+        sql: "SELECT geoid, value FROM eval_raster_gold WHERE qid = 'st-mo-county-crops-share-2021' AND value >= 70"

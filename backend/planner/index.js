@@ -29,7 +29,7 @@ const { derefDefinitions, checkThresholds, LAYER_PHRASES, GROUP_COMPARISON,
 const { anchorYears, spans } = require("./vintages");
 const { applyLevel, applyRollup, levelOf } = require("./levels");
 const { applyValueFilters, loadedColumnAsCount, FEATURE_FILTER_OPS } = require("./feature_filters");
-const { repairDistanceUnits, repairWithinDirection, widenReferenceLayer, repairEnrichPercentile, repairEnrichRank, applyAreaUnit, applyMeasures, applyRasterMeasures, fillRasterClasses, yearAsVintage, zonalFeatureAlgebra, zonalOverFeatures, namedPolygonLayers } = require("./features");
+const { repairDistanceUnits, repairWithinDirection, widenReferenceLayer, repairEnrichPercentile, repairEnrichRank, applyAreaUnit, applyMeasures, applyRasterMeasures, fillRasterClasses, categoricalPercentThreshold, yearAsVintage, zonalFeatureAlgebra, zonalOverFeatures, namedPolygonLayers } = require("./features");
 const { preferUserLayer } = require("../user_layers");
 const { applyCatchment, applyDistancePopulation } = require("./catchment");
 const { isPopulationCount } = require("../population");
@@ -40,7 +40,7 @@ const { applyNetwork, applyNetworkPopulation, networkUnitErrors } = require("./n
 const { repairPrecision } = require("./uncertainty");
 const { seriesUnit } = require("./units");
 const { loadLabelInputs, splitOutputs, dropRateOverCount, earlierResultSecond,
-        areaAfterAccess, totalTheDenominator, bridgeFromLoadedLayer, bridgeInputsToIntersect, restrictToEarlier, uninvertChains, orderChangeByYear, addMissingOutput } = require("./rewire");
+        areaAfterAccess, totalTheDenominator, bridgeFromLoadedLayer, bridgeInputsToIntersect, restrictToEarlier, uninvertChains, orderChangeByYear, addMissingOutput, dropSelfRatio } = require("./rewire");
 const { compilePlan, CompileError } = require("./compile");
 const opsRegistry = require("./ops");
 
@@ -1507,6 +1507,13 @@ async function generatePlan({
       log(`   Dropped filter(s) the question did not ask for: ${unasked}`);
       emit({ stage: "plan_adjusted", detail: `dropped unasked filter ${unasked}` });
     }
+    // After the drops: one that rewired both inputs of a ratio onto one step.
+    const selfRatio = dropSelfRatio(plan);
+    if (selfRatio) {
+      log(`   Rewired plan: ${selfRatio}`);
+      emit({ stage: "plan_adjusted", detail: selfRatio });
+      adjustments.push(`Plan corrected: ${selfRatio}.`);
+    }
     const countyFix = repairCountyKind(plan, query);
     if (countyFix) {
       log(`   Repaired place kind: ${countyFix}`);
@@ -1753,6 +1760,12 @@ async function generatePlan({
           log(`   Rewired plan: ${yr}`);
           emit({ stage: "plan_adjusted", detail: yr });
           adjustments.push(`Plan corrected: ${yr}.`);
+        }
+        const pct = categoricalPercentThreshold(plan, query, (id) => zr.get(id));
+        if (pct) {
+          log(`   Rewired plan: ${pct}`);
+          emit({ stage: "plan_adjusted", detail: pct });
+          adjustments.push(`Plan corrected: ${pct}.`);
         }
         const cls = fillRasterClasses(plan, query, (id) => zr.get(id));
         if (cls) {

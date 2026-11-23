@@ -1651,6 +1651,29 @@ evidence `eval/gis_ops/zonal_features/`, `eval/gis_ops/tier1/`.
   (`repairEnrichRank`). **"The op was on the menu" is a claim to check
   (`ops offered:` in the log), not to infer from the gate's intent.**
 
+### Checks: method words, thresholds, shares (2026-11-22)
+
+docs/GIS_OPS_PLAN.md "Checks: method words, thresholds, shares"; evidence
+`eval/gis_ops/checks/`. Dev tiers written first; snapshot byte-identical.
+
+- **A method word is exempt only when an op of THIS plan declares it**
+  (`methodTerms` in each op module, read by `named_data.methodWords`).
+  "spatial autocorrelation" passes beside moran and is refused without it.
+- **Comparison words must not be exempt on their own**: "more than 50,000
+  acres" would pass, a threshold nothing applies. `thresholdCoverage` covers a
+  numbered comparison only by a used layer's name, a population count, or a
+  distance op.
+- **On a categorical raster a stated percent is a share**: the model put
+  `> 50` on class codes and filtered square miles. share_threshold_dev 0/4 ->
+  4, 4, 3 of 4. `dropSelfRatio` removes a normalize of a step by itself,
+  which removing an unasked filter can leave behind (100% everywhere).
+- Check probe: answerable 24/25 -> 25/25, controls 6/7 unchanged. Guards
+  unmoved (research 72.2%, answerability 9/10 0/20, plan 92.3 / 96.2%).
+- **Open**: tornado `fat` / `inj` read "fat content" / "injection rate" in
+  the catalog, so "killed more than 5" now answers as a county count 3 of 3
+  (the model's own coverage). Missouri NLCD questions miss the raster in
+  retrieval (raster_dev crop change 0/3 this build).
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence

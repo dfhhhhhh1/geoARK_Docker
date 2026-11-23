@@ -21,6 +21,8 @@ const OPS = {
 
 module.exports = {
   name: "neighbors",
+  // Words that name this method, never data (planner/named_data.js).
+  methodTerms: /\bspatial(?:ly)?\s+lag(?:ged)?\b|\blag\b|\bneighbou?r(?:s|ing|hood\s+average)?\b|\badjacent\b|\bcontiguity\b|\bbordering\b/gi,
   inputs: 1,
   needs: [],
   produces: "series",

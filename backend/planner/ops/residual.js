@@ -22,6 +22,8 @@ const ACCESS = /\baccess(?:ibility)?\b/i;
 
 module.exports = {
   name: "residual",
+  // Words that name this method, never data (planner/named_data.js).
+  methodTerms: /\bresiduals?\b|\bregress\w*|\bols\b|\bleast\s+squares\b|\bcontrolling\b|\bpredicted\b|\bexpected\b/gi,
   inputs: 2,
   needs: [],
   produces: "series",

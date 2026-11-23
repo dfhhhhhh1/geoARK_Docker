@@ -379,6 +379,75 @@ function sane(o) {
     assert.strictEqual(JSON.stringify(p), before);
   });
 
+  // ---- share versus threshold (share_threshold_dev, 2026-11-22)
+  const { categoricalPercentThreshold } = require("./features");
+  const fa = (id, from, operator, value) => ({ id, op: "filter_attr", attr_id: "", inputs: [from], operator, value });
+  const forest = [{ column: "type", value: "Forest" }];
+
+  await test("a number-percent of a land class is a share with a threshold on it", async () => {
+    for (const q of [
+      "Which Superfund sites in Illinois are at least 20 percent forest, according to 2021 land cover?",
+      "Which Chicago community areas were less than 95 percent developed in 2001?",
+      "Which counties are over 40% forest?",
+    ]) {
+      const p = plan(zonal("s1", "LC", { year: 2021, attribute_filters: forest }), fa("s2", "s1", ">=", 20), out("s3", "s2"));
+      applyRasterMeasures(p, q, srcOf);
+      assert.strictEqual(p.steps[0].stat, "share", q);
+      assert.strictEqual(p.steps[0].unit, undefined, q);
+    }
+  });
+
+  await test("on a continuous raster a number-percent stays a pixel value (the control)", async () => {
+    const p = plan(zonal("s1", "SLOPE", { operator: ">", value: 10 }), out("s2", "s1"));
+    applyRasterMeasures(p, "Which neighborhoods have the most land with slope over 10 percent?", srcOf);
+    assert.strictEqual(p.steps[0].stat, "area");
+    const q = plan(zonal("s1", "SLOPE", { operator: ">", value: 3 }), out("s2", "s1"));
+    applyRasterMeasures(q, "What percentage of each Chicago community area has a slope steeper than 3 percent?", srcOf);
+    assert.strictEqual(q.steps[0].stat, "share");
+    assert.strictEqual(q.steps[0].operator, ">");
+  });
+
+  await test("acres of a land class stay an area when no percent is stated", async () => {
+    const p = plan(zonal("s1", "LC", { attribute_filters: forest }), out("s2", "s1"));
+    applyRasterMeasures(p, "How many acres of forest does each Superfund site have?", srcOf);
+    assert.strictEqual(p.steps[0].stat, "area");
+  });
+
+  await test("a categorical pixel threshold equal to the question's percent moves to a filter on the share", async () => {
+    const q = "Which Missouri counties are more than 50 percent forest?";
+    const p = plan(zonal("s1", "LC", { year: 2021, attribute_filters: forest, operator: ">", value: 50 }), out("s2", "s1"));
+    assert.match(categoricalPercentThreshold(p, q, srcOf), /share of the classes/);
+    assert.strictEqual(p.steps[0].operator, undefined);
+    assert.deepStrictEqual(p.steps.map(s => s.op), ["zonal", "filter_attr", "output"]);
+    assert.deepStrictEqual(p.steps[1], { id: "s3", op: "filter_attr", attr_id: "", inputs: ["s1"], operator: ">", value: 50 });
+    assert.deepStrictEqual(p.steps[2].inputs, ["s3"]);
+    applyRasterMeasures(p, q, srcOf);
+    assert.strictEqual(p.steps[0].stat, "share");
+    const v = await validatePlan(p, resolve);
+    assert.ok(v.ok, v.errors.join("; "));
+    sane(compilePlan(p, v.resolved).outputs[0]);
+  });
+
+  await test("a continuous threshold, or a number the question did not state, is left alone", async () => {
+    const s = plan(zonal("s1", "SLOPE", { operator: ">", value: 3 }), out("s2", "s1"));
+    assert.strictEqual(categoricalPercentThreshold(s, "share of each area steeper than 3 percent", srcOf), null);
+    const c = plan(zonal("s1", "LC", { operator: ">", value: 41 }), out("s2", "s1"));
+    assert.strictEqual(categoricalPercentThreshold(c, "which counties are more than 50 percent forest", srcOf), null);
+  });
+
+  await test("a ratio of a step to itself is removed (constant 100 for every unit)", async () => {
+    const { dropSelfRatio } = require("./rewire");
+    const p = plan(zonal("s1", "SLOPE", { operator: ">", value: 3, stat: "share" }),
+                   { id: "s4", op: "normalize", attr_id: "", inputs: ["s1", "s1"], scale: 100 }, out("s5", "s4"));
+    assert.match(dropSelfRatio(p), /by itself/);
+    assert.deepStrictEqual(p.steps.map(s => s.op), ["zonal", "output"]);
+    assert.deepStrictEqual(p.steps[1].inputs, ["s1"]);
+    const ok = plan(zonal("s1", "LC"), zonal("s2", "LC"), { id: "s3", op: "combine", attr_id: "", inputs: ["s1", "s2"], operation: "ratio" }, out("s4", "s3"));
+    assert.strictEqual(dropSelfRatio(ok), null, "two different steps are a real ratio");
+    const sum = plan(zonal("s1", "LC"), { id: "s2", op: "combine", attr_id: "", inputs: ["s1", "s1"], operation: "sum" }, out("s3", "s2"));
+    assert.strictEqual(dropSelfRatio(sum), null, "a sum of a step with itself is not constant");
+  });
+
   console.log(`\n${pass}/${pass + fail} passed`);
   process.exit(fail ? 1 : 0);
 })();

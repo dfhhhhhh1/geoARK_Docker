@@ -54,6 +54,8 @@ const erfc = (u) =>
 
 module.exports = {
   name: "correlate",
+  // Words that name this method, never data (planner/named_data.js).
+  methodTerms: /\bcorrelat\w*|\bspearman'?s?\b|\bpearson'?s?\b|\brank[-\s]order\b|\brank\b|\bcoefficients?\b|\brho\b|\bassociation\b|\brelationship\b/gi,
   inputs: 2,
   needs: [],
   produces: "series",

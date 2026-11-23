@@ -43,6 +43,8 @@ const stdExpr = (i, std, dir) => {
 
 module.exports = {
   name: "composite",
+  // Words that name this method, never data (planner/named_data.js).
+  methodTerms: /\bcomposite\b|\bindex\b|\bscores?\b|\bweight(?:s|ed|ing)?\b|\bequal(?:ly)?\b|\bz[-\s]?scores?\b|\bstandardi[sz]\w*|\bpercentile\s+ranks?\b|\bgeometric\s+mean\b|\bahp\b|\banalytic\s+hierarchy\b/gi,
   // 2 to MAX_INPUTS: the validator reads a [min, max] pair.
   inputs: [2, C.MAX_INPUTS],
   needs: [],

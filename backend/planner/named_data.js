@@ -118,6 +118,14 @@ const EXEMPT = new Set((
   // a radius around something is geometry the ops derive, like a distance:
   // "using a 30-mile catchment" refused the 2SFCA question (2026-11-11)
   "catchment catchments radius radii buffer buffers " +
+  // the vocabulary of analysis, which names no data under any plan: "Test
+  // for spatial autocorrelation", "is X significantly clustered", "report
+  // the coefficient" (method_words_dev, 2026-11-22). The NAME of a method
+  // ("autocorrelation", "Spearman") is exempt only for a plan that runs it:
+  // each op declares its own `methodTerms` (planner/ops/*.js).
+  "test tests testing analysis analyses analyze analyse run compute calculate " +
+  "quantify report estimate statistic statistics statistical statistically " +
+  "significant significantly significance degree strength strong strongly method " +
   // units
   "mile miles mi km kilometer kilometers kilometre kilometres meter meters metre " +
   "metres m foot feet ft yard yards acre acres hectare hectares square sq " +
@@ -140,7 +148,7 @@ function placeWords(query) {
  * function word, a place, a unit, a period, a reporting unit, a number, or a
  * regional word ("Midwest", "Rust Belt").
  */
-function isExempt(phrase, query) {
+function isExempt(phrase, query, extra = null) {
   const places = placeWords(query);
   // A loaded zone set's unit and place words (planner/levels.js): "each
   // Chicago ward" is a reporting unit, as "each Missouri county" is.
@@ -158,8 +166,88 @@ function isExempt(phrase, query) {
   const roadAsMeasure = words.some(w => ["mile", "miles", "distance", "distances", "kilometer", "kilometers", "kilometre", "kilometres", "km"].includes(w));
   const travel = (w) => net && (NETWORK_WORDS.has(w) || ((w === "road" || w === "roads") && roadAsMeasure));
   return words.every(w => EXEMPT.has(w) || places.has(w) || zones.has(w) || /^\d/.test(w)
-    || /^q\d+$/.test(w) || REGION_WORDS.test(w) || travel(w));
+    || /^q\d+$/.test(w) || REGION_WORDS.test(w) || travel(w) || (extra && extra.has(w)));
 }
+
+/**
+ * Words of the question that name a METHOD the plan runs: each op's own
+ * `methodTerms` (planner/ops/*.js), matched against the question, for the ops
+ * in this plan only. "Test for spatial autocorrelation in median household
+ * income" names one measure; "spatial autocorrelation" is what moran
+ * computes. A plan without moran gets no exemption for it, so a question
+ * asking for autocorrelation that the plan never tests is still refused.
+ * Declared beside the op, not listed here: every list kept beside the
+ * registry has missed an op (CLAUDE.md, derefPlan, LEVEL_OPS).
+ */
+function methodWords(plan, query) {
+  const out = new Set();
+  if (!plan) return out;
+  const ops = require("./ops");
+  for (const name of new Set((plan.steps || []).map(s => s.op))) {
+    const re = ops.byName(name)?.methodTerms;
+    if (!re) continue;
+    for (const m of String(query || "").matchAll(new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g"))) {
+      for (const w of norm(m[0]).split(" ")) if (w) out.add(w);
+    }
+  }
+  return out;
+}
+
+/**
+ * A COMPARISON the model listed as data. "More than 30 miles from the nearest
+ * hospital" refused research.yaml r-access-gap (2026-11-21); "fewer than 4
+ * nursing homes" is the same shape. It is covered by a used attribute when
+ * every word of it that is not a comparison word or otherwise exempt (number,
+ * unit, distance, place) is a word of that attribute's own NAME, by stem: the
+ * plan computes the comparison (a distance, a count), the thing compared is
+ * the layer.
+ *
+ * Comparison words are NOT exempt on their own: "more than 50,000 acres" is a
+ * threshold on a layer's column, and stays refused unless a value filter
+ * carries it (checkNamedData), or the plan would pass a comparison it never
+ * applies. A bare distance ("more than 15 miles") is covered only when the
+ * plan computes a distance.
+ *
+ * Only for a phrase with a number in it: elsewhere a shared word must not
+ * overrule the model, which is how "mobile" once covered "mobile inspection
+ * locations" with Mobile Home Parks. Returns the covering item, `true` for a
+ * bare distance the plan computes, or null.
+ */
+const HAS_NUMBER = /\d/;
+const COMPARISON = new Set(("more less fewer greater larger smaller higher lower than under above " +
+  "below exceed exceeds exceeding beyond no not least").split(" "));
+const DISTANCE_UNIT = new Set("mile miles mi km kilometer kilometers kilometre kilometres meter meters metre metres m foot feet ft yard yards".split(" "));
+const DISTANCE_OPS = new Set(["nearest_distance", "within", "count_near", "access"]);
+function thresholdCoverage(phrase, query, items, extra, plan = null) {
+  if (!HAS_NUMBER.test(phrase)) return null;
+  const { sameWord } = require("./feature_filters");
+  const words = norm(phrase).split(" ").filter(Boolean);
+  if (!words.some(w => COMPARISON.has(w))) return null;
+  const rest = words.filter(w => !COMPARISON.has(w) && !isExempt(w, query, extra));
+  if (!rest.length) {
+    const distance = words.some(w => DISTANCE_UNIT.has(w)) &&
+      (plan?.steps || []).some(s => DISTANCE_OPS.has(s.op));
+    return distance ? true : null;
+  }
+  const nameWords = (i) => norm(`${i.dataset || ""} ${String(i.desc || "").slice(0, 140)}`)
+    .split(" ").filter(w => w.length >= 3);
+  // "fewer than 2 fire stations per 10,000 residents": the people are the
+  // used whole-population count (population.isPopulationCount, the rule the
+  // relevance check uses), the rest is the layer. Refused on HEAD by the
+  // probe (eval/gis_ops/checks/fix-named_probe.log, t-us-fire-per10k).
+  const people = rest.filter(w => PEOPLE.has(w));
+  const others = rest.filter(w => !PEOPLE.has(w));
+  if (people.length) {
+    const { isPopulationCount } = require("../population");
+    if (!items.some(i => isPopulationCount(i.desc))) return null;
+    if (!others.length) return items.find(i => isPopulationCount(i.desc));
+  }
+  return items.find(i => {
+    const ws = nameWords(i);
+    return others.every(r => ws.some(w => sameWord(w, r)));
+  }) || null;
+}
+const PEOPLE = new Set("people persons residents resident inhabitants population".split(" "));
 
 const NETWORK_WORDS = new Set((
   "drive drives driving driven walk walks walking walked travel traveling travelling " +
@@ -187,8 +275,9 @@ function attributeLines(items) {
 const OWN_DATA = /\b(?:our|my)\b/i;
 const isUserLayer = (id) => String(id || "").startsWith("layer:");
 
-async function namedCoverage({ query, items, callLLM, log = () => {} }) {
+async function namedCoverage({ query, items, callLLM, log = () => {}, plan = null }) {
   if (!items.length) return { named: [], uncovered: [] };
+  const method = methodWords(plan, query);
   let parsed;
   try {
     const raw = await callLLM(NAMED_SYSTEM,
@@ -211,7 +300,13 @@ async function namedCoverage({ query, items, callLLM, log = () => {} }) {
     const cov = norm(n?.covered_by).match(/^a\d+/)?.[0] || norm(n?.covered_by);
     let covered = labels.has(cov) ? cov : null;
     const isGrounded = grounded(phrase, query);
-    const exempt = isGrounded && isExempt(phrase, query);
+    const exempt = isGrounded && isExempt(phrase, query, method);
+    let threshold = null, computed = false;
+    if (!covered && isGrounded && !exempt) {
+      const hit = thresholdCoverage(phrase, query, items, method, plan);
+      if (hit === true) computed = true;
+      else if (hit) { covered = norm(hit.label); threshold = true; }
+    }
     // The user's OWN data ("our transportation network", "my parcels") is
     // covered only by a layer they uploaded. With none, held-out Q6 answered
     // "road segments in our transportation network" with the national
@@ -219,7 +314,10 @@ async function namedCoverage({ query, items, callLLM, log = () => {} }) {
     const own = !exempt && covered && OWN_DATA.test(phrase) &&
       !isUserLayer(byLabel.get(covered)?.attr_id);
     if (own) covered = null;
-    return { phrase, covered_by: covered, grounded: isGrounded, exempt, ...(own ? { own_data: true } : {}) };
+    // A bare distance the plan computes ("more than 15 miles") names no data,
+    // like "within 10 miles".
+    return { phrase, covered_by: covered, grounded: isGrounded, exempt: exempt || computed,
+             ...(own ? { own_data: true } : {}), ...(threshold && covered ? { threshold: true } : {}) };
   });
   // Seen once per phrase: the model sometimes lists a phrase twice.
   const uncovered = [...new Set(named
@@ -250,7 +348,7 @@ async function checkNamedData({ query, used, candidates, refs, callLLM, log = ()
     return { label: labelOf.get(u.attr_id) || u.attr_id, attr_id: u.attr_id,
              desc: c.attr_desc, dataset: c.dataset_clean, role };
   });
-  const r = await namedCoverage({ query, items, callLLM, log });
+  const r = await namedCoverage({ query, items, callLLM, log, plan });
   // A comparison on a layer's own column ("more than 100 beds") is covered by
   // the layer whose value filter was read from it (planner/feature_filters.js):
   // no ATTRIBUTE measures it, the step's column does. Matched on the filter's
@@ -278,7 +376,7 @@ async function checkNamedData({ query, used, candidates, refs, callLLM, log = ()
   }
   for (const n of r.named) {
     if (n.value_filter) continue;
-    log(`   named "${n.phrase}" -> ${n.covered_by || (n.exempt ? "exempt" : !n.grounded ? "not in question, ignored" : n.own_data ? "NOT COVERED (their own data, not uploaded)" : "NOT COVERED")}`);
+    log(`   named "${n.phrase}" -> ${n.covered_by ? `${n.covered_by}${n.threshold ? " (a comparison on it)" : ""}` : (n.exempt ? "exempt" : !n.grounded ? "not in question, ignored" : n.own_data ? "NOT COVERED (their own data, not uploaded)" : "NOT COVERED")}`);
   }
   const own = new Set(r.named.filter(n => n.own_data).map(n => n.phrase));
   const errors = r.uncovered.map(p => own.has(p)
@@ -308,6 +406,6 @@ async function missingConcepts({ query, candidates, callLLM, log = () => {}, lim
 }
 
 module.exports = {
-  checkNamedData, missingConcepts, namedCoverage, isExempt,
+  checkNamedData, missingConcepts, namedCoverage, isExempt, methodWords, thresholdCoverage,
   NAMED_SCHEMA, NAMED_SYSTEM,
 };

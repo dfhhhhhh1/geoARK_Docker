@@ -1,0 +1,349 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.75,
+  "by_tier": {
+    "raster_dev": {
+      "pass": 3,
+      "n": 4,
+      "rate": 0.75
+    }
+  },
+  "classes": {
+    "CORRECT": 3,
+    "WRONG_MEASURE": 1
+  },
+  "latency_mean": 28.8,
+  "api_container_created": "2026-11-22T23:16:39.125503429Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ra-chi-ca-developed-share-2021",
+      "tier": "raster_dev",
+      "query": "What percentage of each Chicago community area was developed land in 2021?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 77,
+        "gold_rows": 77,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "NLCD_LANDCOVER"
+        }
+      },
+      "ops": "zonal->output",
+      "intent": "Share of each Chicago community area in developed land, 2021",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "zonal",
+          "attr_id": "NLCD_LANDCOVER",
+          "inputs": [],
+          "year": 2021,
+          "attribute_filters": [
+            {
+              "column": "type",
+              "value": "Developed"
+            }
+          ],
+          "stat": "share"
+        },
+        {
+          "id": "s2",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: step s1 reads classes \"Developed\" named in the question.",
+        "Raster: step s1 reports the percent of each unit.",
+        "Unit: answered by community area (the question asked for community areas)."
+      ],
+      "loaded": [
+        "NLCD_LANDCOVER | Land cover class of every 30 m pixel from the National Land Cover Database (USGS MRLC), for land area, share and change of cover types such as cropland, forest, developed land, wetlands, water and pasture. Classes: Barren, Developed, Forest, Herbaceous, Planted/Cultivated, Shrubland, Water, Wetlands. | NLCD land cover (National Land Cover Database)"
+      ],
+      "row_count": 77,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What percentage of each Chicago community area was developed land in 2021?",
+            "uses": [],
+            "ops": "zonal->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 65.0
+    },
+    {
+      "id": "ra-stl-ward-elev-mean",
+      "tier": "raster_dev",
+      "query": "What is the average elevation of each St. Louis ward?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 14,
+        "gold_rows": 14,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "DEM_ELEVATION"
+        }
+      },
+      "ops": "zonal->filter_attr->output",
+      "intent": "Average elevation in each St. Louis ward",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "zonal",
+          "attr_id": "DEM_ELEVATION",
+          "inputs": [],
+          "stat": "mean"
+        },
+        {
+          "id": "s2",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "operator": ">",
+          "value": 0
+        },
+        {
+          "id": "s3",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Filter type=St. Louis was not applied: this dataset has no such attribute.",
+        "Raster: step s1 reports the mean.",
+        "Unit: answered by ward (the question asked for wards)."
+      ],
+      "loaded": [
+        "DEM_ELEVATION | Ground elevation above sea level in meters from the USGS 3D Elevation Program digital elevation model (DEM), 10 m, St. Louis and Chicago metro counties. | Elevation (USGS 3DEP digital elevation model)"
+      ],
+      "row_count": 14,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What is the average elevation of each St. Louis ward?",
+            "uses": [],
+            "ops": "zonal->filter_attr->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 11.3
+    },
+    {
+      "id": "ra-mo-county-crop-change-acres",
+      "tier": "raster_dev",
+      "query": "How many acres of cultivated cropland did each Missouri county gain or lose between 2001 and 2021?",
+      "class": "WRONG_MEASURE",
+      "pass": false,
+      "detail": {
+        "missing": [
+          "nlcd"
+        ],
+        "loaded": [
+          "ERS_FEA_VEG_ACRES | Vegetable acres harvested (Local Foods, USDA ERS Food Environment Atlas) (covers 2,911 counties) | Food Environment Atlas"
+        ]
+      },
+      "ops": "load->load->combine->filter_area->output",
+      "intent": "Change in cultivated cropland acres between 2001 and 2021 for each Missouri county",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "ERS_FEA_VEG_ACRES",
+          "inputs": [],
+          "year": 2012
+        },
+        {
+          "id": "s2",
+          "op": "load",
+          "attr_id": "ERS_FEA_VEG_ACRES",
+          "inputs": [],
+          "year": 2017
+        },
+        {
+          "id": "s3",
+          "op": "combine",
+          "attr_id": "",
+          "inputs": [
+            "s2",
+            "s1"
+          ],
+          "operation": "difference"
+        },
+        {
+          "id": "s3_in_state",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3_in_state"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: step s3 reads 2021 against 2001 (later minus earlier).",
+        "Time period: \"Vegetable acres harvested (Local Foods, USDA ERS Food Environment Atlas) (covers 2,911 counties)\" has no 2001 figures; used 2012 (available 2012-2017).",
+        "Time period: \"Vegetable acres harvested (Local Foods, USDA ERS Food Environment Atlas) (covers 2,911 counties)\" has no 2021 figures; used 2017 (available 2012-2017).",
+        "Area: restricted to Missouri (the question names it; the plan restricted to nothing).",
+        "Coverage: \"Vegetable acres harvested (Local Foods, USDA ERS Food Environment Atlas) (covers 2,911 ...\" has values for 93 of 115 counties in the area."
+      ],
+      "loaded": [
+        "ERS_FEA_VEG_ACRES | Vegetable acres harvested (Local Foods, USDA ERS Food Environment Atlas) (covers 2,911 counties) | Food Environment Atlas"
+      ],
+      "row_count": 77,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many acres of cultivated cropland did each Missouri county gain or lose between 2001 and 2021?",
+            "uses": [],
+            "ops": "load->load->combine->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 27.2
+    },
+    {
+      "id": "ra-stl-nbhd-steepest5",
+      "tier": "raster_dev",
+      "query": "Which five St. Louis neighborhoods have the steepest average slope?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 5,
+        "gold_rows": 88,
+        "outside": 0,
+        "outside_sample": [],
+        "k": 5,
+        "overlap": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "TERRAIN_SLOPE"
+        }
+      },
+      "ops": "zonal->filter_attr->rank->output",
+      "intent": "The five St. Louis neighborhoods with the highest average slope",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "zonal",
+          "attr_id": "TERRAIN_SLOPE",
+          "inputs": [],
+          "function": "mean",
+          "stat": "mean"
+        },
+        {
+          "id": "s2",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "operator": ">",
+          "value": 0
+        },
+        {
+          "id": "s3",
+          "op": "rank",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "direction": "desc",
+          "limit": 5
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Raster: step s1 reports the mean.",
+        "Unit: answered by neighborhood (the question asked for neighborhoods)."
+      ],
+      "loaded": [
+        "TERRAIN_SLOPE | Terrain slope or steepness of the ground in percent rise over run, derived from the USGS 3DEP 10 m digital elevation model, St. Louis and Chicago metro counties. | Terrain slope (percent, from the USGS 3DEP elevation model)"
+      ],
+      "row_count": 5,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which five St. Louis neighborhoods have the steepest average slope?",
+            "uses": [],
+            "ops": "zonal->filter_attr->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 11.7
+    }
+  ]
+}

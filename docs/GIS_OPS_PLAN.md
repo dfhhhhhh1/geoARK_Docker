@@ -1574,3 +1574,111 @@ the sweep): Colorado and `e-mo-tract-poverty-spread` up, `d-uninsured100-diabete
 and `e-mi-noveh-rollup` down, both 2/2 on re-run with neither change firing.
 research.yaml 72.2%; answerability 9/10, 0/20; plan_correctness 92.3% /
 96.2%; held-out 16: 15 refused, Q16 answered (unchanged, wrong as before).
+
+### Checks: method words, thresholds, shares (2026-11-22)
+
+Three ways a correct plan was refused or answered wrong, each fixed with dev
+questions written first (`eval/gis_ops.yaml` tiers `method_words_*`,
+`thresholds_*`, `share_threshold_*`; gold brute force or GDAL via
+`raster_gold.py`; `--self-test` passes). The held-out tiers and the held-out
+16 were not looked at while fixing. Evidence `eval/gis_ops/checks/`.
+Prompt and schema byte-identical across 48 contexts.
+
+1. **Method words** (`named_data.methodWords`). "spatial autocorrelation",
+   "queen contiguity weights", "Spearman rank correlation" are what an op
+   COMPUTES, not data. Each op declares `methodTerms` in its own module
+   (moran, hotspot, correlate, outlier, residual, explain, compare_groups,
+   neighbors, access, composite), and a word is exempt only when an op of THIS
+   plan declares it: a question asking for autocorrelation that the plan never
+   tests is still refused. Analysis vocabulary ("test", "significant",
+   "strength") joined `EXEMPT`.
+2. **Thresholds** (`named_data.thresholdCoverage`). "more than 30 miles from
+   the nearest hospital" (`r-access-gap`), "fewer than 4 nursing homes". Only
+   for a listed phrase with a number AND a comparison word. It is covered when
+   every remaining word is a word of a used attribute's name, by stem. People
+   words need a used population count, and a bare distance needs a distance op
+   in the plan. **Comparison words are not exempt on their own**: in `EXEMPT`
+   they let "more than 50,000 acres" pass, a threshold the plan never applies
+   (test_feature_filters caught it).
+3. **Share versus threshold** (`features.applyRasterMeasures`,
+   `features.categoricalPercentThreshold`). On a categorical raster, "more
+   than 50% cropland" is a SHARE with a filter on it. The model put `> 50` on
+   the class-code pixels and zonal returned square miles, which the filter
+   then compared with 50. A stated number-percent on a categorical raster now
+   sets `share`, and a pixel threshold equal to that number moves to a
+   `filter_attr` after the step. Continuous rasters ("slope over 3 percent")
+   keep their pixel threshold.
+4. **Self-ratio** (`rewire.dropSelfRatio`). Found by the slope control:
+   removing the model's unasked `= 2026` filter rewired both inputs of
+   `normalize` to one step, so every area read 100%. A normalize, ratio,
+   difference or percent_change of a step by itself is now removed.
+
+The check alone, replayed on 32 cases with the same model reply into HEAD's
+and the tree's `named_data.js` (`checks/named_probe.js`, temperature 0):
+answerable not refused **24/25 -> 25/25**, controls still refused **6/7 ->
+6/7**. The one leaked control (`X-us-trauma`, trauma centers) is the model's
+own coverage by Hospitals on both versions.
+
+| tier | HEAD (1 run) | this build (3 runs) |
+|---|--:|--:|
+| method_words_dev | 4/4 | 4/4, 4/4, 4/4 |
+| thresholds_dev | 3/4 | 3/4, 3/4, 3/4 |
+| share_threshold_dev | **0/4** | **4/4, 4/4, 3/4** |
+| method_words_heldout | - | 0/2 |
+| thresholds_heldout | - | 1/2 |
+| share_threshold_heldout | - | 2/2 |
+
+- **method_words_dev was already 4/4 on HEAD**: for these wordings the model
+  did not list the method words as data. The dev questions could not show the
+  defect they were written for. The probe shows the check change: HEAD
+  listed "spatially clustered" as uncovered for a Lyme question, and the new
+  code drops it while still refusing Lyme. Neither held-out miss is the check:
+  Wisconsin ("spatial dependence") planned `hotspot` rather than `moran`
+  (WRONG_SHAPE), and Pennsylvania loaded a PLACES diabetes series with no
+  Pennsylvania rows (EMPTY).
+- **`t-al-tornado-killed5` went from a refusal (HEAD, 1 run) to a wrong
+  answer (3 of 3)**: 67 counties with more than 5 tornadoes, gold 28 tornadoes
+  that killed more than 5. The log reads `named "tornadoes that killed more
+  than 5 people" -> a11`, without "(a comparison on it)", so the MODEL covered
+  it with Hist Tornado Tracks, as HEAD's code would have accepted. It was not
+  re-run on HEAD. The cause underneath is catalog text: the tracks' `fat`
+  and `inj` columns read "estimated fat content" and "injection rate", so no
+  value filter can find "killed". Fixing it needs a catalog edit plus
+  `make reindex reload-corpus`, which moves the retrieval cache key. Open.
+  `t-mo-tornado-injuries50` (held out) is the same column and refused.
+- **`st-mo-county-crops-gt50` loaded ERS vegetable acres instead of NLCD in 1
+  of 3 runs** (and on HEAD). That is retrieval, untouched here.
+
+Guards, same build, one run each:
+
+| suite | this build | last recorded |
+|---|--:|--:|
+| other gis_ops dev families | proximity, aggregation, density, network, enrichment, nearest, composite, zonal_features, moran 4/4; overlay 3/4; raster 3/4 x3; value_filters 1/4 | value_filters 1/4 (recorded 2, 2, 1) |
+| research.yaml | 72.2% | 72.2% |
+| research_advanced (n=29) | 55.2% | 58.6% |
+| answerability | 9/10, 0/20 | 9/10, 0/20 |
+| plan_correctness | 92.3% / 96.2% | 92.3% / 96.2% |
+| held-out 16 | 1 answered (Q1), 15 refused | 1 answered (Q16), 15 refused |
+
+**`r-access-gap`, the question that motivated the threshold fix, is still
+NO_ANSWER on research.yaml, now for a different reason.** The check never
+ran: all three attempts failed validation (`load` of the Hospitals layer
+instead of `count_features` / `nearest_distance`, then a dead step). The
+probe case built from its earlier plan is covered on the new code (refused on
+HEAD), so the check part is fixed. The planning part is open.
+
+research_advanced moved by swaps, none a check refusal:
+`d-poor-quarter-smoking-copd`, `e-mi-noveh-rollup` and
+`e-mo-tract-poverty-spread` are up; `t-lifeexp-jackson` (WRONG_MEASURE) and
+`t-pm25-mo-county-rollup` (WRONG_SHAPE, no rank) are down, both on plans
+neither the check nor a changed repair touches. overlay's miss
+(`ov-stl-ward-wetland-acres`, zonal over NLCD rather than overlay on NWI) is a
+planner choice, seen on the previous build too. **raster's miss is new and
+repeats 3 of 3** (`fix-raster_dev{,-b,-c}`, was 4/4 at tier 1): for
+`ra-mo-county-crop-change-acres`, retrieval returned no NLCD row, so `zonal`
+was never offered (`ops offered:` in the log). The model then covered "acres
+of cultivated cropland" with ERS "Vegetable acres harvested" on attempt 3 and
+answered. That is the same retrieval miss as `st-mo-county-crops-gt50`;
+decomposition and retrieval are untouched by this change, so it is not
+attributed to it. It was not bisected. The held-out 16's single answer moved from Q16 to
+Q1, and neither is a threshold or method question.

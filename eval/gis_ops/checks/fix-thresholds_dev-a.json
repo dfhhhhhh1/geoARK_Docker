@@ -1,0 +1,386 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 0.75,
+  "by_tier": {
+    "thresholds_dev": {
+      "pass": 3,
+      "n": 4,
+      "rate": 0.75
+    }
+  },
+  "classes": {
+    "CORRECT": 3,
+    "WRONG_VALUE": 1
+  },
+  "latency_mean": 17.0,
+  "api_container_created": "2026-11-22T23:16:39.125503429Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "t-ks-hospital-15mi",
+      "tier": "thresholds_dev",
+      "query": "Which Kansas counties are more than 15 miles from the nearest hospital?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 11,
+        "gold_rows": 11,
+        "outside": 0,
+        "outside_sample": [],
+        "jaccard": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "count_features->filter_area->nearest_distance->intersect->filter_attr->output",
+      "intent": "Kansas counties that are more than 15 miles from the nearest hospital",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "count_features",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Kansas"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "nearest_distance",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": []
+        },
+        {
+          "id": "s4",
+          "op": "intersect",
+          "attr_id": "",
+          "inputs": [
+            "s3",
+            "s2"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ],
+          "operator": ">",
+          "value": 15
+        },
+        {
+          "id": "s6",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s5"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: ran nearest_distance (s2) on its own and kept only the counties it was given."
+      ],
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 11,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Kansas counties are more than 15 miles from the nearest hospital?",
+            "uses": [],
+            "ops": "count_features->filter_area->nearest_distance->intersect->filter_attr->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 16.8
+    },
+    {
+      "id": "t-tx-hospital-over30",
+      "tier": "thresholds_dev",
+      "query": "List the Texas counties where the nearest hospital is over 30 miles away.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 24,
+        "gold_rows": 24,
+        "outside": 0,
+        "outside_sample": [],
+        "jaccard": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "count_features->filter_area->nearest_distance->intersect->filter_attr->output",
+      "intent": "Texas counties where the nearest hospital is over 30 miles away",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "count_features",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Texas"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "nearest_distance",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": []
+        },
+        {
+          "id": "s4",
+          "op": "intersect",
+          "attr_id": "",
+          "inputs": [
+            "s3",
+            "s2"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ],
+          "operator": ">",
+          "value": 30
+        },
+        {
+          "id": "s6",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s5"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: ran nearest_distance (s2) on its own and kept only the counties it was given."
+      ],
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 24,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "List the Texas counties where the nearest hospital is over 30 miles away.",
+            "uses": [],
+            "ops": "count_features->filter_area->nearest_distance->intersect->filter_attr->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 19.9
+    },
+    {
+      "id": "t-ia-nursing-lt4",
+      "tier": "thresholds_dev",
+      "query": "Which Iowa counties have fewer than 4 nursing homes?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 13,
+        "gold_rows": 13,
+        "outside": 0,
+        "outside_sample": [],
+        "jaccard": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "f2628a3f051b4e8aa02a6217207b8b86_nursinghomes"
+        }
+      },
+      "ops": "count_features->filter_attr->filter_area->output",
+      "intent": "Iowa counties with fewer than 4 nursing homes",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "count_features",
+          "attr_id": "5c91101d_01_01_14",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "operator": "<",
+          "value": 4
+        },
+        {
+          "id": "s3",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "states": [
+            "Iowa"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: step s1 reads Nursing Homes, which the filter type=\"NURSING HOME\" named."
+      ],
+      "loaded": [
+        "f2628a3f051b4e8aa02a6217207b8b86_nursinghomes | Nursing Homes (mapped locations) | Nursing Homes"
+      ],
+      "row_count": 13,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Iowa counties have fewer than 4 nursing homes?",
+            "uses": [],
+            "ops": "count_features->filter_attr->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.7
+    },
+    {
+      "id": "t-al-tornado-killed5",
+      "tier": "thresholds_dev",
+      "query": "How many tornadoes that killed more than 5 people have crossed Alabama?",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "gold": 28.0,
+        "got": 67.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "c862525677cf485a84b2ba86a78e277d_histtornadotracks"
+        }
+      },
+      "ops": "count_features->filter_attr->filter_area->aggregate->output",
+      "intent": "Number of tornado tracks that killed more than five people in Alabama",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "count_features",
+          "attr_id": "3bfee43a_01_01_22",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "operator": ">",
+          "value": 5
+        },
+        {
+          "id": "s3",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "states": [
+            "Alabama"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "aggregate",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "function": "count"
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [],
+      "loaded": [
+        "c862525677cf485a84b2ba86a78e277d_histtornadotracks | Hist Tornado Tracks (mapped locations) | Hist Tornado Tracks"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many tornadoes that killed more than 5 people have crossed Alabama?",
+            "uses": [],
+            "ops": "count_features->filter_attr->filter_area->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 16.6
+    }
+  ]
+}

@@ -408,5 +408,31 @@ function addMissingOutput(plan) {
   return `added the output of step ${sinks[0].id}, the plan's only result`;
 }
 
+/**
+ * A ratio of a step to ITSELF is a constant: normalize(s1, s1) is 1 (times
+ * its scale) for every unit, and combine ratio / difference / percent_change
+ * of a step with itself is 1 or 0 everywhere. No question means that. It is
+ * made by repairs that drop a step and rewire its readers: with the model's
+ * unasked "= 2026" and "= 17" filters dropped, "what percentage of each
+ * Chicago community area has a slope steeper than 3 percent" became
+ * zonal(share) -> normalize(s1, s1, x100) and read 100 for all 77 areas
+ * (share_threshold_dev, 2026-11-22). The step is removed and its readers read
+ * its input. Returns a description, or null.
+ */
+const SELF_CONSTANT = { normalize: () => true,
+  combine: (st) => ["ratio", "difference", "percent_change"].includes(st.operation) };
+function dropSelfRatio(plan) {
+  const steps = plan.steps || [];
+  const fixes = [];
+  for (const st of [...steps]) {
+    const ins = st.inputs || [];
+    if (!SELF_CONSTANT[st.op] || !SELF_CONSTANT[st.op](st) || ins.length !== 2 || ins[0] !== ins[1]) continue;
+    for (const o of steps) o.inputs = (o.inputs || []).map(i => (i === st.id ? ins[0] : i));
+    steps.splice(steps.indexOf(st), 1);
+    fixes.push(`step ${st.id} divided ${ins[0]} by itself (a constant); removed`);
+  }
+  return fixes.length ? fixes.join("; ") : null;
+}
+
 module.exports = { addMissingOutput, orderChangeByYear, areaAfterAccess, totalTheDenominator, bridgeFromLoadedLayer, loadLabelInputs, splitOutputs, dropRateOverCount, earlierResultSecond,
-                   bridgeInputsToIntersect, restrictToEarlier, uninvertChains };
+                   bridgeInputsToIntersect, restrictToEarlier, uninvertChains, dropSelfRatio };
