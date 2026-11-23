@@ -1,0 +1,89 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 1,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "aggregation_dev": {
+      "pass": 1,
+      "n": 1,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 1
+  },
+  "latency_mean": 9.8,
+  "api_container_created": "2026-11-23T03:46:53.606542952Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "ag-chi-ca-schools",
+      "tier": "aggregation_dev",
+      "query": "Count the public schools in each Chicago community area.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 77,
+        "gold_rows": 77,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "public_schools_nces"
+        }
+      },
+      "ops": "count_features->output",
+      "intent": "Count the public schools in each Chicago community area",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "count_features",
+          "attr_id": "ing_publicschool_01_01",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Unit: answered by community area (the question asked for community areas)."
+      ],
+      "loaded": [
+        "public_schools_nces | Public School Locations (mapped locations) | Public School Locations"
+      ],
+      "row_count": 77,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Count the public schools in each Chicago community area.",
+            "uses": [],
+            "ops": "count_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 9.8
+    }
+  ]
+}

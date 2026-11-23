@@ -22,6 +22,7 @@ const composable = (ctx) => featureAlgebra(ctx) || overlayAlgebra(ctx) || measur
  */
 module.exports = {
   name: "select_features",
+  takesStates: true,
   inputs: 0,
   needs: ["attr_id"],
   produces: "features",

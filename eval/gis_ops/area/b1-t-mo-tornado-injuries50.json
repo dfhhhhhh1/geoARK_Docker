@@ -1,0 +1,124 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 1,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "thresholds_heldout": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "WRONG_VALUE": 1
+  },
+  "latency_mean": 22.8,
+  "api_container_created": "2026-11-23T03:44:26.315247049Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "t-mo-tornado-injuries50",
+      "tier": "thresholds_heldout",
+      "query": "Count the Missouri tornadoes with over 50 injuries.",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "gold": 13.0,
+        "got": 0.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "c862525677cf485a84b2ba86a78e277d_histtornadotracks"
+        }
+      },
+      "ops": "count_features->filter_area->filter_attr->aggregate->output",
+      "intent": "Count the Missouri tornadoes with over 50 injuries.",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "count_features",
+          "attr_id": "3bfee43a_01_01_04",
+          "inputs": [],
+          "value_filters": [
+            {
+              "column": "inj",
+              "operator": ">",
+              "value": 50,
+              "kind": "number",
+              "said": "over 50 injuries"
+            }
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "operator": ">",
+          "value": 50
+        },
+        {
+          "id": "s4",
+          "op": "aggregate",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "function": "count"
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Filter: Hist Tornado Tracks: inj > 50.",
+        "Note: each county's count includes every line or area that touches it, so one that crosses several counties is counted in each, and the counties do not sum to the number of features."
+      ],
+      "loaded": [
+        "c862525677cf485a84b2ba86a78e277d_histtornadotracks | Hist Tornado Tracks (mapped locations) | Hist Tornado Tracks"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Count the Missouri tornadoes with over 50 injuries.",
+            "uses": [],
+            "ops": "count_features->filter_area->filter_attr->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 22.8
+    }
+  ]
+}

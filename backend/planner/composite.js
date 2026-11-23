@@ -677,20 +677,9 @@ function intersectAsComposite(plan, query) {
  * place step anywhere, so a plan that restricts some other way is left alone.
  */
 function restrictToNamedArea(plan, query) {
-  const steps = plan.steps || [];
-  const c = steps.find(s => s.op === "composite");
-  if (!c || !(c.inputs || []).length) return null;
-  if (NATIONAL.test(String(query || ""))) return null;
-  if (steps.some(s => ["filter_area", "filter_place"].includes(s.op) || (s.states || []).length)) return null;
-  const named = require("../states").statesMentioned(query);
-  if (named.length !== 1) return null;
-  const ids = new Set(steps.map(s => s.id));
-  let id = `${c.id}_area`;
-  for (let k = 2; ids.has(id); k++) id = `${c.id}_area${k}`;
-  const f = { id, op: "filter_area", attr_id: "", inputs: [c.inputs[0]], states: [named[0]] };
-  steps.splice(steps.indexOf(c), 0, f);
-  c.inputs = [id, ...c.inputs.slice(1)];
-  return `restricted the scores to ${named[0]}, which the question names and the plan had left out`;
+  return require("./area").restrictToNamedArea(plan, query, {
+    op: "composite", national: NATIONAL, because: "restricted the scores to",
+  });
 }
 
 // --- apply -----------------------------------------------------------------
@@ -769,5 +758,5 @@ module.exports = {
   MAX_INPUTS, METHODS, STANDARDIZE, DIRECTIONS,
   asksComposite, criteriaLists,
   describeInputs, groundText, readWeights, ahpWeights, readDirections, readMethod, readStandardize,
-  scoreWithinArea, ranksAroundComposite, intersectAsComposite, applyComposite, describeComposite, compositeValueLabel,
+  scoreWithinArea, restrictToNamedArea, ranksAroundComposite, intersectAsComposite, applyComposite, describeComposite, compositeValueLabel,
 };

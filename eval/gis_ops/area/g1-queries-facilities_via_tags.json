@@ -1,0 +1,101 @@
+{
+  "endpoint": "search",
+  "llm_filter": false,
+  "rerank": null,
+  "top_k": 20,
+  "queries": 6,
+  "errors": [],
+  "concept_recall": 1.0,
+  "query_success": 1.0,
+  "mrr": 1.0,
+  "latency_p50": 0.015,
+  "latency_p95": 0.019,
+  "per_suite": {
+    "facilities_via_tags": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    }
+  },
+  "detail": {
+    "facilities_via_tags": [
+      {
+        "id": "power-plants",
+        "query": "power plants",
+        "n_results": 20,
+        "concepts": {
+          "power": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.028
+      },
+      {
+        "id": "oil-refineries",
+        "query": "oil refineries",
+        "n_results": 20,
+        "concepts": {
+          "refinery": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.019
+      },
+      {
+        "id": "emergency-shelters",
+        "query": "emergency shelter locations",
+        "n_results": 20,
+        "concepts": {
+          "shelter": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.015
+      },
+      {
+        "id": "public-health-depts",
+        "query": "public health departments",
+        "n_results": 20,
+        "concepts": {
+          "health_dept": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.015
+      },
+      {
+        "id": "natural-gas",
+        "query": "natural gas infrastructure",
+        "n_results": 20,
+        "concepts": {
+          "gas": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.014
+      },
+      {
+        "id": "volcanic-eruptions",
+        "query": "historical volcanic eruptions",
+        "n_results": 20,
+        "concepts": {
+          "volcano": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.014
+      }
+    ]
+  }
+}

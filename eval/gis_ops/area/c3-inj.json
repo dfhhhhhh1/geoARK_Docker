@@ -1,0 +1,60 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 1,
+  "answer_correctness": 0.0,
+  "by_tier": {
+    "thresholds_heldout": {
+      "pass": 0,
+      "n": 1,
+      "rate": 0.0
+    }
+  },
+  "classes": {
+    "NO_ANSWER": 1
+  },
+  "latency_mean": 15.4,
+  "api_container_created": "2026-11-23T03:46:53.606542952Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "t-mo-tornado-injuries50",
+      "tier": "thresholds_heldout",
+      "query": "Count the Missouri tornadoes with over 50 injuries.",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "ops": "",
+      "intent": "Count the Missouri tornadoes with over 50 injuries.",
+      "steps": [],
+      "adjustments": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Count the Missouri tornadoes with over 50 injuries.",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "seconds": 15.4
+    }
+  ]
+}

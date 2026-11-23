@@ -1,0 +1,204 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 3,
+  "answer_correctness": 0.3333333333333333,
+  "by_tier": {
+    "value_filters_heldout": {
+      "pass": 1,
+      "n": 3,
+      "rate": 0.3333333333333333
+    }
+  },
+  "classes": {
+    "CORRECT": 1,
+    "NO_ANSWER": 1,
+    "EMPTY": 1
+  },
+  "latency_mean": 18.8,
+  "api_container_created": "2026-11-23T02:11:46.455180315Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "vf-ca-power-plants-500mw",
+      "tier": "value_filters_heldout",
+      "query": "Which power plants in California have a capacity of at least 500 MW?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 42,
+        "gold_features": 42,
+        "jaccard": 1.0,
+        "extra": 0,
+        "missed": 0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "eia_power_plants"
+        }
+      },
+      "ops": "select_features->output",
+      "intent": "Power plants in California with a capacity of at least 500 MW",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "ing_eiapowerplan_01_01",
+          "inputs": [],
+          "states": [
+            "California"
+          ],
+          "value_filters": [
+            {
+              "column": "capacity_mw",
+              "operator": ">=",
+              "value": 500,
+              "kind": "number",
+              "said": "at least 500 mw"
+            }
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Filter: Power Plants: capacity_mw >= 500."
+      ],
+      "loaded": [
+        "eia_power_plants | Power Plants (mapped locations) | Power Plants"
+      ],
+      "row_count": 42,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which power plants in California have a capacity of at least 500 MW?",
+            "uses": [],
+            "ops": "select_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 17.1
+    },
+    {
+      "id": "vf-ks-transmission-345kv",
+      "tier": "value_filters_heldout",
+      "query": "How many transmission lines in Kansas carry 345 kV or more?",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"carry 345 kV or more\""
+      },
+      "ops": "",
+      "intent": "How many transmission lines in Kansas carry 345 kV or more?",
+      "steps": [],
+      "adjustments": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not include \"carry 345 kV or more\"",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many transmission lines in Kansas carry 345 kV or more?",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not include \"carry 345 kV or more\""
+      },
+      "seconds": 14.8
+    },
+    {
+      "id": "vf-il-campuses-enroll-20k",
+      "tier": "value_filters_heldout",
+      "query": "Which college and university campuses in Illinois enroll more than 20,000 students?",
+      "class": "EMPTY",
+      "pass": false,
+      "detail": {},
+      "ops": "select_features->output",
+      "intent": "College and university campuses in Illinois that enroll more than 20,000 students",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "ing_supplemental_01_01",
+          "inputs": [],
+          "states": [
+            "Illinois"
+          ],
+          "attribute_filters": [
+            {
+              "column": "status",
+              "value": "A"
+            }
+          ],
+          "value_filters": [
+            {
+              "column": "total_enrollment",
+              "operator": ">",
+              "value": 20000,
+              "kind": "number",
+              "said": "more than 20,000 students"
+            }
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Filter: \"more than 20,000\" could mean population or tot_enroll of College University Campuses; not applied.",
+        "Filter: Supplemental Colleges: total_enrollment > 20000.",
+        "Filter: step s2 (filter_attr > 20000 on the selection) folded into s1."
+      ],
+      "loaded": [
+        "supplemental_colleges | Supplemental Colleges (mapped locations) | Supplemental Colleges"
+      ],
+      "row_count": 0,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which college and university campuses in Illinois enroll more than 20,000 students?",
+            "uses": [],
+            "ops": "select_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.4
+    }
+  ]
+}

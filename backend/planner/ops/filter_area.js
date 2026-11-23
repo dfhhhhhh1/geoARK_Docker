@@ -6,6 +6,8 @@ module.exports = {
   name: "filter_area",
   inputs: 1,
   needs: ["states"],
+  /** Reads the step's `states` (planner/area.js: the one place that knows which ops do). */
+  takesStates: true,
   produces: "series",
   kind: "sql",
 

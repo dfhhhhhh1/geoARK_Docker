@@ -35,6 +35,7 @@ function compileCounty(step, ctx) {
 
 module.exports = {
   name: "filter_place",
+  takesStates: true,
   inputs: 1,
   needs: ["place_kind", "place_name"],
   produces: "series",

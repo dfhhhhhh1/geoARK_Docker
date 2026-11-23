@@ -1,0 +1,142 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "thresholds_heldout": {
+      "pass": 1,
+      "n": 2,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "CORRECT": 1,
+    "NO_ANSWER": 1
+  },
+  "latency_mean": 27.2,
+  "api_container_created": "2026-11-23T03:46:53.606542952Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "t-ne-no-hospital-20mi",
+      "tier": "thresholds_heldout",
+      "query": "Which Nebraska counties have no hospital within 20 miles of their center?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 21,
+        "gold_rows": 21,
+        "outside": 0,
+        "outside_sample": [],
+        "jaccard": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "nearest_distance->filter_area->filter_attr->output",
+      "intent": "Nebraska counties with no hospital within 20 miles of their center",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "nearest_distance",
+          "attr_id": "443ff20b_01_01_14",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Nebraska"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "operator": ">=",
+          "value": 20
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: ran count_near (s2) on its own and kept only the counties it was given."
+      ],
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 21,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Nebraska counties have no hospital within 20 miles of their center?",
+            "uses": [],
+            "ops": "nearest_distance->filter_area->filter_attr->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 34.3
+    },
+    {
+      "id": "t-mo-tornado-injuries50",
+      "tier": "thresholds_heldout",
+      "query": "Count the Missouri tornadoes with over 50 injuries.",
+      "class": "NO_ANSWER",
+      "pass": false,
+      "detail": {
+        "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "ops": "",
+      "intent": "Count the Missouri tornadoes with over 50 injuries.",
+      "steps": [],
+      "adjustments": null,
+      "loaded": [],
+      "row_count": 0,
+      "error": "workflow stopped at q1: q1 could not be answered: the loaded data does not measure what this question asks about",
+      "exec_error": null,
+      "workflow": {
+        "status": "stopped",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Count the Missouri tornadoes with over 50 injuries.",
+            "uses": [],
+            "ops": ""
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": "q1 could not be answered: the loaded data does not measure what this question asks about"
+      },
+      "seconds": 20.2
+    }
+  ]
+}

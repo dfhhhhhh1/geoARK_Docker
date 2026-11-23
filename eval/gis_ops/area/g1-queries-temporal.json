@@ -1,0 +1,75 @@
+{
+  "endpoint": "search",
+  "llm_filter": false,
+  "rerank": null,
+  "top_k": 20,
+  "queries": 4,
+  "errors": [],
+  "concept_recall": 1.0,
+  "query_success": 1.0,
+  "mrr": 0.7083333333333334,
+  "latency_p50": 0.017,
+  "latency_p95": 0.018,
+  "per_suite": {
+    "temporal": {
+      "concept_recall": 1.0,
+      "query_success": 1.0
+    }
+  },
+  "detail": {
+    "temporal": [
+      {
+        "id": "poverty-2015",
+        "query": "poverty rate in 2015",
+        "n_results": 20,
+        "concepts": {
+          "poverty_2015": 2
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.5,
+        "seconds": 0.031
+      },
+      {
+        "id": "unemployment-2017",
+        "query": "unemployment during 2017",
+        "n_results": 20,
+        "concepts": {
+          "unemp_2017": 3
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 0.3333333333333333,
+        "seconds": 0.015
+      },
+      {
+        "id": "acs-2018",
+        "query": "2018 american community survey estimates",
+        "n_results": 20,
+        "concepts": {
+          "acs_2018": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.018
+      },
+      {
+        "id": "recent-2020",
+        "query": "2020 data",
+        "n_results": 20,
+        "concepts": {
+          "y2020": 1
+        },
+        "n_concepts": 1,
+        "n_found": 1,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.015
+      }
+    ]
+  }
+}

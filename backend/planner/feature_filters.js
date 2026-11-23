@@ -437,12 +437,21 @@ function applyValueFilters(plan, query, info, today = new Date()) {
   const byId = new Map(steps.map(s => [s.id, s]));
   for (const st of [...steps]) {
     if (st.op !== "filter_attr" || st.percentile !== undefined || st.definition) continue;
-    const src = byId.get((st.inputs || [])[0]);
+    // The comparison may sit after an area filter ("Missouri tornadoes with
+    // over 50 injuries": count_features -> filter_area -> filter_attr > 50,
+    // 2026-11-22): the same restatement, read through the area steps that
+    // only narrow which units are reported.
+    let src = byId.get((st.inputs || [])[0]);
+    while (src && ["filter_area", "filter_place"].includes(src.op) &&
+           steps.filter(o => (o.inputs || []).includes(src.id)).length === 1) {
+      src = byId.get((src.inputs || [])[0]);
+    }
     if (!src || !FEATURE_FILTER_OPS.has(src.op) || !src.value_filters?.length) continue;
     const carried = src.value_filters.flatMap(f => f.kind === "date" ? [] : [Number(f.value)]);
     const ok = src.op === "select_features" ? usedNumbers.includes(Number(st.value)) : carried.includes(Number(st.value));
     if (!ok) continue;
-    for (const o of plan.steps) o.inputs = (o.inputs || []).map(i => (i === st.id ? src.id : i));
+    const through = (st.inputs || [])[0];
+    for (const o of plan.steps) o.inputs = (o.inputs || []).map(i => (i === st.id ? through : i));
     plan.steps = plan.steps.filter(s => s !== st);
     fixes.push(`step ${st.id} (filter_attr ${st.operator} ${st.value} on ${src.op === "select_features" ? "the selection" : "the count"}) folded into ${src.id}`);
     // The model's plan counted UNITS that passed its filter ("counties with

@@ -37,6 +37,8 @@ const { applyNearest } = require("./nearest");
 const { applyPointDistance } = require("./point_distance");
 const { applyComposite, asksComposite } = require("./composite");
 const { applyMoran, asksMoran } = require("./moran");
+const { hasAreaRestriction, liftStrayStates } = require("./area");
+const { countFeaturesOnce, touchingNote } = require("./distinct_count");
 const { applyNetwork, applyNetworkPopulation, networkUnitErrors } = require("./network");
 const { repairPrecision } = require("./uncertainty");
 const { seriesUnit } = require("./units");
@@ -824,10 +826,7 @@ function addAskedState(plan, query) {
   if (named.length !== 1 || !STATE_FIPS[named[0]]) return null;
   if (GROUP_COMPARISON.test(query) || COMPLEMENT_PHRASES.test(query)) return null;
   const steps = plan.steps || [];
-  const restricted = steps.some(st =>
-    ["filter_area", "filter_place", "compare_groups"].includes(st.op) ||
-    (Array.isArray(st.states) && st.states.length) || st.city);
-  if (restricted || !steps.length) return null;
+  if (hasAreaRestriction(plan) || !steps.length) return null;
   const byId = new Map(steps.map(st => [st.id, st]));
   const ids = new Set(steps.map(st => st.id));
   const added = [];
@@ -1526,6 +1525,15 @@ async function generatePlan({
       log(`   Repaired place kind: ${kindFix}`);
       emit({ stage: "plan_adjusted", detail: kindFix });
     }
+    log(`   Plan as emitted: ${JSON.stringify((plan.steps || []).map(({ id, op, attr_id, inputs, ...rest }) => ({ id, op, attr_id, inputs, ...rest })))}`);
+    // `states` on an op that cannot read it is a restriction written where it
+    // does nothing (planner/area.js): made a filter_area before anything else
+    // looks at the plan's areas.
+    for (const lifted of liftStrayStates(plan)) {
+      log(`   Moved a misplaced area: ${lifted}`);
+      emit({ stage: "plan_adjusted", detail: lifted });
+      adjustments.push(`Area: ${lifted}.`);
+    }
     const statesFix = repairStates(plan, query);
     if (statesFix) {
       log(`   Repaired states list: ${statesFix}`);
@@ -1705,6 +1713,18 @@ async function generatePlan({
           adjustments.push(`Filter: ${n}.`);
         }
       }
+      // A total of lines or areas counts each once (planner/distinct_count.js):
+      // the per-county sum counts one that crosses counties in every county.
+      // AFTER the value filters: they fold the model's filter_attr out of the
+      // chain this reads (the tornado questions, 2026-11-22).
+      const once = countFeaturesOnce(plan, repOf);
+      if (once) {
+        log(`   Rewired plan: ${once}`);
+        emit({ stage: "plan_adjusted", detail: once });
+        adjustments.push(`Plan corrected: ${once}.`);
+      }
+      const touching = touchingNote(plan, repOf);
+      if (touching) adjustments.push(`Note: ${touching}.`);
       // People at a NETWORK cost (H5, planner/network.js): rebuilt as
       // network_population over WorldPop pixel centres from the plan's
       // reference layer and area. BEFORE validation: the model's own plans for

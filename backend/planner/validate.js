@@ -244,6 +244,20 @@ async function validatePlan(plan, resolve) {
     }
   }
 
+  // --- `states` only restricts on an op that reads it ----------------------
+  // A composite or a count carrying `states` silently restricts nothing, and
+  // the plan then answers for the whole country (planner/area.js). Series
+  // steps are repaired before validation; what reaches here works on features
+  // and cannot be moved without guessing which layer was meant.
+  for (const st of steps) {
+    if (!Array.isArray(st.states) || !st.states.length) continue;
+    const mod = ops.byName(st.op);
+    if (!mod || mod.takesStates || st.op === "output") continue;
+    errors.push(
+      `step "${st.id}" (${st.op}): "states" has no effect here. Put the restriction in the ` +
+      `select_features step that reads the layer, or in a filter_area step before this one.`);
+  }
+
   // --- op-specific checks, from the registry -------------------------------
   //
   // Run unconditionally, and BEFORE resolution. The checks that live on an op

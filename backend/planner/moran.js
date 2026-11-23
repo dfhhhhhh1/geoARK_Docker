@@ -182,17 +182,9 @@ function scoreWithinArea(plan, query) {
 
 /** One named state and no place step at all: add it before the moran step. */
 function restrictToNamedArea(plan, query) {
-  const steps = plan.steps || [];
-  const m = steps.find(s => s.op === "moran");
-  if (!m || !(m.inputs || []).length) return null;
-  if (NATIONAL.test(String(query || ""))) return null;
-  if (steps.some(s => ["filter_area", "filter_place"].includes(s.op) || (s.states || []).length)) return null;
-  const named = statesMentioned(query);
-  if (named.length !== 1) return null;
-  const id = freshId(steps, `${m.id}_area`);
-  steps.splice(steps.indexOf(m), 0, { id, op: "filter_area", attr_id: "", inputs: [m.inputs[0]], states: [named[0]] });
-  m.inputs = [id];
-  return `restricted Moran's I to ${named[0]}, which the question names and the plan had left out`;
+  return require("./area").restrictToNamedArea(plan, query, {
+    op: "moran", national: NATIONAL, because: "restricted Moran's I to",
+  });
 }
 
 /** "Both": a second moran step over the same input, with its own output. */
@@ -491,6 +483,6 @@ function localMoran(rows, neighbors, { permutations = 999, alpha = 0.05, seed = 
 
 module.exports = {
   asksMoran, readMode, readAlpha, readPermutations, unsupportedWeights,
-  applyMoran, swapToMoran, insertMoran, describe,
+  applyMoran, swapToMoran, insertMoran, restrictToNamedArea, describe,
   globalMoran, localMoran, weightsFor, pseudoP, normSf, rng, CLASSES,
 };

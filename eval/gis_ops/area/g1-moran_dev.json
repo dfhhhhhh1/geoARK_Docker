@@ -1,0 +1,338 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "moran_dev": {
+      "pass": 4,
+      "n": 4,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 4
+  },
+  "latency_mean": 14.2,
+  "api_container_created": "2026-11-23T03:46:53.606542952Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "m-us-obesity-global",
+      "tier": "moran_dev",
+      "query": "Is adult obesity spatially clustered across US counties? Report the global Moran's I.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 0.579,
+        "got": 0.579,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PLACES_OBESITY_CrdPrv"
+        }
+      },
+      "ops": "load->moran->output",
+      "intent": "Is adult obesity spatially clustered across US counties? Report the global Moran's I.",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "PLACES_OBESITY_CrdPrv",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "moran",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "local": false,
+          "alpha": 0.05,
+          "permutations": 999,
+          "weights": "queen"
+        },
+        {
+          "id": "s3",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Coverage: \"Obesity among adults (crude prevalence) (covers 2,957 counties)\" has values for 2945 of 3233 counties in the area.",
+        "Moran: global Moran's I, queen contiguity, row-standardized; pseudo p over 999 permutations, and the normal approximation under randomization."
+      ],
+      "loaded": [
+        "PLACES_OBESITY_CrdPrv | Obesity among adults (crude prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 2945,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Is adult obesity spatially clustered across US counties? Report the global Moran's I.",
+            "uses": [],
+            "ops": "load->moran->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 15.2
+    },
+    {
+      "id": "m-tx-poverty-lisa",
+      "tier": "moran_dev",
+      "query": "Show a LISA cluster map of the poverty rate for Texas counties.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "units": 254,
+        "gold_units": 254,
+        "coverage": 1.0,
+        "extra": 0,
+        "significant": 70,
+        "quadrant_ok": 1.0,
+        "agreement": 0.965,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PCTPOVALL"
+        }
+      },
+      "ops": "load->filter_area->moran->output",
+      "intent": "LISA cluster map of the poverty rate for Texas counties",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "PCTPOVALL",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Texas"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "moran",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "local": true,
+          "alpha": 0.05,
+          "permutations": 999,
+          "weights": "queen"
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Moran: LISA (local Moran's I), queen contiguity, row-standardized; a class needs pseudo p < 0.05 over 999 conditional permutations."
+      ],
+      "loaded": [
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS"
+      ],
+      "row_count": 254,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Show a LISA cluster map of the poverty rate for Texas counties.",
+            "uses": [],
+            "ops": "load->filter_area->moran->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.9
+    },
+    {
+      "id": "m-mo-unemployment-global",
+      "tier": "moran_dev",
+      "query": "Are unemployment rates in Missouri counties clustered or randomly distributed?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 0.1144,
+        "got": 0.1144,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_UNEMP"
+        }
+      },
+      "ops": "load->filter_area->moran->output",
+      "intent": "Are unemployment rates in Missouri counties clustered or randomly distributed?",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "SVI_EP_UNEMP",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "moran",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "local": false,
+          "alpha": 0.05,
+          "permutations": 999,
+          "weights": "queen"
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Moran: global Moran's I, queen contiguity, row-standardized; pseudo p over 999 permutations, and the normal approximation under randomization."
+      ],
+      "loaded": [
+        "SVI_EP_UNEMP | Unemployment rate (percent) | CDC Social Vulnerability Index"
+      ],
+      "row_count": 115,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Are unemployment rates in Missouri counties clustered or randomly distributed?",
+            "uses": [],
+            "ops": "load->filter_area->moran->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.2
+    },
+    {
+      "id": "m-us-diabetes-hh",
+      "tier": "moran_dev",
+      "query": "Which counties form high-high and low-low clusters of diagnosed diabetes?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "units": 2945,
+        "gold_units": 2938,
+        "coverage": 1.0,
+        "extra": 0,
+        "significant": 1187,
+        "quadrant_ok": 1.0,
+        "agreement": 0.947,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PLACES_DIABETES_AgeAdjPrv"
+        }
+      },
+      "ops": "load->moran->output",
+      "intent": "Which counties form high-high and low-low clusters of diagnosed diabetes?",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "PLACES_DIABETES_AgeAdjPrv",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "moran",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "local": true,
+          "alpha": 0.05,
+          "permutations": 999,
+          "weights": "queen"
+        },
+        {
+          "id": "s3",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Coverage: \"Diagnosed diabetes among adults (age-adjusted prevalence) (covers 2,957 counties)\" has values for 2945 of 3233 counties in the area.",
+        "Moran: used Moran's I instead of Getis-Ord Gi*, which the question did not ask for.",
+        "Moran: LISA (local Moran's I), queen contiguity, row-standardized; a class needs pseudo p < 0.05 over 999 conditional permutations."
+      ],
+      "loaded": [
+        "PLACES_DIABETES_AgeAdjPrv | Diagnosed diabetes among adults (age-adjusted prevalence) (covers 2,957 counties) | CDC PLACES"
+      ],
+      "row_count": 2945,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which counties form high-high and low-low clusters of diagnosed diabetes?",
+            "uses": [],
+            "ops": "load->moran->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 12.7
+    }
+  ]
+}

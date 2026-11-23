@@ -26,6 +26,7 @@ const POP_RASTERS = { WORLDPOP_POP: "raster_worldpop" };
 
 module.exports = {
   name: "network_population",
+  takesStates: true,
   inputs: 1,
   needs: [],
   accepts: [["features"]],

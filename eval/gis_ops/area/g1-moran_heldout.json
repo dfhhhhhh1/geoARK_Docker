@@ -1,0 +1,193 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "moran_heldout": {
+      "pass": 1,
+      "n": 2,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "WRONG_VALUE": 1,
+    "CORRECT": 1
+  },
+  "latency_mean": 14.0,
+  "api_container_created": "2026-11-23T03:46:53.606542952Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "m-ga-income-outliers",
+      "tier": "moran_heldout",
+      "query": "Compute local Moran's I for median household income across Georgia counties and map the spatial outliers.",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "units": 159,
+        "gold_units": 159,
+        "coverage": 1.0,
+        "extra": 0,
+        "significant": 67,
+        "quadrant_ok": 1.0,
+        "agreement": 0.899,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "CHR_V063_RAWVALUE"
+        }
+      },
+      "ops": "load->filter_area->moran->output",
+      "intent": "Compute local Moran's I for median household income across Georgia counties and map the spatial outliers",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "CHR_V063_RAWVALUE",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Georgia"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "moran",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "local": true,
+          "alpha": 0.05,
+          "permutations": 999,
+          "weights": "queen"
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Moran: LISA (local Moran's I), queen contiguity, row-standardized; a class needs pseudo p < 0.05 over 999 conditional permutations."
+      ],
+      "loaded": [
+        "CHR_V063_RAWVALUE | Median household income | County Health Rankings"
+      ],
+      "row_count": 159,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Compute local Moran's I for median household income across Georgia counties and map the spatial outliers.",
+            "uses": [],
+            "ops": "load->filter_area->moran->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 13.1
+    },
+    {
+      "id": "m-ky-uninsured-strength",
+      "tier": "moran_heldout",
+      "query": "How strong is the spatial autocorrelation in the share of adults without health insurance across Kentucky counties?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 0.2111,
+        "got": 0.2111,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "SVI_EP_UNINSUR"
+        }
+      },
+      "ops": "load->filter_area->moran->output",
+      "intent": "Strength of spatial autocorrelation in the share of adults without health insurance across Kentucky counties",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "SVI_EP_UNINSUR",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Kentucky"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "moran",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "local": false,
+          "alpha": 0.05,
+          "permutations": 999,
+          "weights": "queen"
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Moran: global Moran's I, queen contiguity, row-standardized; pseudo p over 999 permutations, and the normal approximation under randomization."
+      ],
+      "loaded": [
+        "SVI_EP_UNINSUR | Percent of persons without health insurance | CDC Social Vulnerability Index"
+      ],
+      "row_count": 120,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How strong is the spatial autocorrelation in the share of adults without health insurance across Kentucky counties?",
+            "uses": [],
+            "ops": "load->filter_area->moran->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 14.9
+    }
+  ]
+}

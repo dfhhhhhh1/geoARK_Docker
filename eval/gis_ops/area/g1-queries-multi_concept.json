@@ -1,0 +1,135 @@
+{
+  "endpoint": "search",
+  "llm_filter": false,
+  "rerank": null,
+  "top_k": 20,
+  "queries": 8,
+  "errors": [],
+  "concept_recall": 0.9375,
+  "query_success": 0.875,
+  "mrr": 0.7024181547619047,
+  "latency_p50": 0.03,
+  "latency_p95": 0.035,
+  "per_suite": {
+    "multi_concept": {
+      "concept_recall": 0.9375,
+      "query_success": 0.875
+    }
+  },
+  "detail": {
+    "multi_concept": [
+      {
+        "id": "poverty-per-capita",
+        "query": "poverty rates normalized by population for counties",
+        "n_results": 20,
+        "concepts": {
+          "poverty": 1,
+          "population": 6
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5833333333333334,
+        "seconds": 0.03
+      },
+      {
+        "id": "uninsured-per-capita",
+        "query": "share of population without health insurance per capita",
+        "n_results": 20,
+        "concepts": {
+          "insurance": 1,
+          "population": 2
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.75,
+        "seconds": 0.018
+      },
+      {
+        "id": "income-vs-education",
+        "query": "compare median income against educational attainment",
+        "n_results": 20,
+        "concepts": {
+          "income": 1,
+          "education": 7
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.5714285714285714,
+        "seconds": 0.035
+      },
+      {
+        "id": "unemployment-and-snap",
+        "query": "unemployment and food stamp usage together",
+        "n_results": 20,
+        "concepts": {
+          "unemployment": null,
+          "snap": 1
+        },
+        "n_concepts": 2,
+        "n_found": 1,
+        "all_found": false,
+        "mrr": 1.0,
+        "seconds": 0.014
+      },
+      {
+        "id": "elderly-and-housing",
+        "query": "elderly population and housing occupancy",
+        "n_results": 20,
+        "concepts": {
+          "elderly": 6,
+          "housing": 5
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.18333333333333335,
+        "seconds": 0.014
+      },
+      {
+        "id": "veterans-disability-income",
+        "query": "veterans with disabilities and their income",
+        "n_results": 20,
+        "concepts": {
+          "veterans": 1,
+          "disability": 1
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.035
+      },
+      {
+        "id": "race-and-poverty",
+        "query": "poverty broken down by race",
+        "n_results": 20,
+        "concepts": {
+          "poverty": 1,
+          "race": 16
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 0.53125,
+        "seconds": 0.03
+      },
+      {
+        "id": "children-food-insecurity",
+        "query": "children in food insecure households",
+        "n_results": 20,
+        "concepts": {
+          "children": 1,
+          "food": 1
+        },
+        "n_concepts": 2,
+        "n_found": 2,
+        "all_found": true,
+        "mrr": 1.0,
+        "seconds": 0.03
+      }
+    ]
+  }
+}

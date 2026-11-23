@@ -1,0 +1,199 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 0.5,
+  "by_tier": {
+    "thresholds_heldout": {
+      "pass": 1,
+      "n": 2,
+      "rate": 0.5
+    }
+  },
+  "classes": {
+    "CORRECT": 1,
+    "WRONG_VALUE": 1
+  },
+  "latency_mean": 21.5,
+  "api_container_created": "2026-11-23T02:11:46.455180315Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "t-ne-no-hospital-20mi",
+      "tier": "thresholds_heldout",
+      "query": "Which Nebraska counties have no hospital within 20 miles of their center?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 21,
+        "gold_rows": 21,
+        "outside": 0,
+        "outside_sample": [],
+        "jaccard": 1.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "nearest_distance->filter_attr->filter_area->output",
+      "intent": "Nebraska counties that have no hospital within 20 miles of their center",
+      "steps": [
+        {
+          "id": "s2",
+          "op": "nearest_distance",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": []
+        },
+        {
+          "id": "s3",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "operator": ">=",
+          "value": 20
+        },
+        {
+          "id": "s4",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "states": [
+            "Nebraska"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: ran count_near (s2) on its own and kept only the counties it was given.",
+        "Plan corrected: nearest_distance (s2) reads the layer its input loaded."
+      ],
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 21,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which Nebraska counties have no hospital within 20 miles of their center?",
+            "uses": [],
+            "ops": "nearest_distance->filter_attr->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 23.1
+    },
+    {
+      "id": "t-mo-tornado-injuries50",
+      "tier": "thresholds_heldout",
+      "query": "Count the Missouri tornadoes with over 50 injuries.",
+      "class": "WRONG_VALUE",
+      "pass": false,
+      "detail": {
+        "gold": 13.0,
+        "got": 20.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "c862525677cf485a84b2ba86a78e277d_histtornadotracks"
+        }
+      },
+      "ops": "count_features->filter_area->aggregate->output",
+      "intent": "Count the number of tornadoes in Missouri that caused over 50 injuries",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "count_features",
+          "attr_id": "3bfee43a_01_01_04",
+          "inputs": [],
+          "value_filters": [
+            {
+              "column": "inj",
+              "operator": ">",
+              "value": 50,
+              "kind": "number",
+              "said": "over 50 injuries"
+            }
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "aggregate",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "function": "sum"
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Note: each county's count includes every line or area that touches it, so one that crosses several counties is counted in each, and the counties do not sum to the number of features.",
+        "Filter: Hist Tornado Tracks: inj > 50.",
+        "Filter: step s2 (filter_attr > 50 on the count) folded into s1.",
+        "Filter: step s4 sums the counts instead of counting units."
+      ],
+      "loaded": [
+        "c862525677cf485a84b2ba86a78e277d_histtornadotracks | Hist Tornado Tracks (mapped locations) | Hist Tornado Tracks"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Count the Missouri tornadoes with over 50 injuries.",
+            "uses": [],
+            "ops": "count_features->filter_area->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 19.8
+    }
+  ]
+}

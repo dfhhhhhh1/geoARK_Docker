@@ -1,0 +1,363 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "value_filters_dev": {
+      "pass": 4,
+      "n": 4,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 4
+  },
+  "latency_mean": 18.7,
+  "api_container_created": "2026-11-23T03:46:53.606542952Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "vf-mo-hospitals-beds-gt100",
+      "tier": "value_filters_dev",
+      "query": "Which hospitals in Missouri have more than 100 beds?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 66,
+        "gold_features": 66,
+        "jaccard": 1.0,
+        "extra": 0,
+        "missed": 0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "select_features->output",
+      "intent": "Hospitals in Missouri with more than 100 beds",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "443ff20b_01_01_13",
+          "inputs": [],
+          "states": [
+            "Missouri"
+          ],
+          "value_filters": [
+            {
+              "column": "beds",
+              "operator": ">",
+              "value": 100,
+              "kind": "number",
+              "said": "more than 100 beds"
+            }
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Filter: Hospitals: beds > 100 (the -999 \"not available\" value excluded).",
+        "Filter: step s2 (filter_attr > 100 on the selection) folded into s1."
+      ],
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 66,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which hospitals in Missouri have more than 100 beds?",
+            "uses": [],
+            "ops": "select_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 17.6
+    },
+    {
+      "id": "vf-az-hospitals-beds-lt50",
+      "tier": "value_filters_dev",
+      "query": "How many hospitals in Arizona have fewer than 50 beds?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 40.0,
+        "got": 40.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "count_features->filter_area->aggregate->output",
+      "intent": "Number of hospitals in Arizona with fewer than 50 beds",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "count_features",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": [],
+          "value_filters": [
+            {
+              "column": "beds",
+              "operator": "<",
+              "value": 50,
+              "kind": "number",
+              "said": "fewer than 50 beds"
+            }
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Arizona"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "aggregate",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "function": "sum"
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Filter: Hospitals: beds < 50 (the -999 \"not available\" value excluded).",
+        "Filter: step s2 (filter_attr < 50 on the count) folded into s1."
+      ],
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many hospitals in Arizona have fewer than 50 beds?",
+            "uses": [],
+            "ops": "count_features->filter_area->aggregate->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 20.5
+    },
+    {
+      "id": "vf-ok-tornadoes-mag3-since2005",
+      "tier": "value_filters_dev",
+      "query": "How many tornadoes of magnitude 3 or greater have crossed Oklahoma since 2005?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 32.0,
+        "got": 32.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "c862525677cf485a84b2ba86a78e277d_histtornadotracks"
+        }
+      },
+      "ops": "select_features->summarize->output",
+      "intent": "Number of tornado tracks of magnitude 3 or greater that have crossed Oklahoma since 2005",
+      "steps": [
+        {
+          "id": "s1_features",
+          "op": "select_features",
+          "attr_id": "3bfee43a_01_01_12",
+          "inputs": [],
+          "states": [
+            "Oklahoma"
+          ],
+          "value_filters": [
+            {
+              "column": "mag",
+              "operator": ">=",
+              "value": 3,
+              "kind": "number",
+              "said": "3 or greater magnitude"
+            },
+            {
+              "column": "yr",
+              "operator": ">=",
+              "value": 2005,
+              "kind": "year",
+              "said": "since 2005"
+            }
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "summarize",
+          "attr_id": "",
+          "inputs": [
+            "s1_features"
+          ],
+          "group_by": "none"
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: step s1 counts Hist Tornado Tracks instead of loading its mag column.",
+        "Filter: Hist Tornado Tracks: mag >= 3.",
+        "Filter: Hist Tornado Tracks: yr since 2005.",
+        "Filter: step s2 (filter_attr >= 3 on the count) folded into s1.",
+        "Filter: step s4 sums the counts instead of counting units.",
+        "Plan corrected: counted each feature once: a line or area that crosses several counties is one feature, not one per county (rebuilt as select_features and summarize, replacing the county counts of step s1)."
+      ],
+      "loaded": [
+        "c862525677cf485a84b2ba86a78e277d_histtornadotracks | Hist Tornado Tracks (mapped locations) | Hist Tornado Tracks"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many tornadoes of magnitude 3 or greater have crossed Oklahoma since 2005?",
+            "uses": [],
+            "ops": "select_features->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 15.7
+    },
+    {
+      "id": "vf-fires-2020-acres",
+      "tier": "value_filters_dev",
+      "query": "Show the wildfire perimeters from 2020 that burned more than 100,000 acres.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 14,
+        "gold_features": 14,
+        "jaccard": 1.0,
+        "extra": 0,
+        "missed": 0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_48f1211b6a3b41619cd4d72dc1c99b1e_public_nifs_perimeters"
+        }
+      },
+      "ops": "select_features->output",
+      "intent": "Show wildfire perimeters from 2020 that burned more than 100,000 acres",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "55b3233d_01_01_12",
+          "inputs": [],
+          "year": 2020,
+          "value_filters": [
+            {
+              "column": "gisacres",
+              "operator": ">",
+              "value": 100000,
+              "kind": "number",
+              "said": "more than 100,000 acres"
+            },
+            {
+              "column": "polygondatetime",
+              "operator": ">=",
+              "value": "2020-01-01",
+              "kind": "date",
+              "said": "in 2020"
+            },
+            {
+              "column": "polygondatetime",
+              "operator": "<",
+              "value": "2021-01-01",
+              "kind": "date",
+              "said": "in 2020"
+            }
+          ]
+        },
+        {
+          "id": "out",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: added the output of step s1, the plan's only result.",
+        "Filter: Wildfire Perimeters: gisacres > 100000.",
+        "Filter: Wildfire Perimeters: polygondatetime in 2020."
+      ],
+      "loaded": [
+        "table_48f1211b6a3b41619cd4d72dc1c99b1e_public_nifs_perimeters | Wildfire Perimeters (mapped locations) | Wildfire Perimeters"
+      ],
+      "row_count": 14,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Show the wildfire perimeters from 2020 that burned more than 100,000 acres.",
+            "uses": [],
+            "ops": "select_features->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 20.9
+    }
+  ]
+}

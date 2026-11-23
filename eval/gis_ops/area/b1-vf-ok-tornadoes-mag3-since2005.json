@@ -1,0 +1,117 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 1,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "value_filters_dev": {
+      "pass": 1,
+      "n": 1,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 1
+  },
+  "latency_mean": 18.1,
+  "api_container_created": "2026-11-23T03:44:26.315247049Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "vf-ok-tornadoes-mag3-since2005",
+      "tier": "value_filters_dev",
+      "query": "How many tornadoes of magnitude 3 or greater have crossed Oklahoma since 2005?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 32.0,
+        "got": 32.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "c862525677cf485a84b2ba86a78e277d_histtornadotracks"
+        }
+      },
+      "ops": "select_features->summarize->output",
+      "intent": "Number of tornadoes of magnitude 3 or greater that have crossed Oklahoma since 2005",
+      "steps": [
+        {
+          "id": "s1_features",
+          "op": "select_features",
+          "attr_id": "3bfee43a_01_01_12",
+          "inputs": [],
+          "states": [
+            "Oklahoma"
+          ],
+          "value_filters": [
+            {
+              "column": "mag",
+              "operator": ">=",
+              "value": 3,
+              "kind": "number",
+              "said": "3 or greater magnitude"
+            },
+            {
+              "column": "yr",
+              "operator": ">=",
+              "value": 2005,
+              "kind": "year",
+              "said": "since 2005"
+            }
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "summarize",
+          "attr_id": "",
+          "inputs": [
+            "s1_features"
+          ],
+          "group_by": "none"
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: step s1 counts Hist Tornado Tracks instead of loading its mag column.",
+        "Filter: Hist Tornado Tracks: mag >= 3.",
+        "Filter: Hist Tornado Tracks: yr since 2005.",
+        "Filter: step s2 (filter_attr >= 3 on the count) folded into s1.",
+        "Filter: step s4 sums the counts instead of counting units.",
+        "Plan corrected: counted each feature once: a line or area that crosses several counties is one feature, not one per county (rebuilt as select_features and summarize, replacing the county counts of step s1)."
+      ],
+      "loaded": [
+        "c862525677cf485a84b2ba86a78e277d_histtornadotracks | Hist Tornado Tracks (mapped locations) | Hist Tornado Tracks"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many tornadoes of magnitude 3 or greater have crossed Oklahoma since 2005?",
+            "uses": [],
+            "ops": "select_features->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 18.1
+    }
+  ]
+}

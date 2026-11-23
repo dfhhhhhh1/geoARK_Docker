@@ -191,6 +191,22 @@ const vf = (p, i = 0) => p.steps[i].value_filters?.map(({ said, ...f }) => f);
     assert.deepStrictEqual(vf(p), [{ column: "beds", operator: ">", value: 100, kind: "number" }]);
   });
 
+  await test("apply: a filter_attr after an area step is folded too (Missouri tornadoes, over 50 injuries)", () => {
+    const cnt = { id: "s1", op: "count_features", attr_id: "HOSP", inputs: [] };
+    const { p } = run("Count the Missouri hospitals with more than 100 beds", plan(cnt,
+      { id: "s2", op: "filter_area", attr_id: "", inputs: ["s1"], states: ["Missouri"] },
+      { id: "s3", op: "filter_attr", attr_id: "", inputs: ["s2"], operator: ">", value: 100 },
+      { id: "s4", op: "aggregate", attr_id: "", inputs: ["s3"], function: "count" }, out("s5", "s4")));
+    assert.deepStrictEqual(p.steps.map(s => s.op), ["count_features", "filter_area", "aggregate", "output"]);
+    assert.deepStrictEqual(p.steps[2].inputs, ["s2"]);
+    assert.strictEqual(p.steps[2].function, "sum");
+    // A number the question did not state on the layer stays a county threshold.
+    const r = run("hospitals in Missouri counties with more than 3 hospitals with more than 100 beds", plan(cnt,
+      { id: "s2", op: "filter_area", attr_id: "", inputs: ["s1"], states: ["Missouri"] },
+      { id: "s3", op: "filter_attr", attr_id: "", inputs: ["s2"], operator: ">", value: 3 }, out("s4", "s3")));
+    assert.deepStrictEqual(r.p.steps.map(s => s.op), ["count_features", "filter_area", "filter_attr", "output"]);
+  });
+
   await test("load of the compared column becomes a count; an uncompared column load is left alone", () => {
     const { loadedColumnAsCount } = require("./feature_filters");
     const srcOf = (id) => ({ MAG: { source_kind: "feature_table", value_column: "mag", value_columns: LAYERS.TORN.columns },

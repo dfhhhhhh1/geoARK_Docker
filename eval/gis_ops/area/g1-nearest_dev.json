@@ -1,0 +1,364 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "nearest_dev": {
+      "pass": 4,
+      "n": 4,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 4
+  },
+  "latency_mean": 26.2,
+  "api_container_created": "2026-11-23T03:46:53.606542952Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "n-mo-hospital-name",
+      "tier": "nearest_dev",
+      "query": "Which hospital is closest to the center of each Missouri county, and how many miles away is it?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 115,
+        "gold_rows": 115,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "names_match": "115/115",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "nearest_distance->filter_area->output",
+      "intent": "The nearest hospital to the center of each Missouri county and the distance in miles to it",
+      "steps": [
+        {
+          "id": "s3",
+          "op": "nearest_distance",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": [],
+          "identify": true
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: ran nearest_distance (s2) on its own and kept only the counties it was given.",
+        "Nearest: dropped the count of the same layer (step s1) joined to the nearest distance (step s3); the question asks which one is nearest, not how many.",
+        "Nearest: nearest of Hospitals, named (step s3)."
+      ],
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 115,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which hospital is closest to the center of each Missouri county, and how many miles away is it?",
+            "uses": [],
+            "ops": "nearest_distance->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 27.4
+    },
+    {
+      "id": "n-tx-hospitals-mean3",
+      "tier": "nearest_dev",
+      "query": "What is the average distance in miles from each Texas county to its 3 nearest hospitals?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 254,
+        "gold_rows": 254,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals"
+        }
+      },
+      "ops": "nearest_distance->filter_area->output",
+      "intent": "Average distance in miles from each Texas county to its three nearest hospitals",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "nearest_distance",
+          "attr_id": "443ff20b_01_01_16",
+          "inputs": [],
+          "k": 3,
+          "k_stat": "mean",
+          "identify": true
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Texas"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Nearest: mean distance to the 3 nearest of Hospitals, named (step s1).",
+        "Nearest: dropped the mean over all units (step s3): the average asked for is over the 3 nearest, per unit."
+      ],
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals"
+      ],
+      "row_count": 254,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What is the average distance in miles from each Texas county to its 3 nearest hospitals?",
+            "uses": [],
+            "ops": "nearest_distance->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 15.8
+    },
+    {
+      "id": "n-ks-fire-second",
+      "tier": "nearest_dev",
+      "query": "How far, in miles, is the second-closest fire station from the center of each Kansas county?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 105,
+        "gold_rows": 105,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations"
+        }
+      },
+      "ops": "nearest_distance->filter_attr->nearest_distance->intersect->filter_area->output",
+      "intent": "Distance in miles from the center of each Kansas county to its second-closest fire station",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "nearest_distance",
+          "attr_id": "964c8e3d_01_01_19",
+          "inputs": [],
+          "k": 2,
+          "k_stat": "kth",
+          "identify": true
+        },
+        {
+          "id": "s2",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "operator": "!=",
+          "value": 0
+        },
+        {
+          "id": "s3_nearest_distance",
+          "op": "nearest_distance",
+          "attr_id": "964c8e3d_01_01_19",
+          "inputs": [],
+          "k": 2,
+          "k_stat": "kth",
+          "identify": true
+        },
+        {
+          "id": "s3",
+          "op": "intersect",
+          "attr_id": "",
+          "inputs": [
+            "s3_nearest_distance",
+            "s2"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "states": [
+            "Kansas"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: ran nearest_distance (s3) on its own and kept only the counties it was given.",
+        "Nearest: distance to the second-nearest of Fire Stations, named (step s1).",
+        "Nearest: distance to the second-nearest of Fire Stations, named (step s3_nearest_distance)."
+      ],
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations"
+      ],
+      "row_count": 105,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How far, in miles, is the second-closest fire station from the center of each Kansas county?",
+            "uses": [],
+            "ops": "nearest_distance->filter_attr->nearest_distance->intersect->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 36.7
+    },
+    {
+      "id": "n-de-tract-fire-name",
+      "tier": "nearest_dev",
+      "query": "For each census tract in Delaware, which fire station is nearest?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 262,
+        "gold_rows": 262,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "names_match": "262/262",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "d968f276355a41d1bd1451be6ee4dbac_fire_stations"
+        }
+      },
+      "ops": "nearest_distance->filter_area->output",
+      "intent": "For each census tract in Delaware, identify the nearest fire station",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "nearest_distance",
+          "attr_id": "964c8e3d_01_01_24",
+          "inputs": [],
+          "identify": true
+        },
+        {
+          "id": "s1_in_state",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Delaware"
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s1_in_state"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Area: restricted to Delaware (the question names it; the plan restricted to nothing).",
+        "Unit: answered by census tract (the question asked for census tracts).",
+        "Nearest: nearest of Fire Stations, named (step s1)."
+      ],
+      "loaded": [
+        "d968f276355a41d1bd1451be6ee4dbac_fire_stations | Fire Stations (mapped locations) | Fire Stations"
+      ],
+      "row_count": 262,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "For each census tract in Delaware, which fire station is nearest?",
+            "uses": [],
+            "ops": "nearest_distance->filter_area->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.8
+    }
+  ]
+}

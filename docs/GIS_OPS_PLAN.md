@@ -1682,3 +1682,70 @@ answered. That is the same retrieval miss as `st-mo-county-crops-gt50`;
 decomposition and retrieval are untouched by this change, so it is not
 attributed to it. It was not bisected. The held-out 16's single answer moved from Q16 to
 Q1, and neither is a threshold or method question.
+
+### One area rule, and a total counts each feature once (2026-11-22)
+
+`planner/area.js`, `planner/distinct_count.js`; tests `planner/test_area.js`
+(13) and `test_feature_filters.js` (+1). Measured below on one API build.
+Prompt and schema byte-identical across 48 contexts. Evidence
+`eval/gis_ops/area/` (`a1-*` first targeted run, `b*` / `c*` after the two
+fixes, `g1-*` guards).
+
+- **Which ops read `states` is declared on the op** (`takesStates`:
+  filter_area, filter_place, select_features, network_population). The three
+  copies of "the plan already restricts" (composite's and moran's
+  `restrictToNamedArea`, index.js `addAskedState`) counted ANY step carrying a
+  `states` field, so a `states` the model put on the composite step itself
+  silenced all three and the plan scored every county (composite held-out
+  Colorado, 3,132). They now share `hasAreaRestriction`, and
+  `restrictToNamedArea` is one function with the op and the "nation" regex as
+  parameters.
+- **A misplaced `states` is moved, not dropped.** `liftStrayStates` (before
+  `repairStates`) makes it a filter_area on every input of a series step, or
+  after a step that reads nothing. On a features step (`within`, `summarize`)
+  it cannot say which layer was meant, so validation refuses it with the fix.
+- **A total of lines or areas counts each once.** count_features counts a
+  feature in every county it touches, right for a per-county map and wrong
+  summed: `count_features -> filter_area -> aggregate(sum)` read 157 for 68
+  (345 kV lines, Kansas). Only that exact shape over a LINE or POLYGON layer is
+  rebuilt as `select_features -> summarize` (an EXISTS on the state, then
+  COUNT(*)), keeping the area and the filters. A rank, a second reader, a mean
+  or a point layer is left as planned. A per-county count of such a layer now
+  carries a note that the counties do not sum to the features.
+- **The first live run did not fire the rewrite, for two reasons.** It ran
+  before `applyValueFilters`, which folds the model's `filter_attr` out of the
+  chain the rewrite reads; and that fold only handled a `filter_attr` directly
+  on the count, not one after a `filter_area` ("Missouri tornadoes with over 50
+  injuries": the county threshold of 50 stayed in the plan). The rewrite now
+  runs after the value filters and the fold reads through area steps. The first
+  run's 345 kV refusal was a different model plan on that run, not the rewrite.
+- **Measured (qwen3:14b, `off/2048`, one run each, no 429s):**
+
+  | | before | after |
+  |---|---|---|
+  | `composite_heldout` (Colorado) | 1/2 | **2/2** |
+  | `value_filters_dev` | 2/4 | **4/4** |
+  | `value_filters_heldout` | 1/3 | **2/3** (345 kV 157 for 68 -> correct) |
+  | tornado injuries (`thresholds_heldout`), 4 runs | wrong | correct 2 of 4 |
+  | `moran_dev` / `moran_heldout` | 4/4, 0-1/2 | 4/4, 1/2 |
+  | `enrichment` / `zonal_features` / `nearest` dev | 4/4 | 4/4, 4/4, 4/4 |
+  | held out, those three | 2/2, 1/2, 1/2 | 2/2, 2/2, 2/2 |
+  | `research.yaml` | 72.2% | 72.2% |
+  | `research_advanced.yaml` (n=29) | 58.6% | 58.6% |
+  | answerability | 9/10, 0/20 | 9/10, 0/20 |
+  | `plan_correctness` | 92.3 / 96.2% | 92.3 / 96.2% |
+  | `known_item` | 90.9% / 0.917 | 90.9% / 0.917 |
+  | `queries.yaml` | 2 misses | the same 2 (unemployment concept) |
+  | held-out 16 | 1 answered | 1 answered (Q16, still a wrong count) |
+
+- **Not caused by this, seen in the run**: `t-al-tornado-killed5` (the catalog
+  calls `fat` "fat content", open since 2026-11-22); the relevance check
+  calling the same tornado layer "unrelated" on 1 of 4 runs of the injuries
+  question; `ag-chi-ca-schools` EMPTY once in the guard run (the model emitted
+  `filter_attr = 2025` then `= 2021`, which the unasked-equality drop did not
+  catch) and CORRECT 2 of 2 on a rerun; overlay_dev 2/4 and raster_dev crop
+  change, both recorded before this change; `vf-il-campuses-enroll-20k` still
+  refused ("enroll more than 20,000 students" as uncovered data).
+- **Open**: the equality-year filter that slipped past `dropUnaskedFilters` on
+  the Chicago schools question; a per-county count of lines is still the
+  touching count, now said in a note.

@@ -21,6 +21,7 @@
  *   secondValue                  true if its CTE carries a value_b column
  *   grounds                      which fields cite an attribute, and its kind
  *   acceptsAttributeFilters      whether attribute_filters apply to it
+ *   takesStates                  true if it reads the step's `states` (planner/area.js)
  *   offered(ctx)                 narrowing predicate
  *   promptLine / choiceLine      prompt text
  *   examples                     worked examples, held back when not offered

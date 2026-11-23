@@ -1,0 +1,211 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "enrichment_heldout": {
+      "pass": 2,
+      "n": 2,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 2
+  },
+  "latency_mean": 21.8,
+  "api_container_created": "2026-11-23T03:46:53.606542952Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "e-ms-hospitals-county-poverty-count",
+      "tier": "enrichment_heldout",
+      "query": "How many hospitals in Mississippi are located in counties with a poverty rate over 20%?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "gold": 69.0,
+        "got": 69.0,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_7fd78ade6d9847dab7aff72866124f79_hospitals",
+          "m2": "PCTPOVALL"
+        }
+      },
+      "ops": "select_features->load->filter_attr->enrich->summarize->output",
+      "intent": "Number of hospitals in Mississippi located in counties with a poverty rate over 20%",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "443ff20b_01_01_13",
+          "inputs": [],
+          "states": [
+            "Mississippi"
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "load",
+          "attr_id": "PCTPOVALL",
+          "inputs": []
+        },
+        {
+          "id": "s3",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "operator": ">",
+          "value": 20
+        },
+        {
+          "id": "s4",
+          "op": "enrich",
+          "attr_id": "",
+          "inputs": [
+            "s1",
+            "s3"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "summarize",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ],
+          "group_by": "none"
+        },
+        {
+          "id": "s6",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s5"
+          ]
+        }
+      ],
+      "adjustments": [],
+      "loaded": [
+        "table_7fd78ade6d9847dab7aff72866124f79_hospitals | Hospitals (mapped locations) | Hospitals",
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS"
+      ],
+      "row_count": 1,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many hospitals in Mississippi are located in counties with a poverty rate over 20%?",
+            "uses": [],
+            "ops": "select_features->load->filter_attr->enrich->summarize->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 19.4
+    },
+    {
+      "id": "e-pa-childcare-tract-noveh",
+      "tier": "enrichment_heldout",
+      "query": "Show the child care centers in Pennsylvania that are in census tracts where more than 15 percent of households have no vehicle.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 1420,
+        "gold_features": 1420,
+        "jaccard": 0.979,
+        "extra": 15,
+        "missed": 15,
+        "gold_alt": 0,
+        "bind": {
+          "m1": "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters",
+          "m2": "SVI_EP_NOVEH"
+        }
+      },
+      "ops": "select_features->load->filter_attr->enrich->output",
+      "intent": "Child care centers in Pennsylvania located in census tracts where more than 15 percent of households have no vehicle",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "bfd307c1_01_01_14",
+          "inputs": [],
+          "states": [
+            "Pennsylvania"
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "load",
+          "attr_id": "SVI_EP_NOVEH",
+          "inputs": []
+        },
+        {
+          "id": "s3",
+          "op": "filter_attr",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "operator": ">",
+          "value": 15
+        },
+        {
+          "id": "s4",
+          "op": "enrich",
+          "attr_id": "",
+          "inputs": [
+            "s1",
+            "s3"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s4"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Unit: answered by census tract (the question asked for census tracts)."
+      ],
+      "loaded": [
+        "table_6c6b67cca81c473a8e21eca5e1bfe81a_childcarecenters | Child Care Centers (mapped locations) | Child Care Centers",
+        "SVI_EP_NOVEH | Percent of households with no vehicle available | CDC Social Vulnerability Index"
+      ],
+      "row_count": 1420,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Show the child care centers in Pennsylvania that are in census tracts where more than 15 percent of households have no vehicle.",
+            "uses": [],
+            "ops": "select_features->load->filter_attr->enrich->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.2
+    }
+  ]
+}

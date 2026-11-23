@@ -1,0 +1,358 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 4,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "zonal_features_dev": {
+      "pass": 4,
+      "n": 4,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 4
+  },
+  "latency_mean": 28.3,
+  "api_container_created": "2026-11-23T03:46:53.606542952Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "zf-mo-campus-forest-2021",
+      "tier": "zonal_features_dev",
+      "query": "What percentage of each college campus in Missouri is forest, based on 2021 land cover?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 139,
+        "gold_features": 139,
+        "coverage": 1.0,
+        "extra": 0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "NLCD_LANDCOVER",
+          "m2": "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse"
+        }
+      },
+      "ops": "select_features->zonal->output",
+      "intent": "Share of each college campus in Missouri that is forest, based on 2021 land cover",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "68bf7456_01_01_18",
+          "inputs": [],
+          "states": [
+            "Missouri"
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "zonal",
+          "attr_id": "NLCD_LANDCOVER",
+          "inputs": [
+            "s1"
+          ],
+          "year": 2021,
+          "attribute_filters": [
+            {
+              "column": "type",
+              "value": "Forest"
+            }
+          ],
+          "stat": "share"
+        },
+        {
+          "id": "s3",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: step s2 reads classes \"Forest\" named in the question.",
+        "Raster: step s2 reports the percent of each unit."
+      ],
+      "loaded": [
+        "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse | College University Campuses (mapped locations) | College University Campuses",
+        "NLCD_LANDCOVER | Land cover class of every 30 m pixel from the National Land Cover Database (USGS MRLC), for land area, share and change of cover types such as cropland, forest, developed land, wetlands, water and pasture. Classes: Barren, Developed, Forest, Herbaceous, Planted/Cultivated, Shrubland, Water, Wetlands. | NLCD land cover (National Land Cover Database)"
+      ],
+      "row_count": 139,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What percentage of each college campus in Missouri is forest, based on 2021 land cover?",
+            "uses": [],
+            "ops": "select_features->zonal->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 29.5
+    },
+    {
+      "id": "zf-il-npl-developed-acres",
+      "tier": "zonal_features_dev",
+      "query": "How many acres of developed land does each Superfund site in Illinois have, according to 2021 land cover?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 71,
+        "gold_features": 71,
+        "coverage": 1.0,
+        "extra": 0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "NLCD_LANDCOVER",
+          "m2": "epa_npl_sites"
+        }
+      },
+      "ops": "select_features->zonal->output",
+      "intent": "Acres of developed land in each Superfund site in Illinois, according to 2021 land cover",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "ing_epanplsites_01_08",
+          "inputs": [],
+          "year": 2021,
+          "states": [
+            "Illinois"
+          ]
+        },
+        {
+          "id": "s2",
+          "op": "zonal",
+          "attr_id": "NLCD_LANDCOVER",
+          "inputs": [
+            "s1"
+          ],
+          "year": 2021,
+          "attribute_filters": [
+            {
+              "column": "type",
+              "value": "Developed"
+            }
+          ],
+          "stat": "area",
+          "unit": "acres",
+          "unit_per_m2": 4046.8564224
+        },
+        {
+          "id": "s5",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Plan corrected: the Illinois restriction (step s4) moved onto step s1.",
+        "Plan corrected: step s3 was the raster's year 2021, not a filter.",
+        "Plan corrected: step s2 reads classes \"Developed\" named in the question.",
+        "Raster: step s2 reports area in acres."
+      ],
+      "loaded": [
+        "epa_npl_sites | EPA Superfund NPL site boundaries (mapped locations) | EPA Superfund NPL site boundaries",
+        "NLCD_LANDCOVER | Land cover class of every 30 m pixel from the National Land Cover Database (USGS MRLC), for land area, share and change of cover types such as cropland, forest, developed land, wetlands, water and pasture. Classes: Barren, Developed, Forest, Herbaceous, Planted/Cultivated, Shrubland, Water, Wetlands. | NLCD land cover (National Land Cover Database)"
+      ],
+      "row_count": 71,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "How many acres of developed land does each Superfund site in Illinois have, according to 2021 land cover?",
+            "uses": [],
+            "ops": "select_features->zonal->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 45.3
+    },
+    {
+      "id": "zf-stl-campus-steepest5",
+      "tier": "zonal_features_dev",
+      "query": "Which five college campuses in St. Louis have the steepest average slope?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 5,
+        "gold_features": 10,
+        "k": 5,
+        "overlap": 1.0,
+        "values_within": "5/5",
+        "gold_alt": 0,
+        "bind": {
+          "m1": "TERRAIN_SLOPE",
+          "m2": "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse"
+        }
+      },
+      "ops": "select_features->zonal->rank->output",
+      "intent": "The five college campuses in St. Louis with the steepest average slope",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "68bf7456_01_01_03",
+          "inputs": [],
+          "place_name": "St. Louis",
+          "city": "St. Louis"
+        },
+        {
+          "id": "s2",
+          "op": "zonal",
+          "attr_id": "TERRAIN_SLOPE",
+          "inputs": [
+            "s1"
+          ],
+          "function": "mean",
+          "stat": "mean"
+        },
+        {
+          "id": "s3",
+          "op": "rank",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "direction": "desc",
+          "limit": 5
+        },
+        {
+          "id": "s4",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Raster: step s2 reports the mean."
+      ],
+      "loaded": [
+        "table_3c5026522e6841d4ad3ed482c0fb1b30_collegeuniversitycampuse | College University Campuses (mapped locations) | College University Campuses",
+        "TERRAIN_SLOPE | Terrain slope or steepness of the ground in percent rise over run, derived from the USGS 3DEP 10 m digital elevation model, St. Louis and Chicago metro counties. | Terrain slope (percent, from the USGS 3DEP elevation model)"
+      ],
+      "row_count": 5,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Which five college campuses in St. Louis have the steepest average slope?",
+            "uses": [],
+            "ops": "select_features->zonal->rank->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 20.8
+    },
+    {
+      "id": "zf-chi-npl-elev-mean",
+      "tier": "zonal_features_dev",
+      "query": "What is the average elevation of each Superfund site in Chicago?",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "features": 10,
+        "gold_features": 10,
+        "coverage": 1.0,
+        "extra": 0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "DEM_ELEVATION",
+          "m2": "epa_npl_sites"
+        }
+      },
+      "ops": "select_features->zonal->output",
+      "intent": "Average elevation of each Superfund site in Chicago",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "select_features",
+          "attr_id": "ing_epanplsites_01_08",
+          "inputs": [],
+          "place_kind": "place",
+          "place_name": "Chicago",
+          "city": "Chicago"
+        },
+        {
+          "id": "s2",
+          "op": "zonal",
+          "attr_id": "DEM_ELEVATION",
+          "inputs": [
+            "s1"
+          ],
+          "function": "mean",
+          "stat": "mean"
+        },
+        {
+          "id": "s3",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Raster: step s2 reports the mean."
+      ],
+      "loaded": [
+        "epa_npl_sites | EPA Superfund NPL site boundaries (mapped locations) | EPA Superfund NPL site boundaries",
+        "DEM_ELEVATION | Ground elevation above sea level in meters from the USGS 3D Elevation Program digital elevation model (DEM), 10 m, St. Louis and Chicago metro counties. | Elevation (USGS 3DEP digital elevation model)"
+      ],
+      "row_count": 10,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "What is the average elevation of each Superfund site in Chicago?",
+            "uses": [],
+            "ops": "select_features->zonal->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 17.7
+    }
+  ]
+}

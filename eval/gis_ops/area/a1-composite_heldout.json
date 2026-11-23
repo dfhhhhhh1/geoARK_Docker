@@ -1,0 +1,273 @@
+{
+  "suite": "gis_ops.yaml",
+  "queries": 2,
+  "answer_correctness": 1.0,
+  "by_tier": {
+    "composite_heldout": {
+      "pass": 2,
+      "n": 2,
+      "rate": 1.0
+    }
+  },
+  "classes": {
+    "CORRECT": 2
+  },
+  "latency_mean": 22.1,
+  "api_container_created": "2026-11-23T02:11:46.455180315Z",
+  "contaminated": false,
+  "aborted": null,
+  "harness_errors": 0,
+  "plan_think": null,
+  "plan_model": null,
+  "executable_first": null,
+  "sibling_cap": null,
+  "endpoint": "research",
+  "detail": [
+    {
+      "id": "c-co-ratio",
+      "tier": "composite_heldout",
+      "query": "Build a composite score for Colorado counties from the unemployment rate and median household income, counting unemployment twice as heavily as income; low income should raise the score.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 64,
+        "gold_rows": 64,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "UNEMPLOYMENT_RATE",
+          "m2": "MEDIAN_HOUSEHOLD_INCOME"
+        }
+      },
+      "ops": "load->load->filter_area->filter_area->composite->output",
+      "intent": "A composite score for Colorado counties based on unemployment rate and median household income, with unemployment weighted twice as heavily as income, where low income raises the score",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "UNEMPLOYMENT_RATE",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "load",
+          "attr_id": "MEDIAN_HOUSEHOLD_INCOME",
+          "inputs": []
+        },
+        {
+          "id": "s3",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Colorado"
+          ]
+        },
+        {
+          "id": "s4",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s2"
+          ],
+          "states": [
+            "Colorado"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "composite",
+          "attr_id": "",
+          "inputs": [
+            "s3",
+            "s4"
+          ],
+          "direction": "desc",
+          "scale": 1,
+          "weights": [
+            0.666667,
+            0.333333
+          ],
+          "directions": [
+            "high",
+            "low"
+          ],
+          "method": "sum",
+          "standardize": "percentile"
+        },
+        {
+          "id": "s6",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s5"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Composite: composite of percentile ranks, weighted sum, the weights stated: Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAU 66.7% (higher scores higher); Median household income in dollars 33.3% (lower scores higher)."
+      ],
+      "loaded": [
+        "UNEMPLOYMENT_RATE | Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS) | USDA ERS",
+        "MEDIAN_HOUSEHOLD_INCOME | Median household income in dollars | USDA ERS"
+      ],
+      "row_count": 64,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "Build a composite score for Colorado counties from the unemployment rate and median household income, counting unemployment twice as heavily as income; low income should raise the score.",
+            "uses": [],
+            "ops": "load->load->filter_area->filter_area->composite->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 19.9
+    },
+    {
+      "id": "c-tn-geometric",
+      "tier": "composite_heldout",
+      "query": "For Tennessee counties, combine the poverty rate, diabetes prevalence and the unemployment rate as a geometric mean of percentile ranks, so a county at the bottom on any one of them scores zero. Map the score for every county.",
+      "class": "CORRECT",
+      "pass": true,
+      "detail": {
+        "rows": 95,
+        "gold_rows": 95,
+        "outside": 0,
+        "outside_sample": [],
+        "coverage": 1.0,
+        "within_tol": 1.0,
+        "mismatch_sample": [],
+        "gold_alt": 0,
+        "bind": {
+          "m1": "PCTPOVALL",
+          "m2": "CHR_V060_RAWVALUE",
+          "m3": "UNEMPLOYMENT_RATE"
+        }
+      },
+      "ops": "load->filter_area->load->filter_area->load->filter_area->composite->output",
+      "intent": "For Tennessee counties, combine the poverty rate, diabetes prevalence and the unemployment rate as a geometric mean of percentile ranks, so a county at the bottom on any one of them scores zero. Map the score for every county.",
+      "steps": [
+        {
+          "id": "s1",
+          "op": "load",
+          "attr_id": "PCTPOVALL",
+          "inputs": []
+        },
+        {
+          "id": "s2",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s1"
+          ],
+          "states": [
+            "Tennessee"
+          ]
+        },
+        {
+          "id": "s3",
+          "op": "load",
+          "attr_id": "CHR_V060_RAWVALUE",
+          "inputs": []
+        },
+        {
+          "id": "s4",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s3"
+          ],
+          "states": [
+            "Tennessee"
+          ]
+        },
+        {
+          "id": "s5",
+          "op": "load",
+          "attr_id": "UNEMPLOYMENT_RATE",
+          "inputs": []
+        },
+        {
+          "id": "s6",
+          "op": "filter_area",
+          "attr_id": "",
+          "inputs": [
+            "s5"
+          ],
+          "states": [
+            "Tennessee"
+          ]
+        },
+        {
+          "id": "s7",
+          "op": "composite",
+          "attr_id": "",
+          "inputs": [
+            "s2",
+            "s4",
+            "s6"
+          ],
+          "weights": [
+            0.333333,
+            0.333333,
+            0.333333
+          ],
+          "directions": [
+            "high",
+            "high",
+            "high"
+          ],
+          "method": "geometric",
+          "standardize": "percentile"
+        },
+        {
+          "id": "s8",
+          "op": "output",
+          "attr_id": "",
+          "inputs": [
+            "s7"
+          ]
+        }
+      ],
+      "adjustments": [
+        "Composite: composite of percentile ranks, weighted geometric mean (a zero in any input zeroes the score), equal weights: Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) 33.3% (higher scores higher); Diabetes prevalence 33.3% (higher scores higher); Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAU 33.3% (higher scores higher)."
+      ],
+      "loaded": [
+        "PCTPOVALL | Percent of people of all ages in poverty (poverty rate, Census SAIPE estimate) | USDA ERS",
+        "CHR_V060_RAWVALUE | Diabetes prevalence | County Health Rankings",
+        "UNEMPLOYMENT_RATE | Unemployment rate, percent of the civilian labor force unemployed, annual average (BLS LAUS) | USDA ERS"
+      ],
+      "row_count": 95,
+      "error": null,
+      "exec_error": null,
+      "workflow": {
+        "status": "complete",
+        "steps": [
+          {
+            "id": "q1",
+            "question": "For Tennessee counties, combine the poverty rate, diabetes prevalence and the unemployment rate as a geometric mean of percentile ranks, so a county at the bottom on any one of them scores zero. Map the score for every county.",
+            "uses": [],
+            "ops": "load->filter_area->load->filter_area->load->filter_area->composite->output"
+          }
+        ],
+        "planned_steps": 1,
+        "fallback": null,
+        "reason": null
+      },
+      "seconds": 24.4
+    }
+  ]
+}
