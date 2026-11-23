@@ -1674,6 +1674,26 @@ docs/GIS_OPS_PLAN.md "Checks: method words, thresholds, shares"; evidence
   (the model's own coverage). Missouri NLCD questions miss the raster in
   retrieval (raster_dev crop change 0/3 this build).
 
+### Fine sample points on the map and in plans (2026-11-22)
+
+docs/POINTS_INTEGRATION_PLAN.md Steps 3-4. `fine_pt` (block centroids + hexagon
+points, partitioned by state; Missouri only so far, 2.75M) is drawn on /explore
+by `backend/fine_points.js` (canvas GridLayer tiles: 4 px cell means when over
+6,000 points, else points, or Thiessen cells rebuilt per tile from z13) and
+read by the internal op `point_distance`, swapped in by code
+(`planner/point_distance.js`) for distribution questions ("share of each county
+more than 20 miles from a hospital", percentile, median, farthest point) in
+loaded states. Prompt byte-identical; gate reaches 0 of 330 eval questions;
+equal to point-in-polygon gold within border points.
+
+- **The distances are straight-line, not driving.** ArcGIS Near (planar, World
+  Cylindrical Equal Area) or Euclidean rasters in Web Mercator, corrected by
+  cos(lat) for hospitals and parks.
+- **A KNN ORDER BY over a CTE's point is not index-ordered** (1.3 s vs 21 ms);
+  **`block20` (char(15)) compared as text skips its btree** (577 vs 10 ms).
+- **`pkill -f <pattern>` kills the calling shell** when the pattern is on its
+  own command line (exit 144). Use `pgrep -x` / a PID.
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence

@@ -119,6 +119,8 @@ const MODULES = [
   require("./aggregate_to"),
   // Internal: inserted by planner/network.js (H5), never offered.
   require("./network_population"),
+  // Internal: inserted by planner/point_distance.js, never offered.
+  require("./point_distance"),
 ];
 
 const BY_NAME = new Map(MODULES.map(m => [m.name, m]));

@@ -34,6 +34,7 @@ const { preferUserLayer } = require("../user_layers");
 const { applyCatchment, applyDistancePopulation } = require("./catchment");
 const { isPopulationCount } = require("../population");
 const { applyNearest } = require("./nearest");
+const { applyPointDistance } = require("./point_distance");
 const { applyComposite, asksComposite } = require("./composite");
 const { applyMoran, asksMoran } = require("./moran");
 const { applyNetwork, applyNetworkPopulation, networkUnitErrors } = require("./network");
@@ -2067,6 +2068,44 @@ async function generatePlan({
         }
       } catch (err) {
         log(`   Nearest skipped: ${err.message}`);
+      }
+    }
+
+    // Distances over the fine sample points (planner/point_distance.js): a
+    // question about how distance is distributed over each unit ("what share
+    // ... more than 20 miles", "90th percentile", "farthest point") reads
+    // every block centroid and hexagon point in the unit instead of its
+    // centre, where those points are loaded. Code only; prompt unchanged.
+    if (check.ok) {
+      try {
+        const before = JSON.stringify(plan.steps);
+        const pd = applyPointDistance(plan, query, {
+          nameOf: (id) => {
+            const c = candidates.find(x => x.attr_id === id);
+            return c?.dataset_clean || String(resolvedFinal?.get(id)?.description || c?.attr_desc || id)
+              .replace(/\s*\(mapped locations\)\s*$/i, "");
+          },
+        });
+        if (pd.fixes.length) {
+          const recheck = await validatePlan(plan, resolve);
+          if (recheck.ok) {
+            resolvedFinal = recheck.resolved;
+            for (const f of pd.fixes) {
+              log(`   Points: ${f}`);
+              emit({ stage: "plan_adjusted", detail: `Points: ${f}.` });
+              adjustments.push(`Points: ${f}.`);
+            }
+          } else {
+            plan.steps = JSON.parse(before);
+            log(`   Points reverted, it did not validate: ${recheck.errors.join("; ")}`);
+          }
+        }
+        for (const n of pd.notes) {
+          log(`   Points note: ${n}`);
+          adjustments.push(`Points: ${n}.`);
+        }
+      } catch (err) {
+        log(`   Points skipped: ${err.message}`);
       }
     }
 

@@ -4355,3 +4355,208 @@ datasets:
     end_year: 2026
     probe: where are the bus routes in Missouri
   dump: null
+- loaded_at: 2026-11-22T22:57Z
+  id: ing_hsipproximit_01@county
+  dataset_id: ing_hsipproximit_01
+  name: GeoARK distance to nearest facility
+  kind: table
+  level: county
+  files:
+  - path: hsip_proximity_county/hsip_proximity_county.csv
+    sha256: 3b5dfc70767b53f2b5c3a99fc6ff56e5abbf602e8e742d10109efd0b29ade1a1
+    bytes: 681896
+  - path: hsip_proximity_county/hsip_proximity_county.meta.yaml
+    sha256: 3a46f88bf5d4e3a9e5b8b08d642894d77e28e0217235b1a5df414ae61fc50486
+    bytes: 5141
+  rows: 83640
+  units: 3108
+  unmatched_units: 0
+  codes:
+  - HSIP_PROXIMITY_DIST_ABRASIVE_MINERALS
+  - HSIP_PROXIMITY_DIST_AGRICULTURAL_MINERALS
+  - HSIP_PROXIMITY_DIST_BIODIESEL
+  - HSIP_PROXIMITY_DIST_CHILD_CARE
+  - HSIP_PROXIMITY_DIST_COLLEGE
+  - HSIP_PROXIMITY_DIST_CONSTRUCTION_MINERALS
+  - HSIP_PROXIMITY_DIST_EMS
+  - HSIP_PROXIMITY_DIST_FERROUS_MINE
+  - HSIP_PROXIMITY_DIST_FERROUS_PROCESSING
+  - HSIP_PROXIMITY_DIST_LANDFILL
+  - HSIP_PROXIMITY_DIST_MINE_MINERAL_SITE
+  - HSIP_PROXIMITY_DIST_MISC_INDUSTRIAL_MINERALS
+  - HSIP_PROXIMITY_DIST_NONFERROUS_MINE
+  - HSIP_PROXIMITY_DIST_NONFERROUS_PROCESSING
+  - HSIP_PROXIMITY_DIST_OIL_REFINERY
+  - HSIP_PROXIMITY_DIST_OIL_REFINERY_SITE
+  - HSIP_PROXIMITY_DIST_POWER_LINE
+  - HSIP_PROXIMITY_DIST_POWER_PLANT
+  - HSIP_PROXIMITY_DIST_PUBLIC_HEALTH
+  - HSIP_PROXIMITY_DIST_PUBLIC_SCHOOL
+  - HSIP_PROXIMITY_DIST_PUBLIC_TRANSIT
+  - HSIP_PROXIMITY_DIST_SUBSTATION
+  - HSIP_PROXIMITY_DIST_TORNADO_TRACK
+  - HSIP_PROXIMITY_DIST_TRI_FACILITY
+  - HSIP_PROXIMITY_DIST_TSCA_FACILITY
+  - HSIP_PROXIMITY_DIST_URANIUM_VANADIUM
+  - HSIP_PROXIMITY_DIST_WORSHIP
+  definitions: []
+  catalog_labels:
+  - HSIP_PROXIMITY_DIST_EMS
+  - HSIP_PROXIMITY_DIST_PUBLIC_HEALTH
+  - HSIP_PROXIMITY_DIST_CHILD_CARE
+  - HSIP_PROXIMITY_DIST_PUBLIC_SCHOOL
+  - HSIP_PROXIMITY_DIST_COLLEGE
+  - HSIP_PROXIMITY_DIST_WORSHIP
+  - HSIP_PROXIMITY_DIST_PUBLIC_TRANSIT
+  - HSIP_PROXIMITY_DIST_POWER_LINE
+  - HSIP_PROXIMITY_DIST_SUBSTATION
+  - HSIP_PROXIMITY_DIST_POWER_PLANT
+  - HSIP_PROXIMITY_DIST_OIL_REFINERY
+  - HSIP_PROXIMITY_DIST_OIL_REFINERY_SITE
+  - HSIP_PROXIMITY_DIST_BIODIESEL
+  - HSIP_PROXIMITY_DIST_TRI_FACILITY
+  - HSIP_PROXIMITY_DIST_TSCA_FACILITY
+  - HSIP_PROXIMITY_DIST_LANDFILL
+  - HSIP_PROXIMITY_DIST_TORNADO_TRACK
+  - HSIP_PROXIMITY_DIST_CONSTRUCTION_MINERALS
+  - HSIP_PROXIMITY_DIST_AGRICULTURAL_MINERALS
+  - HSIP_PROXIMITY_DIST_ABRASIVE_MINERALS
+  - HSIP_PROXIMITY_DIST_MISC_INDUSTRIAL_MINERALS
+  - HSIP_PROXIMITY_DIST_MINE_MINERAL_SITE
+  - HSIP_PROXIMITY_DIST_FERROUS_MINE
+  - HSIP_PROXIMITY_DIST_FERROUS_PROCESSING
+  - HSIP_PROXIMITY_DIST_NONFERROUS_MINE
+  - HSIP_PROXIMITY_DIST_NONFERROUS_PROCESSING
+  - HSIP_PROXIMITY_DIST_URANIUM_VANADIUM
+  tag_model: gemma3:4b
+  metadata:
+    description: Average distance from where people could live to the nearest of 27 kinds of facility
+      or hazard (EMS stations, schools, public health departments, power lines, landfills, refineries,
+      mines, toxic release sites), lower 48 states. Computed in ArcGIS from 118 million sample points
+      (2020 census block centroids plus a hexagon grid), averaged to each block and then over the blocks
+      in each county. Distances are planar in World Cylindrical Equal Area. Not weighted by population.
+    originator: GeoARK project (University of Missouri); facility layers from HSIP / HIFLD
+    license: research use
+    start_year: 2020
+    end_year: 2020
+    probe: which countys are farthest from an EMS station
+  dump: null
+- loaded_at: 2026-11-22T22:59Z
+  id: ing_hsipproximit_01@tract
+  dataset_id: ing_hsipproximit_01
+  name: GeoARK distance to nearest facility
+  kind: table
+  level: tract
+  files:
+  - path: hsip_proximity_tract/hsip_proximity_tract.csv
+    sha256: 089bb9379d362c535094d3787a23467ff95f4fe0dcb020a09a62b64fa5f95f66
+    bytes: 18464706
+  - path: hsip_proximity_tract/hsip_proximity_tract.meta.yaml
+    sha256: be355e70173b50677bd9be66a0b2e34c24b0080089e7e75b6c5e9c7227d26b69
+    bytes: 5314
+  rows: 2222736
+  units: 82666
+  unmatched_units: 879
+  codes:
+  - HSIP_PROXIMITY_DIST_ABRASIVE_MINERALS
+  - HSIP_PROXIMITY_DIST_AGRICULTURAL_MINERALS
+  - HSIP_PROXIMITY_DIST_BIODIESEL
+  - HSIP_PROXIMITY_DIST_CHILD_CARE
+  - HSIP_PROXIMITY_DIST_COLLEGE
+  - HSIP_PROXIMITY_DIST_CONSTRUCTION_MINERALS
+  - HSIP_PROXIMITY_DIST_EMS
+  - HSIP_PROXIMITY_DIST_FERROUS_MINE
+  - HSIP_PROXIMITY_DIST_FERROUS_PROCESSING
+  - HSIP_PROXIMITY_DIST_LANDFILL
+  - HSIP_PROXIMITY_DIST_MINE_MINERAL_SITE
+  - HSIP_PROXIMITY_DIST_MISC_INDUSTRIAL_MINERALS
+  - HSIP_PROXIMITY_DIST_NONFERROUS_MINE
+  - HSIP_PROXIMITY_DIST_NONFERROUS_PROCESSING
+  - HSIP_PROXIMITY_DIST_OIL_REFINERY
+  - HSIP_PROXIMITY_DIST_OIL_REFINERY_SITE
+  - HSIP_PROXIMITY_DIST_POWER_LINE
+  - HSIP_PROXIMITY_DIST_POWER_PLANT
+  - HSIP_PROXIMITY_DIST_PUBLIC_HEALTH
+  - HSIP_PROXIMITY_DIST_PUBLIC_SCHOOL
+  - HSIP_PROXIMITY_DIST_PUBLIC_TRANSIT
+  - HSIP_PROXIMITY_DIST_SUBSTATION
+  - HSIP_PROXIMITY_DIST_TORNADO_TRACK
+  - HSIP_PROXIMITY_DIST_TRI_FACILITY
+  - HSIP_PROXIMITY_DIST_TSCA_FACILITY
+  - HSIP_PROXIMITY_DIST_URANIUM_VANADIUM
+  - HSIP_PROXIMITY_DIST_WORSHIP
+  definitions: []
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: Average distance from where people could live to the nearest of 27 kinds of facility
+      or hazard (EMS stations, schools, public health departments, power lines, landfills, refineries,
+      mines, toxic release sites), lower 48 states. Computed in ArcGIS from 118 million sample points
+      (2020 census block centroids plus a hexagon grid), averaged to each block and then over the blocks
+      in each census tract. Distances are planar in World Cylindrical Equal Area. Not weighted by population.
+    originator: GeoARK project (University of Missouri); facility layers from HSIP / HIFLD
+    license: research use
+    start_year: 2020
+    end_year: 2020
+    probe: which census tracts are farthest from an EMS station
+  dump: null
+- loaded_at: 2026-11-22T23:04Z
+  id: ing_hsipproximit_01@bg
+  dataset_id: ing_hsipproximit_01
+  name: GeoARK distance to nearest facility
+  kind: table
+  level: bg
+  files:
+  - path: hsip_proximity_bg/hsip_proximity_bg.csv
+    sha256: ab4ffa7c531d6b40095f53c537c27f7d8c3b84ce244ba83be5067078f842241a
+    bytes: 52735232
+  - path: hsip_proximity_bg/hsip_proximity_bg.meta.yaml
+    sha256: 8e3541c30146ddbbaf33b8e3cb0bba9f69a110f001c8dd58e3d9a1a283054f7e
+    bytes: 5485
+  rows: 6314320
+  units: 234943
+  unmatched_units: 2711
+  codes:
+  - HSIP_PROXIMITY_DIST_ABRASIVE_MINERALS
+  - HSIP_PROXIMITY_DIST_AGRICULTURAL_MINERALS
+  - HSIP_PROXIMITY_DIST_BIODIESEL
+  - HSIP_PROXIMITY_DIST_CHILD_CARE
+  - HSIP_PROXIMITY_DIST_COLLEGE
+  - HSIP_PROXIMITY_DIST_CONSTRUCTION_MINERALS
+  - HSIP_PROXIMITY_DIST_EMS
+  - HSIP_PROXIMITY_DIST_FERROUS_MINE
+  - HSIP_PROXIMITY_DIST_FERROUS_PROCESSING
+  - HSIP_PROXIMITY_DIST_LANDFILL
+  - HSIP_PROXIMITY_DIST_MINE_MINERAL_SITE
+  - HSIP_PROXIMITY_DIST_MISC_INDUSTRIAL_MINERALS
+  - HSIP_PROXIMITY_DIST_NONFERROUS_MINE
+  - HSIP_PROXIMITY_DIST_NONFERROUS_PROCESSING
+  - HSIP_PROXIMITY_DIST_OIL_REFINERY
+  - HSIP_PROXIMITY_DIST_OIL_REFINERY_SITE
+  - HSIP_PROXIMITY_DIST_POWER_LINE
+  - HSIP_PROXIMITY_DIST_POWER_PLANT
+  - HSIP_PROXIMITY_DIST_PUBLIC_HEALTH
+  - HSIP_PROXIMITY_DIST_PUBLIC_SCHOOL
+  - HSIP_PROXIMITY_DIST_PUBLIC_TRANSIT
+  - HSIP_PROXIMITY_DIST_SUBSTATION
+  - HSIP_PROXIMITY_DIST_TORNADO_TRACK
+  - HSIP_PROXIMITY_DIST_TRI_FACILITY
+  - HSIP_PROXIMITY_DIST_TSCA_FACILITY
+  - HSIP_PROXIMITY_DIST_URANIUM_VANADIUM
+  - HSIP_PROXIMITY_DIST_WORSHIP
+  definitions: []
+  catalog_labels: []
+  tag_model: null
+  metadata:
+    description: Average distance from where people could live to the nearest of 27 kinds of facility
+      or hazard (EMS stations, schools, public health departments, power lines, landfills, refineries,
+      mines, toxic release sites), lower 48 states. Computed in ArcGIS from 118 million sample points
+      (2020 census block centroids plus a hexagon grid), averaged to each block and then over the blocks
+      in each census block group. Distances are planar in World Cylindrical Equal Area. Not weighted by
+      population.
+    originator: GeoARK project (University of Missouri); facility layers from HSIP / HIFLD
+    license: research use
+    start_year: 2020
+    end_year: 2020
+    probe: which census block groups are farthest from an EMS station
+  dump: null

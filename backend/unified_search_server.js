@@ -4435,6 +4435,8 @@ app.post("/api/cart/model", auth.requireAuth, limitSearch, async (req, res) => {
 // The multi-scale map (any measure at any level that fits the view):
 // backend/geo_layers.js, docs/DATA_LOADING_PLAN.md Phase 5.
 require("./geo_layers").register(app, { pool, auth });
+// Fine sample points (block centroids + hexagons): backend/fine_points.js.
+require("./fine_points").register(app, { pool, auth });
 
 // Recent queries that did not answer, newest first (backend/failure_log.js).
 // ?kind=planner_failed  ?class=failure|refusal|empty|workflow  ?q=<substring>  ?limit=50

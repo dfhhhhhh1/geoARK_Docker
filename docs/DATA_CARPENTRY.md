@@ -667,6 +667,79 @@ accept; "from the nearest VA health care facility" plans
 - Transit measures are blank where a block group has no transit: `D4A` has
   94,196 values of 220,739.
 
+### GeoARK distance to nearest facility (`hsip_proximity_{county,tract,bg}`, id `hsip_proximity`, 2026-11-22)
+- **Source:** `summarized_blocks.csv` (5.75 GB, 7,781,824 blocks), made by
+  `/scratch/US_L48GeoARK_TEMP/summarize_block.py` from `US_L48GeoARK.gdb`
+  layer `L48_All_Pt_Blk1020ZipHUC_TH_Area`: 118,158,718 points (2020 block
+  centroids plus hexagon tessellation points), lower 48. Each point carries an
+  ArcGIS Near distance to the nearest feature of 29 HSIP layers; a block's
+  `D_<x>_avg` is the mean over its points. Plan for the points themselves:
+  [POINTS_INTEGRATION_PLAN.md](POINTS_INTEGRATION_PLAN.md).
+- **Script:** `etl/prep_proximity_summaries.py [SUMMARIZED_BLOCKS_CSV]`. It writes
+  all three folders and their sidecars.
+- **Why not the published `summarized_{counties,tracts,block_groups}.csv`:**
+  `summarize_eachGeo.py` read `Block20` with pandas as an integer, which
+  dropped the leading zero for states 01-09, then took prefixes of a
+  14-character string. Every code in AL, AZ, AR, CA, CO, CT and the other
+  single-digit states is shifted by one digit ("county" 60730 = county 06073
+  split by first tract digit). 336 of 3,159 county, 43,329 of 111,413 tract and
+  45,290 of 239,615 block group codes matched no unit. The prep pads `Block20`
+  to 15 digits and redoes the roll-up.
+- **Checked against the original county file:** for states 10-56 the new values
+  equal the original within 1e-4 mi, except 17 counties that the bug had
+  merged with another state's shifted codes: 11 in Oklahoma (40019 Carter also
+  received Arizona county 001's blocks under tract digit 9) and 6 in Virginia
+  (from Arkansas county 1xx). Those 17 were wrong in the original and do not
+  match unaffected units, so matching codes alone would not have caught it.
+- **Roll-up:** same method as `summarize_eachGeo.py`, the unweighted mean of
+  block means (not weighted by points, area or population). Metres to miles.
+- **Kept (27):** EMS, public health departments, child care, public schools,
+  colleges, worship, public transit, transmission lines, substations, power
+  plants, oil refinery points and polygons, biodiesel, EPA TRI, EPA TSCA,
+  landfills, tornado tracks, and nine mining / mineral layers.
+- **Dropped:** `D_CrshStOp` (equal to `D_CnsMinOp` in all 7,781,824 blocks; its
+  gdb alias is a bare `NEAR_DIST`); `D_Airport` (reaches 3,189 km inside the
+  lower 48, which fits the USACE IENC "Airport Areas" layer, not airports;
+  left out until the source layer is confirmed); `F_*_list` (nearest-feature
+  ids). Not in the block file at all, so not here: `HospEDist`,
+  `UrgCareEDist`, `ParksEdist`, `DIST_VHA`, `PowerLineDen` (raster-derived or
+  added later; they exist on the points).
+- **Match:** county 3,108 of 3,108; tract 82,666 of 83,545; block group
+  234,943 of 237,654. Every skipped code is Connecticut (879 tracts, 2,711
+  block groups): 2020 blocks use the old CT counties, the loaded 2026 TIGER
+  tracts the planning regions. CT is present at county level.
+- **Missing values:** 54,806 blocks have no value for 23 of the 27 measures
+  (all but child care, construction minerals, ferrous mines, biodiesel), so
+  some units average over fewer blocks for those.
+- **Distance metric, measured:** the values are planar metres in World
+  Cylindrical Equal Area (ESRI:54034). On 6,123 points around Columbia, MO,
+  `D_EMS` equals the 54034 planar distance to the nearest station in the loaded
+  EMS layer within 5 m for 91%; against geodesic distance the median ratio is
+  0.977 and the 5th-95th percentile 0.78-1.28. Unit means are close; single
+  points are off by up to ~25% at 39N, more further north (east-west stretch
+  1/cos(lat), north-south shrink cos(lat)).
+- **Zeros:** `dist_college` is 0 where every block of a unit lies inside a
+  campus polygon, which is right for a polygon layer.
+- **Loaded 2026-11-22:** 27 county measures (83,640 values, 27 catalog rows,
+  tagged, all `acs_long` executable), tract 2,222,736 values over 82,666
+  tracts, block group 6,314,320 over 234,943, `geo_measure` 27 per level.
+  County EMS vs the mean of its tracts' values: r 0.960 (not 1, because a
+  county is the mean of its blocks, not of its tracts).
+- **Live, through `/api/analyze`:** "Which counties in Missouri have the longest
+  average distance to an EMS station?" planned `load(HSIP_PROXIMITY_DIST_EMS) ->
+  filter_area -> rank`, top 5 equal to SQL gold (Madison 9.22, Pemiscot 8.62,
+  Shannon 7.18, Texas 7.13, Carroll 7.12). The tract question about public
+  schools loaded `HSIP_PROXIMITY_DIST_PUBLIC_SCHOOL` at tract level and returned
+  the right #1 (29111970200, 10.00 mi), one row only: the open "default rank
+  limit for unnumbered 'most'" item.
+- **Retrieval after the load** (`eval/proximity/`; run through a signed-in
+  session, since `eval/run.py` sends no cookie and with `ACCESS_CODE` set every
+  request 401s; the saved `cart_cleanup_*_known.json` runs are all-401 and
+  cannot serve as baselines): known-item 10/11 recall@1, MRR 0.917. The one miss,
+  `ki-energy-generation` at rank 12, has no proximity row above it.
+  `queries.yaml` 94.9% recall / 93.5% success with 5 requests rate-limited (429);
+  its two unemployment misses have no proximity row in their top 20.
+
 ---
 
 ## Feature layers (polygons)

@@ -42,6 +42,8 @@ const LEVEL_OPS = new Set([
   "overlay", "zonal",
   // H6: each feature takes the value of the unit (tract, ZIP, zone) it lies in.
   "enrich",
+  // Fine sample points summarised per unit (planner/point_distance.js).
+  "point_distance",
 ]);
 
 /*

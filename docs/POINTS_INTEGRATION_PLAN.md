@@ -78,6 +78,14 @@ The tract file also has more rows (111k) than `geo_unit_tract` (85.5k), which su
 
 ### Step 1: Load the summaries (small, quick, adds value at once)
 
+**Done 2026-11-22**, differently from what is written below: the published
+tract / block group / county files had shifted codes for states 01-09, so they
+were rebuilt from `summarized_blocks.csv` by `etl/prep_proximity_summaries.py`
+and loaded with `make ingest` (dataset `hsip_proximity`, 27 measures, codes
+`HSIP_PROXIMITY_DIST_*`). Airport and crushed stone left out. Details, match
+rates and checks: DATA_CARPENTRY.md, "GeoARK distance to nearest facility".
+The original sketch follows.
+
 1. Copy `summarized_block_groups.csv` again (see above).
 2. Write `etl/load_distance_summaries.py`: melt each file to `(level, geoid, code, year, value)` with
    `code = 'DIST_<x>_MEAN_M'` and year 2020. Counties go to `acs_county_values` (or a separate code namespace),
@@ -91,6 +99,50 @@ The tract file also has more rows (111k) than `geo_unit_tract` (85.5k), which su
 Result: the planner can use proximity at county, tract and block-group level with no new ops.
 
 ### Step 2: Load the 118M points into PostGIS as one table
+
+**Missouri pilot done 2026-11-22.** `etl/schema_fine_points.sql` (table `fine_pt`,
+list-partitioned by state) and `etl/load_fine_points.sh <state>` (host GDAL,
+PGDump streamed into the db container). Result, `fine_pt_29`:
+
+| | |
+|---|---|
+| points / blocks | **2,747,844 / 243,688**, the block count of `summarized_blocks.csv` exactly |
+| point kinds | 2,605,325 hexagon points (`grid_id` like `RQN-7387`) + 123,291 block centroids (`grid_id = 'BLOCK2020_ID'`); a block gets its centroid only when no hexagon point falls in it, so 131,764 blocks have exactly one point |
+| size | 910 MB with GIST + block index, **331 bytes per point** |
+| load time | 1,128 s, 1,090 of it the gdb scan |
+
+What the pilot found:
+
+- **`HospEDist` (and `ParksEdist`) are Web Mercator raster distances**, 1.287x
+  true distance at 39N. Stored corrected (`x cos(lat)`): corrected hospital
+  miles vs geodesic to the loaded HSIP hospitals, median **1.000**, p05-p95
+  0.996-1.005 on 2,000 points.
+- **`UrgCareEDist` is NULL on all 2.7M Missouri points**: not loaded.
+- **`DIST_VHA`** is the D_* metric but against a different VA facility list
+  than the one loaded (exact match 2.4%).
+- **Point values reproduce the summaries**: all 115 Missouri county EMS values
+  recomputed from `fine_pt` (mean of block means) equal the loaded
+  `HSIP_PROXIMITY_DIST_EMS` within 5e-5 mi.
+- **The Thiessen polygons can be rebuilt exactly.** `ST_VoronoiPolygons` over
+  Boone County's points (27,608 cells): interior cell area / `ThiessenArea`
+  median **1.000**, p05-p95 0.979-1.027. 143 s, mostly the cell-to-point
+  `ST_Contains` join and geography areas; needs work before it is interactive.
+- Query costs in Missouri: per-county share beyond 30 mi + p90 for all 115
+  counties 3.0 s; a 10 km map view 11 ms (2,057 points); nearest point to a
+  click 0.5 ms.
+- **The bounding box mattered for speed after all**: with `-spat` the scan was
+  ~7 min (and clipped the Bootheel: 1,464 blocks in Pemiscot and Dunklin
+  missing), attribute-only 18 min. GDAL rejects the gdb's spatial index, so
+  either way the whole file is read.
+
+**National, before running it:** 48 per-state runs at ~18 min is ~15 h. A
+single unfiltered scan into one staging table, then `INSERT ... SELECT` per
+state, reads the gdb once. At 331 bytes per point the table is **~39 GB**
+(not the 15-25 GB estimated below); dropping `zip`/`huc12` (both derivable by
+spatial join) or storing distances as smallint tenths of a mile would cut it.
+Nothing reads `fine_pt` yet; Steps 3-4 are what make it visible in the app.
+
+The original sketch follows.
 
 Use a separate table, not `geo_unit`: these are sample points, not analysis units.
 
@@ -134,6 +186,67 @@ GeoJSON can't draw 118M points. Add a tile endpoint in the API:
 - The frontend needs a vector-tile layer (Leaflet.VectorGrid or MapLibre). This is the largest
   frontend change.
 
+**Done 2026-11-22, differently from the sketch above** (`backend/fine_points.js`,
+`frontend/src/lib/finePoints.ts`, `frontend/src/components/FinePoints.tsx`). No vector-tile library:
+a Leaflet `GridLayer` fetches one compact JSON tile per 256 px and draws it on a canvas. The server
+decides per tile what it holds:
+
+| tile | content | when |
+|---|---|---|
+| `agg` | mean of the points in each 4x4 px cell (64x64 cells) | more than 6,000 points in the tile |
+| `points` | every point at its pixel; block centroids get a dark ring from z13 | otherwise |
+| `cells` | each point's Thiessen cell, rebuilt with `ST_VoronoiPolygons` in Web Mercator over the tile plus half a tile each side, clipped by `ST_AsMVTGeom` | asked for, z >= 13, <= 2,500 points |
+
+The rest of the API: `/api/points/catalog`, `/breaks` (sixths of a 1% sample, or of the view),
+`/at` (the point under a click, all 30 distances, its rebuilt Thiessen cell, its block group /
+tract / county), `/stats` (mean, area-weighted mean, mean of block means, p10/50/90, max, share
+beyond 1-30 mi by points and by Thiessen area, for the view, a bg / tract / county / ZCTA / place,
+or a radius). Tiles are cached in memory (LRU 4,000, keyed by the loaded partitions).
+
+On the Explore page: "Show fine points", a distance picker, Auto / Points / Thiessen cells,
+"stretch colours to this view", click details, distribution for the view / clicked unit / radius,
+and a running tile-speed readout. URL: `/explore?pts=hosp_mi&ptmode=cells&ptscale=view`.
+
+Measured (Missouri, 2.75M points; SQL in the API, round trip in headless Firefox on the server):
+
+| request | time |
+|---|---|
+| `agg` tile covering most of Missouri (z6, 2.5M points) | 1.6 s first, 4 ms cached |
+| `agg` tile z8 (227k points) / z10 (14k) | 225 ms / 41 ms |
+| `points` tile z12 (944 points) | 30 ms |
+| `cells` tile z14 (77 cells) | 25-44 ms |
+| a city view at z13, 48 tiles | round trip median 47 ms, max 70 ms; SQL median 6 ms |
+| Thiessen cells at z14, 52 tiles | round trip median 78 ms, max 256 ms; SQL median 32 ms |
+| click lookup (`/at`) | 6-24 ms |
+| stats: tract / ZCTA 65201 / Boone County / 10 mi radius / all Missouri | 5 / 38 / 94 / 203 ms / 4.0 s |
+
+**Revised the same day after use** (user feedback):
+- **Cells broke when zoomed in**: past the point spacing a tile and its half-tile margin held few or no
+  points, so the tile came back `empty` (or with cells missing) and the basemap showed through. Cells
+  are now built from the margin's points plus the 80 nearest the tile centre, and a tile in cells mode
+  is never empty. Checked: every tile at z14-19 (Columbia and rural Douglas County) covers 103.15% of
+  its area, which is the tile plus its 2 px buffer.
+- **View breaks rounded to two significant digits** read "36.2 · 36 · 37" for a 36.2-37.0 mi view;
+  they are now rounded to a tenth of the range's order of magnitude, kept inside the range.
+- The panel: colour ramp and opacity for each layer (area and points), an On/Off for each, much less
+  text (counts, speeds and the method sit under "About and speed"; a click shows the selected distance
+  with "All distances" folded), fine-point choices remembered when the points are turned off and on
+  (browser storage), and a translucent glass panel that can be collapsed to a "Layers" button.
+  Recolouring redraws loaded tiles in place instead of refetching them.
+
+Three traps found on the way:
+- **A KNN `ORDER BY geom <-> p` where p comes from a CTE is not index-ordered**: the click
+  lookup took 1.3 s; with the point as a constant expression, 21 ms.
+- **`block20` compared as text skips its btree** (char(15) column): Boone County stats 577 ms
+  vs 10 ms compared as `bpchar`.
+- **Statewide colour classes hide a city**: every point in Columbia is in the first sixth for
+  hospitals. Hence the per-view breaks option.
+
+Checks: the click's rebuilt cell is 0.069 km² where the gdb's `ThiessenArea` says 0.069 (Columbia),
+0.028 vs 0.031 (Springfield, a cell on the edge of the 60 neighbours used). One data oddity to know:
+`D_PubTrans` reads 134 mi in Columbia, which has buses, so it measures something sparser (rail or
+intercity stations); it is on the map but not used by the planner.
+
 ### Step 4: Analysis on the fine points
 
 New planner ops that fit the existing `(geoid, value)` contract:
@@ -148,6 +261,46 @@ New planner ops that fit the existing `(geoid, value)` contract:
 | custom zones | `ST_Within(pt.geom, zone.geom)` | Values for user-drawn areas, HUC12 or wards, without a crosswalk |
 
 All of these run per state partition, so a single-state question never scans the whole country.
+
+**Partly done 2026-11-22: `point_distance`** (`planner/point_distance.js`, `planner/ops/point_distance.js`,
+tests `planner/test_point_distance.js`). An internal op, never offered to the model (prompt and schema
+byte-identical across all 48 contexts). After a plan is accepted, code swaps it in for:
+
+- a `nearest_distance` step, when the question asks how distance is DISTRIBUTED over each unit
+  (share / percent of the unit beyond or within N miles or km, an Nth percentile, a median distance,
+  the farthest point, an average "across" the unit, or names the fine points), the measured layer
+  has a precomputed column (25 catalog layers matched by dataset name), and every state in the
+  plan's area is loaded. A `filter_attr` with the share's own threshold is absorbed (the model writes
+  "more than 20 miles" as a filter); any other threshold filter, a catchment count, a question about
+  "the center of" a unit, `identify` or `k` leave the centroid distance;
+- a `load` of a Step 1 summary (`HSIP_PROXIMITY_DIST_*`), when a median / percentile / share is
+  asked: the summary is a mean of block means and cannot answer those.
+
+Stats: `mean`, `pct` (percentile_cont), `max`, `share` (percent of the unit's Thiessen AREA). Units:
+county / tract / bg by block-code prefix, ZCTA / place by point-in-polygon. Not ported: zone sets, grids.
+
+The gate reaches **0 of 330** questions in `eval/` (the first version reached 3: "median household
+income and distance", "share of Colorado's population within 5 miles", "above-median poverty ... more
+than 30 miles"; all three are now tests). Live, against gold computed independently (point-in-polygon
+on TIGER units, not block prefixes):
+
+| question | plan | rows | max abs diff vs gold | SQL |
+|---|---|--:|--:|--:|
+| What share of each Missouri county is more than 20 miles from a hospital? | point_distance(share) -> filter_area | 115 / 115 | 0.046 pct pts (border points) | 1.3 s |
+| What is the 90th percentile distance to the nearest hospital in each census tract in Missouri? | point_distance(pct 90) -> filter_area -> rank | 90 (rank cut) | 0.003 mi | 4.2 s |
+| For each Missouri county, what is the median distance to the nearest public school? | load(summary) swapped -> point_distance(pct 50) | 115 / 115 | 0.004 mi | 2.1 s |
+
+Douglas County: 92.1% of its area is more than 20 mi (straight line) from a hospital.
+
+Not reached, planner-side and pre-existing: "What percent of each census tract in Boone County,
+Missouri is within 2 miles of a hospital?" fails validation 3 times (the model loads the hospital
+layer as a series); "What share of each census tract in Missouri is more than 10 miles from a
+hospital?" is refused by the named-data check (at tract the hospital layer is not kept, the same gap
+as "Which ZIP codes ... are farthest from"). "Where ... is the farthest point from a hospital in each
+county?" produced no valid plan. No EMS layer is loaded, so EMS distance is reachable only through
+the Step 1 summary (median / share via the swap) and the map.
+
+The answer map draws these as ordinary county / tract choropleths; it does not yet overlay the points.
 
 ## 4. Things to check before trusting the numbers
 
