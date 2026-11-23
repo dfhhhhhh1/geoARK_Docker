@@ -3397,6 +3397,15 @@ async function finishAnalysis({ query, started, planning, executable, candidates
       if (!body.value_label && result.valueLabel && result.composite) {
         body.value_label = result.valueLabel;
       }
+      // Any other op that declares what its number is (access: facilities per
+      // 100,000; network_population: people; within: miles; zonal / overlay
+      // on features: the compiled label). Was dropped here for every op not
+      // listed above, so the legend read a bare "value" (2026-11-23).
+      if (!body.value_label && result.valueLabel) body.value_label = result.valueLabel;
+      // The area the answer counted or tested against (network reach cells,
+      // within's buffer), from every layer, drawn under the answer.
+      const reach = (result.layers ?? [result]).flatMap(l => l.reach ?? []);
+      if (reach.length) body.reach = reach;
       // compare_groups: which group is which, the medians, and the test. Kept
       // apart from `stats` because the UI reads that as a one-row correlation
       // and would hide the map these rows draw. Was computed by the executor

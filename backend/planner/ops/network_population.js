@@ -85,19 +85,57 @@ module.exports = {
       ? `100.0 * COALESCE(SUM(x.pop) FILTER (WHERE ${inside}), 0) / NULLIF(SUM(x.pop), 0)`
       : `COALESCE(SUM(x.pop) FILTER (WHERE ${inside}), 0)`;
     const group = step.group_by === "none";
+    // The cells that were counted, drawn as the area they cover (ctx.drawReach:
+    // only when an output reads this step directly, see compile.js). Each is
+    // the pixel's own square, from the raster's scale, so the shape on the map
+    // is exactly what the number summed: a staircase at 1 km, not a smoothed
+    // drive-time polygon. Unioned per row; a few thousand aligned squares.
+    const draw = ctx.drawReach === true;
     return `${ctx.name} AS (WITH net_area AS (${area}), ` +
-      `net_px AS (SELECT a.fips, c.geom, c.val AS pop FROM net_area a ` +
+      `net_px AS (SELECT a.fips, c.geom, c.val AS pop` +
+      (draw ? `, abs(ST_ScaleX(t.rast)) / 2 AS hx, abs(ST_ScaleY(t.rast)) / 2 AS hy` : "") +
+      ` FROM net_area a ` +
       `JOIN ${table} t ON ST_Intersects(t.rast, a.geom) ` +
       `CROSS JOIN LATERAL ST_PixelAsCentroids(t.rast) c ` +
       `WHERE c.val > 0 AND c.geom && a.geom AND ST_Intersects(a.geom, c.geom)), ` +
       `${n.head.join(", ")}, ` +
-      `net_x AS (SELECT px.fips, px.pop, ${N.snap(net, "net_r.region", "px.geom")} AS node ` +
-      `FROM net_px px, net_r, net_box WHERE px.geom && net_box.bbox), ` +
+      `net_x AS (SELECT px.fips, px.pop, ${N.snap(net, "net_r.region", "px.geom")} AS node` +
+      (draw ? `, ST_Expand(px.geom, px.hx, px.hy) AS cell` : "") +
+      ` FROM net_px px, net_r, net_box WHERE px.geom && net_box.bbox), ` +
       `${n.cost("SELECT node FROM net_x")} ` +
-      `SELECT ${group ? "NULL::char(5)" : "x.fips"} AS fips, (${value})::double precision AS value ` +
-      `FROM net_x x LEFT JOIN net_cost r ON r.node = x.node` +
+      `SELECT ${group ? "NULL::char(5)" : "x.fips"} AS fips, (${value})::double precision AS value` +
+      // Snapped first: edges rebuilt from centre +/- half a pixel differ in
+      // the last bits between neighbours, and the union kept every column as
+      // its own polygon with hairline gaps (2026-11-23, seen on the map).
+      (draw ? `, ST_Union(ST_SnapToGrid(x.cell, 1e-7)) FILTER (WHERE ${inside}) AS reach` : "") +
+      ` FROM net_x x LEFT JOIN net_cost r ON r.node = x.node` +
       `${group ? "" : " GROUP BY x.fips"})`;
   },
 
-  valueLabel: "people",
+  // The area the number counted, as its own map layer (compile.js reads a
+  // `reach` column from this step's CTE when it compiled one).
+  reachColumn: true,
+  reachLabel(step) {
+    const lbl = module.exports.valueLabel({ ...step, stat: "people" });
+    const tail = lbl.replace(/^people\s*/, "");
+    return { kind: "network", label: `Area ${tail || "reached"} (1 km population cells, as counted)` };
+  },
+
+  // What the number is, from the step: "people within a 10-minute drive of
+  // the nearest feature", or the percent of the area's people. A bare
+  // "people" was wrong for stat "share" (2026-11-23).
+  valueLabel(step) {
+    const net = (step && step.network) || {};
+    const lim = Number(net.limit);
+    let reach = "";
+    if (lim > 0) {
+      const how = net.mode === "walk" ? "walk" : "drive";
+      reach = net.cost === "length"
+        ? `${+(lim / 1609.344).toFixed(1)} road miles`
+        : `a ${+(lim / 60).toFixed(1)}-minute ${how}`;
+    }
+    const where = step && step.exclude === true ? "beyond" : "within";
+    const tail = reach ? ` ${where} ${reach} of the nearest feature` : "";
+    return step && step.stat === "share" ? `percent of people${tail}` : `people${tail}`;
+  },
 };

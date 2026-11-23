@@ -26,6 +26,7 @@ import { isMoranStats } from '../types';
 import type { FitPadding } from './MapControls';
 import type { ViewKind } from './ResultViews';
 import { unitPlural } from '../lib/units';
+import { isScalarResult } from './ScalarCard';
 
 /** What the data cart sends to map (DataCartPage, "Map in Analysis"). */
 export interface CartMapRequest {
@@ -698,6 +699,14 @@ function summarize(r: NonNullable<Turn['result']>): string {
   }
   if (r.explain) return `${r.explain.factors.filter(f => f.role === 'factor').length} factors ranked`;
   if (r.output_mode === 'features') return `${(r.features?.length ?? r.row_count ?? 0).toLocaleString()} locations`;
+  if (isScalarResult(r)) {
+    const v = r.rows?.[0]?.value;
+    if (v === null || v === undefined) return 'no value';
+    const label = r.value_label ?? '';
+    return /^percent of /.test(label)
+      ? `${v.toFixed(1)}% of ${label.slice('percent of '.length)}`
+      : `${Math.round(v).toLocaleString()}${label ? ` ${label}` : ''}`;
+  }
   return `${(r.row_count ?? 0).toLocaleString()} ${unitPlural(r.level)}`;
 }
 

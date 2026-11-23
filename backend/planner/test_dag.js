@@ -438,10 +438,12 @@ const statPlan = (op) => plan(
     assert.ok(v.ok, v.errors.join("; "));
     const compiled = compilePlan(p, v.resolved);
     assert.match(compiled.sql, /FROM step_s4 r/);
-    // Only the op that produced the FINAL layer decides how it is read; a
-    // hotspot consumed by rank still yields Gi* values, so it stays diverging.
-    assert.strictEqual(compiled.outputs[0].diverging, false,
-      "rank is the producing op here, and rank is not a signed measure");
+    // A hotspot consumed by filter_area and rank still yields Gi* values, so
+    // it stays diverging, with its label (asserted false until 2026-11-23,
+    // which drew the top 10 Gi* scores on the sequential ramp).
+    assert.strictEqual(compiled.outputs[0].diverging, true,
+      "rank only reorders: the values are still Gi*, a signed measure");
+    assert.strictEqual(compiled.outputs[0].valueLabel, "Gi* z-score");
   });
 
   await test("a signed measure declares itself for the renderer", async () => {

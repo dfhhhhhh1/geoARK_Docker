@@ -618,8 +618,19 @@ function dropUnread(plan) {
  */
 function availableFollowups(plan, { candidates = [], hasNeighbors = true } = {}) {
   if (!plan || !Array.isArray(plan.steps)) return null;
+  // An edit that applies can still be refused by validatePlan's type rule:
+  // "Top 10" or "Hot and cold spots" over one number for the whole area
+  // (network_population, summarize ungrouped) was offered and failed on click.
+  const typesOk = (p) => {
+    const t = ops.stepTypes(p.steps);
+    return p.steps.every(st => (st.inputs || []).every((id, i) => {
+      const allowed = ops.acceptsOf(mod(st), i);
+      const ty = t.get(id);
+      return !allowed || !ty || allowed.includes(ty);
+    }));
+  };
   const tries = (edit) => {
-    try { applyEdit(plan, edit, { hasNeighbors, kindOf: () => "value" }); return true; }
+    try { return typesOk(applyEdit(plan, edit, { hasNeighbors, kindOf: () => "value" }).plan); }
     catch { return false; }
   };
   const byId = new Map(candidates.map(c => [c.attr_id, c]));

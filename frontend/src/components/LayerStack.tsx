@@ -163,9 +163,9 @@ const FeatureLayer: React.FC<{
   const ref = useRef<L.GeoJSON | null>(null);
   const pane = paneName(layer.key);
   const pathStyle = useCallback((): PathOptions => ({
-    color: style.color, weight: 2, opacity: style.opacity,
+    color: style.color, weight: layer.reach ? 1 : 2, opacity: style.opacity,
     fillColor: style.color, fillOpacity: style.opacity * 0.35,
-  }), [style.color, style.opacity]);
+  }), [style.color, style.opacity, layer.reach]);
   useEffect(() => {
     ref.current?.eachLayer(l => {
       if (l instanceof L.CircleMarker) {
@@ -277,7 +277,8 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
           visible: true,
           // The top fill is near-solid; fills underneath are translucent so the
           // stack reads without touching a control first.
-          opacity: l.mode === 'features' ? 0.9 : i === 0 || fills === 1 ? 0.8 : 0.55,
+          // A reach area is context for the answer, not the answer: faint.
+          opacity: l.reach ? 0.6 : l.mode === 'features' ? 0.9 : i === 0 || fills === 1 ? 0.8 : 0.55,
           rampId: ramp.id,
           method: loadClassification(),
           color,
@@ -487,7 +488,9 @@ const LayerStack: React.FC<Props> = ({ layers, intent, focus = null, fitPadding,
                         <span className={`block text-xs font-medium truncate ${st.visible ? 'text-ink' : 'text-slate-400'}`}
                               title={l.label}>{l.label}</span>
                         <span className="block text-[10px] text-slate-500 truncate">
-                          {l.source}, {l.mode === 'features'
+                          {l.source}, {l.reach
+                            ? 'area counted'
+                            : l.mode === 'features'
                             ? `${(l.tiles?.total ?? l.features?.length ?? 0).toLocaleString()} locations`
                             : `${(l.rows?.length ?? 0).toLocaleString()} counties`}
                         </span>

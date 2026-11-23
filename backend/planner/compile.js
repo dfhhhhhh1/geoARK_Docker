@@ -111,11 +111,12 @@ function compilePlan(plan, resolved) {
    * Compiling per output costs a little repeated string building and makes the
    * count correct by construction.
    */
-  const preludeFor = (rootId) => {
+  const preludeFor = (rootId, { drawReach = false } = {}) => {
     const params = [];
     const bind = (v) => { params.push(v); return `$${params.length}`; };
     const declared = [];
     let hasSecond = false;
+    let reach = null;
     let statColumns = [];
     // compare_groups: per-row columns (grp) and a summary repeated on every
     // row, lifted out by the executor. Same "only if the output reads that
@@ -132,7 +133,13 @@ function compilePlan(plan, resolved) {
         featureSource: (id, field) => featureSource(id, field, bind),
         level: stepLevel.get(st.id),
         inTypes: (st.inputs || []).map(i => types.get(i)),
+        // The area an op counted (network_population's reached cells), as an
+        // extra `reach` column. Only on the CTE the output reads directly:
+        // every consumer selects its columns explicitly and would drop it, so
+        // computing it anywhere else is wasted work.
+        drawReach: drawReach && st.id === rootId && mod.reachColumn === true,
       }));
+      if (drawReach && st.id === rootId && mod.reachColumn === true) reach = mod.reachLabel(st);
       // Only the CTE this output actually reads decides whether a second
       // measure survives: every other op selects (fips, value) and drops it.
       if (mod.secondValue && st.id === rootId) hasSecond = true;
@@ -147,7 +154,7 @@ function compilePlan(plan, resolved) {
 
     return {
       sql: declared.length ? `WITH ${declared.join(",\n     ")}\n` : "",
-      params, hasSecond, statColumns, rowColumns, summaryColumns,
+      params, hasSecond, statColumns, rowColumns, summaryColumns, reach,
       // For a compute op (explain), which appends its own CTEs to the same
       // WITH list and must keep binding into the same parameter list.
       declared, bind,
@@ -195,17 +202,7 @@ function compilePlan(plan, resolved) {
       }
       if (st.op === "zonal") {
         // H4 remainder: the raster over each feature's own boundary.
-        const src = resolved.get(st.attr_id) || {};
-        const what = (st.attribute_filters || []).map(f => f.value).join(", ") ||
-          (st.operator !== undefined ? `pixels ${st.operator} ${st.value}${src.units ? ` ${src.units}` : ""}` : "");
-        // "Land cover class of every 30 m pixel from ..." -> "Land cover class".
-        const name = String(src.label || src.description || "raster")
-          .split(/[.(,;]|\s+(?:of|from|in|or|derived)\s+/)[0].trim().slice(0, 60);
-        const yr = st.year ? ` ${st.year}` : "";
-        const label = st.stat === "share" ? `percent of its area that is ${what} (${name.toLowerCase()}${yr})`
-          : st.stat === "area" ? `${st.unit || "square miles"} of ${what || "its area"} (${name}${yr})`
-          : `${st.stat || "mean"} ${name}${src.units ? ` (${src.units})` : ""}${yr}`;
-        return { column: "zonal_value", label };
+        return { column: "zonal_value", label: ops.byName("zonal").labelFor(st, resolved) };
       }
       if (st.op === "overlay") {
         return st.exclude === true ? null
@@ -262,17 +259,42 @@ function compilePlan(plan, resolved) {
     }
   }
 
+  /**
+   * A second, optional statement that draws the area an op tested against
+   * (within's buffer), found through ops that keep, drop, reorder or count
+   * its features. The executor runs it after the answer under a savepoint
+   * and its own short timeout, so it can fail without costing the answer.
+   */
+  const REACH_THROUGH = new Set(["filter_area", "filter_place", "filter_attr", "rank", "summarize"]);
+  const reachQueryFor = (id) => {
+    let st = byId.get(id);
+    while (st && REACH_THROUGH.has(st.op) && !ops.byName(st.op)?.reachStatement) {
+      st = byId.get((st.inputs || [])[0]);
+    }
+    const mod = st && ops.byName(st.op);
+    if (!mod || typeof mod.reachStatement !== "function") return undefined;
+    const { sql: prelude, params, bind } = preludeFor(st.id);
+    const built = mod.reachStatement(st, { ins: (st.inputs || []).map(cte), bind });
+    if (!built) return undefined;
+    return { sql: prelude + built.sql, params, kind: built.kind, label: built.label };
+  };
+
   const outputs = [...outputSteps, ...derived].map((out) => {
     const srcId = (out.inputs || [])[0];
     const srcStep = byId.get(srcId);
     if (!srcStep) throw new CompileError(`output "${out.id}" names no known step`);
     const srcMod = ops.byName(srcStep.op);
-    // The composite this layer's value is, through row-subset ops only.
-    let comp = srcStep;
-    while (comp && ["filter_area", "filter_place", "filter_attr", "rank", "intersect"].includes(comp.op)) {
-      comp = byId.get((comp.inputs || [])[0]);
+    // The step that made this layer's value, through row-subset ops only:
+    // "the 10 Texas counties with the worst access" ends in rank, but its
+    // number is still access's, with access's label and ramp. Read off the
+    // step before the output, both were lost (2026-11-23).
+    let valStep = srcStep;
+    while (valStep && ["filter_area", "filter_place", "filter_attr", "rank", "intersect"].includes(valStep.op)) {
+      valStep = byId.get((valStep.inputs || [])[0]);
     }
-    if (comp?.op !== "composite") comp = null;
+    const valMod = (valStep && ops.byName(valStep.op)) || srcMod;
+    if (!valStep) valStep = srcStep;
+    const comp = valStep?.op === "composite" ? valStep : null;
     const compMod = comp ? ops.byName("composite") : null;
 
     if (types.get(srcId) === "features" && srcStep.op !== "select_features") {
@@ -295,6 +317,7 @@ function compilePlan(plan, resolved) {
         id: out.id, step: srcStep.id, mode: "features",
         sql, params, labels: valued ? [valued.column, ...labels] : labels, series: 0,
         valueLabel: valued ? valued.label : null,
+        reachQuery: reachQueryFor(srcId),
       };
     }
 
@@ -327,8 +350,8 @@ function compilePlan(plan, resolved) {
     }
 
     const from = cte(srcId);
-    const { sql: prelude, params, hasSecond, statColumns, rowColumns: ownRowColumns, summaryColumns } =
-      preludeFor(srcId);
+    const { sql: prelude, params, hasSecond, statColumns, rowColumns: ownRowColumns, summaryColumns, reach } =
+      preludeFor(srcId, { drawReach: out.part !== true });
     const near = nearestOf(srcId);
     const nearJoin = !!near && near.id !== srcId;
     const rowColumns = near && !ownRowColumns.includes("nearest_name")
@@ -348,6 +371,7 @@ function compilePlan(plan, resolved) {
       (hasSecond ? `       r.value_b,\n` : "") +
       [...statColumns, ...rowColumns, ...summaryColumns]
         .map(c => `       ${nearJoin && c === "nearest_name" ? "nn" : "r"}.${c},\n`).join("") +
+      (reach ? `       ST_AsGeoJSON(r.reach, 5) AS reach,\n` : "") +
       `       CASE WHEN g.geom IS NULL THEN NULL ELSE ST_AsGeoJSON(g.geom) END AS geometry\n` +
       `FROM ${from} r\n` +
       // Another level draws from geo_unit, at its z12 display tier: full
@@ -390,14 +414,21 @@ function compilePlan(plan, resolved) {
       // A composite score keeps its label (and its diverging ramp, over
       // z-scores) through the filters and ranks after it: "the 10 most
       // vulnerable" is still a composite score, not a rank's bare value.
-      diverging: comp ? compMod.diverging(comp) === true : srcMod?.diverging === true,
+      diverging: comp ? compMod.diverging(comp) === true : valMod?.diverging === true,
       valueLabel: near ? nearestValueLabel(near)
-        : comp ? compMod.valueLabel(comp) : (srcMod?.valueLabel ?? null),
+        : comp ? compMod.valueLabel(comp)
+        // An op may compute its label from the step (network_population).
+        : typeof valMod?.valueLabel === "function" ? valMod.valueLabel(valStep, { resolved })
+        : (valMod?.valueLabel ?? null),
       composite: comp ? true : undefined,
       // An op whose answer is computed from these rows after execution
       // (moran: permutation tests). The executor hands them to its compute().
       post: typeof srcMod?.compute === "function" && srcMod.kind === "compute"
         ? { op: srcStep.op, step: srcStep } : undefined,
+      // The area the number counted, read off each row (network_population),
+      // or a separate statement that draws it (within through summarize).
+      reach: reach || undefined,
+      reachQuery: reach || out.part === true ? undefined : reachQueryFor(srcId),
     };
   });
 

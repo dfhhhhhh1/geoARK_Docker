@@ -190,6 +190,67 @@ function paramsMatch(o) {
     assert.ok(!v.ok);
   });
 
+  await test("network_population names its own number (people vs percent, reach)", async () => {
+    const np = ops.byName("network_population");
+    const drive = { mode: "drive", cost: "time", limit: 600 };
+    assert.strictEqual(np.valueLabel({ stat: "people", network: drive }),
+      "people within a 10-minute drive of the nearest feature");
+    assert.strictEqual(np.valueLabel({ stat: "share", exclude: true, network: { mode: "walk", cost: "time", limit: 300, walk_mps: 1.4 } }),
+      "percent of people beyond a 5-minute walk of the nearest feature");
+    assert.strictEqual(np.valueLabel({ stat: "people", network: { mode: "drive", cost: "length", limit: 8046.72 } }),
+      "people within 5 road miles of the nearest feature");
+  });
+
+  await test("network_population draws the cells it counted, only where an output reads it", async () => {
+    const p = plan({ id: "s1", op: "load", attr_id: "WORLDPOP_POP", inputs: [] },
+      { id: "s2", op: "nearest_distance", attr_id: "FIRE", inputs: [] },
+      { id: "s3", op: "filter_place", attr_id: "", inputs: ["s1"], place_kind: "place", place_name: "Chicago", states: ["Illinois"] },
+      out("s4", "s3"));
+    applyNetworkPopulation(p, "How many people in Chicago live within a 10-minute walk of a fire station?",
+      { popAttr: "WORLDPOP_POP", isFeature: (id) => id === "FIRE" });
+    const v = await validatePlan(p, resolve);
+    assert.ok(v.ok, v.errors.join("; "));
+    const o = compilePlan(p, v.resolved).outputs[0];
+    paramsMatch(o);
+    assert.match(o.sql, /ST_Union\(ST_SnapToGrid\(x\.cell, 1e-7\)\) FILTER \(WHERE r\.agg_cost <= /);
+    assert.match(o.sql, /ST_AsGeoJSON\(r\.reach, 5\) AS reach/);
+    assert.strictEqual(o.reach.kind, "network");
+    assert.match(o.reach.label, /^Area within a 10-minute walk of the nearest feature/);
+    assert.strictEqual(o.reachQuery, undefined);
+    // Read through rank, the column would be dropped: so it is not computed.
+    const np = p.steps.find(s => s.op === "network_population");
+    const q = plan(...p.steps.filter(s => s.op !== "output"),
+      { id: "r1", op: "rank", attr_id: "", inputs: [np.id], direction: "desc", limit: 5 }, out("o2", "r1"));
+    np.group_by = undefined; np.zones = "z_stl_wards"; delete np.place_name;
+    const w = compilePlan({ ...q, level: "z_stl_wards" }, (await validatePlan(q, resolve)).resolved).outputs[0];
+    assert.doesNotMatch(w.sql, /reach|x\.cell/);
+  });
+
+  await test("within (miles) draws its buffer as a separate statement; network within does not", async () => {
+    const p = plan(sel("s1", "SCH", { states: ["Ohio"] }), sel("s2", "FIRE"),
+      { id: "s3", op: "within", attr_id: "", inputs: ["s1", "s2"], miles: 2 }, out("s4", "s3"));
+    const v = await validatePlan(p, resolve);
+    const o = compilePlan(p, v.resolved).outputs[0];
+    assert.ok(o.reachQuery, "a buffer query");
+    paramsMatch(o.reachQuery);
+    assert.match(o.reachQuery.sql, /ST_Buffer\(s\.geom::geography, \$\d+::float8, 'quad_segs=6'\)/);
+    assert.match(o.reachQuery.sql, /EXISTS \(SELECT 1 FROM step_s1 a/);
+    assert.ok(o.reachQuery.params.includes(2 * 1609.344));
+    assert.strictEqual(o.reachQuery.label, "2 miles around the second layer (straight line)");
+    // Counted (summarize): the buffer still explains the number.
+    const s = plan(...p.steps.slice(0, 3), { id: "s5", op: "summarize", attr_id: "", inputs: ["s3"], stat: "count" }, out("s6", "s5"));
+    const vs = await validatePlan(s, resolve);
+    assert.ok(vs.ok, vs.errors.join("; "));
+    const os = compilePlan(s, vs.resolved).outputs[0];
+    assert.ok(os.reachQuery);
+    paramsMatch(os.reachQuery);
+    // Network form: no buffer (a full reach is what _network.js avoids).
+    const n = plan(sel("s1", "SCH"), sel("s2", "FIRE"),
+      { id: "s3", op: "within", attr_id: "", inputs: ["s1", "s2"],
+        network: { mode: "drive", cost: "time", limit: 240, unit: "minutes" } }, out("s4", "s3"));
+    assert.strictEqual(compilePlan(n, (await validatePlan(n, resolve)).resolved).outputs[0].reachQuery, undefined);
+  });
+
   console.log(`${pass}/${pass + fail} passed`);
   process.exit(fail ? 1 : 0);
 })();

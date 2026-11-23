@@ -30,6 +30,8 @@ export interface StackLayer {
   classes?: MoranClass[] | null;
   /** Added by the user, so it can be removed. The answer's own layers cannot. */
   removable: boolean;
+  /** The area the answer counted or tested against: drawn faint, at the bottom. */
+  reach?: boolean;
 }
 
 /** The measure a step of a plan reads, as a short name. */
@@ -48,6 +50,37 @@ function nameOfStep(result: AnalysisResponse, stepId: string): string | null {
  */
 export function layersOf(result: AnalysisResponse | null | undefined, keyPrefix: string,
                          source: string, removable = false): StackLayer[] {
+  const own = answerLayers(result, keyPrefix, source, removable)
+    // A one-number answer's row has no county: nothing to fill.
+    .filter(l => l.mode !== 'values' || (l.rows ?? []).some(r => r.fips));
+  return [...own, ...reachLayers(result, keyPrefix, source, removable)];
+}
+
+/**
+ * The area the answer counted (network cells) or tested against (a buffer),
+ * one layer per kind, under everything else. Each area keeps its unit's name
+ * for a per-ward answer, so hovering says whose reach it is.
+ */
+function reachLayers(result: AnalysisResponse | null | undefined, keyPrefix: string,
+                     source: string, removable: boolean): StackLayer[] {
+  const areas = result?.reach ?? [];
+  if (!areas.length || result?.execution_error) return [];
+  const kinds = [...new Set(areas.map(a => a.kind))];
+  return kinds.map(kind => {
+    const of = areas.filter(a => a.kind === kind);
+    return {
+      source, removable, reach: true, key: `${keyPrefix}:reach:${kind}`,
+      label: of[0].label, mode: 'features' as const,
+      features: of.map(a => ({
+        type: 'Feature' as const, geometry: a.geometry,
+        properties: { name: a.name ?? (kind === 'network' ? 'Reached area' : 'Buffer'), area: a.label },
+      })),
+    };
+  });
+}
+
+function answerLayers(result: AnalysisResponse | null | undefined, keyPrefix: string,
+                      source: string, removable: boolean): StackLayer[] {
   // Global Moran's I keeps its map (the measure it summarises).
   if (!result || result.execution_error || (result.stats && !isMoranStats(result.stats)) || result.explain) return [];
   const base = { source, removable };

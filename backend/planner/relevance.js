@@ -178,6 +178,61 @@ function overrules(description, query, dataset = "") {
   return own.size > 0 && shared.length > 0 && shared.length * 2 >= own.size;
 }
 
+/**
+ * A proxy verdict that is really "same": the model quoted a phrase that names
+ * the attribute's own subject plus a quantity the PLAN computes from it, and
+ * called the attribute a stand-in for the quantity.
+ *
+ * Seen on every distance and reach question (2026-11-23): Hospitals was a
+ * "stand-in" for "within a 10-minute drive of a hospital", "nearest hospital"
+ * and "access to hospitals"; SNAP retailers for "more than a 10-minute walk
+ * from a SNAP retailer". The layer IS the hospitals; the drive time is what
+ * network_population computes. The UI then told the reader the answer used
+ * a stand-in, on a correct plan. Separately, a whole-population count was
+ * "broader" for "people in St. Louis", which is what it counts.
+ *
+ * Narrow by construction: only a plan that computes a distance or reach (or,
+ * for people, a population count), and only when EVERY remaining content
+ * word of the phrase is a word of the attribute's own name. The words dropped
+ * first are the named-data check's (places, units, numbers, distance and
+ * travel words), comparison words, and the few verbs and nouns a distance
+ * plan computes ("live", "access", "reach"). A real stand-in keeps a word the
+ * name lacks: "access to care" keeps "care", "wealthiest" is not "income".
+ */
+const DISTANCE_PLAN_OPS = new Set(["nearest_distance", "within", "count_near", "access",
+  "network_population", "point_distance"]);
+const COMPARISON_WORDS = new Set(("more less fewer greater than under over above below beyond " +
+  "exceed exceeds least most within").split(" "));
+const COMPUTED_BY_DISTANCE = new Set(("live lives living reside resides residing located " +
+  "access accessible reach reached reachable served serve serving worst best poor good " +
+  "once account").split(" "));
+const PEOPLE_WORDS = new Set("people persons residents resident inhabitants population".split(" "));
+
+function namesItExactly(phrase, query, { desc, dataset, plan }) {
+  const { isExempt } = require("./named_data");
+  const { sameWord } = require("./feature_filters");
+  const distancePlan = (plan?.steps || []).some(s => DISTANCE_PLAN_OPS.has(s.op));
+  const rest = normText(phrase).split(" ").filter(w => w && !/^\d/.test(w))
+    .filter(w => !COMPARISON_WORDS.has(w) && !isExempt(w, query))
+    .filter(w => !(distancePlan && COMPUTED_BY_DISTANCE.has(w)));
+  if (!rest.length) return null;
+  const name = String(desc || "").replace(COVERAGE_NOTE, " ");
+  // For people only: a count word, and capitalised words after the first,
+  // which are the place ("St. Louis": the period keeps isExempt's locative
+  // pattern from reading it as one). Not used for layers, where a capitalised
+  // word ("Superfund") is the subject itself.
+  const proper = new Set([...String(query || "").slice(1).matchAll(/\b[A-Z][a-z]+\b/g)].map(m => m[0].toLowerCase()));
+  const persons = rest.filter(w => !["number", "count", "total"].includes(w) && !proper.has(w));
+  if (persons.length && persons.every(w => PEOPLE_WORDS.has(w)) && isPopulationCount(name) &&
+      (countsPeople(query) || asksPopulationSize(query))) {
+    return "a whole-population count, which is what the question counts";
+  }
+  if (!distancePlan) return null;
+  const words = normText(`${name} ${dataset || ""}`).split(" ").filter(w => w.length >= 3);
+  if (!rest.every(w => words.some(n => sameWord(n, w)))) return null;
+  return `names "${rest.join(" ")}"; the distance or reach in the phrase is computed by the plan`;
+}
+
 /** The quoted phrase really occurs in the question (word by word, any order). */
 function grounded(phrase, query) {
   const p = normText(phrase);
@@ -213,7 +268,15 @@ function usedAttributes(plan) {
  * Never throws: if the check itself fails, the plan stands, and the caller is
  * told the check did not run rather than that it passed.
  */
-async function checkRelevance({ query, plan, candidates, refs, callLLM, log = () => {} }) {
+async function checkRelevance({ query, plan, candidates, refs, callLLM, log = () => {}, resolved = null }) {
+  // An attribute code put into the plan (network_population's WorldPop) is
+  // not among the retrieved candidates, and was judged, and reported, by its
+  // bare id. Its resolved source still has the description.
+  const known = new Set(candidates.map(c => c.attr_id));
+  const extra = usedAttributes(plan)
+    .filter(u => !known.has(u.attr_id) && resolved?.get?.(u.attr_id)?.description)
+    .map(u => ({ attr_id: u.attr_id, attr_desc: resolved.get(u.attr_id).description }));
+  if (extra.length) candidates = [...candidates, ...extra];
   // An earlier step's result (backend/workflow.js) is a set of counties, not a
   // measure of anything the question names: "the counties from step 1" has no
   // subject for the model to judge, and judged anyway it reads as unrelated.
@@ -298,8 +361,16 @@ async function judge({ query, plan, candidates, refs, callLLM, log, used }) {
     const popRule = fit === "none" && !shared.length &&
       (needsPopulation(query) || asksPopulationSize(query) || countsPeople(query)) && isPopulationCount(desc);
     if (popRule) verdict = "unchecked";
+    // Grounded, allowing the model's own count words: it quoted "number of
+    // people in St. Louis" for "How many people in St. Louis" (2026-11-23).
+    const groundedLoose = isGrounded ||
+      grounded(phrase.replace(/\b(the\s+)?(number|count|total)\s+of\b/gi, " "), query);
+    const exact = verdict === "proxy" && groundedLoose
+      ? namesItExactly(phrase, query, { desc, dataset, plan }) : null;
+    if (exact) verdict = "direct";
     const measures = String(v?.measures || "").trim();
     const reason = !fit ? null
+      : exact ? `model said ${fit.replace("_", "-")}, upgraded: ${exact}`
       : fit === "none" && shared.length
         ? `model said it measures nothing asked about, overruled: it shares "${shared.join(", ")}" with the question`
       : popRule ? `model said it measures nothing asked about, overruled: a density, per-person or population-size question, or one that counts people, is defined by a total population`
@@ -335,4 +406,4 @@ async function judge({ query, plan, candidates, refs, callLLM, log, used }) {
   return { errors, verdicts };
 }
 
-module.exports = { checkRelevance, usedAttributes, grounded, sharedWords, overrules, RELEVANCE_SCHEMA, VERDICTS, FITS, SYSTEM };
+module.exports = { checkRelevance, usedAttributes, grounded, sharedWords, overrules, namesItExactly, RELEVANCE_SCHEMA, VERDICTS, FITS, SYSTEM };

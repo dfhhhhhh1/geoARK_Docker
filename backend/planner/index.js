@@ -1985,7 +1985,7 @@ async function generatePlan({
     // the same repair loop as any other error.
     let relevance = null;
     if (check.ok && relevanceCheck) {
-      relevance = await checkRelevance({ query, plan, candidates, refs, callLLM, log });
+      relevance = await checkRelevance({ query, plan, candidates, refs, callLLM, log, resolved: check.resolved });
       if (relevance.errors.length) {
         log(`   Plan uses data that does not measure the question (attempt ${attempt + 1})`);
         emit({ stage: "plan_irrelevant", attempt: attempt + 1, errors: relevance.errors });
@@ -2373,6 +2373,14 @@ function shapeLayer(out, res, ms) {
         ? { value_b: r.value_b === null || r.value_b === undefined ? null : Number(r.value_b) }
         : {}),
     })),
+    // The area each row's number counted (network_population): drawn as its
+    // own layer under the answer, never put in the rows.
+    reach: out.reach
+      ? res.rows.filter(r => r.reach).map(r => ({
+          kind: out.reach.kind, label: out.reach.label, name: r.name ?? null,
+          geometry: JSON.parse(r.reach),
+        }))
+      : undefined,
     // GeoJSON kept separate: it dwarfs the tabular payload and most callers
     // (charts, tables) do not need it.
     geometry: res.rows
@@ -2408,6 +2416,31 @@ async function countyNeighbors(client) {
   }
   neighborsCache = m;
   return m;
+}
+
+/**
+ * The optional drawing of an answer's buffer (compile.js reachQuery). Under a
+ * savepoint and a shorter timeout of its own: an error inside a transaction
+ * aborts every later statement, and a buffer is never worth the answer.
+ */
+const REACH_TIMEOUT_MS = 8000;
+async function runReach(client, q, timeoutMs) {
+  const t0 = Date.now();
+  await client.query("SAVEPOINT reach");
+  try {
+    await client.query(`SET LOCAL statement_timeout = ${Math.min(REACH_TIMEOUT_MS, Number(timeoutMs))}`);
+    const res = await client.query(q.sql, q.params);
+    await client.query(`SET LOCAL statement_timeout = ${Number(timeoutMs)}`);
+    await client.query("RELEASE SAVEPOINT reach");
+    const g = res.rows[0]?.reach;
+    console.log(`   reach (${q.kind}): ${g ? `${g.length} bytes` : "none (over the cap or empty)"}, ${Date.now() - t0} ms`);
+    return g ? { kind: q.kind, label: q.label, name: null, geometry: JSON.parse(g) } : null;
+  } catch (err) {
+    // Rolling back to the savepoint also restores the statement_timeout.
+    await client.query("ROLLBACK TO SAVEPOINT reach");
+    console.log(`   reach (${q.kind}) skipped: ${err.message}`);
+    return null;
+  }
 }
 
 async function executePlan(plan, resolved, pool, { timeoutMs = 30000 } = {}) {
@@ -2478,6 +2511,10 @@ async function executePlan(plan, resolved, pool, { timeoutMs = 30000 } = {}) {
         } catch (err) {
           console.log(`   feature tiles skipped: ${err.message}`);
         }
+      }
+      if (out.reachQuery) {
+        const r = await runReach(client, out.reachQuery, timeoutMs);
+        if (r) layer.reach = [r];
       }
       layers.push(layer);
     }

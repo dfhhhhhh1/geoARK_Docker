@@ -12,6 +12,8 @@ import MoranCard from './MoranCard';
 import ComparisonCard from './ComparisonCard';
 import FactorTable from './FactorTable';
 import CountyTable from './CountyTable';
+import ScalarCard, { isScalarResult } from './ScalarCard';
+import { featureKeyLabel, featureValueText, isComputedKey } from '../lib/featureKeys';
 import type { AnalysisResponse, FollowUpEdit, MappedFeature } from '../types';
 import { isMoranStats } from '../types';
 import {
@@ -66,6 +68,9 @@ const ResultBlock: React.FC<Props> = ({
   const isStatistic = !!result.stats && !isMoranGlobal;
   // A ranked factor table (explain): also no county layer to map.
   const isFactors = !!result.explain;
+  // One number for the whole area (network_population, summarize with no
+  // grouping): a card, not a map of one county-less row.
+  const isScalar = isScalarResult(result);
   // Attributes the relevance check judged to be stand-ins for what was asked.
   const proxies = (result.relevance ?? []).filter(v => v.verdict === 'proxy');
   const hasRows = !isStatistic && !isFactors && (result.layers?.length ?? 0) > 1
@@ -74,7 +79,7 @@ const ResultBlock: React.FC<Props> = ({
   // The chart, summary and table tabs are for a per-county layer. A correlation
   // or a factor table is one row or no county rows at all, and its summary tab
   // read "Counties 1, Minimum -0.042 ... Maximum -0.042".
-  const countyViews = hasRows && !isFeatures && !isStatistic && !isFactors;
+  const countyViews = hasRows && !isFeatures && !isStatistic && !isFactors && !isScalar;
   // One entry, or two when the plan ended in a join. Derived once here and
   // passed down so the map, the table and the exports agree on the names.
   const series = React.useMemo(
@@ -221,6 +226,8 @@ const ResultBlock: React.FC<Props> = ({
           {isMoranGlobal && <div className="mb-4"><MoranCard result={result} /></div>}
           {isStatistic ? (
             <CorrelationCard result={result} />
+          ) : isScalar ? (
+            <ScalarCard result={result} />
           ) : isFactors ? (
             <>
               <FactorTable
@@ -279,12 +286,14 @@ const ResultBlock: React.FC<Props> = ({
                         Locations ({l.row_count.toLocaleString()})
                       </p>
                       <FeatureMap features={l.features ?? []} tiles={l.tiles ?? null}
+                                  valueLabel={l.value_label ?? null}
                                   intent={result.plan.intent} />
                     </div>
                   ))}
                 </>
               ) : isFeatures ? (
-                <FeatureMap features={features} tiles={result.feature_tiles ?? null} intent={result.plan.intent} />
+                <FeatureMap features={features} tiles={result.feature_tiles ?? null} intent={result.plan.intent}
+                            valueLabel={result.value_label ?? null} />
               ) : (
                 <div ref={mapBoxRef}>
                   <ChoroplethMap
@@ -327,7 +336,7 @@ const ResultBlock: React.FC<Props> = ({
               {features.length.toLocaleString()}
             </span>
           </h3>
-          <FeatureTable features={features} />
+          <FeatureTable features={features} valueLabel={result.value_label ?? null} />
         </div>
       )}
 
@@ -358,7 +367,8 @@ const StageExtras: React.FC<{ result: AnalysisResponse }> = ({ result }) => {
               Locations ({l.row_count.toLocaleString()})
             </p>
             <ErrorBoundary label="the map">
-              <FeatureMap features={l.features ?? []} tiles={l.tiles ?? null} intent={result.plan.intent} />
+              <FeatureMap features={l.features ?? []} tiles={l.tiles ?? null} intent={result.plan.intent}
+                          valueLabel={l.value_label ?? null} />
             </ErrorBoundary>
           </div>
         ))}
@@ -383,7 +393,7 @@ const StageExtras: React.FC<{ result: AnalysisResponse }> = ({ result }) => {
  * half carry `name`, 41% carry `city`. A fixed column list would silently drop
  * real data on some layers and show empty columns on others.
  */
-const FeatureTable: React.FC<{ features: MappedFeature[] }> = ({ features }) => {
+const FeatureTable: React.FC<{ features: MappedFeature[]; valueLabel?: string | null }> = ({ features, valueLabel = null }) => {
   const keys = React.useMemo(
     () => [...new Set(features.flatMap(f => Object.keys(f.properties ?? {})))],
     [features],
@@ -397,7 +407,9 @@ const FeatureTable: React.FC<{ features: MappedFeature[] }> = ({ features }) => 
         <thead className="sticky top-0 bg-white shadow-[0_1px_0_0_rgb(226,232,240)]">
           <tr className="text-left text-xs text-slate-500">
             {keys.map(k => (
-              <th key={k} className="py-1.5 px-3 font-medium capitalize">{k}</th>
+              <th key={k} className={`py-1.5 px-3 font-medium ${isComputedKey(k) ? 'normal-case' : 'capitalize'}`}>
+                {featureKeyLabel(k, valueLabel)}
+              </th>
             ))}
           </tr>
         </thead>
@@ -406,7 +418,8 @@ const FeatureTable: React.FC<{ features: MappedFeature[] }> = ({ features }) => 
             <tr key={i} className="border-t border-slate-100">
               {keys.map(k => (
                 <td key={k} className="py-1 px-3 text-slate-800">
-                  {f.properties?.[k] ?? '-'}
+                  {f.properties?.[k] === null || f.properties?.[k] === undefined
+                    ? '-' : featureValueText(k, f.properties[k])}
                 </td>
               ))}
             </tr>

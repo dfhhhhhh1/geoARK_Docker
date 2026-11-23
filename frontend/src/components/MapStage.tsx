@@ -11,6 +11,7 @@ import AddLayerMenu, { type LayerSource } from './AddLayerMenu';
 import { layersOf, type StackLayer } from '../lib/layers';
 import FeatureMap from './FeatureMap';
 import ErrorBoundary from './ErrorBoundary';
+import { isScalarResult } from './ScalarCard';
 import { BaseLayers, BasemapPicker, StageZoom, fitOptions, type FitPadding } from './MapControls';
 import { basemapById, loadBasemapId, saveBasemapId } from '../lib/basemaps';
 import { outcomeLabelOf } from '../lib/series';
@@ -128,7 +129,9 @@ const MapStage: React.FC<Props> = ({
                   onClose={() => setMenuOpen(false)} />
   ) : null;
 
-  if (base.length > 1 || extraLayers.length > 0) {
+  // A reach area always goes to the stack: it is a second thing to see (and
+  // to hide), even beside a one-number answer that has no map of its own.
+  if (base.length > 1 || extraLayers.length > 0 || base.some(l => l.reach)) {
     return (
       <ErrorBoundary key={resultKey ?? 'none'} label="the map">
         <LayerStack
@@ -145,6 +148,8 @@ const MapStage: React.FC<Props> = ({
   }
 
   if (!result || result.execution_error || (result.stats && !isMoranStats(result.stats))) return idle;
+  // One number for the whole area: nothing per county to draw.
+  if (isScalarResult(result)) return idle;
 
   // A single layer: the full map, with the button that starts a stack.
   const addButton = onAddLayers ? (
@@ -175,11 +180,11 @@ const MapStage: React.FC<Props> = ({
     }
   } else if (layers.length === 1 && layers[0].mode === 'features') {
     map = <FeatureMap features={layers[0].features ?? []} tiles={layers[0].tiles ?? null} intent={result.plan.intent}
-                      toolbarExtra={addButton} {...common} />;
+                      valueLabel={layers[0].value_label ?? null} toolbarExtra={addButton} {...common} />;
   } else if (result.output_mode === 'features') {
     if (features.length || result.feature_tiles) {
       map = <FeatureMap features={features} tiles={result.feature_tiles ?? null} intent={result.plan.intent}
-                        toolbarExtra={addButton} {...common} />;
+                        valueLabel={result.value_label ?? null} toolbarExtra={addButton} {...common} />;
     }
   } else if (rows.length) {
     map = (

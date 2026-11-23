@@ -159,7 +159,9 @@ export type PlanOp =
   | 'filter_attr' | 'filter_area' | 'filter_place' | 'per_area'
   | 'normalize' | 'aggregate' | 'rank' | 'join' | 'combine'
   | 'hotspot' | 'outlier' | 'correlate' | 'explain' | 'output'
-  | 'intersect' | 'compare_groups' | 'composite' | 'moran';
+  | 'intersect' | 'compare_groups' | 'composite' | 'moran'
+  | 'access' | 'neighbors' | 'residual' | 'aggregate_to'
+  | 'within' | 'summarize' | 'overlay' | 'enrich' | 'zonal' | 'network_population';
 
 /**
  * One returned result. A plan with several `output` steps produces several.
@@ -244,6 +246,19 @@ export interface MappedFeature {
   type: 'Feature';
   geometry: GeoJSON.Geometry;
   properties: Record<string, string | null>;
+}
+
+/**
+ * The area an answer counted or tested against, drawn under it: the 1 km
+ * population cells a network_population answer summed ("network"), or the
+ * straight-line buffer a `within` answer used ("buffer").
+ */
+export interface ReachArea {
+  kind: 'network' | 'buffer';
+  label: string;
+  /** The unit it belongs to, for a per-zone answer. */
+  name: string | null;
+  geometry: GeoJSON.Geometry;
 }
 
 export interface PlanStep {
@@ -479,6 +494,8 @@ export interface AnalysisResponse {
   layer_count?: number;
   features?: MappedFeature[];
   feature_tiles?: FeatureTiles | null;
+  /** What the answer counted or tested against, as map areas. */
+  reach?: ReachArea[];
   ambiguity?: CityAmbiguity;
   /**
    * Present when the result is one statistic (correlate), not a county layer.

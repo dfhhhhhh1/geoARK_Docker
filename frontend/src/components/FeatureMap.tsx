@@ -11,6 +11,7 @@ import {
 } from './MapControls';
 import { basemapById, loadBasemapId, saveBasemapId } from '../lib/basemaps';
 import { useIsDark } from '../hooks/useIsDark';
+import { featureKeyLabel, featureValueText } from '../lib/featureKeys';
 
 /**
  * Individual locations on a map -- points, lines or polygons -- as opposed to
@@ -48,6 +49,8 @@ interface Props {
   toolbarExtra?: React.ReactNode;
   /** Over the feature cap: the whole layer as server tiles; `features` is then a sample. */
   tiles?: FeatureTiles | null;
+  /** What a computed column (a distance, zonal_value, ...) means; see lib/featureKeys. */
+  valueLabel?: string | null;
 }
 
 /**
@@ -166,7 +169,7 @@ const escapeHtml = (s: string): string =>
   s.replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
-const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fitPadding, toolbarExtra, tiles = null }) => {
+const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fitPadding, toolbarExtra, tiles = null, valueLabel = null }) => {
   const stage = variant === 'stage';
   const mapRef = useRef<L.Map | null>(null);
   // Bumped by the stage's reset button; see ChoroplethMap.
@@ -255,10 +258,10 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
     const title = props.name ? `<strong>${escapeHtml(props.name)}</strong>` : '';
     const rest = entries
       .filter(([k]) => k !== 'name')
-      .map(([k, v]) => `<div><span style="opacity:.6">${escapeHtml(k)}:</span> ${escapeHtml(String(v))}</div>`)
+      .map(([k, v]) => `<div><span style="opacity:.6">${escapeHtml(featureKeyLabel(k, valueLabel))}:</span> ${escapeHtml(featureValueText(k, v))}</div>`)
       .join('');
-    layer.bindPopup(`<div style="min-width:160px">${title}${rest}</div>`);
-  }, []);
+    layer.bindPopup(`<div style="min-width:160px;max-width:260px">${title}${rest}</div>`);
+  }, [valueLabel]);
 
   const geoRef = useRef<L.GeoJSON | null>(null);
   const hoveredLayerRef = useRef<L.Path | null>(null);
@@ -380,7 +383,7 @@ const FeatureMap: React.FC<Props> = ({ features, intent, variant = 'inline', fit
       )}
       {readout.filter(([k]) => k !== 'name').slice(0, 4).map(([k, v]) => (
         <p key={k} className="text-xs leading-snug text-slate-600">
-          <span className="text-slate-400 capitalize">{k}: </span>{v}
+          <span className="text-slate-400">{featureKeyLabel(k, valueLabel)}: </span>{featureValueText(k, v)}
         </p>
       ))}
       <p className="text-[11px] text-slate-400 mt-1">Click for all details</p>

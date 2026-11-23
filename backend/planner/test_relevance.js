@@ -277,6 +277,50 @@ const load = (id) => ({ id: "s1", op: "load", attr_id: id, inputs: [] });
     assert.strictEqual(r.errors.length, 1);
   });
 
+  await test("a distance plan's reference layer is direct, not a stand-in for the distance", async () => {
+    // Real qwen3:14b verdicts, 2026-11-23: every distance and reach question
+    // told the reader Hospitals was a "stand-in".
+    const cands = [{ attr_id: "HOSP", attr_desc: "Hospitals (mapped locations)" },
+                   { attr_id: "SNAP", attr_desc: "SNAP Authorized Food Retailers (mapped locations)" }];
+    const r2 = new Map([["a1", "HOSP"], ["a2", "SNAP"], ["a3", "WORLDPOP_POP"]]);
+    const net = (ref) => plan({ id: "s1", op: "select_features", attr_id: ref, inputs: [] },
+      { id: "s2", op: "network_population", attr_id: "WORLDPOP_POP", inputs: ["s1"] });
+    const resolved = new Map([["WORLDPOP_POP", { description: "Estimated population from the WorldPop 1 km gridded estimate" }]]);
+    for (const [query, ref, label, fit, phrase] of [
+      ["How many people in St. Louis live within a 10-minute drive of a hospital?", "HOSP", "a1", "stand_in", "a hospital"],
+      ["How many people in Chicago live more than a 10-minute walk from a SNAP retailer?", "SNAP", "a2", "stand_in",
+       "live more than a 10-minute walk from a SNAP retailer"],
+    ]) {
+      const r = await checkRelevance({ query, plan: net(ref), candidates: cands, refs: r2, resolved,
+        // "number of": the model's paraphrase of "How many people", seen live.
+        callLLM: scripted([v(label, fit, phrase), v("a3", "broader", "number of " + query.match(/people in [A-Z][\w. ]+?(?= live)/)[0])]) });
+      assert.deepStrictEqual(r.verdicts.map(x => x.verdict), ["direct", "direct"], query);
+      assert.match(r.verdicts[0].reason, /upgraded: names/);
+      // The code-added population row is judged by its description, not its id.
+      assert.match(r.verdicts[1].description, /WorldPop/);
+    }
+  });
+
+  await test("a real stand-in in a distance plan stays a stand-in", async () => {
+    const cands = [{ attr_id: "HOSP", attr_desc: "Hospitals (mapped locations)" },
+                   { attr_id: "INC", attr_desc: "Median household income" }];
+    const r2 = new Map([["a1", "HOSP"], ["a2", "INC"]]);
+    const p = plan({ id: "s1", op: "nearest_distance", attr_id: "HOSP", inputs: [] }, load("INC"));
+    for (const [label, phrase, query] of [
+      ["a1", "urgent care clinics", "How far is each county from the nearest urgent care clinics?"],
+      ["a1", "access to care", "Which counties have poor access to care within 30 miles?"],
+      ["a2", "wealthiest people", "where do the wealthiest people live near a hospital"],
+    ]) {
+      const r = await checkRelevance({ query, plan: p, candidates: cands, refs: r2,
+        callLLM: scripted([v(label, "stand_in", phrase)]) });
+      assert.strictEqual(r.verdicts.find(x => x.label === label).verdict, "proxy", phrase);
+    }
+    // Without a distance op, the layer rule never applies.
+    const r = await checkRelevance({ query: "map hospital beds", plan: plan(load("HOSP")),
+      candidates: cands, refs: r2, callLLM: scripted([v("a1", "broader", "hospital")]) });
+    assert.strictEqual(r.verdicts[0].verdict, "proxy");
+  });
+
   console.log(`\n${pass}/${pass + fail} passed`);
   process.exit(fail ? 1 : 0);
 })();

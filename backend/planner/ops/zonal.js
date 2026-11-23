@@ -178,9 +178,26 @@ PLAN: {"intent":"Mean slope of each Colorado state park",
            `WHERE u.geom && ${ext} AND z.n > 0)`;
   },
 
-  valueLabel: "raster summarised over each unit (share in percent, area, or mean)",
+  // Named from the step, over units and over features alike: "percent of its
+  // area that is Forest (land cover class 2021)". A fixed string here left
+  // every per-unit answer reading "share in percent, area, or mean".
+  labelFor,
+  valueLabel: (step, ctx = {}) => labelFor(step, ctx.resolved),
   compileOverFeatures: (...a) => compileOverFeatures(...a),
 };
+
+function labelFor(st, resolved) {
+  const src = (resolved && resolved.get(st.attr_id)) || {};
+  const what = (st.attribute_filters || []).map(f => f.value).join(", ") ||
+    (st.operator !== undefined ? `pixels ${st.operator} ${st.value}${src.units ? ` ${src.units}` : ""}` : "");
+  // "Land cover class of every 30 m pixel from ..." -> "Land cover class".
+  const name = String(src.label || src.description || "raster")
+    .split(/[.(,;]|\s+(?:of|from|in|or|derived)\s+/)[0].trim().slice(0, 60);
+  const yr = st.year ? ` ${st.year}` : "";
+  return st.stat === "share" ? `percent of its area that is ${what} (${name.toLowerCase()}${yr})`
+    : st.stat === "area" ? `${st.unit || "square miles"} of ${what || "its area"} (${name}${yr})`
+    : `${st.stat || "mean"} ${name}${src.units ? ` (${src.units})` : ""}${yr}`;
+}
 
 /**
  * zonal over the polygons of a features step: one row per feature, its

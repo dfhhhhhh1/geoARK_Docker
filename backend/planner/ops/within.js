@@ -116,7 +116,44 @@ PLAN: {"intent":"The five Nevada police stations with the longest distance to a 
   },
 
   valueLabel: "miles to the nearest feature of the second layer",
+
+  /**
+   * The buffer the question drew, as its own map layer: every feature of
+   * input 2 near input 1, buffered by `miles` on geography (so a mile is a
+   * mile at any latitude) and unioned. A separate statement after the answer
+   * (compile.js, `reachQuery`), so a slow or failed buffer never costs the
+   * answer. Straight-line form only: a network reach would need every vertex
+   * a source reaches, which is the superlinear cost _network.js avoids.
+   *
+   * Capped at REACH_MAX_SOURCES buffered features; over that, null, and the
+   * map simply has no buffer layer rather than a partial one.
+   */
+  reachStatement(step, ctx) {
+    if (step.network || step.miles === undefined || step.miles === null) return null;
+    const miles = Number(step.miles);
+    if (!(miles > 0)) return null;
+    const [a, b] = ctx.ins;
+    const meters = ctx.bind(miles * 1609.344);
+    const cap = ctx.bind(REACH_MAX_SOURCES);
+    // Within: only the features of input 2 that caught one of input 1 (the
+    // buffers that explain the answer). Beyond (exclude): every one near the
+    // area, since the answer is where none of them reach.
+    const near = step.exclude === true ? "" :
+      ` AND EXISTS (SELECT 1 FROM ${a} a WHERE a.geom && ${expandBox("b.geom", `${meters}::float8`)} ` +
+      `AND ST_DWithin(a.geom::geography, b.geom::geography, ${meters}::float8))`;
+    const sql =
+      `SELECT CASE WHEN count(*) > ${cap}::int THEN NULL ELSE ST_AsGeoJSON(` +
+      `ST_Union(ST_Buffer(s.geom::geography, ${meters}::float8, 'quad_segs=6')::geometry), 5) END AS reach ` +
+      `FROM (SELECT b.geom FROM ${b} b, ` +
+      `(SELECT ST_Extent(geom)::geometry AS box FROM ${a}) e ` +
+      `WHERE e.box IS NOT NULL AND b.geom && ${expandBox("e.box", `${meters}::float8`)}${near} ` +
+      `LIMIT ${cap}::int + 1) s`;
+    const unit = miles === 1 ? "mile" : "miles";
+    return { sql, kind: "buffer", label: `${+miles.toFixed(2)} ${unit} around the second layer (straight line)` };
+  },
 };
+
+const REACH_MAX_SOURCES = 2000;
 
 /**
  * The network form (H5): each feature's travel time (minutes) or route length
