@@ -421,3 +421,17 @@ regions:
   m_tulsa:
     label: Tulsa, OK metro (CBSA 46140)
     bbox: [-97.18, 35.29, -95.10, 37.09]
+
+  # New York split (2026-11-24): m_new_york (5.0M edges) took 37 s per drive
+  # time whatever the trip (Manhattan-JFK 37.2 s), over the 30 s limit. Missouri
+  # at 4.3M takes 11 s, so edge count alone does not predict it. Each part is
+  # its counties' county_geom extent plus about 10 km.
+  m_nyc_core:
+    label: New York City, inner New Jersey and Westchester (Bronx, Kings, New York, Queens, Richmond, Westchester NY; Hudson, Bergen, Essex, Union NJ)
+    bbox: [-74.58, 40.41, -73.36, 41.46]
+  m_long_island:
+    label: Long Island (Nassau and Suffolk counties, NY)
+    bbox: [-73.89, 40.49, -71.74, 41.38]
+  m_central_nj:
+    label: Central and northern New Jersey (Middlesex, Monmouth, Ocean, Somerset, Morris, Passaic, Sussex, Hunterdon, Mercer)
+    bbox: [-75.31, 39.41, -73.85, 41.45]

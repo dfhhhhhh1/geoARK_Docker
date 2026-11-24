@@ -549,6 +549,7 @@ reads the same file.
 #   into deploy/incoming/osm_us/
 make road-network                       # REGIONS="stl chi" (osm_network.yaml)
 make road-network REGIONS=chi           # one region
+logs/road-network-timing.sh [region ...] # one drive-time query per loaded region
 make network-gold                       # after any reload: eval/gis_ops network gold
 ```
 

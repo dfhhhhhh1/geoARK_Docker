@@ -121,6 +121,7 @@ module.exports = {
     const n = N.reachCtes(net, ctx, {
       pointsSql: `SELECT geom FROM ${src}`,
       sourcesSql: `SELECT geom FROM ${src}`,
+      maxCost: bandCost(net, top),
     });
     // People per band from the population raster, when code attached it
     // (planner/service_area.js checks it is loaded). A closed list, so a plan

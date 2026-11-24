@@ -172,6 +172,8 @@ function compileNetwork(step, ctx) {
   const n = N.reachCtes(net, ctx, {
     pointsSql: `SELECT geom FROM ${a}`,
     sourcesSql: `SELECT geom FROM ${b}`,
+    // Beyond the limit reports each kept feature's own cost: whole graph.
+    bounded: step.exclude !== true,
   });
   const keep = FEATURE_LABELS.map(c => `p.${c}`).join(", ");
   const where = lim === null ? ""

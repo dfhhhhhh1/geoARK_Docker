@@ -202,29 +202,62 @@ function checkThresholds(plan, resolved, defsById = new Map()) {
 
     // A stated number. Only checkable when the input is a loaded measure whose
     // national range is known.
-    const range = src?.value_range;
-    const v = Number(st.value);
-    if (!range || !Number.isFinite(v)) continue;
-    const { lo, hi } = range;
-    if (v >= lo && v <= hi) continue;
-    // "% rural above 50" against a 0-1 fraction. Unambiguous: no value of a
-    // fraction exceeds 1, and the question's number is a percentage. Converted
-    // rather than refused, because the repair loop re-emits the same plan.
-    if (lo >= 0 && hi <= 1 && v > 1 && v <= 100) {
-      const before = st.value;
-      st.value = v / 100;
-      repairs.push(
-        `${src.description || src.census_code} is stored as a fraction from 0 to 1, ` +
-        `so the threshold ${before} was read as ${st.value}`);
-      continue;
-    }
-    // Equal to an end of the range is fine; beyond it, ">" selects nothing or
-    // "<" selects everything, and either looks like an answer.
+    const sc = scaleCheck(src, st.value);
+    if (!sc) continue;
+    if (sc.repair) { st.value = sc.value; repairs.push(sc.repair); continue; }
     errors.push(
       `step "${st.id}" (filter_attr): ${st.operator} ${st.value} is outside the values ` +
-      `this measure takes (${lo} to ${hi}), so it would keep ` +
-      `${(st.operator || "").startsWith(">") === v > hi ? "nothing" : "every county"}. ` +
+      `this measure takes (${sc.lo} to ${sc.hi}), so it would keep ` +
+      `${(st.operator || "").startsWith(">") === Number(st.value) > sc.hi ? "nothing" : "every county"}. ` +
       `Check the units, or use percentile for "high" or "low".`);
+  }
+  return { errors, repairs };
+}
+
+/**
+ * A stated number against a loaded measure's national range. null when it is
+ * in range or cannot be checked; { value, repair } when a percentage was
+ * stated for a 0-1 fraction ("% rural above 50" -> 0.5: unambiguous, since no
+ * fraction exceeds 1, and converted rather than refused because the repair
+ * loop re-emits the same plan); { lo, hi } when it is outside the range.
+ * Equal to an end of the range is fine; beyond it, ">" selects nothing or "<"
+ * selects everything, and either looks like an answer.
+ */
+function scaleCheck(src, raw) {
+  const range = src?.value_range;
+  const v = Number(raw);
+  if (!range || !Number.isFinite(v)) return null;
+  const { lo, hi } = range;
+  if (v >= lo && v <= hi) return null;
+  if (lo >= 0 && hi <= 1 && v > 1 && v <= 100) {
+    return { value: v / 100, repair: `${src.description || src.census_code} is stored as a fraction from 0 to 1, ` +
+                                     `so the threshold ${raw} was read as ${v / 100}` };
+  }
+  return { lo, hi };
+}
+
+/**
+ * The same scale check for the thresholds of a composite count (method
+ * "count"), one per input, run after planner/composite.js has set them.
+ */
+function checkCountThresholds(plan, resolved) {
+  const errors = [], repairs = [];
+  const steps = plan.steps || [];
+  const byId = new Map(steps.map(s => [s.id, s]));
+  for (const st of steps) {
+    if (st.op !== "composite" || st.method !== "count" || !Array.isArray(st.thresholds)) continue;
+    (st.inputs || []).forEach((id, i) => {
+      const t = st.thresholds[i];
+      if (!t || t.definition) return;
+      const load = sourceLoad(id, byId);
+      const src = load ? resolved.get(load.attr_id) : null;
+      const sc = scaleCheck(src, t.value);
+      if (!sc) return;
+      if (sc.repair) { t.value = sc.value; repairs.push(sc.repair); return; }
+      errors.push(`step "${st.id}" (composite count): threshold ${t.operator} ${t.value} on ` +
+                  `${src.description || src.census_code} is outside its values (${sc.lo} to ${sc.hi}), ` +
+                  `so that flag would always be ${(t.operator.startsWith(">") === Number(t.value) > sc.hi) ? 0 : 1}`);
+    });
   }
   return { errors, repairs };
 }
@@ -277,6 +310,6 @@ const ordinal = (n) => {
 module.exports = {
   RELATIVE_PHRASES, COMPARISON_PHRASES, GROUP_COMPARISON, TIME_PHRASES, CHANGE_PHRASES,
   COMPLEMENT_PHRASES, LAYER_PHRASES,
-  statesCondition, sourceLoad, derefDefinitions, checkThresholds, describeGroup,
+  statesCondition, sourceLoad, derefDefinitions, checkThresholds, checkCountThresholds, describeGroup,
   ordinal,
 };

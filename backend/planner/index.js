@@ -24,7 +24,7 @@ const { checkRelevance, usedAttributes } = require("./relevance");
 const { checkNamedData } = require("./named_data");
 const { preferCoverage } = require("./coverage");
 const { unaskedSubjectErrors } = require("./outcome");
-const { derefDefinitions, checkThresholds, LAYER_PHRASES, GROUP_COMPARISON,
+const { derefDefinitions, checkThresholds, checkCountThresholds, LAYER_PHRASES, GROUP_COMPARISON,
         COMPLEMENT_PHRASES } = require("./conditions");
 const { anchorYears, spans } = require("./vintages");
 const { applyLevel, applyRollup, levelOf } = require("./levels");
@@ -2248,9 +2248,18 @@ async function generatePlan({
           phrasesOf: (id) => phrases.get(id) || [],
         });
         if (cr?.fixes.length) {
-          const recheck = await validatePlan(plan, resolve);
+          let recheck = await validatePlan(plan, resolve);
+          // A count's thresholds read from the question get the same scale
+          // check filter_attr thresholds got (a percent on a 0-1 fraction).
+          const ct = recheck.ok ? checkCountThresholds(plan, recheck.resolved) : { errors: [], repairs: [] };
+          if (ct.errors.length) recheck = { ok: false, errors: ct.errors };
           if (recheck.ok) {
             resolvedFinal = recheck.resolved;
+            for (const r of ct.repairs) {
+              log(`   Threshold: ${r}`);
+              emit({ stage: "plan_adjusted", detail: `Threshold: ${r}.` });
+              adjustments.push(`Threshold: ${r}.`);
+            }
             for (const f of cr.fixes) {
               log(`   Composite: ${f}`);
               emit({ stage: "plan_adjusted", detail: `Composite: ${f}.` });

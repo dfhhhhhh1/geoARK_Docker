@@ -16,7 +16,7 @@
  * one would be a confident wrong answer.
  */
 
-const { CompileError } = require("./_sql");
+const { CompileError, expandBox } = require("./_sql");
 
 const MODES = new Set(["drive", "walk"]);
 const COSTS = new Set(["time", "length"]);
@@ -79,14 +79,40 @@ function snap(net, regionExpr, pointExpr) {
  * every source vertex (OSM node ids are positive), and pgr_dijkstraCost from
  * 0 to the target vertices. Same question: 0.9 s. A target no source reaches
  * is absent, so it reads NULL (beyond any limit).
+ *
+ * Bounded edges (2026-11-24). pgRouting rebuilds the graph from every edge it
+ * is handed, so a query costs the size of its REGION, not its trip: one drive
+ * time took 11 s on Missouri (4.3M edges) and 51 s on Texas (10.5M), over
+ * executePlan's 30 s. With a limit, every vertex on a path the limit admits is
+ * within reachMeters of the target it ends at (cost so far <= limit, at no
+ * more than MAX_DRIVE_MPS), so edges outside the targets' extent grown by that
+ * distance cannot change any cost <= limit: the answer is the same, from a
+ * fraction of the graph. Only a target's cost ABOVE the limit can change (to
+ * NULL), so a caller that reports it (within with exclude) passes
+ * `bounded: false`, and so does any question with no limit.
  */
-function reachCtes(net, ctx, { pointsSql, sourcesSql }) {
+const MAX_DRIVE_MPS = 36;  // 130 km/h; as service_area.reachMeters
+
+/** Metres a cost of `lim` graph units can cover at most. */
+function reachMetersForCost(net, lim) {
+  return net.mode === "drive" && net.cost === "time" ? lim * MAX_DRIVE_MPS : lim;
+}
+
+function reachCtes(net, ctx, { pointsSql, sourcesSql, bounded = true, maxCost = null }) {
   check(net);
+  // maxCost: a limit in graph units for a caller whose net carries none
+  // (service_area's top band).
+  const lim = maxCost !== null ? Number(maxCost) : limitInCost(net);
+  const boxM = bounded && lim !== null ? reachMetersForCost(net, lim) : null;
   // Bound when cost() is called, not before: a caller that only wants the
   // region and the sources (ops/route.js) must not leave an unused parameter,
   // which Postgres refuses ("could not determine data type of parameter").
-  const edgesParam = () => ctx.bind(edgesText(net) +
+  const edgesParam = () => ctx.bind(edgesText(net) + (boxM === null ? "" : " AND geom && %L::geometry") +
     " UNION ALL SELECT -row_number() OVER (), 0, n, 0, -1 FROM unnest(%L::bigint[]) n");
+  // The targets' extent grown by the reach, as EWKT for format()'s %L.
+  const boxArg = (targetsSql) => boxM === null ? "" :
+    `(SELECT ST_AsEWKT(${expandBox("ST_SetSRID(ST_Extent(v.geom), 4326)", `${ctx.bind(boxM)}::float8`)}) ` +
+    `FROM road_vertex v WHERE v.region = net_r.region AND v.id IN (SELECT node FROM (${targetsSql}) t)), `;
   return {
     head: [
       // The loaded region holding MOST of the points; callers leave out points
@@ -95,18 +121,29 @@ function reachCtes(net, ctx, { pointsSql, sourcesSql }) {
       // Ties go to the SMALLEST box, as in road_region_for: with state regions
       // loaded, every St. Louis point is also in the Missouri box, and by name
       // "mo" would beat "stl" (a 4.3M-edge graph for a 674k-edge question).
-      `net_r AS (SELECT coalesce((SELECT rr.region FROM road_region rr JOIN (${pointsSql}) a ` +
+      // The points once, MATERIALIZED: joined inline, Postgres looped the
+      // regions and re-ran the layer's city filter for each, 15 of 18.5 s on
+      // "schools in St. Louis" once 113 regions were loaded (2026-11-24).
+      `net_pp AS MATERIALIZED (SELECT geom FROM (${pointsSql}) p)`,
+      `net_r AS (SELECT coalesce((SELECT rr.region FROM road_region rr JOIN net_pp a ` +
         `ON a.geom && rr.bbox GROUP BY rr.region, rr.bbox ` +
         `ORDER BY count(*) DESC, ST_Area(rr.bbox), rr.region LIMIT 1), ` +
-        `road_region_for((SELECT ST_SetSRID(ST_Extent(geom), 4326)::geometry FROM (${pointsSql}) e))) AS region)`,
+        `road_region_for((SELECT ST_SetSRID(ST_Extent(geom), 4326)::geometry FROM net_pp e))) AS region)`,
       `net_box AS (SELECT rr.bbox FROM road_region rr, net_r WHERE rr.region = net_r.region)`,
+      // Bounded, only sources near the points are snapped: a source farther
+      // than the reach from every point cannot reach one within the limit.
+      // The 25 km is for a source just outside that snaps to a vertex inside.
+      // Unbounded, Lubbock snapped all 4,905 Texas fire stations: 26 of 34 s.
       `net_src AS (SELECT DISTINCT ${snap(net, "net_r.region", "b.geom")} AS node ` +
         `FROM (${sourcesSql}) b, net_r, road_region rr ` +
-        `WHERE rr.region = net_r.region AND b.geom && rr.bbox)`,
+        `WHERE rr.region = net_r.region AND b.geom && rr.bbox` +
+        (boxM === null ? ")" : ` AND b.geom && (SELECT ${expandBox("ST_SetSRID(ST_Extent(geom), 4326)",
+          `${ctx.bind(boxM + 25000)}::float8`)} FROM net_pp))`),
     ],
     cost: (targetsSql, edges = edgesParam()) =>
       `net_cost AS (SELECT d.end_vid AS node, d.agg_cost FROM net_r CROSS JOIN LATERAL pgr_dijkstraCost(` +
-      `format(${edges}::text, net_r.region, ARRAY(SELECT node FROM net_src WHERE node IS NOT NULL)::text), ` +
+      `format(${edges}::text, net_r.region, ${boxArg(targetsSql)}` +
+      `ARRAY(SELECT node FROM net_src WHERE node IS NOT NULL)::text), ` +
       `0::bigint, ARRAY(SELECT DISTINCT node FROM (${targetsSql}) t WHERE node IS NOT NULL), ` +
       `directed => true) d)`,
   };

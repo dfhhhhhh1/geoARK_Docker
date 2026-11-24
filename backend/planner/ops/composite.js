@@ -1,4 +1,4 @@
-const { CompileError } = require("./_sql");
+const { CompileError, OPERATORS } = require("./_sql");
 const C = require("../composite");
 
 /**
@@ -24,7 +24,17 @@ const C = require("../composite");
  *   sum         sum of w_i * s_i              compensatory
  *   geometric   exp(sum of w_i * ln s_i), 0 when any s_i is 0
  *   minimum     least s_i                     bottleneck
+ *   count       number of inputs past their own threshold (0 to N): an
+ *               accumulated-inequity score, as in deprivation indices that
+ *               sum yes/no flags. `thresholds[i]` = {operator, value} on the
+ *               input's RAW value; weights and standardize are not used. A
+ *               unit below every threshold scores 0, it is not dropped.
+ *               Up to MAX_COUNT_INPUTS inputs (a flag count is not weighted,
+ *               so the 6-input cap of a weighted score does not apply).
  */
+
+// Threshold comparisons a count may use: the ordering ones of filter_attr.
+const COUNT_OPS = [">", ">=", "<", "<="];
 
 const stdExpr = (i, std, dir) => {
   const v = `v${i}`;
@@ -45,13 +55,14 @@ module.exports = {
   name: "composite",
   // Words that name this method, never data (planner/named_data.js).
   methodTerms: /\bcomposite\b|\bindex\b|\bscores?\b|\bweight(?:s|ed|ing)?\b|\bequal(?:ly)?\b|\bz[-\s]?scores?\b|\bstandardi[sz]\w*|\bpercentile\s+ranks?\b|\bgeometric\s+mean\b|\bahp\b|\banalytic\s+hierarchy\b/gi,
-  // 2 to MAX_INPUTS: the validator reads a [min, max] pair.
-  inputs: [2, C.MAX_INPUTS],
+  // The validator reads a [min, max] pair. The structural max is the count
+  // method's; validate() holds every other method to MAX_INPUTS.
+  inputs: [2, C.MAX_COUNT_INPUTS],
   needs: [],
   produces: "series",
   kind: "sql",
   // A weighted sum of z-scores is signed around zero.
-  diverging: (step) => step.standardize === "zscore" && (step.method || "sum") !== "geometric",
+  diverging: (step) => step.standardize === "zscore" && !["geometric", "count"].includes(step.method || "sum"),
   valueLabel: (step) => C.compositeValueLabel(step),
 
   enumComment: "one score per county from 2 to 6 measures",
@@ -110,6 +121,20 @@ PLAN: {"intent":"Composite of unemployment, uninsured adults and distance to the
     if (step.standardize !== undefined && !C.STANDARDIZE.includes(step.standardize)) {
       errs.push(`step "${step.id}" (composite): standardize must be one of ${C.STANDARDIZE.join(", ")}`);
     }
+    if (n > C.MAX_INPUTS && step.method !== "count") {
+      errs.push(`step "${step.id}" (composite): a weighted score takes at most ${C.MAX_INPUTS} measures, got ${n}; ` +
+                `only a count of thresholds met (method "count") takes up to ${C.MAX_COUNT_INPUTS}`);
+    }
+    if (step.method === "count") {
+      const t = step.thresholds;
+      if (!Array.isArray(t) || t.length !== n ||
+          !t.every(x => x && COUNT_OPS.includes(x.operator) && Number.isFinite(Number(x.value)) && x.value !== null && x.value !== "")) {
+        errs.push(`step "${step.id}" (composite): a count needs ${n} thresholds, one {operator, value} per input, ` +
+                  `operator one of ${COUNT_OPS.join(" ")}`);
+      }
+    } else if (step.thresholds !== undefined) {
+      errs.push(`step "${step.id}" (composite): thresholds apply only to method "count"`);
+    }
     if (step.method === "geometric" && step.standardize === "zscore") {
       errs.push(`step "${step.id}" (composite): a geometric mean needs non-negative scores; use percentile or minmax`);
     }
@@ -120,6 +145,7 @@ PLAN: {"intent":"Composite of unemployment, uninsured adults and distance to the
     const ins = ctx.ins || [];
     const n = ins.length;
     if (n < 2) throw new CompileError("composite needs at least two inputs");
+    if (step.method === "count") return compileCount(step, ctx, ins);
     const std = step.standardize || "percentile";
     const method = step.method || "sum";
     const dirs = step.directions || new Array(n).fill("high");
@@ -152,3 +178,24 @@ PLAN: {"intent":"Composite of unemployment, uninsured adults and distance to the
            `) j) z)`;
   },
 };
+
+/**
+ * method "count": SUM of 0/1 flags, one per input, on raw values. Inner join
+ * like the other methods (a unit with no value for an input has no score:
+ * an unknown is not a 0), but no threshold removes a unit.
+ */
+function compileCount(step, ctx, ins) {
+  const t = step.thresholds || [];
+  if (t.length !== ins.length) throw new CompileError("a count needs one threshold per input");
+  const vals = ins.map((_, i) => `i${i}.value::float8 AS v${i}`).join(", ");
+  const from = ins.map((x, i) => (i === 0 ? `${x} i0` : `JOIN ${x} i${i} USING (fips)`)).join(" ");
+  const notNull = ins.map((_, i) => `i${i}.value IS NOT NULL`).join(" AND ");
+  const flags = ins.map((_, i) => {
+    const op = OPERATORS[t[i].operator];
+    if (!op || !COUNT_OPS.includes(t[i].operator)) throw new CompileError(`unsupported threshold operator ${t[i].operator}`);
+    return `(CASE WHEN v${i} ${op} ${ctx.bind(Number(t[i].value))}::float8 THEN 1 ELSE 0 END)`;
+  });
+  return `${ctx.name} AS (SELECT fips, (${flags.join(" + ")})::float8 AS value FROM (` +
+         `SELECT fips, ${vals} FROM ${from} WHERE ${notNull}) j)`;
+}
+

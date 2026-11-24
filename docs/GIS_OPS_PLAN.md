@@ -1949,3 +1949,72 @@ addition. They are checked against one-off gold only. The guards run today
 (`network_dev` 4/4, `proximity_dev` 4/4, `raster_dev` 3/4) do not exercise
 them, and research, answerability and plan_correctness were not re-run for
 this audit.
+
+### National road network: state and metro regions (2026-11-24)
+
+`etl/osm_network.yaml` now holds 109 regions besides `stl` / `chi`: 50 states
++ DC + PR, 54 metros (every CBSA of 1M+ people), and a three-way New York
+split. Each is a county_geom extent plus ~10 km, cut from Geofabrik's dated
+`us-261122.osm.pbf` (md5-checked; a `us-latest` download resumed across a
+daily snapshot change was silently corrupt). All built on geocbt; logs in
+`logs/road-network-*.log`, timing script `logs/road-network-timing.sh`.
+
+- **Query time is the region's size, not the trip's.** One drive-time
+  Dijkstra, the shape `ops/_network.js` runs: Missouri St. Louis-Kansas City
+  (285 min) 12.5 s, St. Louis-west county (30 min) 10.9 s. The edge fetch is
+  ~0.5 s for every region; the rest is pgRouting.
+- **Metros: 1.5-6.8 s** for all 53 but New York (5.0M edges, 37 s, any
+  trip). Split into `m_nyc_core` 2.4M / 4.6 s, `m_long_island` 1.6M / 3.0 s,
+  `m_central_nj` 3.2M / 6.4 s; `m_new_york` stays as a slow fallback.
+- **States jump past ~5M edges**: up to PA (4.6M) 19 s; VA 5.6M 38 s, FL 38,
+  IL 42, NC 43, NY 43, MI 44, CA 47, TX 51 s, all over executePlan's 30 s
+  limit. Questions outside a metro in those 8 states time out (an error,
+  not a wrong answer). Not investigated: whether it is memory (work_mem)
+  rather than size.
+- **Tie-break fixed**: the region holding most points tied on name, so `mo`
+  beat `stl` (and would beat every metro). Now smallest box first, as
+  `road_region_for` already did.
+- **Puerto Rico is empty**: us-latest does not include it (`pr`, `m_san_juan`
+  0 vertices). Needs Geofabrik's separate PR extract.
+- **Timing trap, again**: the first timing script snapped via a CTE point,
+  which is not KNN-index-ordered (see CLAUDE.md fine points), and read 33-79 s
+  for metros that take 5-7 s. Pass the point as a literal.
+- No eval gold covers any new region; `network-gold` reads stl and chi only.
+
+### Bounded network queries (2026-11-24)
+
+`ops/_network.js`. With a limit (within, network_population, service_area's
+top band), pgRouting gets only the edges inside the targets' extent grown by
+the farthest the limit can reach (130 km/h for drive time, the limit itself
+in metres otherwise), and only the sources within that box plus 25 km are
+snapped. Every vertex on a path the limit admits is within that reach of its
+target, so no cost <= limit can change; only costs ABOVE the limit become
+NULL, so `within` with `exclude` (which reports them) and every question
+without a limit keep the whole region. Tests unchanged; snapshot identical.
+
+Live, same compiled plan with the box on and forced off (answers compared
+row by row, all identical):
+
+| question | whole region | bounded |
+|---|--:|--:|
+| schools within 4-min drive of a fire station, St. Louis (`stl`) | 9.7 s | 9.3 s |
+| same, 5-min, Lubbock TX (`tx`, 10.5M edges) | 86.4 s | **8.7 s** |
+| same, 3 road miles, Tallahassee FL (`fl`) | 25.6 s | **8.1 s** |
+| same, 15-min walk, Chicago (`chi`) | 20.2 s | 16.3 s |
+| service area 3/6 min, Lubbock fire stations | 66.3 s | **14.8 s** (same bands and areas) |
+| same, St. Louis | 14.2 s | 15.2 s |
+
+- **Loading 113 regions had slowed every network question.** The region
+  choice joined the question's points to `road_region` inline, so Postgres
+  looped the regions and re-ran the layer's city filter per region: 15 of
+  18.5 s on St. Louis. The points are now one `MATERIALIZED` CTE (`net_pp`).
+- **The rest of the time is not routing.** Of St. Louis's 9.3 s, ~6 s is
+  `select_features`' city filter as a sequential scan of 102k schools; the
+  Dijkstra is ~1.8 s. Of Lubbock's old 34 s (box on, sources not filtered),
+  26 s was snapping all 4,905 Texas fire stations, two KNN probes each.
+- **Not bounded**: routes and `within` without a limit ("nearest by road",
+  rank by road distance). In the 8 states over 5M edges those still use the
+  whole state and can exceed 30 s outside a metro.
+- **Data defect, not fixed**: 227 Texas edges carry a junk `maxspeed`
+  (up to 3,901 km/h on residential streets). Any route through one is too
+  fast, bounded or not, and the 130 km/h reach does not hold for it.

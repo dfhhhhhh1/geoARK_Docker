@@ -23,8 +23,10 @@
  *                question says otherwise next to that measure: "low income",
  *                "close to transit", "few hospitals"
  *   method       sum (compensatory: a high A offsets a low B), geometric (a
- *                zero in any input zeroes the score) or minimum (the
- *                bottleneck: the score is the worst input)
+ *                zero in any input zeroes the score), minimum (the
+ *                bottleneck: the score is the worst input) or count (how
+ *                many inputs pass their own stated threshold, 0 to N: an
+ *                accumulated-inequity score of yes/no flags)
  *   standardize  percentile rank (default, as SVI), z-score or min-max
  *
  * Threshold masking ("only counties where poverty is above 20%") is a
@@ -39,7 +41,10 @@
  */
 
 const MAX_INPUTS = 6;
-const METHODS = ["sum", "geometric", "minimum"];
+// A count of yes/no flags is not weighted, so it is not held to the 6-input
+// cap; 12 covers the 11-factor accumulated-inequity scores in the literature.
+const MAX_COUNT_INPUTS = 12;
+const METHODS = ["sum", "geometric", "minimum", "count"];
 const STANDARDIZE = ["percentile", "zscore", "minmax"];
 const DIRECTIONS = ["high", "low"];
 
@@ -97,6 +102,8 @@ function asksComposite(query) {
   const q = String(query || "");
   if (!q) return false;
   if (WEIGHT_CUE.test(q)) return true;
+  // "how many of these thresholds each county meets: poverty above 15%, ..."
+  if (COUNT_METHOD.test(q) && statedThresholds(q).length >= 2) return true;
   const lists = criteriaLists(q);
   const longest = lists.reduce((n, l) => Math.max(n, l.length), 0);
   if (COMPOSITE_WORD.test(q) && longest >= 2) return true;
@@ -448,6 +455,74 @@ function readWeights(query, inputs) {
   return { weights: equal(), how: "equal", notes };
 }
 
+// --- thresholds (method "count") ---------------------------------------------
+
+// A comparison word and a number: "above 15%", "less than 3.75", "> 5000".
+const CMP_WORDS = [
+  [/^(?:at\s+least|>=|no\s+(?:less|fewer)\s+than)$/i, ">="],
+  [/^(?:at\s+most|<=|no\s+more\s+than)$/i, "<="],
+  [/^(?:above|over|exceed\w*|more\s+than|greater\s+than|higher\s+than|>)$/i, ">"],
+  [/^(?:below|under|less\s+than|fewer\s+than|lower\s+than|<)$/i, "<"],
+];
+const CMP_NUM = /(at\s+least|at\s+most|no\s+(?:less|fewer|more)\s+than|above|over|exceed\w*|more\s+than|greater\s+than|higher\s+than|below|under|less\s+than|fewer\s+than|lower\s+than|>=|<=|>|<)\s*\$?(-?\d[\d,]*(?:\.\d+)?)\s*(%|percent\b|k\b|thousand\b)?/gi;
+
+/** Every "comparison number" in the text: [{operator, value, at, end}]. */
+function statedThresholds(text) {
+  const out = [];
+  for (const m of String(text || "").matchAll(CMP_NUM)) {
+    const w = m[1].replace(/\s+/g, " ").toLowerCase();
+    const operator = (CMP_WORDS.find(([re]) => re.test(w)) || [])[1];
+    if (!operator) continue;
+    let value = Number(m[2].replace(/,/g, ""));
+    if (/^(k|thousand)$/i.test(m[3] || "")) value *= 1000;
+    if (!Number.isFinite(value)) continue;
+    out.push({ operator, value, at: m.index, end: m.index + m[0].length });
+  }
+  return out;
+}
+
+/**
+ * The threshold the question states for each input, or null: a comparison
+ * belongs to the input its own clause names ("poverty above 15%").
+ */
+function readThresholds(query, inputs) {
+  const found = new Array(inputs.length).fill(null);
+  for (const c of clauses(query)) {
+    const ts = statedThresholds(c);
+    if (ts.length !== 1) continue;
+    const i = groundText(c.slice(0, ts[0].at) + " " + c.slice(ts[0].end), inputs);
+    if (i === null || found[i]) continue;
+    found[i] = { operator: ts[0].operator, value: ts[0].value };
+  }
+  return found;
+}
+
+/**
+ * For a count, a filter_attr the model put on an input ("poverty above 15%"
+ * as a mask) IS that input's threshold: folding it in rewires the input past
+ * the filter, so a unit that fails it scores 0 instead of vanishing. Only
+ * stated-number filters fold; a percentile ("high poverty") stays a mask.
+ * PURE: returns { found, inputs, drop } and changes nothing.
+ */
+function foldFilterThresholds(plan, c) {
+  const steps = plan.steps || [];
+  const byId = new Map(steps.map(s => [s.id, s]));
+  const used = (id) => steps.some(s => s !== c && (s.inputs || []).includes(id));
+  const found = [], inputs = [], drop = [];
+  for (const id of c.inputs || []) {
+    const f = byId.get(id);
+    const value = Number(f?.value);
+    if (!f || f.op !== "filter_attr" || (f.percentile !== undefined && f.percentile !== null) ||
+        ![">", ">=", "<", "<="].includes(f.operator) || f.value === null || f.value === "" || !Number.isFinite(value)) {
+      found.push(null); inputs.push(id); continue;
+    }
+    found.push({ operator: f.operator, value, ...(f.definition ? { definition: f.definition } : {}) });
+    inputs.push((f.inputs || [])[0]);
+    if (!used(id)) drop.push(id);
+  }
+  return { found, inputs, drop };
+}
+
 // --- directions, method, standardization ------------------------------------
 
 /**
@@ -504,8 +579,14 @@ const MIN_METHOD =
 const GEO_METHOD =
   /\b(?:geometric(?:\s+mean)?|multiplicative|multipl(?:y|ied|ying)|product\s+of|if\s+any\s+(?:one\s+)?(?:of\s+them|factor|criterion|measure|input)\s+is\s+(?:zero|0|missing|absent|none)|any\s+(?:one\s+)?(?:factor|criterion|measure|input)\s+(?:at|of)\s+zero)\b/i;
 
+// A score that counts flags: "how many of these thresholds each county meets",
+// "number of factors above their thresholds", "accumulated inequity score".
+const COUNT_METHOD =
+  /\b(?:(?:how\s+many|number|count)\s+of\s+(?:the\s+|these\s+|those\s+)?(?:\w+\s+){0,2}?(?:thresholds?|criteri(?:a|on)|conditions?|factors?|indicators?|flags?|determinants?|measures?)\s+(?:\w+\s+){0,3}?(?:meets?|met|exceed\w*|pass\w*|present|crossed|above|beyond|over)|count(?:s|ing)?\s+(?:how\s+many|the\s+(?:thresholds?|criteria|conditions|factors|flags))|thresholds?\s+(?:met|exceeded|crossed)|(?:accumulat\w+|cumulative)\s+(?:\w+\s+){0,2}?(?:scores?|index|count|inequit\w*|disadvantage|burden)|(?:sum|count|tally)\s+of\s+(?:binary|yes\s*\/\s*no|0\s*\/\s*1|indicator)\s+(?:flags?|indicators?|variables?))/i;
+
 function readMethod(query) {
   const q = String(query || "");
+  if (COUNT_METHOD.test(q)) return "count";
   if (MIN_METHOD.test(q)) return "minimum";
   if (GEO_METHOD.test(q)) return "geometric";
   return "sum";
@@ -704,10 +785,16 @@ function applyComposite(plan, query, deps = {}) {
   if (area) fixes.push(area);
   const byId = new Map(steps.map(s => [s.id, s]));
   for (const c of comps) {
+    if (readMethod(query) === "count") {
+      const r = applyCount(plan, c, query, deps);
+      for (const n of r.notes) notes.push(n);
+      if (r.fix) { fixes.push(r.fix); continue; }
+    }
     const inputs = describeInputs(c, byId, deps);
     const { weights, how, notes: wn, cr } = readWeights(query, inputs);
     const directions = readDirections(query, inputs);
     let method = readMethod(query);
+    if (method === "count") method = "sum";
     let standardize = readStandardize(query);
     if (method === "geometric" && standardize === "zscore") {
       standardize = "percentile";
@@ -727,6 +814,45 @@ function applyComposite(plan, query, deps = {}) {
   return { fixes, notes };
 }
 
+/**
+ * method "count" on one composite step: thresholds from the model's own
+ * filter_attr masks first, then from the question's words. Every input needs
+ * one; otherwise NOTHING is changed and the step goes on to the weighted
+ * score exactly as before, with the gap said. Returns { fix, notes }.
+ */
+function applyCount(plan, c, query, deps) {
+  const notes = [];
+  const fold = foldFilterThresholds(plan, c);
+  const byId = new Map((plan.steps || []).map(s => [s.id, s]));
+  const inputs = describeInputs({ ...c, inputs: fold.inputs }, byId, deps);
+  const said = readThresholds(query, inputs);
+  const thresholds = inputs.map((_, i) => fold.found[i] || said[i]);
+  const missing = inputs.filter((_, i) => !thresholds[i]).map(x => x.name);
+  if (missing.length) {
+    notes.push(`a count of thresholds met needs a stated threshold for every measure, and none was found for ` +
+               `${missing.join(", ")}, so a weighted score was built instead`);
+    return { fix: null, notes };
+  }
+  if (inputs.length > MAX_COUNT_INPUTS) {
+    notes.push(`a count takes at most ${MAX_COUNT_INPUTS} measures, so a weighted score was built instead`);
+    return { fix: null, notes };
+  }
+  c.inputs = fold.inputs;
+  if (fold.drop.length) plan.steps = plan.steps.filter(s => !fold.drop.includes(s.id));
+  c.method = "count";
+  c.thresholds = thresholds.map(t => ({ operator: t.operator, value: t.value, ...(t.definition ? { definition: t.definition } : {}) }));
+  c.directions = thresholds.map(t => (t.operator.startsWith("<") ? "low" : "high"));
+  c.weights = inputs.map(() => Math.round(1e6 / inputs.length) / 1e6);
+  delete c.standardize;
+  if (fold.found.some(Boolean)) {
+    notes.push("threshold filters on the inputs became flags, so units that fail them score 0 instead of being dropped");
+  }
+  if (/\bweight|\btwice|\bimportan/i.test(String(query || ""))) {
+    notes.push("a count of thresholds met is unweighted: each flag counts 1");
+  }
+  return { fix: describeComposite(c, inputs), notes };
+}
+
 const STD_LABEL = { percentile: "percentile ranks", zscore: "z-scores", minmax: "min-max rescaled values" };
 const METHOD_LABEL = {
   sum: "weighted sum",
@@ -740,6 +866,13 @@ const HOW_LABEL = {
 
 /** The echo: what the score is made of, readable enough to edit. */
 function describeComposite(step, inputs, how = "equal") {
+  if (step.method === "count") {
+    const parts = inputs.map((inp, i) => {
+      const t = step.thresholds?.[i] || {};
+      return `${inp.name} ${t.operator} ${t.value}`;
+    });
+    return `count of thresholds met (0 to ${inputs.length}), one point each: ${parts.join("; ")}`;
+  }
   const parts = inputs.map((inp, i) =>
     `${inp.name} ${pct(step.weights?.[i] ?? 1 / inputs.length)} (${(step.directions?.[i] || "high") === "low" ? "lower scores higher" : "higher scores higher"})`);
   return `composite of ${STD_LABEL[step.standardize || "percentile"]}, ${METHOD_LABEL[step.method || "sum"]}, ` +
@@ -748,6 +881,10 @@ function describeComposite(step, inputs, how = "equal") {
 
 /** The value label the map legend and exports carry. */
 function compositeValueLabel(step) {
+  if (step.method === "count") {
+    const n = (step.thresholds || step.inputs || []).length;
+    return `number of thresholds met (0 to ${n})`;
+  }
   const std = step.standardize || "percentile";
   const method = step.method || "sum";
   const scale = std === "zscore" && method !== "geometric" ? "weighted z-score" : "0 to 1";
@@ -755,7 +892,8 @@ function compositeValueLabel(step) {
 }
 
 module.exports = {
-  MAX_INPUTS, METHODS, STANDARDIZE, DIRECTIONS,
+  MAX_INPUTS, MAX_COUNT_INPUTS, METHODS, STANDARDIZE, DIRECTIONS,
+  readThresholds, statedThresholds, foldFilterThresholds,
   asksComposite, criteriaLists,
   describeInputs, groundText, readWeights, ahpWeights, readDirections, readMethod, readStandardize,
   scoreWithinArea, restrictToNamedArea, ranksAroundComposite, intersectAsComposite, applyComposite, describeComposite, compositeValueLabel,

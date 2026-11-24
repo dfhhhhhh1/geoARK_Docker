@@ -311,7 +311,9 @@ const P3 = () => plan(load("s1", "POV"), load("s2", "UNINS"), near("s3"), comp("
     let v = await validatePlan(P3(), resolve);
     assert.ok(v.ok, v.errors.join("; "));
     v = await validatePlan(plan(load("s1", "POV"), comp("s2", ["s1"]), out("s3", "s2")), resolve);
-    assert.ok(v.errors.some(e => /expects 2 to 6 input/.test(e)), v.errors.join("; "));
+    // The structural bound is the count method's (12); a weighted score is
+    // still held to 6 by the op's own check (tested below).
+    assert.ok(v.errors.some(e => /expects 2 to 12 input/.test(e)), v.errors.join("; "));
     v = await validatePlan(plan(load("s1", "POV"), load("s2", "UNINS"), comp("s3", ["s1", "s1"]), out("s4", "s3")), resolve);
     assert.ok(v.errors.some(e => /listed twice/.test(e)));
     const bad = P3(); Object.assign(bad.steps[3], { weights: [1, -1, 1], directions: ["up", "high", "high"], method: "max" });
@@ -367,6 +369,123 @@ const P3 = () => plan(load("s1", "POV"), load("s2", "UNINS"), near("s3"), comp("
     const p = P3();
     const o = compilePlan(p, (await validatePlan(p, resolve)).resolved);
     assert.strictEqual(o.outputs.filter(x => x.part).length, 3);
+  });
+
+
+  // --- method "count": a fourth method; the three above are unchanged ------
+
+  const FLT = (id, from, operator, value) => ({ id, op: "filter_attr", attr_id: "", inputs: [from], operator, value });
+
+  await test("count: read only from count phrasing; the other methods read as before", () => {
+    for (const q of [
+      "how many of these thresholds does each county meet: poverty above 15%, uninsured above 20%",
+      "number of factors above their thresholds for each tract",
+      "an accumulated inequity score from poverty, uninsured and no vehicle",
+      "a cumulative disadvantage index of poverty above 20% and unemployment above 8%",
+      "count how many criteria each county passes",
+      "a sum of binary flags for poverty, income and rent",
+    ]) assert.strictEqual(C.readMethod(q), "count", q);
+    for (const q of [
+      "how many hospitals are in each county",
+      "count of hospitals per county",
+      "rank counties by poverty, income and unemployment",
+      "number of people below poverty by county",
+    ]) assert.notStrictEqual(C.readMethod(q), "count", q);
+    assert.strictEqual(C.readMethod("a geometric mean of poverty, income and unemployment"), "geometric");
+    assert.strictEqual(C.readMethod("treat it as a bottleneck: the weakest factor decides"), "minimum");
+  });
+
+  await test("count: stated thresholds parse operators, percents, commas and k", () => {
+    const t = C.statedThresholds("poverty above 15%, income less than $40,000, at least 2 hospitals, rent under 30 percent, pop over 5k");
+    assert.deepStrictEqual(t.map(x => [x.operator, x.value]),
+      [[">", 15], ["<", 40000], [">=", 2], ["<", 30], [">", 5000]]);
+  });
+
+  await test("count: gate opens on count phrasing with two stated thresholds, not on one", () => {
+    assert.ok(C.asksComposite("how many of these thresholds does each county meet: poverty above 15% and uninsured above 20%"));
+    assert.ok(!C.asksComposite("how many counties have poverty above 15%"));
+  });
+
+  await test("count: thresholds from the question; filter masks fold into flags instead of dropping units", () => {
+    const p = plan(load("s1", "POV"), FLT("f1", "s1", ">", 15), load("s2", "UNINS"), near("s3"),
+      comp("s4", ["f1", "s2", "s3"]), out("s5", "s4"));
+    const q = "how many of these thresholds does each county meet: poverty above 15%, uninsured above 20%, " +
+              "hospital distance more than 2 miles";
+    const r = C.applyComposite(p, q, deps());
+    const c = p.steps.find(s => s.op === "composite");
+    assert.strictEqual(c.method, "count");
+    assert.deepStrictEqual(c.inputs, ["s1", "s2", "s3"]);
+    assert.ok(!p.steps.some(s => s.id === "f1"), "the folded filter is removed");
+    assert.deepStrictEqual(c.thresholds.map(t => [t.operator, t.value]), [[">", 15], [">", 20], [">", 2]]);
+    assert.ok(r.fixes.some(f => /count of thresholds met \(0 to 3\)/.test(f)), r.fixes.join(" | "));
+    assert.ok(r.notes.some(n => /score 0 instead of being dropped/.test(n)));
+  });
+
+  await test("count: a 'below' threshold flags the low end", () => {
+    const p = plan(load("s1", "POV"), load("s2", "INC"), comp("s3", ["s1", "s2"]), out("s4", "s3"));
+    C.applyComposite(p, "number of factors each county meets: poverty above 20% and median household income below 40000", deps());
+    const c = p.steps.find(s => s.op === "composite");
+    assert.deepStrictEqual(c.thresholds.map(t => t.operator), [">", "<"]);
+    assert.deepStrictEqual(c.directions, ["high", "low"]);
+  });
+
+  await test("count: a measure with no threshold leaves the plan untouched and builds the weighted score", () => {
+    const p = plan(load("s1", "POV"), FLT("f1", "s1", ">", 15), load("s2", "UNINS"), near("s3"),
+      comp("s4", ["f1", "s2", "s3"]), out("s5", "s4"));
+    const before = JSON.stringify(p.steps.filter(s => s.op !== "composite"));
+    const r = C.applyComposite(p, "an accumulated inequity score of poverty above 15%, uninsured and hospital distance", deps());
+    const c = p.steps.find(s => s.op === "composite");
+    assert.strictEqual(c.method, "sum");
+    assert.strictEqual(c.thresholds, undefined);
+    assert.deepStrictEqual(c.inputs, ["f1", "s2", "s3"]);
+    assert.strictEqual(JSON.stringify(p.steps.filter(s => s.op !== "composite")), before);
+    assert.ok(r.notes.some(n => /needs a stated threshold for every measure/.test(n)), r.notes.join(" | "));
+  });
+
+  await test("count: validation needs one threshold per input; only a count passes 6 inputs", async () => {
+    const many = (k, extra) => {
+      const ls = Array.from({ length: k }, (_, i) => load(`l${i}`, ["POV", "UNINS", "INC", "TRANSIT", "RENT"][i % 5]));
+      return plan(...ls, comp("c", ls.map(x => x.id), extra), out("o", "c"));
+    };
+    const th = (k) => Array.from({ length: k }, () => ({ operator: ">", value: 1 }));
+    let v = await validatePlan(many(7, {}), resolve);
+    assert.ok(v.errors.some(e => /at most 6 measures/.test(e)), v.errors.join("; "));
+    v = await validatePlan(many(11, { method: "count", thresholds: th(11) }), resolve);
+    assert.ok(v.ok, v.errors.join("; "));
+    v = await validatePlan(many(3, { method: "count" }), resolve);
+    assert.ok(v.errors.some(e => /needs 3 thresholds/.test(e)), v.errors.join("; "));
+    v = await validatePlan(many(3, { method: "count", thresholds: [{ operator: "=", value: 1 }, ...th(2)] }), resolve);
+    assert.ok(!v.ok);
+    v = await validatePlan(many(3, { method: "sum", thresholds: th(3) }), resolve);
+    assert.ok(v.errors.some(e => /only to method "count"/.test(e)));
+  });
+
+  await test("compile: count is a sum of 0/1 flags on raw values, params bound, label 0 to N", async () => {
+    const p = P3();
+    Object.assign(p.steps[3], { method: "count", thresholds: [{ operator: ">", value: 15 }, { operator: ">=", value: 20 }, { operator: "<", value: 2 }] });
+    const o = compilePlan(p, (await validatePlan(p, resolve)).resolved);
+    paramsMatch(o.outputs[0]);
+    assert.ok(/CASE WHEN v0 > \$\d+::float8 THEN 1 ELSE 0 END/.test(o.sql), o.sql);
+    assert.ok(/CASE WHEN v1 >= /.test(o.sql) && /CASE WHEN v2 < /.test(o.sql));
+    assert.ok(!/PERCENT_RANK/.test(o.sql), "no standardization in a count");
+    for (const t of [15, 20, 2]) assert.ok(o.params.includes(t), `threshold ${t} bound`);
+    assert.strictEqual(o.outputs[0].diverging, false);
+    assert.strictEqual(o.outputs[0].valueLabel, "number of thresholds met (0 to 3)");
+  });
+
+
+  await test("count: question thresholds get the filter_attr scale check (percent on a 0-1 fraction)", () => {
+    const { checkCountThresholds } = require("./conditions");
+    const p = P3();
+    Object.assign(p.steps[3], { method: "count", thresholds: [{ operator: ">", value: 15 }, { operator: ">", value: 500 }, { operator: ">", value: 2 }] });
+    const resolved = new Map([
+      ["POV", { description: "Poverty rate", value_range: { lo: 0, hi: 1 } }],
+      ["UNINS", { description: "Uninsured", value_range: { lo: 0, hi: 60 } }],
+    ]);
+    const r = checkCountThresholds(p, resolved);
+    assert.strictEqual(p.steps[3].thresholds[0].value, 0.15);
+    assert.ok(r.repairs.some(x => /read as 0.15/.test(x)));
+    assert.ok(r.errors.some(e => /outside its values \(0 to 60\)/.test(e)), r.errors.join("; "));
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);
