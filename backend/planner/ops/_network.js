@@ -92,8 +92,12 @@ function reachCtes(net, ctx, { pointsSql, sourcesSql }) {
       // The loaded region holding MOST of the points; callers leave out points
       // outside it (a national layer summarized per Chicago community area is
       // the case: H5 dev r1). None holding any -> road_region_for raises.
+      // Ties go to the SMALLEST box, as in road_region_for: with state regions
+      // loaded, every St. Louis point is also in the Missouri box, and by name
+      // "mo" would beat "stl" (a 4.3M-edge graph for a 674k-edge question).
       `net_r AS (SELECT coalesce((SELECT rr.region FROM road_region rr JOIN (${pointsSql}) a ` +
-        `ON a.geom && rr.bbox GROUP BY rr.region ORDER BY count(*) DESC, rr.region LIMIT 1), ` +
+        `ON a.geom && rr.bbox GROUP BY rr.region, rr.bbox ` +
+        `ORDER BY count(*) DESC, ST_Area(rr.bbox), rr.region LIMIT 1), ` +
         `road_region_for((SELECT ST_SetSRID(ST_Extent(geom), 4326)::geometry FROM (${pointsSql}) e))) AS region)`,
       `net_box AS (SELECT rr.bbox FROM road_region rr, net_r WHERE rr.region = net_r.region)`,
       `net_src AS (SELECT DISTINCT ${snap(net, "net_r.region", "b.geom")} AS node ` +

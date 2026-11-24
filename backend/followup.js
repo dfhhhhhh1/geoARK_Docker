@@ -794,11 +794,20 @@ const FUNCTION_WORDS = new Set(`
   across per each every all counties county data map rate rates number numbers
   compare compared comparing related relate relationship between okay ok
   band bands ring rings zone zones
+  make makes turn switch link links linked associated association correlated
+  correlation connected
 `.split(/\s+/).filter(Boolean));
 
 const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
   nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, fifty: 50, hundred: 100 };
+// Two fixes found by the rewrite lab (2026-11-23), each discarding correct
+// rewrites: "5-minute" stayed one word, so a rewrite writing "5-minute" lost
+// "5" and "minute"; and the pronoun in "which one takes the longest?" became
+// the number 1, which no rewrite naming the route keeps. "one" after a
+// determiner and not before a unit is the pronoun, a function word ("ones").
 const normWords = (s) => String(s).toLowerCase()
+  .replace(/([a-z0-9])-(?=[a-z0-9])/g, "$1 ")
+  .replace(/\b(which|this|that|the|each|every|any|no|another|other)\s+one\b(?!\s+(?:mile|minute|hour|km|kilomet|met|f[eo]+t|yard|year|day|week|month|percent))/g, "$1 ones")
   .replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|fifty|hundred)\b/g,
            (w) => String(NUMBER_WORDS[w]))
   .replace(/[^a-z0-9%$.\s-]/g, " ")
@@ -977,7 +986,18 @@ async function rewriteFollowUp({ text, history, callLLM, area = null, measure = 
   if (composed) {
     const want = measureWords(measure);
     const have = new Set(normWords(question).split(/\s+/).map(stem));
-    if (want.length && !want.some(w => have.has(w))) {
+    // A catalog label is not the only way to name the measure: "same for
+    // 2016" after "share of each county in Missouri that is forest" was
+    // rewritten correctly and discarded for lacking "NLCD land cover". A
+    // content word of the last question or its intent (not a place, not a
+    // number) names it too. The South case below still fails: its rewrite
+    // kept neither.
+    const last = history[history.length - 1] || {};
+    const placeWords = new Set(normWords([...(area || []), where || "",
+      ...statesMentioned(`${last.query || ""} ${last.intent || ""}`)].join(" ")).split(/\s+/).map(stem));
+    const asked = measureWords(`${last.query || ""} ${last.intent || ""}`)
+      .filter(w => !/^\d/.test(w) && !placeWords.has(w));
+    if (want.length && !want.some(w => have.has(w)) && !asked.some(w => have.has(w))) {
       return fallback("the rewrite dropped the measure on screen", question);
     }
   }

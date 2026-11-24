@@ -1,6 +1,6 @@
 # Analyst GIS operations: plan
 
-Status (2026-11-23): **H0-H3 built; H4 built** (rasters over units and features, `raster_calc`; uploads and CDL open); **H5 built except VRP** (network distance, service areas as polygons, `route`; section 8). **H6** (primitive gaps, tiered) is planned in section 5; tier 1 items 1-3 are built. Follows
+Status (2026-11-23): **H0-H3 built; H4 built** (rasters over units and features, `raster_calc`; uploads and CDL open); **H5 built except VRP** (network distance, service areas as polygons, `route`; section 8). **H6** (primitive gaps, tiered) is planned in section 5; **tier 1 (items 1-6) is complete** and tier 2 is partly built (`route`, `service_area`, `raster_calc`). Primitive audit 2026-11-23: 11 covered / 9 partial / 4 missing; held-out 16: 0 correct, 1 confidently wrong, 15 refused. Follows
 RESEARCH_PLAN.md (A-F built, G planned) and DATA_LOADING_PLAN.md (phases 1-7).
 
 Goal: answer the class of question a working GIS analyst asks, buffers,

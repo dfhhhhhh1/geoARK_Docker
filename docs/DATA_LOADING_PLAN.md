@@ -1,6 +1,12 @@
 # Data loading and multi-scale geography: plan
 
-Status (2026-10-30): **Phases 1-5 built**, Phase 6 in part (the cross-level
+Status (2026-11-23): **Phases 1-5 built; Phases 6-7 built in part.** Since
+2026-10-30: the planner reads a unit from the question (`planner/levels.js`),
+`aggregate_to` rolls tract data up to counties, distance ops run below the
+county, tract-only measures are found at a named unit through `geo_measure`
+(fixed 2026-11-20), zone sets and uploaded layers are units (H2), and rasters
+are read on demand (`zonal`). Still open: `tract_neighbors`, vector tiles,
+blocks (not loaded), a crosswalk lookup op. Original status (2026-10-30): Phases 1-5 built, Phase 6 in part (the cross-level
 SQL and its use on the map; the planner's ops are not yet ported), Phase 7 not
 started. Phase 2 has no blocks; Phase 4 no COG conversion or `mode`. See
 "Progress" at the end for what was measured and where it departed from the

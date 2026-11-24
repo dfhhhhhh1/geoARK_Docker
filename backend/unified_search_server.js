@@ -563,10 +563,15 @@ async function callLLM(systemPrompt, userPrompt, temperature = 0.2, schema = nul
     // user had not asked about.
     const body = {
       model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...(userPrompt ? [{ role: "user", content: userPrompt }] : []),
-      ],
+      // A call with no userPrompt (follow-up rewrite, decomposition, research
+      // keywords) sends its one prompt as the USER message. Sent as a lone
+      // system message, qwen3.8's chat template rejects it with HTTP 500 "no
+      // user query found in messages", and the callers that catch errors
+      // (the follow-up rewrite) silently fell back to the text as typed
+      // (rewrite lab, 2026-11-23).
+      messages: userPrompt
+        ? [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }]
+        : [{ role: "user", content: systemPrompt }],
       stream: false,
       ...(schema ? { format: schema } : {}),
       // Sampling settings MUST be inside `options`. This used to send

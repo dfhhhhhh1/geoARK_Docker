@@ -1,6 +1,13 @@
 # Fine-point (block centroid + hexagon) integration plan
 
-Status: plan only, nothing loaded. Written 2026-11-22.
+Status (2026-11-23): **Steps 2-4 built, Step 1 not checked here.** `fine_pt` is
+loaded for all L48 + DC (118.2M points, 39 GB), `fine_pt_grid` serves zoomed-out
+tiles, the map layer and the `point_distance` op work (CLAUDE.md "Fine sample
+points on the map and in plans"). **Open:** 24 of the 30 distances are missing
+for 1.64M points in ME/VT/MN/NH/MA/NY/MI; distances are straight-line, not
+driving; Alaska and Hawaii are not loaded; `point_aggregate` as a general op and
+Voronoi on demand beyond z13 are not built. Originally written 2026-11-22 as
+"plan only, nothing loaded"; the text below is the original plan.
 
 ## 1. What exists and where
 

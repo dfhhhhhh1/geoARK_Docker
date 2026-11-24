@@ -3,6 +3,63 @@
 Five phases. Each ends with something demonstrably working, and each is ordered
 so that it unblocks the next. Estimates assume you working part-time on it.
 
+> **Updated 2026-11-23.** Phases 0-2 are done, Phase 3 is done apart from the
+> MCP server, and Phase 4 is partly done. The work since September went mostly
+> into the planner, research workflows, multi-scale geography and analyst GIS
+> operations, which sit in their own plans. The section "Where things stand
+> (2026-11-23)" below is the current picture; the phase sections keep their
+> original text with status marks corrected and dated notes added.
+
+## Where things stand (2026-11-23)
+
+| Track | Plan | State |
+|---|---|---|
+| Retrieval | Phase 2 | 97.8% concept recall / 97.3% success; known-item R@1 91.7%. Reranker measured and **rejected** (`RERANK=off`) |
+| Planner and `/api/analyze` | Phase 3 | 94.1% op appropriateness (qwen3:14b); 37 registered ops, 31 offered; typed DAG |
+| Data coverage | Phase 4 data ops | 4,893 of 6,860 catalog attributes (71.3%) resolve to data, up from 52.4%; many datasets since (see DATA_CARPENTRY) |
+| Research workflows | [RESEARCH_PLAN.md](RESEARCH_PLAN.md) | A-D and F built, E in progress, G (data research questions assume) planned |
+| Multi-scale geography | [DATA_LOADING_PLAN.md](DATA_LOADING_PLAN.md) | Phases 1-5 built, 6-7 built in part; tract/ZIP/grid levels, rasters, 118M fine points |
+| Analyst GIS ops | [GIS_OPS_PLAN.md](GIS_OPS_PLAN.md) | H0-H5 built (VRP open), H6 tier 1 complete; 11 of 24 primitives covered, 9 partial, 4 missing |
+| Data cart and papers | [DATA_CART_PLAN.md](DATA_CART_PLAN.md), [PAPER_AND_CART_INTEGRATION.md](PAPER_AND_CART_INTEGRATION.md) | Cart, mapping, AutoML built; paper upload (U1-U5, P1-P4) not started |
+| Fine points | [POINTS_INTEGRATION_PLAN.md](POINTS_INTEGRATION_PLAN.md) | Loaded for L48 + DC; map and `point_distance` built; AK/HI not loaded |
+
+### Big fixes still outstanding (ranked)
+
+1. **Held-out analyst questions: 0 of 16 correct.** Refusals now name the
+   missing data (13 of 16), but one is still confidently wrong (Q16, "our
+   mobile field inspection locations" plans Mobile Home Parks; `OWN_DATA` in
+   `named_data.js` tests the phrase, never the words before it) and eight
+   depend on context nobody gave the system ("our", "the county", "downtown").
+   Needs a session area of interest / named-feature binding and local geocoding.
+2. **No `gis_ops.yaml` family for `service_area`, `route`, `raster_calc`**,
+   which the plan requires of every addition; they are checked against one-off
+   gold only. The research, answerability and plan_correctness guards were not
+   re-run after the 2026-11-23 build.
+3. **Answer quality is a measure-choice and catalog-text problem more than an
+   op problem.** `research.yaml` sits at 72-89% (run to run); remaining misses
+   are attribute choice (opaque catalog names, "around Detroit" matching
+   cities in five states, "uninsured in big counties" never loading a rate).
+4. **`filter_place` county for independent cities** (St. Louis, Baltimore,
+   Richmond VA): every county-filtered answer for these names includes the
+   city. Fixed in `raster_calc` only.
+5. **Overlay `exclude` on NWI times out** (`NOT EXISTS` scans every row);
+   `select_features` ships full geometry (481 fire perimeters died with
+   `Invalid string length`); `count_features` over lines double counts.
+6. **Missouri NLCD questions miss the raster in retrieval** (raster_dev crop
+   change 0/3); tornado `fat` / `inj` read as "fat content" / "injection rate".
+7. **Fine points: 24 of the 30 distances are missing for 1.64M points** in
+   ME/VT/MN/NH/MA/NY/MI; distances are straight-line, not driving; Alaska and
+   Hawaii are not loaded.
+8. **Missing GIS capabilities:** allocation (needs the source label per vertex),
+   VRP and clustering, KDE, band math and different-grid rasters, raster
+   uploads, time-of-day traffic, barriers, local geocoding, transit stops.
+9. **Paper upload and the shared cart** (U1-U5, P1-P4) are only planned.
+10. **Operational:** pin torch before the next embedder rebuild (a rebuild
+    moved the canary fingerprint); `PLAN_THINK=on` still leaves the relevance
+    check unbounded; the ungrounded-`proxy` refusal policy ("best place to
+    live" answered 2 of 3) is undecided; cart duplicate-column check at
+    checkout not built.
+
 ---
 
 ## Phase 0: Consolidate ✅ done
@@ -87,7 +144,7 @@ mismatch guard fires correctly; the frontend builds; both compose files validate
 **Not yet verified:** a real `docker compose up`: no Docker daemon was
 available on the machine this was built on. Run `make up` on the server.
 
-## Phase 2: Retrieval you can measure ✅ done (reranker deferred)
+## Phase 2: Retrieval you can measure ✅ done (reranker tried, rejected)
 
 - [x] Write `eval/queries.yaml`. **Not** 50 queries with expected `attr_id`s,
       that design doesn't survive contact with this catalog (221 poverty
@@ -114,11 +171,15 @@ available on the machine this was built on. Run `make up` on the server.
 - [x] **Disabled the LLM verification step** (`use_llm_filter` now defaults to
       false). Measured: it cost 10pp concept recall and 7.7s/query while
       raising MRR: it ranks well but deletes instead of reordering.
-- [ ] Add the `bge-reranker-base` cross-encoder to recover that ranking gain
-      (MRR 0.726 → 0.874) without the recall loss. **Now the highest-value
-      remaining item**, and the numbers say exactly what it has to beat.
+- [x] Add the `bge-reranker-base` cross-encoder. **Built and measured
+      2026-10-30; it does not clear the bar, so `RERANK=off`.** Reorder and
+      replace cost 25pp of known-item recall@1 (91.7% → 66.7%); `fuse` (a third
+      RRF ranking) loses least (83.3%) for +2.2pp concept recall. Not a default.
+      Evidence `eval/rerank/`, CLAUDE.md "Phase B".
 - [~] Enrich embedded text. `entity_type`, `dataset_clean`, `attr_orig` and
-      tags are already included; the temporal range is not yet.
+      tags are already included; the temporal range is not yet. `gen_desc` was
+      tried 2026-10-16 behind `EMBED_GEN_DESC` and **hurts** (−25pp known-item
+      recall@1 from sibling dilution); default `off`.
 - [x] Cache query embeddings by content hash, already done in Phase 1 via the
       embedder's `lru_cache`.
 
@@ -147,10 +208,10 @@ Started at 87.5% recall / 84.4% success. Five of six suites now sit at 100%;
 `multi_concept` (93.8% / 87.5%) is the remaining weakness and the right target
 for Phase 3.
 
-**Still to do:** cross-encoder reranker, and the pgvector migration, see the
-note below on why pgvector got *less* valuable, not more.
+**Still to do:** the pgvector migration only, deferred (see the note above on
+why it got *less* valuable). The reranker was built and rejected, see above.
 
-## Phase 3: A real agent 🚧 in progress
+## Phase 3: A real agent ✅ done except the MCP server
 
 See [AI-PIPELINE.md §3](AI-PIPELINE.md#3-the-shape-to-move-to-a-constrained-tool-calling-agent).
 
@@ -165,20 +226,21 @@ See [AI-PIPELINE.md §3](AI-PIPELINE.md#3-the-shape-to-move-to-a-constrained-too
       executable depends on this; nothing works without it.
 - [~] Tool surface: `validate_plan`, `execute_plan`, and grounded
       `search_variables` exist as internal functions. They are **not** exposed
-      as model-callable tools yet: the planner emits a whole plan in one shot
-      rather than building it up through tool calls. `describe_dataset`,
-      `column_stats` and `sample_rows` are not written.
+      as model-callable tools: the planner still emits a whole plan in one shot.
+      `describe_dataset`, `column_stats` and `sample_rows` are not written.
+      Decision still open whether to build them at all; the one-shot planner
+      plus code-side repairs has carried every measured gain so far.
 - [x] Enforce grounded identifiers in the validator: the model may only
       reference identifiers a tool returned.
 - [x] Add the validate → repair → retry loop, capped at 3 attempts.
-- [x] Write the plan→SQL compiler for the nine ops.
+- [x] Write the plan→SQL compiler. The "seven ops" became a registry of 37
+      (31 offered; 6 internal, inserted by code). See [OPERATORS.md](OPERATORS.md).
 - [ ] Wrap the tools as an **MCP server** so you can drive them from an MCP
       client while iterating.
 - [x] Route small vs large model: `PLAN_MODEL` selects the planner
-      independently of `LLM_MODEL`. **Untested**: this host OOMs above ~6 GB,
-      so a larger planner could not be trialled here.
+      independently of `LLM_MODEL`. Tested since: qwen3:14b is the planner
+      (`PLAN_THINK=off/2048`), qwen3.5:9b measured and not better.
 
-- [ ] Wrap the tools as an MCP server (not started).
 
 **`POST /api/analyze` works end to end**, natural language in, executed rows
 plus GeoJSON out. First measured baseline, on `multi_concept`, the hardest suite:
@@ -193,14 +255,19 @@ plus GeoJSON out. First measured baseline, on `multi_concept`, the hardest suite
 
 `python3 eval/run.py --endpoint analyze --suite multi_concept`
 
-**What limits it now is plan quality, not plumbing.** gemma3:4b produces
+> **Superseded 2026-11-23:** that table is the first, gemma3:4b baseline. After
+> the planner was fixed to read the question (2026-08-31) and moved to
+> qwen3:14b, op appropriateness is 94.1% on `eval/plan_correctness.yaml`, and
+> answer correctness is measured separately on `research.yaml` (72-89%).
+
+**What limited it then was plan quality, not plumbing.** gemma3:4b produces
 well-formed, grounded, executable plans that are often semantically wrong, it
 picked `join` where `normalize` was needed, and divided one poverty percentage
 by another while a correctly labelled total-population row sat in the candidate
 list. The next moves are a larger `PLAN_MODEL` and the deferred Phase 2
 reranker, in that order.
 
-## Is this ready for Phase 4?
+## Is this ready for Phase 4? (September assessment, kept for history)
 
 **Partly.** Phase 4 splits cleanly into work that is ready and work that is not,
 and the dividing line is whether it depends on plan quality.
@@ -227,17 +294,23 @@ larger `PLAN_MODEL`, and build the deferred cross-encoder reranker, then take
 the whole "ready now" list. Both are small next to Phase 4's UI work, and both
 raise the ceiling everything else sits under.
 
-## Phase 4: The product around it (ongoing)
+## Phase 4: The product around it 🚧 partly done
 
-- [ ] Stream pipeline stages over SSE; show variables in ~1 s.
+- [x] Stream pipeline stages over SSE (`useAnalyzeStream`).
 - [ ] Render the plan in the UI as an editable pipeline before execution.
-- [ ] Map the executed result (the Leaflet component is already there).
-- [ ] Export: GeoJSON / GeoPackage / CSV, and the plan itself as a reproducible
-      artifact.
-- [ ] Wire `ml_service.py` (AutoGluon) in as a plan op, "predict X from these
-      variables" becomes an analysis step rather than a separate service.
-- [ ] Query history and shareable permalinks.
-- [ ] Basic auth in front of nginx.
+      Not built; follow-up edits (`followup.js`) cover the common edits in code.
+- [x] Map the executed result: choropleths, feature layers, large point answers
+      as tiles, travel bands and routes, tract / ZIP / grid levels, `/explore`.
+- [~] Export: CSV, GeoJSON, Markdown report and a JSON bundle with provenance
+      are built. GeoPackage is not.
+- [~] AutoML: built as a **cart** feature (`POST /api/cart/model`, spatial-fold
+      CV with Moran's I of residuals), not as a plan op.
+- [~] Query history: the analysis page is a follow-up thread. Shareable
+      permalinks are not built.
+- [x] Access code in front of the API (`ACCESS_CODE`, `backend/auth.js`,
+      rate limits). Not per-user auth.
+- [x] Data cart (`/data-search`): shelf, checkout, map, AutoML, opt-in LLM
+      curator. Paper upload is not built (see PAPER_AND_CART_INTEGRATION).
 
 ### Data operations (added after Phase 3)
 
@@ -260,15 +333,15 @@ raise the ceiling everything else sits under.
       forever with no staleness detection, so a re-embedded corpus was served
       silently wrong. `/api/health` now reports `corpus_stale`;
       `POST /api/reload-corpus` fixes it without a restart.
-- [ ] Load the facility shapefiles, so the other 47.6% of the catalog becomes
-      executable. Currently the largest single limit on `/api/analyze` coverage.
-- [ ] Carry `gen_desc` through the tagging pipeline. The generator already
-      produces a one-sentence description per column and every downstream
-      artifact discards it, likely the cheapest retrieval win available, since
-      392 facility rows have no real description at all.
-- [ ] Recover `table_name` from `GeoARK_data/combine_csv_tags/attributeNew.csv`.
-      It joins to all 2,305 facility rows at 100%, and it is what the merge step
-      dropped. This unlocks most of the unexecutable 47.6%.
+- [x] Load the facility shapefiles. Done; coverage is 4,893 of 6,860 (71.3%),
+      1,636 of them facility rows. The remaining 28.7% are catalog rows whose
+      source data was never obtained (22 from a truncated archive) or declared
+      codes with no values.
+- [x] `gen_desc`: carried through and **measured; not a retrieval win** as a
+      per-column embedding (−25pp). If used, once per dataset. See CLAUDE.md.
+- [x] Recover `table_name`: done, `etl/facility_table_map.csv`.
+- [x] Drop-in loading (`make ingest DIR=`), a load ledger and `make replay`,
+      so the server never runs the tagger. See DATA_LOADING_PLAN.
 
 ---
 

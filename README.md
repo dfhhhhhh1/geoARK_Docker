@@ -63,7 +63,7 @@ and the two app processes, [docs/DEPLOYMENT.md §7](docs/DEPLOYMENT.md) has the 
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**, how the pieces fit, and what is still missing
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: Docker, model volumes, working over SSH
 - **[docs/AI-PIPELINE.md](docs/AI-PIPELINE.md)**: the NL → analysis-plan design
-- **[docs/ROADMAP.md](docs/ROADMAP.md)**, phased plan; Phases 0 and 1 are done
+- **[docs/ROADMAP.md](docs/ROADMAP.md)**, phased plan and the current list of big outstanding fixes; Phases 0-3 are done
 - **[docs/ENHANCED_SEARCH.md](docs/ENHANCED_SEARCH.md)**, multi-agent search design notes
 
 ## Data
@@ -82,19 +82,23 @@ concept recall / 97.3% query success on a 37-query suite, p50 3.2s.
 
 **Analysis** (`POST /api/analyze`), natural language to executed results. The
 model emits a typed plan over seven operations; a deterministic compiler turns
-it into parameterized PostGIS SQL and runs it read-only. 3,596 of 6,860 catalog
-attributes (52.4%) resolve to physical columns; the rest are facility datasets
-whose shapefiles are not loaded yet.
+it into parameterized PostGIS SQL and runs it read-only. 4,893 of 6,860 catalog
+attributes (71.3%) resolve to physical columns holding data. The planner now
+offers 31 ops (a typed DAG over series, features, scalars and statistics),
+works at county, tract, block-group, ZIP and grid levels, and covers spatial
+statistics, overlay, rasters, service areas and routes. `/api/research` chains
+up to four analyses. See [CLAUDE.md](CLAUDE.md) for the measured detail.
 
 Honest limits:
 
-- **Plan quality is the bottleneck, not the plumbing.** On the hardest eval
-  suite, 62.5% of queries yield a valid plan that executes and returns rows.
-  With `gemma3:4b` the plans are well-formed and grounded but often semantically
-  wrong. `PLAN_MODEL` routes planning to a larger model; that is the next thing
-  to try.
+- **Answer quality is the bottleneck, not the plumbing.** With `qwen3:14b`,
+  94.1% of plans pick appropriate ops, but answer correctness against gold is
+  72-89% on `research.yaml`, and **0 of 16 held-out analyst questions are
+  answered correctly** (13 refuse and name the missing data). Misses are mostly
+  measure choice, opaque catalog text and context the system is never given.
 - **`/api/analyze` needs `make load-reference` first**, or it returns 422.
-- The cross-encoder reranker and the MCP tool server are not built.
+- The MCP tool server is not built; the cross-encoder reranker was built and
+  rejected (`RERANK=off`).
 
 Run `python3 eval/run.py` to reproduce any of these numbers, see
 [eval/README.md](eval/README.md).

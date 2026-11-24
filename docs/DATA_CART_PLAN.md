@@ -6,7 +6,13 @@ edits the cart and then downloads it, maps it, or runs AutoML on it. Also port
 the parts of `search_and_analysis/` paper search that are not in the backend
 yet.
 
-Status: slice 1 (Phases 1, 3, 4) in progress; the rest is plan.
+Status (2026-11-23): **Phases 1, 3, 4, 5 and 6 built; Phase 2 (curator) built and
+measured, opt-in (`CART_CURATOR=off` default). Paper upload (U1-U5) not started.**
+Open: "Open in Explore" from the cart; a checkout test dropping near-duplicate
+columns (|rho| >= 0.97), which no selection method does today; the retrieval
+gap where "obesity rates in Texas counties" finds no obesity measure;
+`answerability.yaml` r-rainfall "must refuse" is probably stale (average annual
+precipitation is loaded).
 
 ---
 

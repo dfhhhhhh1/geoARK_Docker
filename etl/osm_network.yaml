@@ -87,3 +87,337 @@ regions:
   chi:
     label: Cook County, Illinois
     bbox: [-88.40, 41.37, -87.40, 42.25]
+
+  # One region per state (plus DC and PR): the state's county_geom extent plus
+  # about 10 km, the convention above. Boxes overlap their neighbours; edges
+  # are stored per region. A question uses the loaded region holding most of
+  # its points (planner/ops/_network.js), so stl/chi still answer their metros.
+  # No eval gold covers these: network_gold reads stl and chi only.
+  al:
+    label: Alabama (state)
+    bbox: [-88.58, 30.13, -84.78, 35.10]
+  ak:
+    label: Alaska (state)
+    bbox: [-180.00, 51.12, -129.70, 71.46]
+  az:
+    label: Arizona (state)
+    bbox: [-114.93, 31.24, -108.93, 37.09]
+  ar:
+    label: Arkansas (state)
+    bbox: [-94.73, 32.91, -89.53, 36.59]
+  ca:
+    label: California (state)
+    bbox: [-124.53, 32.44, -114.01, 42.10]
+  co:
+    label: Colorado (state)
+    bbox: [-109.18, 36.90, -101.92, 41.09]
+  ct:
+    label: Connecticut (state)
+    bbox: [-73.85, 40.89, -71.67, 42.14]
+  de:
+    label: Delaware (state)
+    bbox: [-75.91, 38.36, -74.93, 39.93]
+  dc:
+    label: District of Columbia (state)
+    bbox: [-77.24, 38.70, -76.79, 39.08]
+  fl:
+    label: Florida (state)
+    bbox: [-87.74, 24.43, -79.93, 31.09]
+  ga:
+    label: Georgia (state)
+    bbox: [-85.71, 30.27, -80.73, 35.09]
+  hi:
+    label: Hawaii (state)
+    bbox: [-160.35, 18.82, -154.71, 22.33]
+  id:
+    label: Idaho (state)
+    bbox: [-117.38, 41.90, -110.91, 49.09]
+  il:
+    label: Illinois (state)
+    bbox: [-91.63, 36.88, -87.37, 42.60]
+  in:
+    label: Indiana (state)
+    bbox: [-88.22, 37.68, -84.66, 41.85]
+  ia:
+    label: Iowa (state)
+    bbox: [-96.76, 40.29, -90.02, 43.59]
+  ks:
+    label: Kansas (state)
+    bbox: [-102.17, 36.90, -94.47, 40.09]
+  ky:
+    label: Kentucky (state)
+    bbox: [-89.69, 36.41, -81.85, 39.24]
+  la:
+    label: Louisiana (state)
+    bbox: [-94.15, 28.84, -88.71, 33.11]
+  me:
+    label: Maine (state)
+    bbox: [-71.22, 42.89, -66.82, 47.55]
+  md:
+    label: Maryland (state)
+    bbox: [-79.60, 37.82, -74.93, 39.81]
+  ma:
+    label: Massachusetts (state)
+    bbox: [-73.63, 41.15, -69.81, 42.98]
+  mi:
+    label: Michigan (state)
+    bbox: [-90.55, 41.61, -82.28, 48.33]
+  mn:
+    label: Minnesota (state)
+    bbox: [-97.38, 43.41, -89.35, 49.47]
+  ms:
+    label: Mississippi (state)
+    bbox: [-91.76, 30.08, -87.99, 35.09]
+  mo:
+    label: Missouri (state)
+    bbox: [-95.89, 35.91, -88.98, 40.70]
+  mt:
+    label: Montana (state)
+    bbox: [-116.19, 44.27, -103.90, 49.09]
+  ne:
+    label: Nebraska (state)
+    bbox: [-104.18, 39.91, -95.19, 43.09]
+  nv:
+    label: Nevada (state)
+    bbox: [-120.13, 34.91, -113.92, 42.09]
+  nh:
+    label: New Hampshire (state)
+    bbox: [-72.68, 42.61, -70.48, 45.39]
+  nj:
+    label: New Jersey (state)
+    bbox: [-75.68, 38.84, -73.77, 41.45]
+  nm:
+    label: New Mexico (state)
+    bbox: [-109.16, 31.24, -102.89, 37.09]
+  ny:
+    label: New York (state)
+    bbox: [-79.89, 40.41, -71.73, 45.11]
+  nc:
+    label: North Carolina (state)
+    bbox: [-84.43, 33.75, -75.35, 36.68]
+  nd:
+    label: North Dakota (state)
+    bbox: [-104.19, 45.85, -96.42, 49.09]
+  oh:
+    label: Ohio (state)
+    bbox: [-84.94, 38.31, -80.40, 42.07]
+  ok:
+    label: Oklahoma (state)
+    bbox: [-103.12, 33.53, -94.32, 37.09]
+  or:
+    label: Oregon (state)
+    bbox: [-124.70, 41.90, -116.33, 46.38]
+  pa:
+    label: Pennsylvania (state)
+    bbox: [-80.64, 39.63, -74.57, 42.36]
+  ri:
+    label: Rhode Island (state)
+    bbox: [-71.98, 41.06, -71.00, 42.11]
+  sc:
+    label: South Carolina (state)
+    bbox: [-83.46, 31.95, -78.43, 35.30]
+  sd:
+    label: South Dakota (state)
+    bbox: [-104.19, 42.39, -96.31, 46.03]
+  tn:
+    label: Tennessee (state)
+    bbox: [-90.42, 34.89, -81.53, 36.77]
+  tx:
+    label: Texas (state)
+    bbox: [-106.76, 25.75, -93.40, 36.59]
+  ut:
+    label: Utah (state)
+    bbox: [-114.17, 36.91, -108.92, 42.09]
+  vt:
+    label: Vermont (state)
+    bbox: [-73.57, 42.64, -71.34, 45.11]
+  va:
+    label: Virginia (state)
+    bbox: [-83.79, 36.45, -75.13, 39.56]
+  wa:
+    label: Washington (state)
+    bbox: [-124.90, 45.45, -116.78, 49.09]
+  wv:
+    label: West Virginia (state)
+    bbox: [-82.76, 37.11, -77.60, 40.73]
+  wi:
+    label: Wisconsin (state)
+    bbox: [-93.02, 42.40, -86.67, 47.17]
+  wy:
+    label: Wyoming (state)
+    bbox: [-111.18, 40.91, -103.92, 45.10]
+  pr:
+    label: Puerto Rico (state)
+    bbox: [-68.04, 17.79, -65.13, 18.61]
+
+  # Metro regions: every CBSA of 1M+ people (POP_ESTIMATE summed over the
+  # counties whose interior point is in it), its extent plus about 10 km.
+  # Why: a query runs Dijkstra over ALL of its region's edges, and the cost is
+  # the region's size, not the trip's: Texas (10.5M edges) took 27.5-29.8 s
+  # for one drive time, at the 30 s execute limit; Missouri (4.3M) 11-12.5 s;
+  # St. Louis (674k) 2.4 s (2026-11-23). A metro box is inside its state's box
+  # and smaller, so the smallest-box tie-break (planner/ops/_network.js) sends
+  # metro questions here. Metros that cross a state line (KC, Cincinnati,
+  # Memphis, NYC) also keep both sides. No eval gold covers these.
+  m_new_york:
+    label: New York-Newark-Jersey City, NY-NJ metro (CBSA 35620)
+    bbox: [-75.31, 39.39, -71.66, 41.62]
+  m_los_angeles:
+    label: Los Angeles-Long Beach-Anaheim, CA metro (CBSA 31080)
+    bbox: [-119.06, 32.66, -117.30, 34.91]
+  m_chicago:
+    label: Chicago-Naperville-Elgin, IL-IN metro (CBSA 16980)
+    bbox: [-89.06, 40.65, -86.81, 42.59]
+  m_dallas:
+    label: Dallas-Fort Worth-Arlington, TX metro (CBSA 19100)
+    bbox: [-98.17, 31.96, -95.75, 33.52]
+  m_houston:
+    label: Houston-Pasadena-The Woodlands, TX metro (CBSA 26420)
+    bbox: [-96.73, 28.68, -94.25, 31.00]
+  m_atlanta:
+    label: Atlanta-Sandy Springs-Roswell, GA metro (CBSA 12060)
+    bbox: [-85.50, 32.76, -83.16, 34.82]
+  m_washington:
+    label: Washington-Arlington-Alexandria, DC-VA-MD-WV metro (CBSA 47900)
+    bbox: [-78.51, 37.90, -76.55, 39.81]
+  m_philadelphia:
+    label: Philadelphia-Camden-Wilmington, PA-NJ-DE-MD metro (CBSA 37980)
+    bbox: [-76.35, 39.20, -74.27, 40.70]
+  m_miami:
+    label: Miami-Fort Lauderdale-West Palm Beach, FL metro (CBSA 33100)
+    bbox: [-80.99, 25.05, -79.87, 27.06]
+  m_phoenix:
+    label: Phoenix-Mesa-Chandler, AZ metro (CBSA 38060)
+    bbox: [-113.44, 32.41, -110.34, 34.14]
+  m_boston:
+    label: Boston-Cambridge-Newton, MA-NH metro (CBSA 14460)
+    bbox: [-72.02, 41.48, -70.20, 43.66]
+  m_riverside:
+    label: Riverside-San Bernardino-Ontario, CA metro (CBSA 40140)
+    bbox: [-117.91, 33.34, -114.02, 35.90]
+  m_san_francisco:
+    label: San Francisco-Oakland-Fremont, CA metro (CBSA 41860)
+    bbox: [-123.29, 36.96, -121.35, 38.41]
+  m_detroit:
+    label: Detroit-Warren-Dearborn, MI metro (CBSA 19820)
+    bbox: [-84.28, 41.94, -82.21, 43.42]
+  m_seattle:
+    label: Seattle-Tacoma-Bellevue, WA metro (CBSA 42660)
+    bbox: [-122.99, 46.64, -120.77, 48.39]
+  m_minneapolis:
+    label: Minneapolis-St. Paul-Bloomington, MN-WI metro (CBSA 33460)
+    bbox: [-94.39, 44.11, -92.01, 46.34]
+  m_tampa:
+    label: Tampa-St. Petersburg-Clearwater, FL metro (CBSA 45300)
+    bbox: [-83.12, 27.44, -81.95, 28.78]
+  m_san_diego:
+    label: San Diego-Chula Vista-Carlsbad, CA metro (CBSA 41740)
+    bbox: [-117.72, 32.44, -115.97, 33.59]
+  m_denver:
+    label: Denver-Aurora-Centennial, CO metro (CBSA 19740)
+    bbox: [-106.33, 38.60, -103.59, 40.13]
+  m_baltimore:
+    label: Baltimore-Columbia-Towson, MD metro (CBSA 12580)
+    bbox: [-77.43, 38.62, -75.63, 39.81]
+  m_orlando:
+    label: Orlando-Kissimmee-Sanford, FL metro (CBSA 36740)
+    bbox: [-82.06, 27.55, -80.76, 29.37]
+  m_charlotte:
+    label: Charlotte-Concord-Gastonia, NC-SC metro (CBSA 16740)
+    bbox: [-81.65, 34.37, -79.74, 36.15]
+  m_st_louis:
+    label: St. Louis, MO-IL metro (CBSA 41180)
+    bbox: [-91.54, 37.91, -89.02, 39.61]
+  m_san_antonio:
+    label: San Antonio-New Braunfels, TX metro (CBSA 41700)
+    bbox: [-99.71, 28.52, -97.53, 30.23]
+  m_portland:
+    label: Portland-Vancouver-Hillsboro, OR-WA metro (CBSA 38900)
+    bbox: [-123.92, 44.80, -121.38, 46.48]
+  m_austin:
+    label: Austin-Round Rock-San Marcos, TX metro (CBSA 12420)
+    bbox: [-98.40, 29.54, -96.92, 30.99]
+  m_pittsburgh:
+    label: Pittsburgh, PA metro (CBSA 38300)
+    bbox: [-80.64, 39.63, -78.85, 41.26]
+  m_sacramento:
+    label: Sacramento-Roseville-Folsom, CA metro (CBSA 40900)
+    bbox: [-122.54, 37.93, -119.76, 39.41]
+  m_las_vegas:
+    label: Las Vegas-Henderson-North Las Vegas, NV metro (CBSA 29820)
+    bbox: [-116.01, 34.91, -113.93, 36.94]
+  m_cincinnati:
+    label: Cincinnati, OH-KY-IN metro (CBSA 17140)
+    bbox: [-85.42, 38.38, -83.56, 39.68]
+  m_kansas_city:
+    label: Kansas City, MO-KS metro (CBSA 28140)
+    bbox: [-95.30, 37.94, -93.36, 39.88]
+  m_columbus:
+    label: Columbus, OH metro (CBSA 18140)
+    bbox: [-83.77, 39.27, -81.91, 40.80]
+  m_cleveland:
+    label: Cleveland, OH metro (CBSA 17410)
+    bbox: [-82.47, 40.90, -80.40, 42.42]
+  m_indianapolis:
+    label: Indianapolis-Carmel-Greenwood, IN metro (CBSA 26900)
+    bbox: [-86.81, 38.96, -85.46, 40.50]
+  m_nashville:
+    label: Nashville-Davidson--Murfreesboro--Franklin, TN metro (CBSA 34980)
+    bbox: [-87.86, 35.32, -85.67, 36.74]
+  m_san_juan:
+    label: San Juan-Bayamón-Caguas, PR metro (CBSA 41980)
+    bbox: [-66.71, 17.85, -65.33, 18.63]
+  m_san_jose:
+    label: San Jose-Sunnyvale-Santa Clara, CA metro (CBSA 41940)
+    bbox: [-122.32, 36.11, -120.48, 37.57]
+  m_virginia_beach:
+    label: Virginia Beach-Chesapeake-Norfolk, VA-NC metro (CBSA 47260)
+    bbox: [-77.27, 35.94, -75.60, 37.69]
+  m_jacksonville:
+    label: Jacksonville, FL metro (CBSA 27260)
+    bbox: [-82.56, 29.53, -81.05, 30.92]
+  m_providence:
+    label: Providence-Warwick, RI-MA metro (CBSA 39300)
+    bbox: [-72.03, 41.01, -70.63, 42.19]
+  m_milwaukee:
+    label: Milwaukee-Waukesha, WI metro (CBSA 33340)
+    bbox: [-88.67, 42.75, -86.95, 43.63]
+  m_raleigh:
+    label: Raleigh-Cary, NC metro (CBSA 39580)
+    bbox: [-79.11, 35.17, -77.90, 36.36]
+  m_oklahoma_city:
+    label: Oklahoma City, OK metro (CBSA 36420)
+    bbox: [-98.42, 34.59, -96.51, 36.25]
+  m_louisville:
+    label: Louisville/Jefferson County, KY-IN metro (CBSA 31140)
+    bbox: [-86.61, 37.43, -84.75, 38.87]
+  m_richmond:
+    label: Richmond, VA metro (CBSA 40060)
+    bbox: [-78.36, 36.62, -76.53, 38.10]
+  m_memphis:
+    label: Memphis, TN-MS-AR metro (CBSA 32820)
+    bbox: [-90.70, 34.33, -88.91, 35.74]
+  m_salt_lake_city:
+    label: Salt Lake City-Murray, UT metro (CBSA 41620)
+    bbox: [-114.17, 39.81, -111.43, 41.17]
+  m_birmingham:
+    label: Birmingham, AL metro (CBSA 13820)
+    bbox: [-87.74, 32.57, -85.94, 34.35]
+  m_fresno:
+    label: Fresno, CA metro (CBSA 23420)
+    bbox: [-121.03, 35.82, -118.25, 37.87]
+  m_grand_rapids:
+    label: Grand Rapids-Wyoming-Kentwood, MI metro (CBSA 24340)
+    bbox: [-87.23, 42.33, -84.71, 43.56]
+  m_buffalo:
+    label: Buffalo-Cheektowaga, NY metro (CBSA 15380)
+    bbox: [-79.44, 42.35, -78.34, 43.72]
+  m_tucson:
+    label: Tucson, AZ metro (CBSA 46060)
+    bbox: [-113.44, 31.34, -110.34, 32.60]
+  m_rochester:
+    label: Rochester, NY metro (CBSA 40380)
+    bbox: [-78.59, 42.38, -76.58, 43.77]
+  m_tulsa:
+    label: Tulsa, OK metro (CBSA 46140)
+    bbox: [-97.18, 35.29, -95.10, 37.09]

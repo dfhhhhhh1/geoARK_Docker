@@ -547,6 +547,40 @@ test("a rewrite that adds a word from nowhere is discarded", async () => {
   assert.strictEqual(ok.rewritten, true);
 });
 
+test("correct rewrites the rewrite lab saw discarded are kept (2026-11-23)", async () => {
+  const { droppedWords } = require("./followup");
+  // "5-minute" is two words.
+  assert.deepStrictEqual(droppedWords("how many people live in this 5 minute band?",
+    "How many people live within the 5-minute walking time of the fire stations in St. Louis?"), []);
+  // "which one" is a pronoun, not the number 1 ...
+  assert.deepStrictEqual(droppedWords("which one takes the longest?",
+    "which driving route from a fire station to the nearest hospital takes the longest?"), []);
+  // ... but a number before a unit is still a number, and must survive.
+  assert.deepStrictEqual(droppedWords("and within one mile?", "schools within 2 miles of a highway"), ["1"]);
+  assert.deepStrictEqual(droppedWords("and the one-mile band?", "the 2 mile band"), ["1"]);
+  // Verbs that only say "do it" or "relate" can be rephrased.
+  assert.deepStrictEqual(droppedWords("make it per square mile",
+    "total population per square mile by county in the Midwest"), []);
+  assert.deepStrictEqual(droppedWords("is that linked to diabetes?",
+    "is the adult obesity rate related to diabetes in Georgia counties?"), []);
+  // The measure on screen may be named by the earlier question's words, not
+  // only by its catalog label.
+  const out = await rewriteFollowUp({
+    text: "same for 2016", area: ["Missouri"], measure: "NLCD land cover",
+    history: [{ query: "share of each county in Missouri that is forest in 2021",
+      intent: "Forest share by Missouri county, 2021", measures: ["NLCD land cover"] }],
+    callLLM: async () => JSON.stringify({ question: "share of each county in Missouri that is forest in 2016" }),
+  });
+  assert.strictEqual(out.question, "share of each county in Missouri that is forest in 2016");
+  // A place from the earlier question does not count as naming the measure.
+  const lost = await rewriteFollowUp({
+    text: "same for 2016", area: ["Missouri"], measure: "NLCD land cover",
+    history: [{ query: "share of each county in Missouri that is forest in 2021" }],
+    callLLM: async () => JSON.stringify({ question: "counties in Missouri in 2016" }),
+  });
+  assert.match(lost.note, /measure on screen/);
+});
+
 (async () => {
   for (const p of pending) await p();
   console.log(`\n${pass} passed, ${fail} failed`);

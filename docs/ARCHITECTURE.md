@@ -128,6 +128,12 @@ The join works because ACS catalog rows carry the census code in `attr_orig`;
 3,582 of 4,523 distinct codes match the ACS extract directly. That makes
 **3,596 of 6,860 catalog attributes (52.4%) executable**.
 
+> **Update 2026-11-23:** `attribute_source` now resolves **4,893 of 6,860
+> (71.3%)**: 3,257 ACS plus 1,636 facility, after the facility shapefiles and
+> county datasets were loaded and 339 valueless ACS codes were excluded. The
+> counts above are the 2026-09 state; the tables since added (`geo_unit`,
+> `geo_values`, `geo_crosswalk`, `fine_pt`, rasters) are in DATA_LOADING_PLAN.md.
+
 The values are long-format, not wide, because 3,982 ACS columns exceeds
 Postgres' 1,600-column ceiling, and a long table is what the compiler wants to
 join against anyway.
@@ -196,6 +202,11 @@ only place that mapping can be trusted.
 1. ~~The generated DAG is never executed.~~ Fixed in Phase 3: `POST /api/analyze`
    compiles a validated plan to SQL and runs it. Measured on the hardest eval
    suite: 62.5% of queries produce a valid plan that executes and returns rows.
+> **Update 2026-11-23:** items 1b and 3b are superseded. The cross-encoder was
+> built and rejected (`RERANK=off`); the planner is qwen3:14b with 94.1% op
+> appropriateness. Current open problems are in [ROADMAP.md](ROADMAP.md)
+> "Big fixes still outstanding". Item 6 (TypeScript errors) was not re-checked.
+
 1b. **The LLM verification step is destructive.** Measured: −10pp concept
    recall, −12.5pp query success, +7.7s per request, while *raising* MRR. It
    judges relevance well but deletes instead of reordering. Now defaulted off;

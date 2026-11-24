@@ -6,7 +6,12 @@ AutoML run, or all three. This builds on `docs/DATA_CART_PLAN.md` (cart
 Phases 1-6 and paper steps U1-U5) and does not repeat them. It adds the joins
 between the pages and the order to build them in.
 
-Status: plan. P5 (`moran`) built 2026-11-21; P1-P4 not started.
+Status (2026-11-23): plan. P5 (`moran`) built 2026-11-21; **P1-P4 not started**
+(shared cart both directions, AutoML from either page, paper -> study card ->
+cart, paper -> reproduction). Nothing here changed in the 2026-11-22/23 work,
+which went into points, tiles, routes and rasters. The dependency P4 leans on,
+`moran` plus the existing methods (composite, zonal, enrich, spatial lag,
+2SFCA), is now much wider than when this was written.
 
 ---
 

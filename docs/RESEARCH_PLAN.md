@@ -1,6 +1,11 @@
 # Research workflows: plan
 
-Status (2026-11-11): **Phases A-D and F built; Phase E in progress.** Each has a
+Status (2026-11-23): **A-D and F built; E built in part (tract / ZIP / grid
+questions plan 4-5 of 8; crosswalk-lookup op, default `rank` limit for
+unnumbered "most", tract-level city ambiguity and `per_area` on a rate are open);
+G (data research questions assume) not started.** Latest numbers: `research.yaml`
+72-89% depending on run and build, answerability 9-10/10 refused with 0-1 of 20
+false refusals. Status as of 2026-11-11: A-D and F built, E in progress. Each has a
 "Progress" entry below with the numbers; G is still a plan.
 Analyst-style GIS questions (buffers, overlays, zonal, network) continue as
 Phases H0-H5 in [GIS_OPS_PLAN.md](GIS_OPS_PLAN.md); baseline 0/16 correct,
