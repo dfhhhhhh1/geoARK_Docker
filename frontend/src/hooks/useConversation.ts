@@ -10,6 +10,7 @@ import {
   isUserAttr, reviseAnalysis, USER_PREFIX,
 } from '../lib/followup';
 import { reviseWorkflow, stepNumber } from '../lib/workflow';
+import { reproducePaper, STATUS_TEXT, type StudyCard } from '../lib/paper';
 
 /**
  * One exchange in the thread: what the user asked or clicked, and what came back.
@@ -238,6 +239,43 @@ export function useConversation() {
     }
   }, [busy, add, finish]);
 
+  /**
+   * Replicate a paper's methods (POST /api/paper/reproduce). Each run comes
+   * back as an ordinary analysis and becomes its own turn, labelled with the
+   * paper's technique and what GeoARK did differently, so each can be
+   * followed up like any answer. No planner call: the plans are templates.
+   */
+  const runPaper = useCallback(async (study: StudyCard, methodIds: string[], title: string) => {
+    if (busy) return;
+    const first = add({ kind: 'edit', userText: `Replicate the analysis of “${title}”`,
+                        baseTurnId: null, status: 'running' });
+    try {
+      const res = await reproducePaper(study, methodIds);
+      // Paper titles run long; each turn names the paper by its opening words.
+      const short = title.length <= 50 ? title : `${title.slice(0, 50).replace(/\s+\S*$/, '')}…`;
+      let placed = false;
+      let ok = 0, failed = 0;
+      let firstOk: string | null = null;
+      for (const m of res.methods) {
+        for (const r of m.runs) {
+          const userText = `${short}: ${m.technique}${m.runs.length > 1 ? ` (${r.title})` : ''}`;
+          const interpretNote = `${STATUS_TEXT[m.status]}: ${m.reason}`;
+          const id = placed ? add({ kind: 'edit', userText, interpretNote, baseTurnId: null, status: 'running' }) : first;
+          if (!placed) { update(first, { userText, interpretNote }); placed = true; }
+          if (r.response) { ok++; firstOk ??= id; finish(id, { status: 'done', result: r.response }); }
+          else { failed++; finish(id, { status: 'failed', error: [r.error, r.detail].filter(Boolean).join(': ') || 'the plan did not run', failure: null }); }
+        }
+      }
+      if (!placed) finish(first, { status: 'failed', error: 'none of the chosen methods produced a plan to run', failure: null });
+      // Leave the first successful answer on screen, which is usually the map.
+      if (firstOk) setActiveId(firstOk);
+      return { ok, failed };
+    } catch (err) {
+      finish(first, { status: 'failed', error: (err as Error).message, failure: null });
+      return { ok: 0, failed: 1 };
+    }
+  }, [busy, add, update, finish]);
+
   /** Re-run a failed or cancelled turn exactly as it was sent. */
   const retry = useCallback((turnId: string) => {
     const t = turnsRef.current.find(x => x.id === turnId);
@@ -274,7 +312,7 @@ export function useConversation() {
 
   return {
     turns, active, activeId, setActiveId, busy, uploads, layers, expanded, setExpanded,
-    ask, edit, editStep, openMeasure, retry, clear, addUploads, removeUpload, addLayer, removeLayer, labelFor,
+    ask, edit, editStep, openMeasure, runPaper, retry, clear, addUploads, removeUpload, addLayer, removeLayer, labelFor,
     // Progress of the one question that can be running.
     stream: { stage: stream.stage, events: stream.events, elapsedMs: stream.elapsedMs, cancel: stream.cancel },
   };

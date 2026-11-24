@@ -184,7 +184,7 @@ const FollowUpBar: React.FC<Props> = ({
 
       <Group label="Your data">
         <Chip disabled={disabled} onClick={onUpload}>
-          <Upload className="w-4 h-4" /> Upload a CSV or map layer
+          <Upload className="w-4 h-4" /> Upload a CSV, map layer or paper
         </Chip>
         {!can && (
           <Chip disabled={disabled} active={panel === 'map'} onClick={() => toggle('map')}>

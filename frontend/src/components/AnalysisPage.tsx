@@ -15,6 +15,9 @@ import ResultBlock from './ResultBlock';
 import FollowUpBar from './FollowUpBar';
 import SurveyPrompt from './SurveyPrompt';
 import UploadPanel from './UploadPanel';
+import PaperPanel from './PaperPanel';
+import { CART_MAX, type StudyCard } from '../lib/paper';
+import { loadCart, saveCart } from '../lib/cart';
 import MapStage from './MapStage';
 import WorkflowPipeline from './WorkflowPipeline';
 import { fmtValue, isMultiStep } from '../lib/workflow';
@@ -29,6 +32,13 @@ import { unitPlural } from '../lib/units';
 import { isScalarResult } from './ScalarCard';
 
 /** What the data cart sends to map (DataCartPage, "Map in Analysis"). */
+/** "Replicate" on a paper's study card, from the data cart page. */
+export interface PaperRunRequest {
+  study: StudyCard;
+  methods: string[];
+  title: string;
+}
+
 export interface CartMapRequest {
   items: { id: string; label: string; kind: 'value' | 'feature' | 'raster' }[];
   states: string[] | null;
@@ -95,6 +105,8 @@ const AnalysisPage: React.FC = () => {
   // topic sends no context at all, so nothing earlier can leak into it.
   const [followUp, setFollowUp] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
+  // A paper dropped on the paperclip: read into a study card here.
+  const [paperFile, setPaperFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Panel chrome.
@@ -190,6 +202,17 @@ const AnalysisPage: React.FC = () => {
       }
       if (extra.length) setAdded(a => ({ ...a, [id]: [...(a[id] ?? []), ...extra] }));
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
+  // "Replicate" from a study card on the data cart page.
+  const paperHandoff = useRef(false);
+  useEffect(() => {
+    const req = (location.state as { paperRun?: PaperRunRequest } | null)?.paperRun;
+    if (!req?.methods?.length || paperHandoff.current) return;
+    paperHandoff.current = true;
+    navigate(location.pathname + location.search, { replace: true, state: null });
+    void convo.runPaper(req.study, req.methods, req.title);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
@@ -413,7 +436,34 @@ const AnalysisPage: React.FC = () => {
              onClick={e => { if (e.target === e.currentTarget) setShowUpload(false); }}>
           <div className="w-full max-w-2xl mt-16">
             <UploadPanel onAdd={convo.addUploads} onAddLayer={convo.addLayer}
+                         onPaper={(f) => { setShowUpload(false); setPaperFile(f); }}
                          onClose={() => setShowUpload(false)} />
+          </div>
+        </div>
+      )}
+
+      {paperFile && (
+        <div className="fixed inset-0 z-[1200] bg-ink/30 flex items-start justify-center p-4 overflow-y-auto"
+             onClick={e => { if (e.target === e.currentTarget) setPaperFile(null); }}>
+          <div className="w-full max-w-3xl mt-16 mb-8">
+            <PaperPanel
+              initialFile={paperFile}
+              onClose={() => setPaperFile(null)}
+              cartHint="Open the Data cart page to download it."
+              onAddToCart={(items) => {
+                // The cart persists in the browser (lib/cart.ts); the cart
+                // page reads it when opened.
+                const have = loadCart();
+                const ids = new Set(have.map(x => x.id));
+                saveCart([...have, ...items.filter(x => !ids.has(x.id))].slice(0, CART_MAX));
+              }}
+              onReplicate={(study, methods, title) => {
+                setPaperFile(null);
+                void convo.runPaper(study, methods, title);
+              }}
+              onAsk={(q) => { setPaperFile(null); setDraft(q); }}
+              onModel={() => navigate('/data-search')}
+            />
           </div>
         </div>
       )}
@@ -477,7 +527,7 @@ const Composer: React.FC<{
         className="flex-1 min-w-0 resize-none bg-transparent focus:outline-none text-ink
                    placeholder:text-slate-500 py-2 pl-2 text-sm max-h-32"
       />
-      <button type="button" onClick={onUpload} title="Add your own county data (CSV)"
+      <button type="button" onClick={onUpload} title="Add your own data (CSV, map layer) or a research paper"
               className="shrink-0 p-2 rounded-lg text-slate-600 hover:bg-white/70 hover:text-ink">
         <Paperclip className="w-4 h-4" />
         <span className="sr-only">Add your own data</span>

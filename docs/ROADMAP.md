@@ -20,7 +20,7 @@ so that it unblocks the next. Estimates assume you working part-time on it.
 | Research workflows | [RESEARCH_PLAN.md](RESEARCH_PLAN.md) | A-D and F built, E in progress, G (data research questions assume) planned |
 | Multi-scale geography | [DATA_LOADING_PLAN.md](DATA_LOADING_PLAN.md) | Phases 1-5 built, 6-7 built in part; tract/ZIP/grid levels, rasters, 118M fine points |
 | Analyst GIS ops | [GIS_OPS_PLAN.md](GIS_OPS_PLAN.md) | H0-H5 built (VRP open), H6 tier 1 complete; 11 of 24 primitives covered, 9 partial, 4 missing |
-| Data cart and papers | [DATA_CART_PLAN.md](DATA_CART_PLAN.md), [PAPER_AND_CART_INTEGRATION.md](PAPER_AND_CART_INTEGRATION.md) | Cart, mapping, AutoML built; paper upload (U1-U5, P1-P4) not started |
+| Data cart and papers | [DATA_CART_PLAN.md](DATA_CART_PLAN.md), [PAPER_AND_CART_INTEGRATION.md](PAPER_AND_CART_INTEGRATION.md) | Cart, mapping, AutoML built; paper upload P3-P4 first version built 2026-11-23 (dev papers only); P1, P2, held-out papers open |
 | Fine points | [POINTS_INTEGRATION_PLAN.md](POINTS_INTEGRATION_PLAN.md) | Loaded for L48 + DC; map and `point_distance` built; AK/HI not loaded |
 
 ### Big fixes still outstanding (ranked)
@@ -53,7 +53,7 @@ so that it unblocks the next. Estimates assume you working part-time on it.
 8. **Missing GIS capabilities:** allocation (needs the source label per vertex),
    VRP and clustering, KDE, band math and different-grid rasters, raster
    uploads, time-of-day traffic, barriers, local geocoding, transit stops.
-9. **Paper upload and the shared cart** (U1-U5, P1-P4) are only planned.
+9. **Paper upload** (U1-U4, P3-P4) first version built 2026-11-23; held-out papers (U5) and the shared cart (P1-P2) are not.
 10. **Operational:** pin torch before the next embedder rebuild (a rebuild
     moved the canary fingerprint); `PLAN_THINK=on` still leaves the relevance
     check unbounded; the ungrounded-`proxy` refusal policy ("best place to

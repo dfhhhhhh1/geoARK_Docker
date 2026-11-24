@@ -6,12 +6,11 @@ AutoML run, or all three. This builds on `docs/DATA_CART_PLAN.md` (cart
 Phases 1-6 and paper steps U1-U5) and does not repeat them. It adds the joins
 between the pages and the order to build them in.
 
-Status (2026-11-23): plan. P5 (`moran`) built 2026-11-21; **P1-P4 not started**
-(shared cart both directions, AutoML from either page, paper -> study card ->
-cart, paper -> reproduction). Nothing here changed in the 2026-11-22/23 work,
-which went into points, tiles, routes and rasters. The dependency P4 leans on,
-`moran` plus the existing methods (composite, zonal, enrich, spatial lag,
-2SFCA), is now much wider than when this was written.
+Status (2026-11-23): P5 (`moran`) built 2026-11-21. **P3 and P4 first version
+built 2026-11-23** (paper -> study card -> cart, paper -> reproduction), see
+"P3/P4 built" at the end. P1 (shared cart both ways, header badge) and P2
+(AutoML from Analysis) not started; the paper card writes to the same browser
+cart store, which is the part of P1 it needed.
 
 ---
 
@@ -307,3 +306,110 @@ Per CLAUDE.md, nothing here is "better" until a suite that can move says so.
    click after the study card, for the latency and correctness reasons above.
 3. **Build `moran` / LISA (P5) before the reproduction (P4)?** Recommended: yes,
    if the dev papers confirm it is the most common missing method.
+
+---
+
+## P3/P4 built (2026-11-23)
+
+`backend/paper.js` (text, sections, extraction, quote checks, matching),
+`backend/paper_templates.js` (method -> plan), `POST /api/paper/extract`,
+`POST /api/paper/reproduce` (`dry_run: true` returns statuses only),
+`frontend/src/components/PaperPanel.tsx`, `lib/paper.ts`. Tests
+`backend/test_paper.js` (26, in `npm test`; every template plan goes through
+the real `validatePlan` and compiler). Suite `eval/papers.yaml` +
+`eval/paper_probe.py`; runs in `eval/paper/`. Planner prompt and schema
+untouched (snapshot byte-identical across 48 contexts).
+
+**Flow.** Data cart page "Or start from a paper", or a PDF / .docx dropped on
+the Analysis paperclip -> study card (area, unit, period, variables grouped
+by role with the catalog row chosen for each, methods with a status and the
+reason) -> "Add N measures to the cart" and/or "Replicate N methods". Nothing
+runs on upload (decision 2: no). Replication runs in Analysis: each run is an
+ordinary turn ("run directly, no planning needed") with the status and what
+differs shown under it, so it can be followed up like any answer.
+
+**Decisions taken, and why they differ from the plan above.**
+
+- **Text extraction is in the Node API** (`pdfjs-dist` 4.10.38, `mammoth`
+  1.9.0), not `ml_service` or the embedder (decision 1). Paper upload then
+  needs neither the 4 GB `automl` profile nor an embedder rebuild (the torch
+  trap). The file is read in memory and never stored.
+- **Introduction and Discussion are not read when the paper has a methods
+  section**, and the card says so. On the first dev run every concept-level
+  "variable" ("healthcare access", "socioeconomic disadvantage", matched to
+  Toxic Release Inventory facilities) came from those two parts, which
+  describe OTHER studies. References and boilerplate are set aside too.
+  Over `PAPER_MAX_CHUNKS` (8) the unread sections are named, never cut quietly.
+- **Families: the technique's standard name wins** (`familyFromName`, a table
+  of the field's own method names: Moran, LISA, Getis-Ord, SaTScan, GWR, ARIMA,
+  random forest, VIF ...). Without it, and before the families were described
+  in the prompt, qwen3 filed Global Moran's I and Getis-Ord Gi* as
+  `spatial_lag` and Pearson correlation as `other`. A name the table does not
+  know keeps the model's family. A `preprocessing` family (imputation, scaling,
+  VIF) is shown as data preparation rather than "not supported".
+- **Quotes**: compared on letters and digits only (line breaks, hyphenation,
+  ligatures, curly quotes do not matter); ellipsis fragments must occur in
+  order. Variables and places may quote a short table cell or name ("Poverty
+  (%)", "Taiwan") but only as a whole phrase of the text; the 16-character
+  minimum dropped "Taiwan" and the card read the area as unknown instead of
+  outside the US.
+- **Matching**: each variable is searched directly (hybrid search, no
+  decomposition call), then one judging call per 12 variables chooses a
+  candidate, `same` / `proxy` / `none` (reasoning budget of the relevance
+  check). Retrieval similarity alone cannot say "not in GeoARK" (CLAUDE.md,
+  relevance check). Variables that chose the same row collapse into one, so
+  an exposure matched to the outcome's own row folds into the outcome.
+- **Templates** (`reproductionPlan`): map, Gi*, Moran global / LISA (the
+  paper's alpha and permutations go into the step), correlation (first 3
+  partners), regression -> `explain` (exposures as factors, covariates as
+  controls, approximated), spatial regression -> `explain` plus LISA of the
+  OLS residual, spatial lag -> `neighbors`, outlier, access ->
+  `nearest_distance` when a facility layer matched. Group comparison gives an
+  editable question for Analysis. Machine learning (all models merged) is
+  AutoML with the paper's outcome as target, labelled approximated. Time
+  series and anything unknown: not supported, said why. A study outside the
+  US runs nothing. **Reproduced only when nothing differs**: a paper at tract
+  level, a different period or non-queen weights makes it approximated, and
+  the reason names each difference.
+- **Cart hand-off capped at 20** (the checkout's `MAX_ITEMS`), outcome first.
+
+**Measured** (`eval/paper_probe.py`, dev tier = the two prototype papers;
+gold written by hand from the text before any run was read):
+
+| run | build | quote validity | area | unit | period | variable recall / match | method recall | reproduction | runs executed | s / paper |
+|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 0 | first version, CVD paper only, read by eye | 105/160 | ok | ok | ok | 30 vars, 3 concept vars, outcome x3 | Moran, Gi* filed as spatial_lag | - | - | 287 |
+| 1 | fixes above, less the short place quote | 0.90 | 1/2 | 2/2 | 1/2 | 1.00 / 1.00 | 1.00 | 1.00 | 8/8 | 285, 130 |
+| 1b | + short place quotes (Taiwan only) | 0.96 | 1/1 | 1/1 | 1/1 | 1.00 / 1.00 | 1.00 | 1.00 | - | 81 |
+| 2 | final (api + web rebuilt) | 0.95 | 2/2 | 2/2 | 1/2 | 1.00 / 1.00 | 1.00 | 1.00 | 8/8 | 274, 81 |
+| 3 | same | 0.95 | 2/2 | 2/2 | 1/2 | 1.00 / 1.00 | 1.00 | 1.00 | 8/8 | 267, 81 |
+
+Runs 2 and 3 are identical in every count (temperature 0): the repeats show
+the result is stable, not that it is right beyond these two papers.
+
+Live through the UI on the CVD paper: card in 258 s; "Add the first 20 of 34
+measures" -> checkout 3,233 counties x 20 columns; "Replicate" -> 7 runs in
+Analysis, all executed (Moran's I and Gi* over 3,099 counties, three
+correlations, outliers, an 8-factor explain).
+
+**What these numbers do not show.** Two papers, both dev, and the gold covers
+12 of the CVD paper's 41 variables, so recall 1.00 is not a claim about papers
+in general. The CVD period reads 2018-2022 against gold 2018-2021: the
+outcome covers 2018-2021 and the covariate table 2018-2022, a defensible
+reading. Roles split arbitrarily between exposure and covariate when a paper
+lists 40 predictors without singling any out, which changes which ones
+`explain` holds fixed. No held-out papers exist yet: U5 asks for 6-8 more with
+half held out, and that is the next step before any further tuning.
+
+**Open.**
+- Held-out papers (U5) before more prompt or rule changes.
+- Latency: 4-5 minutes for a 14-page article, about half extraction (4
+  chunks) and half matching (4 judging calls with reasoning). Progress is a
+  timer only; streaming the part being read would help.
+- Templates run at the county with each measure's latest year. A `year` per
+  load chosen from the paper's period, and tract-level templates (no tract
+  adjacency yet), are the obvious next steps.
+- The paper's reported numbers (Moran's I, coefficients) are not extracted, so
+  the side-by-side in the plan's P4 method summary is not built.
+- An aborted upload still runs to completion on the server once it has left
+  the queue (the queue only skips jobs abandoned while waiting).

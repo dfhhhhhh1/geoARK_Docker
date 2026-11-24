@@ -39,6 +39,8 @@ const { referencePhrase, asksEnrichment, zonePhrase, namedPolygonLayers } = requ
 const { serviceAreaPhrase } = require("./planner/service_area");
 const { routePhrases } = require("./planner/route");
 const cart = require("./cart");
+const paperLib = require("./paper");
+const paperTemplates = require("./paper_templates");
 const curator = require("./curator");
 const { boundsQueries } = require("./planner/uncertainty");
 const { asksAccess } = require("./planner/ops/access");
@@ -4188,6 +4190,220 @@ app.post("/api/measures/search", auth.requireAuth, limitSearch, async (req, res)
   } catch (err) {
     console.error("Measure search error:", err);
     return res.status(500).json({ error: "search failed", details: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Paper upload (backend/paper.js, backend/paper_templates.js;
+// docs/PAPER_AND_CART_INTEGRATION.md P3-P4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Catalog rows for one paper variable: direct hybrid search (no decomposition
+ * call per variable), only rows that hold data, one row per layer, location
+ * and identifier columns dropped like the shelf drops them.
+ */
+async function paperVariableSearch(phrase) {
+  const hits = await performHybridSearch(phrase, 30);
+  const resolved = await resolveAttributes(hits.map(h => h.attr_id));
+  const seenTable = new Set();
+  const out = [];
+  for (const h of hits) {
+    const src = resolved.get(h.attr_id);
+    if (!src) continue;
+    const kind = src.source_kind === "feature_table" ? "feature" : src.source_kind === "raster" ? "raster" : "value";
+    const column = String(h.attr_orig || h.attr_desc || "");
+    if (kind === "feature") {
+      if (LOCATION_COLUMN.test(column) || seenTable.has(src.table_name)) continue;
+      seenTable.add(src.table_name);
+    } else if (LOCATION_COLUMN.test(column)) continue;
+    out.push({
+      attr_id: h.attr_id,
+      label: kind === "feature" ? (h.dataset_clean || src.table_name)
+        : cart.displayLabel(followup.measureLabel(h.attr_desc) || h.attr_orig || h.attr_id),
+      description: h.attr_desc || src.description || null,
+      dataset: h.dataset_clean || null,
+      kind,
+      coverage: src.value_range?.n ?? null,
+      period: h.end_date || h.start_date || null,
+    });
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+/**
+ * POST /api/paper/extract?name=<file name>   body: the file's bytes
+ *
+ * A paper -> a study card: area, unit, period, variables (each matched to
+ * catalog rows, or listed as not in GeoARK), methods (each with the status
+ * reproduction would give it). Every field carries a quote that code found in
+ * the text. The file is read in memory and never stored. Runs in the
+ * analysis queue: it is several planner-model calls.
+ */
+app.post("/api/paper/extract", auth.requireAuth, limitAnalyze,
+  express.raw({ type: () => true, limit: paperLib.MAX_BYTES }),
+  async (req, res) => {
+    const started = Date.now();
+    let closed = false;
+    // The RESPONSE closing before it was written means the client left. The
+    // request closes as soon as its body has been read (Node >= 16), which for
+    // an upload is before the job reaches the queue: an abandoned job is
+    // skipped and the request would hang forever.
+    res.on("close", () => { if (!res.writableEnded) closed = true; });
+    try {
+      if (!isEmbeddingsReady) return res.status(503).json({ error: "search index not ready" });
+      const name = String(req.query.name || "paper").slice(0, 200);
+      const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      const doc = await paperLib.extractText(bytes, name);
+      const think = req.query.plan_think ?? CONFIG.llm.planThink;
+      let calls = 0;
+      const body = await analysisQueue.submit(async () => {
+        console.log(`\n${"#".repeat(70)}\nPAPER: "${name}" ${doc.format}, ${doc.pages.length} pages, ${doc.text.length} chars\n${"#".repeat(70)}`);
+        // Extraction reads; the planner's reasoning setting (off by default).
+        const extractLLM = (sys, usr, schema) => { calls++; return callLLM(sys, usr, 0, schema, CONFIG.llm.planModel,
+          // A variables table answers long: 2,304 output tokens on the first
+          // dev paper, near the 3,000 JSON cap. Prompt (~2,500) + 4,500 still
+          // fits num_ctx 8,192.
+          { ...planThinkExtra(think, "planner"), role: "paper", options: { num_predict: 4500 } }); };
+        // Matching judges, like the relevance check: its reasoning budget.
+        const judgeLLM = (sys, usr, schema) => { calls++; return callLLM(sys, usr, 0, schema, CONFIG.llm.planModel,
+          { ...planThinkExtra(think, "relevance"), role: "relevance" }); };
+        const study = await paperLib.extractStudy({ text: doc.text, pages: doc.pages, title: doc.title,
+                                                    callLLM: extractLLM, log: console.log });
+        const matched = study.area.scope === "outside_us"
+          ? { variables: study.variables.map(v => ({ ...v, matches: [], selected: null, fit: null, status: "out_of_area" })),
+              judging: { judged: 0, failed: 0, enabled: false } }
+          : await paperLib.matchVariables(study.variables, {
+              search: paperVariableSearch,
+              callLLM: req.query.judge === "false" ? null : judgeLLM,
+              log: console.log,
+            });
+        const card = { ...study, variables: matched.variables, matching: matched.judging };
+        const reproduction = paperTemplates.reproductionPlan(card).map(({ runs, ...m }) => ({
+          ...m, runs: runs.map(r => ({ title: r.title })),
+        }));
+        console.log(`   paper: ${card.variables.length} variables (` +
+          `${card.variables.filter(v => v.status === "matched").length} matched, ` +
+          `${card.variables.filter(v => v.status === "proxy").length} proxy, ` +
+          `${card.variables.filter(v => v.status === "missing").length} missing), ${card.methods.length} methods, ` +
+          `quotes ${card.quotes.kept}/${card.quotes.checked}, ${calls} model calls, ${Date.now() - started} ms`);
+        return { file: { name, format: doc.format, pages: doc.pages.length, chars: doc.text.length },
+                 study: card, reproduction, model_calls: calls, ms: Date.now() - started };
+      }, { isAbandoned: () => closed });
+      return res.json(body);
+    } catch (err) {
+      if (err instanceof paperLib.PaperError) return res.status(err.status).json({ error: err.message });
+      if (err?.type === "entity.too.large") return res.status(413).json({ error: "the file is too large" });
+      if (err instanceof QueueFullError) {
+        res.set("Retry-After", "30");
+        return res.status(503).json({ error: "server is busy", detail: `${err.depth} analyses are already waiting.` });
+      }
+      console.error("Paper extract error:", err);
+      return res.status(500).json({ error: "the paper could not be read", details: err.message });
+    }
+  });
+
+/**
+ * The study card as the browser sends it back, possibly edited. Untrusted:
+ * only the fields templates read survive, states must be real, and a
+ * variable's kind comes from attribute_source, never from the browser.
+ */
+async function sanitizeStudy(raw) {
+  const { STATE_FIPS } = require("./states");
+  const s = raw && typeof raw === "object" ? raw : {};
+  const str = (x, n = 200) => String(x ?? "").slice(0, n);
+  const variables = (Array.isArray(s.variables) ? s.variables : []).slice(0, 40).map((v, i) => ({
+    id: str(v?.id || `v${i + 1}`, 10), name: str(v?.name, 120),
+    role: paperLib.ROLES.includes(v?.role) ? v.role : "covariate",
+    selected: typeof v?.selected === "string" && v.selected && !v.selected.startsWith("user:") ? v.selected.slice(0, 120) : null,
+  }));
+  const resolved = await resolveAttributes(variables.map(v => v.selected).filter(Boolean));
+  for (const v of variables) {
+    const src = v.selected && resolved.get(v.selected);
+    if (!src) { v.selected = null; v.matches = []; continue; }
+    const cand = catalogRow(v.selected) || {};
+    const kind = src.source_kind === "feature_table" ? "feature" : src.source_kind === "raster" ? "raster" : "value";
+    v.matches = [{ attr_id: v.selected, kind,
+                   label: kind === "feature" ? (cand.dataset_clean || src.table_name)
+                     : cart.displayLabel(followup.measureLabel(cand.attr_desc || src.description) || v.selected) }];
+  }
+  const area = s.area && typeof s.area === "object" ? s.area : {};
+  const states = Array.isArray(area.states) ? area.states.filter(x => typeof x === "string" && STATE_FIPS[x]) : null;
+  return {
+    variables,
+    methods: (Array.isArray(s.methods) ? s.methods : []).slice(0, 20).map((m, i) => ({
+      id: str(m?.id || `m${i + 1}`, 10), technique: str(m?.technique, 120),
+      family: paperLib.METHOD_FAMILIES.includes(m?.family) ? m.family : "other",
+      applied_to: str(m?.applied_to), weights: str(m?.weights, 120),
+      alpha: Number.isFinite(m?.alpha) ? m.alpha : null,
+      permutations: Number.isInteger(m?.permutations) ? m.permutations : null,
+      quote: str(m?.quote, 600) || null, page: Number.isInteger(m?.page) ? m.page : null,
+    })),
+    area: { scope: ["national", "states", "outside_us", "unknown"].includes(area.scope) ? area.scope : "unknown",
+            states: states && states.length ? states : null, note: str(area.note) || null },
+    unit: { value: paperLib.UNITS.includes(s.unit?.value) ? s.unit.value : "not_stated" },
+    period: s.period && typeof s.period === "object"
+      ? { start_year: Number.isInteger(s.period.start_year) ? s.period.start_year : null,
+          end_year: Number.isInteger(s.period.end_year) ? s.period.end_year : null } : null,
+  };
+}
+
+/**
+ * POST /api/paper/reproduce  { study, methods?: ["m1", ...] }
+ *
+ * Runs the study card's methods as template plans (paper_templates.js), each
+ * through validatePlan and the ordinary executor, in the analysis queue. No
+ * planner call. Each run comes back as an ordinary analyze body, so the
+ * Analysis page shows it as a turn the user can follow up on.
+ */
+app.post("/api/paper/reproduce", auth.requireAuth, limitAnalyze, async (req, res) => {
+  const started = Date.now();
+  let closed = false;
+  res.on("close", () => { if (!res.writableEnded) closed = true; });
+  try {
+    const study = await sanitizeStudy(req.body?.study);
+    const ids = Array.isArray(req.body?.methods) ? req.body.methods.filter(x => typeof x === "string") : null;
+    const planned = paperTemplates.reproductionPlan(study, { methodIds: ids && ids.length ? ids : null });
+    const candidateIds = study.variables.map(v => v.selected).filter(Boolean);
+    // dry_run: the statuses and run titles for an edited card, nothing executed.
+    if (req.body?.dry_run === true) {
+      return res.json({ methods: planned.map(({ runs, ...m }) => ({ ...m, runs: runs.map(r => ({ title: r.title })) })),
+                        ms: Date.now() - started });
+    }
+    const body = await analysisQueue.submit(async () => {
+      console.log(`\n${"#".repeat(70)}\nPAPER REPRODUCE: ${planned.length} methods, ` +
+        `${planned.reduce((n, m) => n + m.runs.length, 0)} runs\n${"#".repeat(70)}`);
+      const methods = [];
+      for (const m of planned) {
+        const runs = [];
+        for (const r of m.runs) {
+          const t0 = Date.now();
+          try {
+            const response = await executeGivenPlan({ query: r.plan.intent, plan: r.plan,
+                                                      resolver: resolveAttributes, candidateIds });
+            runs.push({ title: r.title, plan: r.plan, response, ms: Date.now() - t0 });
+            console.log(`   ${m.method_id} ${r.title}: ${response.row_count ?? 0} rows, ${Date.now() - t0} ms`);
+          } catch (err) {
+            const payload = err instanceof AnalyzeError ? err.payload : { error: err.message };
+            runs.push({ title: r.title, plan: r.plan, error: payload.error, detail: payload.detail || null, ms: Date.now() - t0 });
+            console.log(`   ${m.method_id} ${r.title}: FAILED ${payload.error} ${payload.detail || ""}`);
+          }
+        }
+        // A method none of whose runs worked has not been reproduced.
+        const failed = m.runs.length && runs.every(r => r.error);
+        methods.push({ ...m, runs, ...(failed ? { status: "failed", reason: `${m.reason}; the plan did not run` } : {}) });
+      }
+      return { methods, ms: Date.now() - started };
+    }, { isAbandoned: () => closed });
+    return res.json(body);
+  } catch (err) {
+    if (err instanceof QueueFullError) {
+      res.set("Retry-After", "30");
+      return res.status(503).json({ error: "server is busy", detail: `${err.depth} analyses are already waiting.` });
+    }
+    console.error("Paper reproduce error:", err);
+    return res.status(500).json({ error: "reproduction failed", details: err.message });
   }
 });
 

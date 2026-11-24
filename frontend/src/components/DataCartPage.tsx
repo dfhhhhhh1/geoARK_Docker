@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search, Loader2, Plus, Check, X, ShoppingCart, BookOpen, FileText, MessageSquareText,
-  Download, Table2, Map as MapIcon, Layers, ChevronDown, ChevronRight, AlertTriangle, Wand2,
+  Download, Table2, Map as MapIcon, Layers, ChevronDown, ChevronRight, AlertTriangle, Wand2, BookOpenCheck,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ExpandedSearchControl from './ExpandedSearchControl';
 import CartModelPanel from './CartModelPanel';
+import PaperPanel from './PaperPanel';
+import type { PaperRunRequest } from './AnalysisPage';
+import { CART_MAX } from '../lib/paper';
 import type { CartMapRequest } from './AnalysisPage';
 import { useExpandedSearch } from '../hooks/useExpandedSearch';
 import { STATES } from '../lib/places';
@@ -75,6 +78,9 @@ const DataCartPage: React.FC = () => {
   // The LLM curator (backend/curator.js), opt-in: it beat the rule-based pick
   // on dev but not clearly on held-out questions (DATA_CART_PLAN.md Phase 2).
   const [curate, setCurate] = useState(false);
+  // Start from a paper (components/PaperPanel.tsx).
+  const [paperOpen, setPaperOpen] = useState(false);
+  const [modelTarget, setModelTarget] = useState<string | null>(null);
 
   const [cart, setCart] = useState<CartItem[]>(() => loadCart());
   useEffect(() => saveCart(cart), [cart]);
@@ -191,7 +197,37 @@ const DataCartPage: React.FC = () => {
         </div>
       </form>
 
-      {!shelf && !searching && (
+      <div className="mt-2">
+        {!paperOpen ? (
+          <button type="button" onClick={() => setPaperOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline">
+            <BookOpenCheck className="w-4 h-4" /> Or start from a paper (PDF or Word)
+          </button>
+        ) : (
+          <PaperPanel
+            onClose={() => setPaperOpen(false)}
+            cartHint="The cart is on the right; build the table to download or model it."
+            onAddToCart={(items, states) => {
+              setCart(c => {
+                const have = new Set(c.map(x => x.id));
+                // The checkout holds at most CART_MAX items.
+                return [...c, ...items.filter(x => !have.has(x.id))].slice(0, CART_MAX);
+              });
+              // One state in the paper's area becomes the table's area; several
+              // stay national here (the table filter takes one state).
+              if (states?.length === 1) setState(states[0]);
+            }}
+            onReplicate={(study, methods, title) => {
+              const req: PaperRunRequest = { study, methods, title };
+              navigate('/analysis', { state: { paperRun: req } });
+            }}
+            onAsk={(q) => navigate(`/analysis?q=${encodeURIComponent(q)}`)}
+            onModel={(target) => setModelTarget(target)}
+          />
+        )}
+      </div>
+
+      {!shelf && !searching && !paperOpen && (
         <div className="mt-3 flex flex-wrap gap-2 text-sm">
           <span className="text-slate-500">Try:</span>
           {EXAMPLES.map(ex => (
@@ -338,7 +374,8 @@ const DataCartPage: React.FC = () => {
       </div>
 
       {table && !stale && (
-        <CartModelPanel table={table} items={table.columns.map(c => c.item)} states={state ? [state] : null} />
+        <CartModelPanel table={table} items={table.columns.map(c => c.item)} states={state ? [state] : null}
+                        defaultTarget={modelTarget} />
       )}
     </main>
   );

@@ -1,0 +1,63 @@
+# Paper upload (docs/PAPER_AND_CART_INTEGRATION.md P3-P4, DATA_CART_PLAN U5).
+#
+# Gold is written BY HAND from the paper's text, before any run is read
+# (CLAUDE.md: a suite must be able to see the defect). Scored by
+# eval/paper_probe.py.
+#
+# tier: dev papers may inform a change; heldout papers are scored only at a
+# phase boundary and never used to tune prompts, rules or templates.
+#
+# Per paper:
+#   file          path from the repo root
+#   area          scope (national | states | outside_us) and, for states, the list
+#   unit, period  as extracted (period: [start, end])
+#   variables     gold variables: `name` is a regex that must match one
+#                 extracted variable's name; `role` its role; `expect` is a
+#                 regex the chosen catalog row's label must match, or
+#                 `missing` when GeoARK has no such data (then the variable
+#                 must be listed as not in GeoARK, or matched only as a stand-in)
+#   methods       gold method families (paper.js METHOD_FAMILIES); `any_of`
+#                 when two families are defensible readings
+#   reproduce     per family, the statuses acceptable for the reproduction
+
+papers:
+  - id: cvd-county-ml
+    tier: dev
+    file: search_and_analysis/search_and_analysis/analysis/context_files/12889_2026_Article_26571.pdf
+    area: { scope: national }       # "the continental U.S." -> 48 states + DC
+    unit: county
+    period: [2018, 2021]
+    variables:
+      - { name: "(cvd|cardiovascular).*(mortal|death)|mortal", role: outcome, expect: "missing|heart|cardio|coronary" }
+      - { name: "obes", role: exposure, expect: "obes" }
+      - { name: "diabet", role: exposure, expect: "diabet" }
+      - { name: "median household income", role: exposure, expect: "median household income|household income" }
+      - { name: "poverty", role: exposure, expect: "poverty" }
+      - { name: "unemploy", role: exposure, expect: "unemploy" }
+      - { name: "pm2\\.?5|air quality|particulate", role: exposure, expect: "pm2\\.?5|particulate" }
+      - { name: "insur", role: exposure, expect: "insur" }
+      - { name: "high school", role: exposure, expect: "high school|diploma" }
+      - { name: "blood pressure|hypertens", role: exposure, expect: "blood pressure|hypertens" }
+      - { name: "65", role: exposure, expect: "65" }
+      - { name: "neurosurg", role: exposure, expect: "missing" }
+    methods:
+      - { family: moran_global }
+      - { family: hotspot }
+      - { family: machine_learning }
+    reproduce:
+      moran_global: [reproduced, approximated]
+      hotspot: [reproduced, approximated]
+      machine_learning: [automl]
+
+  - id: tb-taiwan-timeseries
+    tier: dev
+    file: search_and_analysis/search_and_analysis/analysis/context_files/peerj-10-13117.pdf
+    area: { scope: outside_us }
+    unit: null                      # national monthly series: no spatial unit
+    period: [2005, 2020]
+    variables:
+      - { name: "tuberculosis|tb", role: outcome, expect: "missing" }
+    methods:
+      - { family: time_series }
+    reproduce:
+      time_series: [not_supported]

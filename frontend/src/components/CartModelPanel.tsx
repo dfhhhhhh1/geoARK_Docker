@@ -18,10 +18,13 @@ import { trainModel, type CartTable, type ModelResult } from '../lib/cart';
 const fmt = (v: number | null | undefined, d = 2) =>
   v === null || v === undefined || Number.isNaN(v) ? '–' : v.toFixed(d);
 
-const CartModelPanel: React.FC<{ table: CartTable; items: string[]; states: string[] | null }> =
-  ({ table, items, states }) => {
+const CartModelPanel: React.FC<{ table: CartTable; items: string[]; states: string[] | null;
+                                 /** Pre-selected target, e.g. a paper's outcome. */
+                                 defaultTarget?: string | null }> =
+  ({ table, items, states, defaultTarget = null }) => {
     const targets = table.columns.filter(c => c.source_kind !== 'feature_table');
-    const [target, setTarget] = useState(targets[0]?.item ?? '');
+    const [target, setTarget] = useState(
+      (defaultTarget && targets.find(c => c.item === defaultTarget)?.item) || targets[0]?.item || '');
     const [result, setResult] = useState<ModelResult | null>(null);
     const [random, setRandom] = useState<ModelResult | null>(null);
     const [busy, setBusy] = useState<null | 'spatial' | 'random'>(null);

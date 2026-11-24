@@ -1751,6 +1751,33 @@ the GeoTIFFs). The map colours them: `frontend/src/lib/travel.ts`.
   all misses on the fast side, by the band's definition (land within one cell
   of a reached road). Costs themselves are exact.
 
+### Paper upload: study card, cart, replication (2026-11-23)
+
+docs/PAPER_AND_CART_INTEGRATION.md "P3/P4 built". `backend/paper.js`,
+`backend/paper_templates.js`, `/api/paper/extract`, `/api/paper/reproduce`,
+`PaperPanel.tsx`; suite `eval/papers.yaml` (dev tier only, 2 papers so far).
+Planner prompt untouched.
+
+- **`req.on("close")` fires once an upload's body is read** (Node >= 16), so
+  a job that checks it before reaching the queue is marked abandoned, the
+  queue skips it, and the request **hangs forever with no error**. Detect a
+  gone client with `res.on("close")` and `!res.writableEnded`. `/api/research`
+  and `/api/analyze` still use the request form (their bodies are small JSON
+  parsed earlier, so it has not bitten); any new upload-plus-queue endpoint must not.
+- **A paper's Introduction and Discussion describe other studies.** Read, they
+  became "variables" ("healthcare access") and methods the paper never ran.
+  They are skipped when the paper has its own methods section.
+- **The model's method family is overridden by the technique's standard
+  name** (`familyFromName`): it filed Moran's I and Gi* as `spatial_lag`.
+- **Replication is templates, never the planner**: the method is quoted from
+  the paper, so each family maps to a fixed plan over the chosen ids, through
+  `validatePlan` and the ordinary executor. "Reproduced" only when nothing
+  differs (unit, period, weights); otherwise approximated with the reason.
+- Text extraction is pdf.js in the Node API. pdf.js is ESM-only: reach it with
+  a bare `import("pdfjs-dist/legacy/build/pdf.mjs")`; Node 20's
+  `require.resolve` cannot (Node 24's can, so it passed locally).
+- Do not tune on held-out papers; there are none yet. Add them (U5) first.
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence
