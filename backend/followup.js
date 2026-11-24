@@ -353,6 +353,25 @@ const EDITS = {
     return `Restricted to ${describeAreas(states)}${notes.length ? ` (${notes.join("; ")})` : ""}.`;
   },
 
+  /**
+   * "Which Springfield". Pins a named boundary to one state and keeps it, which
+   * restrict_area cannot do: it treats a boundary as superseded and removes it.
+   */
+  pick_place(plan, edit) {
+    const state = String(edit.state || "").trim();
+    if (!state) throw new FollowUpError("name the state of the place you mean");
+    const { unknown } = toFipsPrefixes([state]);
+    if (unknown.length) throw new FollowUpError(`not a state: ${state}`);
+    const steps = plan.steps.filter(s => s.op === "filter_place"
+      && (!edit.place_name || String(s.place_name).toLowerCase() === String(edit.place_name).toLowerCase()));
+    if (!steps.length) throw new FollowUpError("this result has no named place to narrow");
+    plan.base_intent = plan.base_intent || plan.intent || "Analysis";
+    for (const st of steps) st.states = [state];
+    const name = steps[0].place_name;
+    relabel(plan, "place", `${name}, ${state}`);
+    return `Narrowed ${name} to ${state}.`;
+  },
+
   /** "the whole country". Removes every area restriction. */
   clear_area(plan) {
     const before = placesIn(plan);

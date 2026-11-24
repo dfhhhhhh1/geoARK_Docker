@@ -118,5 +118,34 @@ test("cityAmbiguity stays quiet for a single-state result", () => {
   assert.strictEqual(cityAmbiguity(plan, features), null);
 });
 
-console.log(`\n${pass}/${pass + fail} passed`);
-process.exit(fail ? 1 : 0);
+const PLACE_PLAN = (extra = {}) => ({
+  steps: [{ id: "s2", op: "filter_place", place_kind: "place", place_name: "Springfield", ...extra }],
+});
+const fakeQuery = (rows) => async () => ({ rows });
+
+(async () => {
+  const { placeAmbiguity } = require("./suggestions");
+  const rows = [
+    { geoid: "1", name: "Springfield", state_fp: "29", aland: 200e6 },
+    { geoid: "2", name: "Springfield", state_fp: "17", aland: 150e6 },
+    { geoid: "3", name: "Springfield", state_fp: "17", aland: 1e6 }, // same state: one candidate
+  ];
+  const a = await placeAmbiguity(PLACE_PLAN(), fakeQuery(rows));
+  try {
+    assert.strictEqual(a.kind, "place");
+    assert.strictEqual(a.state_count, 2);
+    assert.deepStrictEqual(a.candidates.map(c => c.state_name), ["Missouri", "Illinois"]);
+    assert.strictEqual(a.candidates[0].state, "MO");
+    console.log("  ok   placeAmbiguity lists one candidate per state, largest first"); pass++;
+  } catch (e) { console.log(`  FAIL placeAmbiguity lists candidates\n       ${e.message}`); fail++; }
+
+  try {
+    assert.strictEqual(await placeAmbiguity(PLACE_PLAN({ states: ["Missouri"] }), fakeQuery(rows)), null);
+    assert.strictEqual(await placeAmbiguity(PLACE_PLAN(), fakeQuery(rows.slice(0, 1))), null);
+    assert.strictEqual(await placeAmbiguity(PLACE_PLAN({ place_kind: "zcta" }), fakeQuery(rows)), null);
+    console.log("  ok   placeAmbiguity stays quiet when pinned, unique, or a ZIP"); pass++;
+  } catch (e) { console.log(`  FAIL placeAmbiguity quiet cases\n       ${e.message}`); fail++; }
+
+  console.log(`\n${pass}/${pass + fail} passed`);
+  process.exit(fail ? 1 : 0);
+})();

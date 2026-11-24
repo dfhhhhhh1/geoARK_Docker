@@ -45,8 +45,9 @@ const { asksAccess } = require("./planner/ops/access");
 const planOps = require("./planner/ops");
 const { callGoogle, googleConfigured } = require("./llm_google");
 const {
-  buildSuggestions, unavailableDatasets, cityAmbiguity, shortLabel,
+  buildSuggestions, unavailableDatasets, cityAmbiguity, placeAmbiguity, shortLabel,
 } = require("./suggestions");
+const { capitalizePlaces } = require("./place_case");
 const followup = require("./followup");
 const { validatePlan } = require("./planner/validate");
 
@@ -2518,6 +2519,18 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
       throw new AnalyzeError(503, { error: "search index not ready" });
     }
 
+    // "in columbus" -> "in Columbus": place detection is by capitalisation, so a
+    // lowercase city read as missing data. Only a name place_geom holds changes.
+    try {
+      const fixed = await capitalizePlaces(query, (sql, p) => pool.query(sql, p));
+      if (fixed.changed.length) {
+        console.log(`   place names capitalised: "${query}" -> "${fixed.query}"`);
+        query = fixed.query;
+      }
+    } catch (err) {
+      console.error("   place capitalisation skipped:", err.message);
+    }
+
     console.log(`\n${"=".repeat(70)}\nANALYZE: "${query}"\n${"=".repeat(70)}`);
     emit({ stage: "started", query });
 
@@ -3476,7 +3489,16 @@ async function finishAnalysis({ query, started, planning, executable, candidates
       // A successful result can still be the wrong ANSWER: a city filter with
       // no state quietly spans the country. Report the spread so the UI can
       // offer to narrow, rather than presenting 25 states as one city.
-      const ambiguity = cityAmbiguity(planning.plan, result.features);
+      let ambiguity = cityAmbiguity(planning.plan, result.features);
+      if (!ambiguity) {
+        try {
+          // A named boundary (filter_place) with no state: the same spread,
+          // read from the boundary table instead of a layer's city column.
+          ambiguity = await placeAmbiguity(planning.plan, (sql, p) => pool.query(sql, p));
+        } catch (err) {
+          console.error("   place ambiguity check failed:", err.message);
+        }
+      }
       if (ambiguity) body.ambiguity = ambiguity;
       if (result.mode === "features") {
         // Feature geometry is the ANSWER here, not an optional overlay, so

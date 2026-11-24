@@ -131,6 +131,9 @@ const ResultBlock: React.FC<Props> = ({
       {result.ambiguity && (
         <AmbiguityNotice
           ambiguity={result.ambiguity}
+          onPickPlace={stateName => onEdit(
+            { kind: 'pick_place', state: stateName, place_name: result.ambiguity?.city },
+            `Only ${result.ambiguity?.city}, ${stateName}`)}
           onNarrow={code => {
             const name = result.ambiguity?.states.find(s => s.state === code)?.state_name;
             if (!name) return;

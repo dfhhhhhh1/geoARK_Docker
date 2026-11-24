@@ -19,9 +19,43 @@ interface Props {
   ambiguity: CityAmbiguity;
   /** Full state names keyed by postal code, for a readable follow-up query. */
   onNarrow: (stateCode: string) => void;
+  /** A named place (not a layer's city column): pick by full state name. */
+  onPickPlace?: (stateName: string) => void;
 }
 
-const AmbiguityNotice: React.FC<Props> = ({ ambiguity, onNarrow }) => (
+const AmbiguityNotice: React.FC<Props> = ({ ambiguity, onNarrow, onPickPlace }) => {
+  if (ambiguity.kind === 'place' && ambiguity.candidates?.length && onPickPlace) {
+    return (
+      <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 flex gap-3">
+        <HelpCircle className="w-5 h-5 shrink-0 mt-0.5 text-brand-600" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-brand-900">
+            Which “{ambiguity.city}” do you mean?
+          </p>
+          <p className="text-sm text-brand-800 mt-0.5">
+            There are {ambiguity.state_count} places with that name, and these results
+            cover all of them. Pick one:
+          </p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {ambiguity.candidates.map(c => (
+              <button
+                key={c.state_name}
+                onClick={() => onPickPlace(c.state_name)}
+                className="text-xs px-2.5 py-1 rounded-full bg-white border border-brand-300
+                           text-brand-800 hover:bg-brand-100 transition-colors"
+              >
+                {c.full_name}, {c.state ?? c.state_name}
+                {c.land_sq_mi != null && (
+                  <span className="opacity-60"> ({c.land_sq_mi.toLocaleString()} sq mi)</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
   <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 flex gap-3">
     <HelpCircle className="w-5 h-5 shrink-0 mt-0.5 text-brand-600" />
     <div className="min-w-0">
@@ -45,6 +79,7 @@ const AmbiguityNotice: React.FC<Props> = ({ ambiguity, onNarrow }) => (
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default AmbiguityNotice;

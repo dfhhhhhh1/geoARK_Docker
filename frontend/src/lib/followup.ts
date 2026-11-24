@@ -120,6 +120,7 @@ export function historyFrom(results: AnalysisResponse[]): HistoryEntry[] {
 export function describeEdit(edit: FollowUpEdit, label: (id: string) => string): string {
   switch (edit.kind) {
     case 'restrict_area': return `Only ${edit.states.join(', ')}`;
+    case 'pick_place': return `Only ${edit.place_name ?? 'the place'}, ${edit.state}`;
     case 'clear_area': return 'Show the whole country';
     case 'rank': return `${edit.direction === 'desc' ? 'Top' : 'Bottom'} ${edit.limit}`;
     case 'remove_step': return 'Remove that filter';

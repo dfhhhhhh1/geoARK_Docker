@@ -13,7 +13,10 @@
  * shape it is written in.
  */
 
-const { POSTAL_TO_NAME } = require("./states");
+const { POSTAL_TO_NAME, STATE_FIPS } = require("./states");
+
+const FIPS_TO_NAME = Object.fromEntries(Object.entries(STATE_FIPS).map(([n, f]) => [f, n]));
+const POSTAL_FOR_NAME = Object.fromEntries(Object.entries(POSTAL_TO_NAME).map(([p, n]) => [n, p]));
 
 /**
  * Turn a catalog description into something a person would type.
@@ -170,6 +173,63 @@ function cityAmbiguity(plan, features) {
   };
 }
 
+/**
+ * A NAMED PLACE with no state ("counties around Springfield") that matches
+ * boundaries in several states. filter_place keeps counties inside ALL of them
+ * and nothing errors, so the answer silently covers 22 Springfields.
+ *
+ * Same idea as cityAmbiguity, for the boundary table rather than a feature
+ * layer's city column. The match rule is filter_place's own (exact, or the name
+ * followed by a separator), so the candidates listed are exactly the places the
+ * filter used. Which one was meant is the user's to say; the UI offers each.
+ *
+ * `query` is `(sql, params) => Promise<{rows}>`, so this stays testable without
+ * a database.
+ */
+const PLACE_CANDIDATE_LIMIT = 12;
+const PLACE_KINDS_NAMED = new Set(["place", "cbsa", "urban"]);
+
+async function placeAmbiguity(plan, query) {
+  const step = (plan?.steps || []).find(s => s.op === "filter_place"
+    && PLACE_KINDS_NAMED.has(String(s.place_kind || "")) && s.place_name);
+  if (!step) return null;
+  if (Array.isArray(step.states) && step.states.length) return null;
+
+  const { rows } = await query(
+    `SELECT geoid, name, state_fp, aland FROM place_geom
+      WHERE kind = $1
+        AND (lower(name) = lower($2)
+             OR lower(name) LIKE lower($2) || '-%'
+             OR lower(name) LIKE lower($2) || ', %')
+      ORDER BY aland DESC NULLS LAST`,
+    [step.place_kind, String(step.place_name)]);
+
+  // One candidate per state: the follow-up narrows by state, so two same-named
+  // places in one state cannot be told apart by it and are not offered as two.
+  const byState = new Map();
+  for (const r of rows) {
+    const name = FIPS_TO_NAME[r.state_fp];
+    if (!name || byState.has(r.state_fp)) continue;
+    byState.set(r.state_fp, {
+      state: POSTAL_FOR_NAME[name] || null,
+      state_name: name,
+      full_name: r.name,
+      land_sq_mi: r.aland != null ? Math.round(Number(r.aland) / 2589988.11) : null,
+    });
+  }
+  if (byState.size < 2) return null;
+
+  return {
+    kind: "place",
+    place_kind: step.place_kind,
+    city: String(step.place_name),
+    state_count: byState.size,
+    // Largest first: the likeliest meaning leads.
+    candidates: [...byState.values()].slice(0, PLACE_CANDIDATE_LIMIT),
+  };
+}
+
 module.exports = {
-  buildSuggestions, unavailableDatasets, cityAmbiguity, shortLabel, contextLabel,
+  buildSuggestions, unavailableDatasets, cityAmbiguity, placeAmbiguity,
+  shortLabel, contextLabel,
 };

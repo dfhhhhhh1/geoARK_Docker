@@ -624,6 +624,11 @@ export interface Suggestion {
 export interface CityAmbiguity {
   city: string;
   state_count: number;
+  /** 'place' = a named boundary (filter_place); absent = a feature layer's city column. */
+  kind?: 'place';
+  candidates?: Array<{
+    state: string | null; state_name: string; full_name: string; land_sq_mi: number | null;
+  }>;
   /** `state` is the postal code the layer stores; `state_name` is what the planner takes. */
   states: Array<{ state: string; state_name: string | null; count: number }>;
 }
@@ -674,6 +679,7 @@ export interface AnalysisEvent {
 /** One structural change to a plan that already ran. Applied server-side. */
 export type FollowUpEdit =
   | { kind: 'restrict_area'; states: string[]; keep_city?: boolean }
+  | { kind: 'pick_place'; state: string; place_name?: string }
   | { kind: 'clear_area' }
   | { kind: 'rank'; direction: 'asc' | 'desc'; limit: number }
   | { kind: 'remove_step'; step_id: string }

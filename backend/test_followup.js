@@ -581,6 +581,22 @@ test("correct rewrites the rewrite lab saw discarded are kept (2026-11-23)", asy
   assert.match(lost.note, /measure on screen/);
 });
 
+test("pick_place pins a named boundary to one state and keeps it", async () => {
+  const SPR = {
+    intent: "Income around Springfield", output_type: "map", entity_type: "COUNTY",
+    steps: [
+      { id: "s1", op: "load", attr_id: "inc", inputs: [] },
+      { id: "s2", op: "filter_place", attr_id: "", inputs: ["s1"], place_kind: "place", place_name: "Springfield" },
+      { id: "s3", op: "output", attr_id: "", inputs: ["s2"] },
+    ],
+  };
+  const { plan } = applyEdit(SPR, { kind: "pick_place", state: "Missouri", place_name: "Springfield" }, ctx);
+  const fp = plan.steps.find(s => s.op === "filter_place");
+  assert.deepStrictEqual(fp.states, ["Missouri"]);
+  assert.throws(() => applyEdit(SPR, { kind: "pick_place", state: "Atlantis" }, ctx), FollowUpError);
+  assert.throws(() => applyEdit(LOAD, { kind: "pick_place", state: "Missouri" }, ctx), FollowUpError);
+});
+
 (async () => {
   for (const p of pending) await p();
   console.log(`\n${pass} passed, ${fail} failed`);

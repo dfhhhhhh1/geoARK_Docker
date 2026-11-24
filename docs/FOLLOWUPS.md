@@ -27,6 +27,7 @@ number in CLAUDE.md still describes the planner.
 | edit | what it does | refuses when |
 |---|---|---|
 | `restrict_area` | filter every leaf series to states/regions; replaces an earlier area; sets `states` on `select_features` | unknown place; no county series |
+| `pick_place` | pins a named boundary (`filter_place`) to one state and keeps it; offered by the "Which <place> do you mean?" notice (`placeAmbiguity`) | no named place; unknown state |
 | `clear_area` | removes every area / place restriction | nothing to clear |
 | `rank` | top/bottom N; updates an existing rank | two-measure result (rank would drop `value_b`), statistic |
 | `remove_step` | undoes one `filter_area` / `filter_place` / `filter_attr` / `rank` | other ops |
