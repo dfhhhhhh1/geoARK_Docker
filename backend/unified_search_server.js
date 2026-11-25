@@ -41,6 +41,8 @@ const { routePhrases } = require("./planner/route");
 const cart = require("./cart");
 const paperLib = require("./paper");
 const paperTemplates = require("./paper_templates");
+const composite = require("./planner/composite");
+const { checkCountThresholds, dropUnusableCountInputs } = require("./planner/conditions");
 const curator = require("./curator");
 const { boundsQueries } = require("./planner/uncertainty");
 const { asksAccess } = require("./planner/ops/access");
@@ -2512,6 +2514,22 @@ async function runAnalysisInner({ query, top_k = 25, execute = true,
                              // Decomposition and candidate-list overrides (A/B).
                              decomp = null, candidateOverrides = null }) {
   const cand = candidateOptions(candidateOverrides);
+  // A question that lists many measures (an index of 11 factors) splits the
+  // fixed budget over as many sub-queries: at 60 that is 4 rows each, and the
+  // 10 primary slots cannot hold 11 measures. Measured on an 11-factor index
+  // question (2026-11-24): 4 of 11 factors got no candidate at the defaults,
+  // all 11 at 200 / 24. Scaled only past 6 listed measures, and only the
+  // fields the request did not set.
+  {
+    const listed = composite.listedMeasureCount(query);
+    if (listed > 6) {
+      const own = (k) => candidateOverrides && candidateOverrides[k] !== undefined;
+      const before = `${cand.retrieval_budget}/${cand.primary}`;
+      if (!own("retrieval_budget")) cand.retrieval_budget = Math.max(cand.retrieval_budget, Math.min(200, 15 * (listed + 2)));
+      if (!own("primary")) cand.primary = Math.max(cand.primary, Math.min(30, 2 * listed + 2));
+      console.log(`   ${listed} measures listed: retrieval budget / primary slots ${before} -> ${cand.retrieval_budget}/${cand.primary}`);
+    }
+  }
   const started = Date.now();
   try {
     if (!query || !query.trim()) {
@@ -3396,7 +3414,15 @@ async function finishAnalysis({ query, started, planning, executable, candidates
   if (execute) {
     emit({ stage: "executing" });
     try {
-      const result = await executePlan(planning.plan, planning.resolved, pool);
+      const result = await executePlan(planning.plan, planning.resolved, pool, {
+        // A layer's human name for composite diagnostics: the resolved row of
+        // a feature table describes the matched COLUMN ("Latitude").
+        attrName: (id) => {
+          const c = catalogRow(id);
+          const src = planning.resolved?.get?.(id);
+          return src?.source_kind === "feature_table" ? (c?.dataset_clean || null) : null;
+        },
+      });
       body.sql = result.sql;
       body.params = result.params;
       body.row_count = result.row_count;
@@ -3454,6 +3480,9 @@ async function finishAnalysis({ query, started, planning, executable, candidates
       // weights, alpha, permutations) and, for LISA, the class legend and
       // counts. The global statistic itself rides in `stats` with kind "moran".
       if (result.moran) body.moran = result.moran;
+      // composite (planner/composite_diagnostics.js): the score's correlation
+      // with each input, overall and rural / urban, and the units flagged.
+      if (result.components) body.components = result.components;
       // explain: the ranked factor table, the controls it used, and how many
       // counties had the outcome at all.
       if (result.mode === "factors") {
@@ -3481,6 +3510,7 @@ async function finishAnalysis({ query, started, planning, executable, candidates
           stats: l.stats ?? null,
           comparison: l.comparison ?? null,
           moran: l.moran ?? null,
+          components: l.components ?? null,
           row_count: l.row_count,
           ...(l.mode === "features"
             ? { features: l.features, tiles: l.tiles ?? null, style: l.style ?? null, endpoints: l.endpoints ?? null }
@@ -4018,7 +4048,7 @@ app.post("/api/analyze/followup", auth.requireAuth, limitSearch, async (req, res
  * Throws AnalyzeError (422) when the edit does not apply or the result is not
  * a valid plan, so both callers report it the same way.
  */
-async function executeGivenPlan({ query, plan, edit = null, resolver, started = Date.now(),
+async function executeGivenPlan({ query, plan, edit = null, resolver, started = Date.now(), fromTemplate = false,
                                   candidateIds = [], extraIds = [], decomposition = null }) {
   const ids = (Array.isArray(candidateIds) ? candidateIds : []).slice(0, 60);
   const editIds = edit ? [edit.attr_id, edit.from, edit.to].filter(Boolean) : [];
@@ -4057,7 +4087,22 @@ async function executeGivenPlan({ query, plan, edit = null, resolver, started = 
     for (const [k, v] of extra) resolved.set(k, v);
   }
 
-  const check = await validatePlan(applied.plan, resolver);
+  let check = await validatePlan(applied.plan, resolver);
+  // A count's thresholds (a paper's, or edited on the card) against each
+  // measure's range: a percent on a 0-1 fraction is converted, a number the
+  // measure never takes is refused (planner/conditions.js).
+  if (check.ok) {
+    // A plan built by code (a paper template) leaves an unusable component
+    // out, said; an edited plan whose thresholds the user typed is refused.
+    if (fromTemplate) {
+      const d = dropUnusableCountInputs(applied.plan, check.resolved);
+      for (const r of d.dropped) { console.log(`   Composite: ${r}`); applied.note = [applied.note, `Composite: ${r}.`].filter(Boolean).join(" "); }
+      if (d.dropped.length) check = await validatePlan(applied.plan, resolver);
+    }
+    const ct = check.ok ? checkCountThresholds(applied.plan, check.resolved) : { errors: [], repairs: [] };
+    for (const r of ct.repairs) { console.log(`   Threshold: ${r}`); applied.note = [applied.note, `Threshold: ${r}.`].filter(Boolean).join(" "); }
+    if (ct.errors.length) { check.ok = false; check.errors = [...(check.errors || []), ...ct.errors]; }
+  }
   if (!check.ok) {
     console.log(`   revised plan invalid: ${check.errors.join(" | ")}`);
     throw new AnalyzeError(422, {
@@ -4280,6 +4325,12 @@ app.post("/api/paper/extract", auth.requireAuth, limitAnalyze,
               log: console.log,
             });
         const card = { ...study, variables: matched.variables, matching: matched.judging };
+        // The index's own score ("combined inequity score") is computed, not
+        // matched: say so instead of calling it missing.
+        const derived = new Set(paperTemplates.derivedVariables(card));
+        // Unselected, so no other method maps the stand-in in its place; the
+        // candidates stay on the card for anyone who wants one.
+        for (const v of card.variables) if (derived.has(v.id)) { v.status = "derived"; v.selected = null; }
         const reproduction = paperTemplates.reproductionPlan(card).map(({ runs, ...m }) => ({
           ...m, runs: runs.map(r => ({ title: r.title })),
         }));
@@ -4317,6 +4368,12 @@ async function sanitizeStudy(raw) {
     id: str(v?.id || `v${i + 1}`, 10), name: str(v?.name, 120),
     role: paperLib.ROLES.includes(v?.role) ? v.role : "covariate",
     selected: typeof v?.selected === "string" && v.selected && !v.selected.startsWith("user:") ? v.selected.slice(0, 120) : null,
+    // A cut-off the paper applies (composite_index), editable on the card.
+    ...([">", ">=", "<", "<="].includes(v?.threshold?.operator) && Number.isFinite(Number(v?.threshold?.value))
+        && v.threshold.value !== null && v.threshold.value !== ""
+      ? { threshold: { operator: v.threshold.operator, value: Number(v.threshold.value), units: str(v.threshold.units, 40) } }
+      : {}),
+    ...(typeof v?.group === "string" && v.group.trim() ? { group: str(v.group.trim().toLowerCase(), 40) } : {}),
   }));
   const resolved = await resolveAttributes(variables.map(v => v.selected).filter(Boolean));
   for (const v of variables) {
@@ -4381,7 +4438,7 @@ app.post("/api/paper/reproduce", auth.requireAuth, limitAnalyze, async (req, res
           const t0 = Date.now();
           try {
             const response = await executeGivenPlan({ query: r.plan.intent, plan: r.plan,
-                                                      resolver: resolveAttributes, candidateIds });
+                                                      resolver: resolveAttributes, candidateIds, fromTemplate: true });
             runs.push({ title: r.title, plan: r.plan, response, ms: Date.now() - t0 });
             console.log(`   ${m.method_id} ${r.title}: ${response.row_count ?? 0} rows, ${Date.now() - t0} ms`);
           } catch (err) {

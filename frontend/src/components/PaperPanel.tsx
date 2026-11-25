@@ -50,6 +50,7 @@ const MATCH_CLS: Record<PaperVariable['status'], { text: string; cls: string }> 
   unchecked: { text: 'unchecked', cls: 'bg-slate-200 text-slate-700' },
   missing: { text: 'not in GeoARK', cls: 'bg-slate-200 text-slate-600' },
   out_of_area: { text: 'outside the US', cls: 'bg-slate-200 text-slate-600' },
+  derived: { text: 'computed by GeoARK', cls: 'bg-sky-100 text-sky-800' },
 };
 
 const QuoteMark: React.FC<{ quote: string | null; page: number | null }> = ({ quote, page }) =>
@@ -158,9 +159,26 @@ const PaperPanel: React.FC<Props> = ({ initialFile, onAddToCart, onReplicate, on
     void refreshPlans(next);
   };
 
+  // An index component's cut-off, as the reader corrects it: the paper's
+  // wording of a direction ("a threshold of 3218 m") is often ambiguous.
+  const setThreshold = (vid: string, t: PaperVariable['threshold'] | null) => {
+    if (!study) return;
+    const next: StudyCard = {
+      ...study,
+      variables: study.variables.map(v => {
+        if (v.id !== vid) return v;
+        const { threshold: _old, ...rest } = v;
+        return t ? { ...rest, threshold: t } : rest;
+      }),
+    };
+    setStudy(next);
+    void refreshPlans(next);
+  };
+
   const title = study?.title || file?.name.replace(PAPER_EXT, '') || 'the paper';
   const cartItems = useMemo(() => (study ? paperCartItems(study, title) : []), [study, title]);
-  const missing = study?.variables.filter(v => !v.selected) ?? [];
+  // An index's own score is computed from its parts, not brought.
+  const missing = study?.variables.filter(v => !v.selected && v.status !== 'derived') ?? [];
   const runnable = plans.filter(m => m.runs.length && chosen.has(m.method_id));
   const outside = study?.area.scope === 'outside_us';
 
@@ -303,11 +321,39 @@ const PaperPanel: React.FC<Props> = ({ initialFile, onAddToCart, onReplicate, on
             <p className="text-[11px] uppercase tracking-wide text-slate-500">{ROLE_TITLE[role]}</p>
             <ul className="divide-y divide-slate-200">
               {vs.map(v => {
-                const badge = MATCH_CLS[v.selected ? (v.status === 'missing' ? 'matched' : v.status) : (outside ? 'out_of_area' : 'missing')];
+                const badge = MATCH_CLS[v.selected ? (v.status === 'missing' || v.status === 'derived' ? 'matched' : v.status)
+                  : v.status === 'derived' ? 'derived' : (outside ? 'out_of_area' : 'missing')];
                 return (
                   <li key={v.id} className="py-1.5 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm">
                     <div className="sm:w-2/5 min-w-0">
                       <span className="text-ink">{v.name}</span> <QuoteMark quote={v.quote} page={v.page} />
+                      {(v.threshold || v.group) && (
+                        <div className="text-xs text-slate-500">
+                          {v.threshold && (
+                            <span className="inline-flex items-center gap-1"
+                                  title={v.threshold.quote ? `“${v.threshold.quote}”` : undefined}>
+                              flagged when
+                              <select value={v.threshold.operator} aria-label={`Threshold direction for ${v.name}`}
+                                      onChange={e => setThreshold(v.id, { ...v.threshold!, operator: e.target.value })}
+                                      className="text-xs bg-white border border-slate-300 rounded px-0.5">
+                                {['>', '>=', '<', '<='].map(o => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                              <input type="number" step="any" defaultValue={v.threshold.value}
+                                     aria-label={`Threshold value for ${v.name}`}
+                                     onBlur={e => {
+                                       const n = Number(e.target.value);
+                                       if (e.target.value !== '' && Number.isFinite(n) && n !== v.threshold!.value) setThreshold(v.id, { ...v.threshold!, value: n });
+                                     }}
+                                     className="w-20 text-xs bg-white border border-slate-300 rounded px-1" />
+                              {v.threshold.units && <span>{v.threshold.units}</span>}
+                              <button type="button" className="text-slate-400 hover:text-slate-600 underline"
+                                      onClick={() => setThreshold(v.id, null)}>not counted</button>
+                            </span>
+                          )}
+                          {v.threshold && v.group && ' · '}
+                          {v.group && <span>group: {v.group}</span>}
+                        </div>
+                      )}
                       {(v.measure || v.source) && (
                         <div className="text-xs text-slate-500 truncate" title={[v.measure, v.source].filter(Boolean).join(' · ')}>
                           {[v.measure, v.source && `source: ${v.source}`].filter(Boolean).join(' · ')}

@@ -448,8 +448,13 @@ const P3 = () => plan(load("s1", "POV"), load("s2", "UNINS"), near("s3"), comp("
       return plan(...ls, comp("c", ls.map(x => x.id), extra), out("o", "c"));
     };
     const th = (k) => Array.from({ length: k }, () => ({ operator: ">", value: 1 }));
-    let v = await validatePlan(many(7, {}), resolve);
+    let v = await validatePlan(many(7, { method: "sum" }), resolve);
     assert.ok(v.errors.some(e => /at most 6 measures/.test(e)), v.errors.join("; "));
+    // Unset method: passes the first validation (the method is read later),
+    // but a weighted score of 7 is refused at compile.
+    v = await validatePlan(many(7, {}), resolve);
+    assert.ok(v.ok, v.errors.join("; "));
+    assert.throws(() => compilePlan(many(7, {}), v.resolved), /at most 6 measures/);
     v = await validatePlan(many(11, { method: "count", thresholds: th(11) }), resolve);
     assert.ok(v.ok, v.errors.join("; "));
     v = await validatePlan(many(3, { method: "count" }), resolve);
@@ -486,6 +491,29 @@ const P3 = () => plan(load("s1", "POV"), load("s2", "UNINS"), near("s3"), comp("
     assert.strictEqual(p.steps[3].thresholds[0].value, 0.15);
     assert.ok(r.repairs.some(x => /read as 0.15/.test(x)));
     assert.ok(r.errors.some(e => /outside its values \(0 to 60\)/.test(e)), r.errors.join("; "));
+  });
+
+
+  await test("listedMeasureCount: longest criteria list or stated thresholds; 0 for a plain question", () => {
+    assert.strictEqual(C.listedMeasureCount("rank counties by poverty, income and unemployment"), 3);
+    const q11 = "how many of these thresholds each county meets: " +
+      Array.from({ length: 11 }, (_, i) => `measure${i} above ${i + 1}%`).join(", ");
+    assert.strictEqual(C.listedMeasureCount(q11), 11);
+    assert.strictEqual(C.listedMeasureCount("what is the poverty rate in Ohio"), 0);
+  });
+
+
+  await test("compile: a ranked composite still returns its parts, plus the full score as a diagnostic layer", async () => {
+    const p = plan(load("s1", "POV"), load("s2", "UNINS"), near("s3"), comp("s4", ["s1", "s2", "s3"]),
+      { id: "r", op: "rank", attr_id: "", inputs: ["s4"], direction: "desc", limit: 10 }, out("o", "r"));
+    const o = compilePlan(p, (await validatePlan(p, resolve)).resolved);
+    assert.strictEqual(o.outputs.filter(x => x.part && !x.diagnostic).length, 3);
+    const d = o.outputs.filter(x => x.diagnostic);
+    assert.strictEqual(d.length, 1);
+    assert.strictEqual(d[0].step, "s4");
+    assert.ok(!/LIMIT 10\b/.test(d[0].sql.split("SELECT").pop()), "the diagnostic score is not the ranked 10");
+    assert.strictEqual(o.outputs[0].composite, true);
+    for (const x of o.outputs) paramsMatch(x);
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);

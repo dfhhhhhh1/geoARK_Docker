@@ -397,6 +397,192 @@ test("no matched outcome: a method that needs one says so", () => {
   assert.ok(/outcome/.test(r.reason));
 });
 
+
+// ---------------------------------------------------------------------------
+console.log("composite index");
+
+// Made up, unlike any paper used while building this: a heat-vulnerability
+// count over two named groups, one component a distance to a facility layer
+// stated in kilometres.
+const withT = (v, operator, value, units = "percent", group = "") =>
+  ({ ...v, threshold: { operator, value, units }, ...(group ? { group } : {}) });
+const HEAT = {
+  area: { scope: "states", states: ["Oregon"] },
+  unit: { value: "county" },
+  period: null,
+  variables: [
+    { id: "v0", name: "heat vulnerability score", role: "outcome", selected: null, matches: [] },
+    withT(sel("v1", "Seniors living alone", "exposure"), ">", 12, "percent", "sensitivity"),
+    withT(sel("v2", "No air conditioning", "exposure"), ">", 25, "percent", "sensitivity"),
+    withT(sel("v3", "Tree canopy", "exposure"), "<", 20, "percent", "exposure"),
+    withT({ ...sel("v4", "L_cooling_centers", "exposure", "feature"), name: "distance to cooling center" }, ">", 8, "km", "exposure"),
+    sel("v5", "Median age", "covariate"),
+    withT({ id: "v6", name: "flood depth", role: "exposure", selected: null, matches: [] }, ">", 1, "m"),
+  ],
+  methods: [
+    { id: "m1", technique: "cumulative heat vulnerability index", family: "composite_index", applied_to: "the four factors" },
+    { id: "m2", technique: "Pearson correlation", family: "correlation", applied_to: "heat vulnerability score and each factor" },
+    { id: "m3", technique: "choropleth map", family: "map", applied_to: "heat vulnerability score" },
+    { id: "m4", technique: "Spearman correlation", family: "correlation", applied_to: "Seniors living alone and Tree canopy" },
+  ],
+};
+
+test("index: a count of thresholds over the thresholded components, with sub-scores per group", async () => {
+  const rep = Object.fromEntries(t.reproductionPlan(HEAT).map(m => [m.method_id, m]));
+  const m1 = rep.m1;
+  assert.strictEqual(m1.runs.length, 3, m1.runs.map(r => r.title).join(" | "));
+  const c = m1.runs[0].plan.steps.find(s => s.op === "composite");
+  assert.strictEqual(c.method, "count");
+  assert.strictEqual(c.inputs.length, 4);
+  assert.deepStrictEqual(c.thresholds.map(x => x.operator), [">", ">", "<", ">"]);
+  // 8 km -> miles, said.
+  assert.ok(Math.abs(c.thresholds[3].value - 4.971) < 1e-3, JSON.stringify(c.thresholds));
+  assert.ok(/8 km read as 4\.971 miles/.test(m1.reason), m1.reason);
+  // the facility layer is a distance, and the area filter is on the first input
+  assert.ok(m1.runs[0].plan.steps.some(s => s.op === "nearest_distance" && s.attr_id === "L_cooling_centers"));
+  assert.ok(m1.runs[0].plan.steps.some(s => s.op === "filter_area" && s.states[0] === "Oregon"));
+  // left out, and why
+  assert.ok(/not in GeoARK, so left out: flood depth/.test(m1.reason), m1.reason);
+  // A covariate without a threshold is a control, not a missing component.
+  assert.ok(!/Median age/.test(m1.reason), m1.reason);
+  assert.strictEqual(m1.status, "approximated");
+  for (const r of m1.runs) await mustRun(r.plan);
+});
+
+test("index: the score's correlation and map are answered by the index run; a pairwise one is not", () => {
+  const rep = Object.fromEntries(t.reproductionPlan(HEAT).map(m => [m.method_id, m]));
+  assert.strictEqual(rep.m2.answered_by, "m1");
+  assert.strictEqual(rep.m2.runs.length, 0);
+  assert.ok(/each component/.test(rep.m2.reason));
+  assert.strictEqual(rep.m3.answered_by, "m1");
+  assert.strictEqual(rep.m4.answered_by, undefined);
+  assert.ok(rep.m4.runs.length >= 1, "a correlation between two named measures still runs");
+});
+
+test("index: the score itself is derived, not missing", () => {
+  assert.deepStrictEqual(t.derivedVariables(HEAT), ["v0"]);
+  assert.deepStrictEqual(t.derivedVariables({ ...HEAT, methods: HEAT.methods.slice(1) }), []);
+});
+
+test("index: no thresholds -> an equal-weight percentile score, said; one component -> not supported", async () => {
+  const bare = { ...HEAT, variables: HEAT.variables.map(({ threshold, ...v }) => v) };
+  const m1 = t.reproductionPlan(bare).find(m => m.method_id === "m1");
+  assert.strictEqual(m1.status, "approximated");
+  assert.ok(/thresholds were not found/.test(m1.reason));
+  const c = m1.runs[0].plan.steps.find(s => s.op === "composite");
+  assert.strictEqual(c.method, "sum");
+  await mustRun(m1.runs[0].plan);
+  const one = { ...HEAT, variables: [HEAT.variables[0], HEAT.variables[1]] };
+  assert.strictEqual(t.reproductionPlan(one).find(m => m.method_id === "m1").status, "not_supported");
+});
+
+test("index: standard names file as composite_index; a correlation OF a score stays a correlation", () => {
+  assert.strictEqual(p.familyFromName("cumulative heat vulnerability index"), "composite_index");
+  assert.strictEqual(p.familyFromName("combined inequity score"), "composite_index");
+  assert.strictEqual(p.familyFromName("Social Vulnerability Index"), "composite_index");
+  assert.strictEqual(p.familyFromName("Pearson correlation of the combined score"), "correlation");
+  assert.strictEqual(p.familyFromName("Moran's I"), "moran_global");
+});
+
+test("index: a threshold is kept only when its number is in the quoted text", () => {
+  const T = ["Methods", "Tracts with more than 12% of seniors living alone were flagged.",
+             "Canopy cover was taken from the national land cover data set for each tract."].join("\n");
+  const idx = p.quoteIndex(T, [{ page: 1, start: 0, end: T.length }]);
+  const ans = { title: "", country: { name: "United States", quote: "" }, study_area: { description: "", places: [], quote: "" },
+    unit: { value: "not_stated", quote: "" }, period: { start_year: null, end_year: null, quote: "" }, methods: [],
+    variables: [
+      { name: "seniors living alone", role: "exposure", measure: "", source: "", quote: "seniors living alone",
+        threshold_operator: ">", threshold_value: 12, threshold_units: "percent",
+        threshold_quote: "Tracts with more than 12% of seniors living alone were flagged", group: "Sensitivity" },
+      { name: "canopy cover", role: "exposure", measure: "", source: "", quote: "Canopy cover was taken from the national land cover data set",
+        threshold_operator: "<", threshold_value: 30, threshold_units: "percent", threshold_quote: "", group: "" },
+    ] };
+  const s = p.mergeExtractions([ans], idx);
+  const byName = Object.fromEntries(s.variables.map(v => [v.name, v]));
+  assert.deepStrictEqual([byName["seniors living alone"].threshold.operator, byName["seniors living alone"].threshold.value], [">", 12]);
+  assert.strictEqual(byName["seniors living alone"].group, "sensitivity");
+  assert.strictEqual(byName["canopy cover"].threshold, undefined, "30 is nowhere in its quote");
+  assert.ok(s.quotes.dropped_items.some(d => d.what === "threshold" && /30/.test(d.why)));
+});
+
+
+test("index: thresholded covariates (a rural definition) are not counted; the same index named twice runs once", () => {
+  const study = { ...HEAT,
+    variables: [...HEAT.variables,
+      withT(sel("v7", "Population density", "covariate"), "<", 100, "people per square mile")],
+    methods: [...HEAT.methods, { id: "m5", technique: "combined vulnerability score", family: "composite_index", applied_to: "" }] };
+  const rep = Object.fromEntries(t.reproductionPlan(study).map(m => [m.method_id, m]));
+  const c = rep.m1.runs[0].plan.steps.find(s => s.op === "composite");
+  assert.strictEqual(c.inputs.length, 4, "density is not a component");
+  assert.ok(/covariates not counted \(controls or group definitions\): Population density/.test(rep.m1.reason), rep.m1.reason);
+  assert.strictEqual(rep.m5.answered_by, "m1");
+  assert.strictEqual(rep.m5.runs.length, 0);
+});
+
+test("index: a matched outcome that is the paper's own score is derived", () => {
+  const study = { ...HEAT, variables: [sel("v0", "heat vulnerability score", "outcome"), ...HEAT.variables.slice(1)] };
+  assert.deepStrictEqual(t.derivedVariables(study), ["v0"]);
+});
+
+test("index: a threshold in a table cell counts when it is the next cell of the variable's row", () => {
+  const T = ["Methods", "Table 1. Factors and thresholds", "Factor Threshold value",
+             "Share of renters in the tract >40%", "Share of seniors in the tract >18%",
+             "Rent burden was measured as a share of income."].join("\n");
+  const idx = p.quoteIndex(T, [{ page: 1, start: 0, end: T.length }]);
+  const v = (name, quote, value, tq) => ({ name, role: "exposure", measure: "", source: "", quote,
+    threshold_operator: ">", threshold_value: value, threshold_units: "percent", threshold_quote: tq, group: "" });
+  const ans = { title: "", country: { name: "United States", quote: "" }, study_area: { description: "", places: [], quote: "" },
+    unit: { value: "not_stated", quote: "" }, period: { start_year: null, end_year: null, quote: "" }, methods: [],
+    variables: [v("renters", "Share of renters in the tract", 40, ">40%"),
+                v("seniors", "Share of seniors in the tract", 4, ">4%"),       // 4 is not this row's cell (18)
+                v("rent burden", "Rent burden was measured as a share of income", 18, ">18%")] };  // 18 is another row's
+  const s = p.mergeExtractions([ans], idx);
+  const by = Object.fromEntries(s.variables.map(x => [x.name, x]));
+  assert.strictEqual(by.renters.threshold?.value, 40);
+  assert.strictEqual(by.seniors.threshold, undefined);
+  assert.strictEqual(by["rent burden"].threshold, undefined);
+});
+
+test("index execution: a component whose threshold cannot apply is left out, the area moves, two must remain", () => {
+  const { dropUnusableCountInputs } = require("./planner/conditions");
+  const plan = { steps: [
+    { id: "s1", op: "load", attr_id: "A", inputs: [] },
+    { id: "s2", op: "filter_area", attr_id: "", inputs: ["s1"], states: ["Oregon"] },
+    { id: "s3", op: "load", attr_id: "B", inputs: [] },
+    { id: "s4", op: "load", attr_id: "C", inputs: [] },
+    { id: "c", op: "composite", attr_id: "", inputs: ["s2", "s3", "s4"], method: "count",
+      thresholds: [{ operator: "<", value: 3.75 }, { operator: ">", value: 5 }, { operator: ">", value: 0.2 }] },
+    { id: "o", op: "output", attr_id: "", inputs: ["c"] }] };
+  const resolved = new Map([
+    ["A", { description: "Broadband share", value_range: { lo: 40, hi: 99 } }],
+    ["B", { description: "B", value_range: { lo: 0, hi: 60 } }],
+    ["C", { description: "C", value_range: { lo: 0, hi: 1 } }],
+  ]);
+  const r = dropUnusableCountInputs(plan, resolved);
+  const c = plan.steps.find(x => x.id === "c");
+  assert.strictEqual(c.inputs.length, 2);
+  assert.strictEqual(c.inputs[0], "s2", "the area filter now sits on the new first input");
+  assert.deepStrictEqual(plan.steps.find(x => x.id === "s2").inputs, ["s3"]);
+  assert.ok(!plan.steps.some(x => x.id === "s1"), "the dropped measure's load is gone");
+  assert.ok(r.dropped.some(d => /left out of the count: threshold < 3.75 on Broadband share/.test(d)), r.dropped.join(" | "));
+  assert.deepStrictEqual(c.thresholds.map(x => x.value), [5, 0.2]);
+});
+
+
+test("index: a threshold on a name that folds into another variable is kept on the one that stays", async () => {
+  const same = async () => [{ attr_id: "RENT", label: "Renter-occupied share", kind: "value" }];
+  const llm = async () => JSON.stringify({ matches: [
+    { variable: "v1", candidate: "v1c1", fit: "same" }, { variable: "v2", candidate: "v2c1", fit: "same" }] });
+  const r = await p.matchVariables([
+    { id: "v1", name: "renter share", role: "exposure" },
+    { id: "v2", name: "Share of renters in the tract", role: "exposure",
+      threshold: { operator: ">", value: 40, units: "percent", quote: "x", page: null }, group: "housing" }],
+    { search: same, callLLM: llm });
+  assert.strictEqual(r.variables.length, 1);
+  assert.strictEqual(r.variables[0].threshold?.value, 40);
+  assert.strictEqual(r.variables[0].group, "housing");
+});
+
 (async () => {
   for (const fn of pending) await fn();
   console.log(`\n${pass} passed, ${fail} failed`);

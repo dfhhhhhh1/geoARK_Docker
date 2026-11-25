@@ -48,6 +48,8 @@ const { seriesUnit } = require("./units");
 const { loadLabelInputs, splitOutputs, dropRateOverCount, earlierResultSecond,
         areaAfterAccess, totalTheDenominator, bridgeFromLoadedLayer, bridgeInputsToIntersect, restrictToEarlier, uninvertChains, orderChangeByYear, addMissingOutput, dropSelfRatio } = require("./rewire");
 const { compilePlan, CompileError, MAX_FEATURES } = require("./compile");
+const compositeDiagnostics = require("./composite_diagnostics");
+const { planLevel } = require("./levels");
 const featureTiles = require("../feature_tiles");
 const opsRegistry = require("./ops");
 
@@ -2438,6 +2440,7 @@ function shapeLayer(out, res, ms) {
     sql: out.sql, params: out.params,
     op: out.op,
     part: out.part === true,
+    ...(out.diagnostic ? { diagnostic: true } : {}),
     diverging: out.diverging,
     valueLabel: out.valueLabel,
     composite: out.composite === true,
@@ -2544,7 +2547,35 @@ async function runReach(client, q, timeoutMs) {
   }
 }
 
-async function executePlan(plan, resolved, pool, { timeoutMs = 30000 } = {}) {
+/**
+ * A readable name for a plan step: the description of the measure or layer it
+ * starts from, through single-input steps; a normalize names its numerator.
+ */
+function inputName(plan, resolved, stepId, attrName = null) {
+  const byId = new Map((plan.steps || []).map(s => [s.id, s]));
+  let st = byId.get(stepId);
+  for (let hops = 0; st && hops < 8; hops++) {
+    if (st.attr_id) {
+      const src = resolved?.get?.(st.attr_id);
+      const what = String((attrName && attrName(st.attr_id)) || src?.description || st.attr_id)
+        .replace(/\s*\(mapped locations\)\s*$/i, "");
+      if (st.op === "nearest_distance") return `distance to the nearest ${what}`;
+      if (st.op === "count_features") return `number of ${what}`;
+      const nm = st.op === "load" ? null : st.op;
+      return nm ? `${what} (${nm})` : what;
+    }
+    const first = (st.inputs || [])[0];
+    if (!first) break;
+    if (st.op === "normalize" || st.op === "combine") {
+      const a = inputName(plan, resolved, first, attrName), b = inputName(plan, resolved, st.inputs[1], attrName);
+      return st.op === "normalize" ? `${a} per ${b}` : `${a} ${st.operation || "and"} ${b}`;
+    }
+    st = byId.get(first);
+  }
+  return stepId;
+}
+
+async function executePlan(plan, resolved, pool, { timeoutMs = 30000, attrName = null } = {}) {
   const compiled = compilePlan(plan, resolved);
   const client = await pool.connect();
   try {
@@ -2619,6 +2650,17 @@ async function executePlan(plan, resolved, pool, { timeoutMs = 30000 } = {}) {
       }
       layers.push(layer);
     }
+    // Every composite answer says what drives it: the score's correlation
+    // with each input, overall and rural / urban (planner/composite_diagnostics.js).
+    // Reads the part layers above; cannot change the answer.
+    if (layers.some(l => l.composite === true && !l.part)) {
+      await compositeDiagnostics.attach({
+        client, plan, layers, level: planLevel(plan),
+        nameOf: (id) => inputName(plan, resolved, id, attrName),
+      });
+    }
+    // The full score behind a ranked composite served the diagnostics only.
+    for (let i = layers.length - 1; i >= 0; i--) if (layers[i].diagnostic) layers.splice(i, 1);
     await client.query("COMMIT");
 
     const first = layers[0];

@@ -1778,6 +1778,27 @@ Planner prompt untouched.
   `require.resolve` cannot (Node 24's can, so it passed locally).
 - Do not tune on held-out papers; there are none yet. Add them (U5) first.
 
+### Composite count, component correlations, paper indices (2026-11-24)
+
+docs/PAPER_AND_CART_INTEGRATION.md "Composite indices". `composite` method
+`count` (0..N thresholds met, up to 12 inputs; weighted stays at 6),
+`planner/composite_diagnostics.js` (every composite answer: r / rho of the
+score with each input, all / rural / urban by WorldPop density < 100 per sq
+mi), paper family `composite_index` with per-variable thresholds. Snapshot
+byte-identical; the only prompt change is composite's own line ("up to 12
+inputs when the question counts thresholds met"), which is gated.
+
+- **Validation runs before `applyComposite` sets the method**, so an op-level
+  input cap that depends on the method has to be enforced at compile.
+- **A ranked composite's layer holds only the ranked rows**; diagnostics read
+  a `diagnostic` full-score layer the executor removes before the response.
+- **New layer fields must be added to the response whitelist** (again:
+  `components`).
+- **`matchVariables` folds same-row variables** and used to drop the folded
+  one's extra fields (thresholds). Carry any new per-variable field there.
+- **Catalog broadband rows (`DP02_015xPE`, 2018) point at the wrong codes**;
+  real broadband % is `DP02_0154PE`, uncatalogued.
+
 ## Two things generated and then thrown away
 
 1. **`gen_desc`**, `attr_gen copy.py` asks the model for a one-sentence

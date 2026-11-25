@@ -111,6 +111,146 @@ function shortLabel(s) {
 const label = (v) => shortLabel(chosen(v)?.label || v?.name);
 const named = (v) => v?.name || label(v);
 
+// --- composite_index --------------------------------------------------------
+
+const MAX_INDEX_INPUTS = 12;      // planner/composite.js MAX_COUNT_INPUTS
+const MAX_WEIGHTED_INPUTS = 6;    // planner/composite.js MAX_INPUTS
+// Words that make a variable a distance to something, not a value at the unit.
+const DISTANCE_WORDS = /\b(distance|access|proximity|within|near(?:est)?|travel|miles?|km|kilomet\w*|meters?|metres?)\b/i;
+const METERS = /^(m|meters?|metres?)$/i;
+const KM = /^(km|kilomet(?:er|re)s?)$/i;
+const FEET = /^(ft|feet|foot)$/i;
+
+/** The series step for one index component: a facility layer is a distance. */
+function componentStep(v, id) {
+  const c = chosen(v);
+  if (c.kind === "raster") return null;
+  if (c.kind === "feature") {
+    const distance = DISTANCE_WORDS.test(`${v.name} ${v.measure || ""} ${v.threshold?.units || ""}`);
+    return distance
+      ? { id, op: "nearest_distance", attr_id: c.attr_id, inputs: [] }
+      : { id, op: "count_features", attr_id: c.attr_id, inputs: [] };
+  }
+  return { id, op: "load", attr_id: c.attr_id, inputs: [] };
+}
+
+/**
+ * A threshold in the units GeoARK holds: distances are miles. Returns
+ * { operator, value, note? }. A percent against a 0-1 fraction is converted
+ * at execution (conditions.checkCountThresholds), where the range is known.
+ */
+function componentThreshold(v, step) {
+  const t = v.threshold;
+  const units = String(t.units || "").trim();
+  const isDistance = step.op === "nearest_distance" || /\b(distance|miles?)\b/i.test(chosen(v).label || "");
+  const conv = isDistance && METERS.test(units) ? 1 / 1609.344
+    : isDistance && KM.test(units) ? 1 / 1.609344
+    : isDistance && FEET.test(units) ? 1 / 5280 : null;
+  if (!conv) return { operator: t.operator, value: t.value };
+  const miles = Math.round(t.value * conv * 1000) / 1000;
+  return { operator: t.operator, value: miles, note: `${named(v)}: ${t.value} ${units} read as ${miles} miles` };
+}
+
+/** One count (or weighted) composite plan over `vs`; first input carries the area. */
+function indexPlan(title, vs, area, method) {
+  const next = stepIds();
+  const steps = [], inputs = [], thresholds = [], notes = [];
+  for (const v of vs) {
+    const s = componentStep(v, next());
+    if (!s) continue;
+    steps.push(s);
+    let last = s.id;
+    if (!inputs.length) {
+      const f = areaStep(area, s.id, next());
+      if (f) { steps.push(f); last = f.id; }
+    }
+    inputs.push(last);
+    if (method === "count") {
+      const t = componentThreshold(v, s);
+      thresholds.push({ operator: t.operator, value: t.value });
+      if (t.note) notes.push(t.note);
+    }
+  }
+  const comp = { id: next(), op: "composite", attr_id: "", inputs,
+                 ...(method === "count" ? { method: "count", thresholds } : { method: "sum", standardize: "percentile" }) };
+  steps.push(comp, { id: next(), op: "output", attr_id: "", inputs: [comp.id] });
+  return { run: { title, plan: plan(title, "map", steps) }, notes };
+}
+
+/** Index components: chosen, non-raster, one per catalog measure (a threshold wins). */
+function indexComponents(variables) {
+  const byAttr = new Map();
+  for (const v of variables) {
+    const c = chosen(v);
+    if (!c || c.kind === "raster" || v.role === "outcome") continue;
+    const prev = byAttr.get(c.attr_id);
+    if (!prev || (!prev.threshold && v.threshold)) byAttr.set(c.attr_id, v);
+  }
+  // Keep the paper's order.
+  return variables.filter(v => [...byAttr.values()].includes(v));
+}
+
+function indexTemplate(method, study, notes) {
+  const variables = study.variables || [];
+  const area = study.area || {};
+  let comps = indexComponents(variables);
+  const extra = [];
+  // An index counts the paper's factors. A thresholded COVARIATE is a control
+  // or a group definition ("rural: < 100 people per square mile"), not a
+  // component, when at least two exposures carry thresholds of their own.
+  const core = comps.filter(v => v.role !== "covariate");
+  if (core.filter(v => v.threshold).length >= 2) {
+    const asides = comps.filter(v => v.role === "covariate" && v.threshold).map(named);
+    if (asides.length) extra.push(`covariates not counted (controls or group definitions): ${asides.join(", ")}`);
+    comps = core;
+  }
+  const withT = comps.filter(v => v.threshold);
+  const unmatchedT = variables.filter(v => v.threshold && !chosen(v) && v.role !== "covariate").map(named);
+  if (unmatchedT.length) extra.push(`not in GeoARK, so left out: ${unmatchedT.join(", ")}`);
+  const diag = "each run reports the score's Pearson and Spearman correlation with every component, " +
+               "for all units and for rural and urban units (fewer / at least 100 people per square mile)";
+
+  if (withT.length >= 2) {
+    const use = withT.slice(0, MAX_INDEX_INPUTS);
+    if (withT.length > use.length) extra.push(`the first ${use.length} of ${withT.length} thresholded components`);
+    const noT = comps.filter(v => !v.threshold).map(named);
+    if (noT.length) extra.push(`no stated threshold, so not counted: ${noT.join(", ")}`);
+    const runs = [];
+    const all = indexPlan(`Count of thresholds met (${use.length} components)`, use, area, "count");
+    runs.push(all.run);
+    const convNotes = [...all.notes];
+    // Sub-scores when the paper groups its components ("social", "access").
+    const groups = [...new Set(use.map(v => v.group).filter(Boolean))];
+    if (groups.length >= 2) {
+      for (const g of groups) {
+        const gv = use.filter(v => v.group === g);
+        if (gv.length < 2) continue;
+        runs.push(indexPlan(`${g[0].toUpperCase()}${g.slice(1)} score: thresholds met (${gv.length} components)`, gv, area, "count").run);
+      }
+    }
+    const thresholdsText = use.map(v => `${named(v)} ${v.threshold.operator} ${v.threshold.value}${v.threshold.units ? ` ${v.threshold.units}` : ""}`).join("; ");
+    const all3 = [...extra, ...convNotes, ...notes];
+    return {
+      status: all3.length ? "approximated" : "reproduced",
+      reason: [`count of thresholds met, one point per component (${thresholdsText})`, diag, ...all3].join("; "),
+      runs,
+    };
+  }
+  if (comps.length >= 2) {
+    const use = comps.slice(0, MAX_WEIGHTED_INPUTS);
+    const r = indexPlan(`Composite score (${use.length} components, equal weights)`, use, area, "sum");
+    const more = comps.length > use.length ? [`the first ${use.length} of ${comps.length} components`] : [];
+    return {
+      status: "approximated",
+      reason: [`equal-weight sum of percentile ranks: the paper's thresholds were not found in the text`, diag,
+               ...more, ...extra, ...notes].join("; "),
+      runs: [r.run],
+    };
+  }
+  return { status: "not_supported", runs: [],
+           reason: "fewer than two of the index's components matched a GeoARK measure" };
+}
+
 /**
  * One method -> { status, reason, runs: [{title, plan}], question?, automl? }.
  */
@@ -140,6 +280,8 @@ function templateFor(method, study) {
   };
 
   switch (method.family) {
+    case "composite_index":
+      return indexTemplate(method, study, notes);
     case "map": {
       if (!target) return needTarget();
       const next = stepIds();
@@ -358,6 +500,37 @@ function reproductionPlan(study, { methodIds = null } = {}) {
     ...(m.merged_ids ? { merged_ids: m.merged_ids } : {}),
     ...templateFor(m, study),
   }));
+  // A paper that builds an index then correlates THE SCORE with its parts and
+  // maps it. Neither is a pairwise template: the score is not a catalog
+  // measure, so targetOf guessed some other variable (it ran broadband vs
+  // race on the first such paper). The index run answers both: it is the
+  // map, and it carries the per-component correlations (all, rural, urban).
+  const index = out.find(o => o.family === "composite_index" && o.runs.length);
+  // The same index named twice ("composite index", "Composite Inequity
+  // Score") builds the same plans: run it once.
+  if (index) {
+    const key = (o) => JSON.stringify(o.runs.map(r => r.plan.steps));
+    for (const o of out) {
+      if (o === index || o.family !== "composite_index" || !o.runs.length || key(o) !== key(index)) continue;
+      Object.assign(o, { runs: [], answered_by: index.method_id, reason: `the same index as ${index.method_id}` });
+    }
+  }
+  if (index) {
+    for (const o of out) {
+      if (o === index) continue;
+      const m = methods.find(x => x.id === o.method_id) || {};
+      const aboutScore = SCORE_WORDS.test(`${o.technique} ${m.applied_to || ""}`);
+      if ((o.family === "correlation" && aboutScore) || (o.family === "map" && (aboutScore || !o.runs.length))) {
+        Object.assign(o, {
+          status: index.status === "reproduced" ? "reproduced" : "approximated",
+          runs: [], answered_by: index.method_id,
+          reason: o.family === "correlation"
+            ? `with ${index.method_id}: the score's Pearson and Spearman correlation with each component, for all units and rural / urban`
+            : `with ${index.method_id}: its run maps the score`,
+        });
+      }
+    }
+  }
   // A paper that maps its outcome rarely names it as a method; the map is
   // the first thing a reader of a reproduction wants to see.
   if (!out.some(o => o.family === "map") && (!wanted || wanted.has("m0"))) {
@@ -373,4 +546,22 @@ function reproductionPlan(study, { methodIds = null } = {}) {
   return out;
 }
 
-module.exports = { templateFor, reproductionPlan, targetOf, chosen };
+const SCORE_WORDS = /\b(scores?|index|indices|indexes|composite|combined|accumulated|cumulative|summed)\b/i;
+
+/**
+ * Outcome variables that ARE the index the paper builds ("combined inequity
+ * score"): no catalog row can match them, and none should. They are computed
+ * by the composite_index run. Returns variable ids.
+ */
+function derivedVariables(study) {
+  const hasIndex = (study.methods || []).some(m => m.family === "composite_index");
+  if (!hasIndex) return [];
+  // A matched outcome counts too: the matcher offers a published index (a
+  // risk index's vulnerability score) as a "stand-in" for the paper's own,
+  // which is what the paper computed, not what it loaded.
+  return (study.variables || [])
+    .filter(v => SCORE_WORDS.test(v.name || "") && (v.role === "outcome" || !chosen(v)))
+    .map(v => v.id);
+}
+
+module.exports = { templateFor, reproductionPlan, targetOf, chosen, derivedVariables, indexComponents };

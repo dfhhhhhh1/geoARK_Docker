@@ -98,6 +98,18 @@ function criteriaLists(query) {
  * "Composite" alone is not enough: "FEMA's composite risk value" names a
  * published measure, and a published index is loaded, never rebuilt.
  */
+/**
+ * How many measures a question lists: the longest criteria list, or the number
+ * of stated thresholds ("poverty above 15%, ..., no vehicle above 15%"),
+ * whichever is larger. 0 when it lists none. Used to size retrieval.
+ */
+function listedMeasureCount(query) {
+  const q = String(query || "");
+  if (!q) return 0;
+  const longest = criteriaLists(q).reduce((n, l) => Math.max(n, l.length), 0);
+  return Math.max(longest, statedThresholds(q).length);
+}
+
 function asksComposite(query) {
   const q = String(query || "");
   if (!q) return false;
@@ -893,7 +905,7 @@ function compositeValueLabel(step) {
 
 module.exports = {
   MAX_INPUTS, MAX_COUNT_INPUTS, METHODS, STANDARDIZE, DIRECTIONS,
-  readThresholds, statedThresholds, foldFilterThresholds,
+  readThresholds, statedThresholds, foldFilterThresholds, listedMeasureCount,
   asksComposite, criteriaLists,
   describeInputs, groundText, readWeights, ahpWeights, readDirections, readMethod, readStandardize,
   scoreWithinArea, restrictToNamedArea, ranksAroundComposite, intersectAsComposite, applyComposite, describeComposite, compositeValueLabel,

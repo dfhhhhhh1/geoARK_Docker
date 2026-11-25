@@ -67,7 +67,8 @@ module.exports = {
 
   enumComment: "one score per county from 2 to 6 measures",
   promptLine: `  composite    2 to 6 inputs, one per measure      -> one score per county from several
-                 measures (weights and direction are set for you)`,
+                 measures (weights and direction are set for you); up to 12
+                 inputs when the question counts thresholds met`,
   // "High on all of A, B and C" with a SCORE is the bottleneck composite, not
   // three conditions: dev r2 planned rank x3 -> intersect for it while the
   // question asked for "the lowest of its three percentile ranks".
@@ -121,7 +122,11 @@ PLAN: {"intent":"Composite of unemployment, uninsured adults and distance to the
     if (step.standardize !== undefined && !C.STANDARDIZE.includes(step.standardize)) {
       errs.push(`step "${step.id}" (composite): standardize must be one of ${C.STANDARDIZE.join(", ")}`);
     }
-    if (n > C.MAX_INPUTS && step.method !== "count") {
+    // An unset method is allowed past MAX_INPUTS: the method is read from the
+    // question AFTER this first validation (applyComposite), and a count may
+    // take up to MAX_COUNT_INPUTS. compile() refuses a weighted score that
+    // still has more than MAX_INPUTS once the method is settled.
+    if (n > C.MAX_INPUTS && step.method !== undefined && step.method !== "count") {
       errs.push(`step "${step.id}" (composite): a weighted score takes at most ${C.MAX_INPUTS} measures, got ${n}; ` +
                 `only a count of thresholds met (method "count") takes up to ${C.MAX_COUNT_INPUTS}`);
     }
@@ -146,6 +151,10 @@ PLAN: {"intent":"Composite of unemployment, uninsured adults and distance to the
     const n = ins.length;
     if (n < 2) throw new CompileError("composite needs at least two inputs");
     if (step.method === "count") return compileCount(step, ctx, ins);
+    if (n > C.MAX_INPUTS) {
+      throw new CompileError(`a weighted score takes at most ${C.MAX_INPUTS} measures, got ${n}; ` +
+        `a count of thresholds met takes up to ${C.MAX_COUNT_INPUTS}, with a threshold stated for every measure`);
+    }
     const std = step.standardize || "percentile";
     const method = step.method || "sum";
     const dirs = step.directions || new Array(n).fill("high");

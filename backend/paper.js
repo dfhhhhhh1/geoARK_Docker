@@ -41,6 +41,8 @@ const MAX_VARIABLES = 45;
 const MAX_METHODS = 12;
 const MIN_QUOTE = 16;     // letters+digits; shorter quotes match by accident
 const MIN_SHORT_QUOTE = 6; // a variable's table cell, matched as a whole phrase
+// How far past a variable's quote its table row is read for the threshold cell.
+const TABLE_ROW_CHARS = 16;
 
 class PaperError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -371,6 +373,7 @@ const FAMILY_TEXT = {
   machine_learning: "machine learning or deep learning models: random forest, gradient boosting / XGBoost, SVM, neural network, decision tree, SHAP",
   time_series: "time-series models or forecasting: ARIMA, SARIMA, ETS, exponential smoothing, joinpoint, trend models",
   outlier: "finding outlying values, non-spatially (boxplot, IQR, z-score)",
+  composite_index: "building ONE score or index per unit from several measures: an accumulated / cumulative score that counts how many measures pass their thresholds, a deprivation, vulnerability or inequity index, a weighted or standardized sum of indicators",
   preprocessing: "data preparation, not an analysis: imputation, scaling / normalisation, VIF or multicollinearity screening, outlier screening before modelling, train/test split",
   other: "an analysis that fits none of the above",
 };
@@ -390,6 +393,11 @@ const KNOWN_TECHNIQUES = [
   [/\b(random forest|xgboost|gradient boost|lightgbm|catboost|neural network|\bann\b|deep learning|support vector|\bsvm\b|decision tree|shap\b|shapley|k-?nearest neighbou?r (classifier|regression)|machine learning)/i, "machine_learning"],
   [/\b(two[- ]step floating catchment|2sfca|e2sfca|travel time|network distance|nearest (facility|hospital|provider))/i, "access"],
   [/\b(variance inflation|\bvif\b|imputation|min[- ]?max|normali[sz]ation|standardi[sz]ation|train(ing)?[ /-]+test split|multicollinearity)/i, "preprocessing"],
+  // Building one score from several measures. Before correlation: "a
+  // correlation of the combined inequity score" names a correlation, which
+  // the pattern above it does not reach, but "combined inequity score" alone
+  // is the index.
+  [/^(?!.*\bcorrelat)(?:.*\b(?:accumulat\w*|cumulative|combined|composite|summed|additive)\s+(?:\w+\s+){0,2}?(?:scores?|index|indices)\b|.*\b(?:deprivation|vulnerability|inequity|disadvantage|hardship|equity)\s+(?:scores?|index|indices)\b|.*\b(?:sum|count)\s+of\s+(?:binary|indicator|threshold)\w*)/i, "composite_index"],
   [/\b(pearson|spearman)\b.*\bcorrelation|\bcorrelation (coefficient|analysis)\b/i, "correlation"],
   [/\b(t-test|mann[- ]whitney|kruskal|wilcoxon|anova|chi[- ]square)/i, "group_comparison"],
   [/\b(negative binomial|poisson|logistic|linear|ols|ordinary least squares|multilevel|mixed[- ]effects?|hierarchical) (regression|model)/i, "regression"],
@@ -405,6 +413,9 @@ function familyFromName(technique) {
 
 const UNITS = ["county", "tract", "block_group", "zip", "state", "city", "point", "grid", "individual", "other", "not_stated"];
 const ROLES = ["outcome", "exposure", "covariate"];
+// A cut-off the paper applies to a variable ("> 5%", "within 2 miles"), as it
+// states it; "none" when it states none.
+const THRESHOLD_OPERATORS = [">", ">=", "<", "<=", "none"];
 
 const EXTRACTION_SCHEMA = {
   type: "object",
@@ -436,8 +447,14 @@ const EXTRACTION_SCHEMA = {
           measure: { type: "string" },
           source: { type: "string" },
           quote: { type: "string" },
+          threshold_operator: { type: "string", enum: THRESHOLD_OPERATORS },
+          threshold_value: { type: ["number", "null"] },
+          threshold_units: { type: "string" },
+          threshold_quote: { type: "string" },
+          group: { type: "string" },
         },
-        required: ["name", "role", "measure", "source", "quote"],
+        required: ["name", "role", "measure", "source", "quote",
+                   "threshold_operator", "threshold_value", "threshold_units", "threshold_quote", "group"],
       },
     },
     methods: {
@@ -474,6 +491,8 @@ Rules:
   - name: a short generic name ("adult obesity prevalence", "median household income").
   - measure: how it is expressed if stated ("age-adjusted rate per 100,000", "percent of adults"), else "".
   - source: the dataset or agency it came from if stated ("CDC WONDER", "American Community Survey"), else "".
+  - threshold_operator, threshold_value, threshold_units, threshold_quote: ONLY when the paper applies a cut-off to this variable (a unit counts as having the factor above or below it, e.g. "> 30%", "more than 2 miles", "< 3.75"): the operator as the paper states the direction a unit is flagged, the number exactly as written, its units ("percent", "miles", "meters", "count", ...), and the exact text that states it (a table cell is fine). Otherwise "none", null, "" and "".
+  - group: when the paper sorts its variables into named sets that are scored or summed separately ("social", "access", "environmental"), the set's name; else "".
 - methods: each analysis technique the paper APPLIED (not ones it only mentions as background or future work).
   - technique: the paper's own name for it.
   - family: the closest category:
@@ -626,6 +645,45 @@ function mergeExtractions(answers, index) {
   const period = firstValid("period", v => `${v.start_year}-${v.end_year}`,
     v => Number.isInteger(v.start_year) || Number.isInteger(v.end_year));
 
+  // A variable's cut-off counts only if its number is in the text the model
+  // quoted for it (the threshold's own quote, checked like every quote, or
+  // the variable's): an invented "> 20%" is dropped and counted.
+  const numberWords = (x) => ` ${wordsOf(String(x).replace(/\.0+$/, ""))} `;
+  const verifyThreshold = (v, ownQuote) => {
+    const op = v?.threshold_operator;
+    const value = numOrNull(v?.threshold_value);
+    if (!op || op === "none" || !THRESHOLD_OPERATORS.includes(op) || value === null) return null;
+    const tq = clean(v.threshold_quote, 400);
+    let quote = null, page = null;
+    if (tq) {
+      checked++;
+      const r = checkQuote(index, tq, { short: true });
+      if (r.ok) { quote = tq; page = r.page; }
+      else dropped.push({ what: "threshold", item: clean(v.name, 80), quote: clean(tq, 160), why: r.why });
+    }
+    // A table cell (">5%") is too short to check on its own. It counts when
+    // its number is the next thing after the variable's own verified quote,
+    // i.e. the next cell of the same table row.
+    if (!quote && tq && ownQuote) {
+      // On word bounds: squashed text runs ">20%" into the next page number
+      // ("20798"), the word index keeps "20 798" apart.
+      const own = ` ${wordsOf(ownQuote)} `;
+      const at = own.trim() ? index.words.indexOf(own) : -1;
+      const next = at >= 0 ? index.words.slice(at + own.length - 1, at + own.length - 1 + TABLE_ROW_CHARS) : "";
+      // The cell is the next word(s) of the row (">5%" is the word "5").
+      if (at >= 0 && next.startsWith(numberWords(value))) {
+        return { operator: op, value, units: clean(v.threshold_units, 40).toLowerCase(), quote: `${ownQuote} ${tq}`, page: null };
+      }
+    }
+    const where = quote || ownQuote;
+    if (!where || !` ${wordsOf(where)} `.includes(numberWords(value))) {
+      if (quote || ownQuote) dropped.push({ what: "threshold", item: clean(v.name, 80), quote: clean(where, 160),
+                                             why: `the number ${value} is not in the quoted text` });
+      return null;
+    }
+    return { operator: op, value, units: clean(v.threshold_units, 40).toLowerCase(), quote: where, page };
+  };
+
   const variables = [];
   const byName = new Map();
   for (const a of answers) {
@@ -642,9 +700,17 @@ function mergeExtractions(answers, index) {
         if (ROLE_RANK[v.role] < ROLE_RANK[prev.role]) prev.role = v.role;
         if (!prev.measure && v.measure) prev.measure = clean(v.measure, 160);
         if (!prev.source && v.source) prev.source = clean(v.source, 160);
+        if (!prev.threshold) {
+          const t = verifyThreshold(v, q.quote);
+          if (t) prev.threshold = t;
+        }
+        if (!prev.group && clean(v.group, 40)) prev.group = clean(v.group, 40).toLowerCase();
         continue;
       }
-      const row = { name, role: v.role, measure: clean(v.measure, 160), source: clean(v.source, 160), ...q };
+      const threshold = verifyThreshold(v, q.quote);
+      const group = clean(v.group, 40).toLowerCase();
+      const row = { name, role: v.role, measure: clean(v.measure, 160), source: clean(v.source, 160), ...q,
+                    ...(threshold ? { threshold } : {}), ...(group ? { group } : {}) };
       byName.set(k, row);
       variables.push(row);
     }
@@ -849,7 +915,14 @@ function collapseSameRow(vars) {
   const out = [];
   for (const v of vars.slice().sort((a, b) => ROLE_RANK[a.role] - ROLE_RANK[b.role])) {
     const h = v.selected ? holder.get(v.selected) : null;
-    if (h) { (h.aliases ||= []).push(v.name); continue; }
+    if (h) {
+      (h.aliases ||= []).push(v.name);
+      // A threshold quoted on one of the names (a table row) belongs to the
+      // variable it folds into: it was lost here (2026-11-24, 6 of 7).
+      if (!h.threshold && v.threshold) h.threshold = v.threshold;
+      if (!h.group && v.group) h.group = v.group;
+      continue;
+    }
     if (v.selected) holder.set(v.selected, v);
     out.push(v);
   }

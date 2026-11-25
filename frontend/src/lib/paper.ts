@@ -11,7 +11,7 @@ import type { CartItem } from './cart';
  */
 
 export type VariableRole = 'outcome' | 'exposure' | 'covariate';
-export type MatchStatus = 'matched' | 'proxy' | 'missing' | 'unchecked' | 'out_of_area';
+export type MatchStatus = 'matched' | 'proxy' | 'missing' | 'unchecked' | 'out_of_area' | 'derived';
 export type MethodStatus = 'reproduced' | 'approximated' | 'ask' | 'automl' | 'not_supported' | 'failed';
 
 export interface Quoted { quote: string | null; page: number | null }
@@ -36,6 +36,10 @@ export interface PaperVariable extends Quoted {
   selected: string | null;
   fit: 'same' | 'proxy' | 'none' | null;
   status: MatchStatus;
+  /** A cut-off the paper applies to it (an index component), quoted. */
+  threshold?: { operator: string; value: number; units: string; quote?: string | null; page?: number | null };
+  /** The named set it belongs to when the paper scores sets separately. */
+  group?: string;
 }
 
 export interface PaperMethod extends Quoted {
@@ -82,6 +86,8 @@ export interface MethodPlan {
   runs: { title: string }[];
   question?: string | null;
   automl?: { target: string; features: string[] };
+  /** Answered by another method's run (an index's score correlations and map). */
+  answered_by?: string;
 }
 
 export interface ExtractResponse {

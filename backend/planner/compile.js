@@ -246,8 +246,21 @@ function compilePlan(plan, resolved) {
   const SHOW_PARTS = new Set(["combine", "normalize", "composite"]);
   const explicit = new Set(outputSteps.map(o => (o.inputs || [])[0]).filter(Boolean));
   const derived = [];
+  // A composite behind row-subset ops ("the 10 most vulnerable") still shows
+  // its inputs, and its FULL score comes back as a `diagnostic` layer: the
+  // per-component correlations (planner/composite_diagnostics.js) need every
+  // scored unit, not the ranked 10. The executor drops that layer after use.
   for (const out of outputSteps) {
-    const src = byId.get((out.inputs || [])[0]);
+    let src = byId.get((out.inputs || [])[0]);
+    if (src && !SHOW_PARTS.has(src.op)) {
+      let v = src;
+      while (v && ROW_SUBSET.has(v.op)) v = byId.get((v.inputs || [])[0]);
+      if (v && v.op === "composite" && !explicit.has(v.id)) {
+        explicit.add(v.id);
+        derived.push({ id: `${out.id}_score_${v.id}`, inputs: [v.id], part: true, diagnostic: true });
+        src = v;
+      }
+    }
     if (!src || !SHOW_PARTS.has(src.op)) continue;
     for (const partId of src.inputs || []) {
       const part = byId.get(partId);
@@ -425,6 +438,7 @@ function compilePlan(plan, resolved) {
       // True for a layer the compiler added to show a combine's inputs, so the
       // UI can label it as a component rather than as the answer.
       part: out.part === true,
+      diagnostic: out.diagnostic === true ? true : undefined,
       // How the layer should be READ, declared by the op that produced it.
       // hotspot and outlier emit values signed around zero, and drawing those
       // on the sequential ramp would paint a cold spot and a hot spot as two

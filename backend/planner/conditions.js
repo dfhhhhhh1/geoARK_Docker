@@ -263,6 +263,54 @@ function checkCountThresholds(plan, resolved) {
 }
 
 /**
+ * For a plan built by code rather than by the question (a paper template):
+ * a count component whose threshold cannot apply to the measure it matched
+ * (a provider count of "< 3.75" against a percentage) is LEFT OUT of the
+ * count, said, instead of failing the whole score, as long as two remain.
+ * The area restriction rides on the first input and is moved with it.
+ * Returns { dropped: [reason], errors: [] } and edits the plan in place.
+ */
+function dropUnusableCountInputs(plan, resolved) {
+  const dropped = [], errors = [];
+  for (const st of plan.steps || []) {
+    if (st.op !== "composite" || st.method !== "count") continue;
+    const { errors: errs, repairs } = checkCountThresholds({ steps: plan.steps }, resolved);
+    const bad = new Set();
+    (st.inputs || []).forEach((id, i) => {
+      const e = errs.find(x => x.includes(`step "${st.id}"`) && x.includes(`threshold ${st.thresholds[i].operator} ${st.thresholds[i].value} on`));
+      if (e) bad.add(i);
+    });
+    if (!bad.size) continue;
+    const keep = (st.inputs || []).map((_, i) => i).filter(i => !bad.has(i));
+    if (keep.length < 2) { errors.push(...errs); continue; }
+    const byId = new Map(plan.steps.map(s => [s.id, s]));
+    const firstChain = [];
+    for (let s = byId.get(st.inputs[0]); s; s = byId.get((s.inputs || [])[0])) firstChain.push(s);
+    const area = firstChain.find(s => s.op === "filter_area" || s.op === "filter_place");
+    for (const i of bad) dropped.push(errs.find(x => x.includes(`threshold ${st.thresholds[i].operator} ${st.thresholds[i].value} on`))
+      .replace(/^step "[^"]+" \(composite count\): /, "left out of the count: "));
+    const pick = (arr) => (Array.isArray(arr) ? keep.map(i => arr[i]) : arr);
+    st.inputs = pick(st.inputs); st.thresholds = pick(st.thresholds);
+    st.directions = pick(st.directions); st.weights = pick(st.weights);
+    if (area && bad.has(0) && !st.inputs.some(id => id === area.id)) {
+      area.inputs = [st.inputs[0]];
+      st.inputs[0] = area.id;
+    }
+    for (const r of repairs) dropped.push(r);
+  }
+  // Steps only a dropped input read.
+  const byId = new Map(plan.steps.map(s => [s.id, s]));
+  const live = new Set(), stack = plan.steps.filter(s => s.op === "output").map(s => s.id);
+  while (stack.length) {
+    const id = stack.pop();
+    if (live.has(id) || !byId.has(id)) continue;
+    live.add(id); stack.push(...(byId.get(id).inputs || []));
+  }
+  if (live.size) plan.steps = plan.steps.filter(s => live.has(s.id));
+  return { dropped, errors };
+}
+
+/**
  * How a filtered input should be named in a comparison: "South", "Northeast",
  * "nonmetropolitan (rural)". Derived from the plan, never from model text.
  */
@@ -310,6 +358,6 @@ const ordinal = (n) => {
 module.exports = {
   RELATIVE_PHRASES, COMPARISON_PHRASES, GROUP_COMPARISON, TIME_PHRASES, CHANGE_PHRASES,
   COMPLEMENT_PHRASES, LAYER_PHRASES,
-  statesCondition, sourceLoad, derefDefinitions, checkThresholds, checkCountThresholds, describeGroup,
+  statesCondition, sourceLoad, derefDefinitions, checkThresholds, checkCountThresholds, dropUnusableCountInputs, describeGroup,
   ordinal,
 };

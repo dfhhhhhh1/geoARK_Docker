@@ -187,6 +187,8 @@ export interface AnalysisLayer {
   value_label?: string | null;
   /** moran: what was computed; LISA layers carry their class legend. */
   moran?: MoranInfo | null;
+  /** composite: the score's correlation with each input (all / rural / urban). */
+  components?: CompositeDiagnostics | null;
   stats?: CorrelationStats | MoranStats | null;
   row_count: number;
   rows?: AnalysisRow[];
@@ -536,6 +538,8 @@ export interface AnalysisResponse {
   stats?: CorrelationStats | MoranStats | null;
   /** moran: what was computed; LISA results carry their class legend. */
   moran?: MoranInfo | null;
+  /** composite: the score's correlation with each input (all / rural / urban). */
+  components?: CompositeDiagnostics | null;
   /** How each attribute the plan uses relates to the question. */
   relevance?: RelevanceVerdict[] | null;
   /** Present when the result is a ranked factor table (explain). */
@@ -745,4 +749,28 @@ export interface UserSeries {
   matched: number;
   /** A few FIPS codes that are not, for the upload summary. */
   unmatched: string[];
+}
+
+/** backend planner/composite_diagnostics.js */
+export interface CompositeStratumStats {
+  n: number;
+  pearson: number | null;
+  spearman: number | null;
+  /** count method only: units past the threshold */
+  flagged?: number;
+}
+export interface CompositeComponent {
+  step: string;
+  name: string;
+  threshold?: { operator: string; value: number };
+  direction?: 'high' | 'low';
+  weight?: number;
+  by: Record<string, CompositeStratumStats>;
+}
+export interface CompositeDiagnostics {
+  method?: string;
+  rural_rule?: string | null;
+  strata?: { name: string; label: string; n: number; mean_score: number | null }[];
+  components?: CompositeComponent[];
+  error?: string;
 }

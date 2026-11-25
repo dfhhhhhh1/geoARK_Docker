@@ -413,3 +413,72 @@ half held out, and that is the next step before any further tuning.
   the side-by-side in the plan's P4 method summary is not built.
 - An aborted upload still runs to completion on the server once it has left
   the queue (the queue only skips jobs abandoned while waiting).
+
+## Composite indices: count of thresholds, component correlations (2026-11-24)
+
+First dev paper of this shape: Khairat et al. 2019, JAMIA 26(8-9) 796-805
+(telehealth reach vs an 11-factor accumulated inequity score, NC ZIP codes).
+It builds ONE score per unit by counting factors past published thresholds
+(Table 1: American Indian > 5%, Black > 30%, poverty > 15%, ...; access:
+2 mi, 5 km, < 3.75 providers, > 15% no vehicle), then correlates the score
+with each factor, statewide and rural. Nothing here names that paper; the
+test fixtures are a made-up heat-vulnerability index.
+
+What is new, for chat and for paper upload alike:
+
+- **`composite` method `count`** (planner/composite.js, ops/composite.js):
+  0..N flags on raw values, `thresholds[i] = {operator, value}`. A unit
+  below every threshold scores 0; it is not dropped (a threshold filter the
+  model put on an input is folded into the flag). Up to 12 inputs; a
+  weighted score keeps its cap of 6 (checked at compile once the method is
+  read, because validation runs before applyComposite). Thresholds read from
+  the question get filter_attr's scale check (`checkCountThresholds`).
+- **Every composite answer carries `components`** (planner/composite_diagnostics.js):
+  Pearson and Spearman of the score with each input's raw value, flags per
+  input, mean score, for all units and rural / urban (< 100 people per sq mi
+  of land, WorldPop / aland, so it works at any level). A ranked composite
+  returns its full score as an internal `diagnostic` layer so the
+  correlations use every scored unit, not the top 10. UI: `CompositeCard`.
+- **Retrieval scales with the measures a question lists** (> 6:
+  budget 15 x (n+2) up to 200, primary slots 2n+2 up to 30). At the fixed
+  60 / 10, 4 of 11 factors got no candidate.
+- **Paper extraction**: family `composite_index`; per-variable
+  `threshold` (operator, value, units, quote) and `group`. A threshold counts
+  only if its number is in its quote, or, for a table cell (">5%", too short
+  to check), if it is the next word after the variable's own verified quote.
+- **Template** (paper_templates.js `indexTemplate`): a count plan over the
+  thresholded exposures (covariates are controls or group definitions, e.g.
+  "rural: < 100 people per sq mi"), a sub-score per group, distances in km / m
+  / ft converted to miles. The score's correlation and map methods are
+  answered by the index run (`answered_by`); duplicate index methods run once;
+  the paper's own scores are `derived`, not matched (the matcher offered the
+  National Risk Index's vulnerability score as a "proxy" for them). A
+  component whose threshold cannot apply to the measure it matched is left
+  out of the count, said, when two remain (`dropUnusableCountInputs`).
+- **nginx `/api/paper/` timeout 1200 s.** Extraction took 440-552 s on
+  qwen3.8:27b; at the old 300 s the browser got a 504 while the API finished.
+
+Measured:
+
+| | |
+|---|---|
+| 11-factor NC county score from a fixed plan (hand-picked measures) | means statewide 4.13 / rural 5.74 / urban 2.97 (paper, ZIP: 4.30 / 5.17 / 2.52); r with each factor, same signs as the paper's statewide column |
+| same question typed in chat | plans ~11 factors, refused by the named-data check: SNAP "no people 60+" chosen for "60+", hospital distance answered with EMS, female-householder SNAP and roads dropped. Measure choice, not the method |
+| 5-factor MO count in chat | 115 counties 0-5, rural mean 1.66 vs urban 0.67, 80 s |
+| weighted OH index, ranked | components over all 88 counties |
+
+Traps found on the way:
+
+- **Catalog broadband labels point at the wrong 2018 codes.** `DP02_0152PE`
+  ("% with broadband") holds household counts; in 2018 `DP02_0152` is total
+  households, `0153` with a computer, `0154` with broadband, and
+  `DP02_0154PE` has no catalog row. Not fixed here.
+- **`matchVariables` folded a variable into another that matched the same
+  row and dropped its threshold** (6 of 7 Table 1 thresholds lost). Now carried.
+- **Squashed text joins a table cell to the page number** (">20%" + "798"),
+  so table-row checks use the word index.
+- **A density query inside the answer's READ ONLY transaction must be under a
+  savepoint**, or its failure aborts the answer at COMMIT.
+- The paper's access thresholds are worded without a direction ("a threshold
+  of 3218 m"); the model read them as "<". The card's threshold is editable
+  (operator, value, "not counted") for that reason.

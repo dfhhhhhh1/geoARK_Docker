@@ -9,6 +9,7 @@ import AnalysisReport from './AnalysisReport';
 import AmbiguityNotice from './AmbiguityNotice';
 import CorrelationCard from './CorrelationCard';
 import MoranCard from './MoranCard';
+import CompositeCard from './CompositeCard';
 import ComparisonCard from './ComparisonCard';
 import FactorTable from './FactorTable';
 import CountyTable from './CountyTable';
@@ -227,6 +228,13 @@ const ResultBlock: React.FC<Props> = ({
             </div>
           )}
           {isMoranGlobal && <div className="mb-4"><MoranCard result={result} /></div>}
+          {/* composite: which inputs carry the score (all / rural / urban). */}
+          {result.components && !result.components.error && (
+            <div className="mb-4">
+              <CompositeCard diagnostics={result.components}
+                             unit={result.level && result.level !== 'county' ? 'units' : 'counties'} />
+            </div>
+          )}
           {isStatistic ? (
             <CorrelationCard result={result} />
           ) : isScalar ? (
